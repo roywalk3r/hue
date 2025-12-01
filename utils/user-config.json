@@ -1,0 +1,20 @@
+{
+  "defaultProviders": [],
+  "configVersion": 1,
+  "tmdbApiKeys": [],
+  "enableShowboxProvider": true,
+  "febboxCookies": [],
+  "enable4khdhubProvider": true,
+  "enableMoviesmodProvider": true,
+  "enableMp4hydraProvider": true,
+  "enableVidzeeProvider": true,
+  "enableVixsrcProvider": true,
+  "enableProxy": true,
+  "disableCache": false,
+  "enablePStreamApi": true,
+  "disableUrlValidation": false,
+  "disable4khdhubUrlValidation": false,
+  "excludeCodecsRaw": "{\"excludeDV\":false,\"excludeHDR\":false}",
+  "minQualitiesRaw": "all",
+  "port": 8787
+}

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Stream Player Lab</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/player.css">
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+</head>
+<body class="player-body">
+  <div class="glow glow-a"></div>
+  <div class="glow glow-b"></div>
+  <div class="player-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">TMDB Embed API helper</p>
+        <h1>Stream Player Lab</h1>
+        <p class="lede">Drop a TMDB id or raw JSON response, decode VidZee tokens, and test playback with an HLS-capable player.</p>
+      </div>
+      <div class="chip chip-soft">beta</div>
+    </header>
+
+    <main class="layout">
+      <section class="panel video-panel">
+        <div class="video-frame">
+          <video id="video" controls playsinline poster="" preload="metadata"></video>
+          <div id="watermark">Stream Player Lab</div>
+        </div>
+        <div class="now-playing" id="nowPlaying">Nothing loaded</div>
+        <div class="pill-row" id="pillRow"></div>
+        <div class="note" id="headerNote">Streams that demand Referer or User-Agent headers work best with the API proxy enabled.</div>
+      </section>
+
+      <section class="panel control-panel">
+        <form id="apiForm" class="stack">
+          <div class="field">
+            <label for="apiBase">API base</label>
+            <input id="apiBase" type="text" inputmode="url" autocomplete="off">
+            <p class="hint">Example: http://localhost:8787 (we append /api/streams/... for you).</p>
+          </div>
+          <div class="toggle-row">
+            <label class="toggle">
+              <input id="useProxy" type="checkbox" checked>
+              <span>Use local proxy for remote URLs or streams that need headers</span>
+            </label>
+            <p class="hint">Requires enableProxy=true on the API. Helps bypass CORS and applies Referer/User-Agent for upstreams.</p>
+            <p class="hint warning" id="proxyWarn" style="display:none;">Proxy is disabled on the server. Enable it in the admin panel or leave this off.</p>
+          </div>
+          <div class="grid">
+            <label class="field">
+              <span>Type</span>
+              <select id="mediaType">
+                <option value="movie">movie</option>
+                <option value="tv">Tv</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>TMDB ID</span>
+              <input id="tmdbId" type="text" inputmode="numeric" required>
+            </label>
+            <label class="field">
+              <span>Season (tv)</span>
+              <input id="season" type="text" inputmode="numeric" placeholder="optional">
+            </label>
+            <label class="field">
+              <span>Episode (tv)</span>
+              <input id="episode" type="text" inputmode="numeric" placeholder="optional">
+            </label>
+          </div>
+          <div class="actions">
+            <button class="btn primary" type="submit">Fetch streams</button>
+            <button class="btn ghost" type="button" id="loadSample">Load sample JSON</button>
+          </div>
+          <div class="status" id="fetchStatus"></div>
+        </form>
+
+        <div class="divider"></div>
+
+        <form id="jsonForm" class="stack">
+          <div class="field">
+            <label for="jsonInput">Paste API response JSON</label>
+            <textarea id="jsonInput" spellcheck="false" rows="8" placeholder='{"streams": [...]}'></textarea>
+          </div>
+          <div class="actions">
+            <button class="btn secondary" type="submit">Use JSON</button>
+            <button class="btn ghost" type="button" id="clearJson">Clear</button>
+          </div>
+        </form>
+
+        <div class="stream-section">
+          <div class="stream-header">
+            <div>
+              <p class="eyebrow">Streams</p>
+              <h2 id="streamCount">0 available</h2>
+            </div>
+            <div class="chip" id="timingChip">-</div>
+          </div>
+          <div class="stream-list" id="streamList">
+            <p class="muted">Fetch streams to see options.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="/player.js" defer></script>
+</body>
+</html>
