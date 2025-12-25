@@ -10,21 +10,93 @@ function decodeVidZeeToken(token, debug) {
     try {
         if (typeof token !== 'string') return null;
         if (/^https?:\/\//i.test(token)) return null; // already a URL
-        // Expect pattern base64:base64 (iv:cipher)
-        const raw = Buffer.from(token, 'base64').toString('utf8');
+        
+        // Normalize base64 first (handle URL-safe base64 as well)
+        let normalized = token.replace(/-/g, '+').replace(/_/g, '/');
+        normalized = normalized.replace(/[^A-Za-z0-9+/=]/g, '');
+        const pad = normalized.length % 4;
+        const fixed = pad ? normalized + '='.repeat(4 - pad) : normalized;
+
+        let raw;
+        let buffer;
+        
+        try {
+            // First get the buffer from base64
+            buffer = Buffer.from(fixed, 'base64');
+            
+            // Try multiple encoding strategies in order of preference
+            try {
+                // Try UTF-8 first (standard approach)
+                raw = buffer.toString('utf8');
+            } catch (e) {
+                try {
+                    // Fall back to binary encoding if UTF-8 fails
+                    raw = buffer.toString('binary');
+                    console.log('[VidZee] Fallback to binary encoding for token');
+                } catch (e2) {
+                    try {
+                        // Last resort: latin1 (handles all byte values)
+                        raw = buffer.toString('latin1');
+                        console.log('[VidZee] Fallback to latin1 encoding for token');
+                    } catch (e3) {
+                        console.log('[VidZee] Failed to decode base64 with any encoding');
+                        return null;
+                    }
+                }
+            }
+        } catch (e) {
+            console.log('[VidZee] Failed to decode base64:', e.message);
+            return null;
+        }
+        
+        // Extra validation and sanitization
+        if (!raw) return null;
+        
+        // Aggressive sanitization of non-printable and control characters
+        raw = raw.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+        
+        // Make sure we still have a valid structure after sanitization
         if (!raw.includes(':')) return null;
         const [ivB64, cipherB64] = raw.split(':');
         if (!ivB64 || !cipherB64) return null;
+        
+        // Normalize inner base64 strings
+        const normalizeInner = (s) => {
+            let n = s.replace(/-/g, '+').replace(/_/g, '/').replace(/[^A-Za-z0-9+/=]/g, '');
+            const p = n.length % 4;
+            return p ? n + '='.repeat(4 - p) : n;
+        };
+        
+        const fixedIv = normalizeInner(ivB64);
+        const fixedCipher = normalizeInner(cipherB64);
+
         if (!cryptoJs) cryptoJs = require('crypto-js');
-        const iv = cryptoJs.enc.Base64.parse(ivB64.trim());
+        const iv = cryptoJs.enc.Base64.parse(fixedIv.trim());
         const keyStr = 'qrincywincyspider';
         // Pad key with nulls to 32 bytes
         const keyUtf8 = cryptoJs.enc.Utf8.parse(keyStr.padEnd(32, '\0'));
-        const decrypted = cryptoJs.AES.decrypt(cipherB64.trim(), keyUtf8, {
-            iv,
-            mode: cryptoJs.mode.CBC,
-            padding: cryptoJs.pad.Pkcs7
-        }).toString(cryptoJs.enc.Utf8);
+        // Decrypt with proper error handling for crypto-js malformed UTF-8 errors
+        let decrypted;
+        try {
+            const decryptedWords = cryptoJs.AES.decrypt(fixedCipher.trim(), keyUtf8, {
+                iv,
+                mode: cryptoJs.mode.CBC,
+                padding: cryptoJs.pad.Pkcs7
+            });
+            
+            // First try standard UTF-8 decoding
+            try {
+                decrypted = decryptedWords.toString(cryptoJs.enc.Utf8);
+            } catch (utf8Error) {
+                // Fall back to Latin1 if UTF-8 fails
+                decrypted = decryptedWords.toString(cryptoJs.enc.Latin1);
+                if (debug) console.log('[VidZee] Fell back to Latin1 decoding');
+            }
+        } catch (cryptoError) {
+            if (debug) console.log('[VidZee] Crypto decryption failed:', cryptoError.message);
+            return null;
+        }
+        
         if (!decrypted) return null;
         if (!/^https?:\/\//i.test(decrypted)) {
             if (debug) console.log('[VidZee] decrypted but not a URL', decrypted.slice(0,80));
@@ -33,6 +105,7 @@ function decodeVidZeeToken(token, debug) {
         if (debug) console.log('[VidZee] AES decoded token', { tokenSnippet: token.slice(0, 24)+'...', url: decrypted.slice(0,120) });
         return decrypted.trim();
     } catch (e) {
+        // Only log errors if debug is enabled
         if (debug) console.log('[VidZee] AES decode error', e.message);
         return null;
     }
@@ -75,7 +148,7 @@ const getVidZeeStreams = async (tmdbId, mediaType, seasonNum, episodeNum) => {
         const headers = {
             'Referer': `https://player.vidzee.wtf/embed/movie/${tmdbId}`
         };
-        const timeout = 7000; // Reduced timeout
+        const timeout = 20000; // Increased timeout for better reliability
 
         finalApiUrl = targetApiUrl;
 

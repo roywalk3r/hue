@@ -27,7 +27,7 @@ function escapeRegExp(string) {
 
 
 // --- Domain Fetching ---
-let moviesModDomain = 'https://moviesmod.chat'; // Fallback domain
+let moviesModDomain = 'https://moviesmod.card'; // Fallback domain
 let domainCacheTimestamp = 0;
 const DOMAIN_CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
 

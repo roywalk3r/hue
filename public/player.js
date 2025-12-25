@@ -70,9 +70,12 @@
   const state = {
     streams: [],
     hls: null,
+    dash: null,
     providerTimings: null,
     activeIndex: null,
-    proxyAvailable: true
+    proxyAvailable: true,
+    retryCount: 0,
+    maxRetries: 3
   };
 
   function init() {
@@ -252,7 +255,7 @@
   function urlLabel(url) {
     if (/\.m3u8(\?|$)/i.test(url)) return 'HLS';
     if (/\.mpd(\?|$)/i.test(url)) return 'DASH';
-    if (/\.mp4(\?|$)/i.test(url)) return 'MP4';
+    if (/\.(mp4|webm|ogg|avi|mov|mkv)(\?|$)/i.test(url)) return 'Direct';
     return 'URL ready';
   }
 
@@ -263,8 +266,27 @@
     }
   }
 
+  function destroyDash() {
+    if (state.dash) {
+      state.dash.reset();
+      state.dash = null;
+    }
+  }
+
   function isHlsUrl(url) {
-    return /\.m3u8(\?|$)/i.test(url) || url.includes('playlist');
+    if (!url) return false;
+    const u = String(url).toLowerCase();
+    return u.includes('.m3u8') || u.includes('playlist') || u.includes('m3u8-proxy');
+  }
+
+  function isDashUrl(url) {
+    if (!url) return false;
+    const u = String(url).toLowerCase();
+    return u.includes('.mpd') || u.includes('dash') || u.includes('manifest') || u.includes('dash-proxy');
+  }
+
+  function isDirectVideoUrl(url) {
+    return /\.(mp4|webm|ogg|avi|mov|mkv)(\?|$)/i.test(url);
   }
 
   function loadIntoVideo(resolved, stream) {
@@ -276,38 +298,49 @@
       fallbackTried: resolved.usedProxy ? false : true,
       stream
     };
+    
     destroyHls();
+    destroyDash();
+    
     const isHls = isHlsUrl(url);
+    const isDash = isDashUrl(url);
+    const isDirect = isDirectVideoUrl(url);
+    
+    console.log('[Player] Loading stream:', { url, isHls, isDash, isDirect });
+    
     if (isHls && window.Hls && window.Hls.isSupported()) {
-      state.hls = new Hls({ lowLatencyMode: true, backBufferLength: 30 });
-      state.hls.loadSource(url);
-      state.hls.attachMedia(els.video);
-      state.hls.on(Hls.Events.ERROR, (_, data) => {
-        if (data?.fatal && state.currentSource && state.currentSource.usedProxy && !state.currentSource.fallbackTried) {
-          state.currentSource.fallbackTried = true;
-          setStatus('Proxy failed; retrying direct URL...');
-          destroyHls();
-          els.video.src = '';
-          loadIntoVideo({ url: state.currentSource.originalUrl, usedProxy: false, originalUrl: state.currentSource.originalUrl, raw: state.currentSource.raw }, stream || state.currentSource.stream);
-        }
-      });
+      loadHlsStream(url, stream);
     } else if (isHls && els.video.canPlayType('application/vnd.apple.mpegurl')) {
+      console.log('[Player] Using native HLS support');
       els.video.src = url;
+      els.video.play().catch(e => console.error('[Player] Play failed:', e));
+    } else if (isDash && window.dashjs && window.dashjs.MediaPlayer) {
+      loadDashStream(url, stream);
+    } else if (isDirect || (!isHls && !isDash)) {
+      console.log('[Player] Loading direct video URL');
+      els.video.src = url;
+      els.video.play().catch(e => console.error('[Player] Play failed:', e));
     } else {
-      els.video.src = url;
+      throw new Error('Unsupported stream format or missing player library');
     }
-    els.video.play().catch(() => {});
   }
 
   async function resolveUrl(stream) {
     if (!stream || !stream.url || typeof stream.url !== 'string') return null;
     const raw = stream.url.trim();
     let decoded = raw;
+    let isVidzeeToken = looksEncrypted(raw);
+    
     if (!/^https?:\/\//i.test(raw)) {
       const d = await tryDecodeVidzee(raw);
       decoded = d || raw;
     }
-    const useProxy = /^https?:\/\//i.test(decoded) && els.useProxy.checked && state.proxyAvailable && shouldProxy(decoded, stream);
+    
+    // For VidZee tokens that failed client-side decoding, always use proxy
+    const useProxy = isVidzeeToken && decoded === raw ? 
+      true : // Force proxy for undecoded VidZee tokens
+      /^https?:\/\//i.test(decoded) && els.useProxy.checked && state.proxyAvailable && shouldProxy(decoded, stream);
+    
     return {
       url: useProxy ? buildProxyUrl(decoded, stream.headers || {}) : decoded,
       usedProxy: useProxy,
@@ -318,10 +351,10 @@
 
   function looksEncrypted(str) {
     if (!str || typeof str !== 'string') return false;
-    if (/^https?:\/\//i.test(str)) return false;
+    if (/^https?:\/\//i.test(str.trim())) return false;
     try {
       const decoded = atob(normalizeB64(str));
-      return decoded.includes(':');
+      return decoded.includes(':') && decoded.length > 10;
     } catch (e) {
       return false;
     }
@@ -343,18 +376,27 @@
   async function tryDecodeVidzee(token) {
     if (!looksEncrypted(token) || !window.crypto?.subtle) return null;
     try {
-      const raw = atob(normalizeB64(token));
+      // Normalize base64 first (handle URL-safe base64 as well)
+      const normalize = (s) => {
+        let n = s.replace(/-/g, '+').replace(/_/g, '/').replace(/[^A-Za-z0-9+/=]/g, '');
+        const p = n.length % 4;
+        return p ? n + '='.repeat(4 - p) : n;
+      };
+
+      const raw = atob(normalize(token));
       const [ivB64, cipherB64] = raw.split(':');
       if (!ivB64 || !cipherB64) return null;
-      const iv = b64ToBytes(ivB64.trim());
-      const cipherBytes = b64ToBytes(cipherB64.trim());
+      
+      const iv = b64ToBytes(normalize(ivB64.trim()));
+      const cipherBytes = b64ToBytes(normalize(cipherB64.trim()));
       const keyBytes = new TextEncoder().encode('qrincywincyspider'.padEnd(32, '\0'));
       const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
       const plainBuf = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, key, cipherBytes);
       const text = new TextDecoder().decode(plainBuf).trim();
       if (/^https?:\/\//i.test(text)) return text;
     } catch (e) {
-      console.warn('VidZee decode failed', e);
+      console.warn('VidZee client-side decode failed, will use proxy:', e.message);
+      // Don't return null here - let the proxy handle it
     }
     return null;
   }
@@ -371,6 +413,8 @@
     try {
       const u = new URL(url, location.href);
       const sameOrigin = u.origin === location.origin;
+      const alreadyProxied = sameOrigin && (u.pathname.includes('m3u8-proxy') || u.pathname.includes('ts-proxy') || u.pathname.includes('dash-proxy'));
+      if (alreadyProxied) return false;
       return needsHeaders || !sameOrigin || isEncoded;
     } catch {
       return needsHeaders || isEncoded;
@@ -387,7 +431,9 @@
   }
 
   function isHls(url) {
-    return /\.m3u8(\?|$)/i.test(url) || url.includes('playlist');
+    if (!url) return false;
+    const u = String(url).toLowerCase();
+    return u.includes('.m3u8') || u.includes('playlist') || u.includes('m3u8-proxy');
   }
 
   async function checkProxyAvailability() {
@@ -428,4 +474,171 @@
   }
 
   init();
+  
+  function loadHlsStream(url, stream) {
+    console.log('[Player] Loading HLS stream with hls.js');
+    state.hls = new Hls({
+      lowLatencyMode: true,
+      backBufferLength: 30,
+      maxBufferLength: 30,
+      maxMaxBufferLength: 60,
+      highBufferWatchdogPeriod: 2,
+      nudgeOffset: 0.1,
+      nudgeMaxRetry: 5,
+      maxFragLookUpTolerance: 0.5,
+      liveSyncDurationCount: 3,
+      liveMaxLatencyDurationCount: Infinity,
+      preferManagedMediaSource: true,
+      debug: false
+    });
+    
+    state.hls.loadSource(url);
+    state.hls.attachMedia(els.video);
+    
+    state.hls.on(Hls.Events.ERROR, (_, data) => {
+      console.error('[Player] HLS Error:', data);
+      
+      if (data?.fatal) {
+        handleStreamError('HLS', data, stream);
+      }
+    });
+    
+    state.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      console.log('[Player] HLS manifest parsed, starting playback');
+      els.video.play().catch(e => console.error('[Player] Play failed:', e));
+    });
+  }
+  
+  function loadDashStream(url, stream) {
+    console.log('[Player] Loading DASH stream with dash.js');
+    state.dash = window.dashjs.MediaPlayer().create();
+    
+    state.dash.updateSettings({
+      streaming: {
+        lowLatencyEnabled: true,
+        liveDelay: 3,
+        liveCatchUpPlaybackRate: 0.5,
+        buffer: {
+          bufferTimeDefault: 12,
+          bufferTimeAtTopQuality: 30,
+          bufferTimeAtTopQualityLongForm: 60
+        },
+        abr: {
+          autoSwitchBitrate: {
+            video: true,
+            audio: true
+          }
+        }
+      }
+    });
+    
+    state.dash.initialize(els.video, url, false);
+    
+    state.dash.on(window.dashjs.MediaPlayer.events.ERROR, (e) => {
+      console.error('[Player] DASH Error:', e);
+      if (e.error && e.error.fatal) {
+        handleStreamError('DASH', e.error, stream);
+      }
+    });
+    
+    els.video.play().catch(e => console.error('[Player] Play failed:', e));
+  }
+  
+  function handleStreamError(type, error, stream) {
+    console.error(`[Player] ${type} fatal error:`, error);
+    
+    if (state.retryCount < state.maxRetries) {
+      state.retryCount++;
+      setStatus(`Stream failed, retrying... (${state.retryCount}/${state.maxRetries})`);
+      
+      setTimeout(() => {
+        if (state.currentSource && state.currentSource.usedProxy && !state.currentSource.fallbackTried) {
+          state.currentSource.fallbackTried = true;
+          setStatus('Proxy failed; retrying direct URL...');
+          destroyHls();
+          destroyDash();
+          els.video.src = '';
+          // Use the raw URL (undecoded token) for direct retry
+          const directUrl = state.currentSource.raw || state.currentSource.originalUrl;
+          loadIntoVideo({ 
+            url: directUrl, 
+            usedProxy: false, 
+            originalUrl: directUrl, 
+            raw: state.currentSource.raw 
+          }, stream);
+        } else {
+          console.log(`[Player] Retrying same URL (attempt ${state.retryCount})`);
+          // Ensure we're not retrying with a double-proxied URL
+          const retryUrl = state.currentSource.originalUrl || state.currentSource.url;
+          // If the original URL is already a proxy URL, use the raw URL instead
+          const finalUrl = retryUrl.includes('/m3u8-proxy') ? 
+            (state.currentSource.raw || retryUrl) : retryUrl;
+          loadIntoVideo({
+            url: finalUrl,
+            usedProxy: false, // Don't use proxy on retry
+            originalUrl: finalUrl,
+            raw: state.currentSource.raw
+          }, stream);
+        }
+      }, 1000 * state.retryCount);
+      
+      return;
+    }
+    
+    if (state.currentSource && state.currentSource.usedProxy && !state.currentSource.fallbackTried) {
+      state.currentSource.fallbackTried = true;
+      setStatus('Proxy failed; trying direct URL...');
+      destroyHls();
+      destroyDash();
+      els.video.src = '';
+      loadIntoVideo({ 
+        url: state.currentSource.originalUrl, 
+        usedProxy: false, 
+        originalUrl: state.currentSource.originalUrl, 
+        raw: state.currentSource.raw 
+      }, stream);
+    } else if (!state.currentSource.usedProxy && els.useProxy.checked && state.proxyAvailable) {
+      setStatus('Direct URL failed; trying with proxy...');
+      const proxyUrl = buildProxyUrl(state.currentSource.originalUrl, stream.headers || {});
+      loadIntoVideo({ 
+        url: proxyUrl, 
+        usedProxy: true, 
+        originalUrl: state.currentSource.originalUrl, 
+        raw: state.currentSource.raw 
+      }, stream);
+    } else {
+      setStatus(`Stream failed: ${error.message || error.details || 'Unknown error'}`, true);
+    }
+  }
+  
+  els.video.addEventListener('error', (e) => {
+    const errorCode = els.video.error ? els.video.error.code : null;
+    const errorMessage = els.video.error ? els.video.error.message : 'Unknown video error';
+    console.error('[Player] Video element error:', { errorCode, errorMessage, e });
+    
+    if (errorCode === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+      setStatus('Format not supported. Trying fallback...', true);
+      handleStreamError('Video', { message: 'Format not supported' }, state.currentSource?.stream);
+    } else if (errorCode === MediaError.MEDIA_ERR_NETWORK) {
+      setStatus('Network error. Retrying...', true);
+      if (state.retryCount < state.maxRetries) {
+        state.retryCount++;
+        setTimeout(() => loadIntoVideo({
+          url: state.currentSource.originalUrl || state.currentSource.url,
+          usedProxy: state.currentSource.usedProxy,
+          originalUrl: state.currentSource.originalUrl,
+          raw: state.currentSource.raw
+        }, state.currentSource.stream), 2000);
+      }
+    }
+  });
+  
+  els.video.addEventListener('loadstart', () => console.log('[Player] Load start'));
+  els.video.addEventListener('loadeddata', () => console.log('[Player] Loaded data'));
+  els.video.addEventListener('canplay', () => {
+    console.log('[Player] Can play');
+    state.retryCount = 0;
+  });
+  els.video.addEventListener('stalled', () => console.log('[Player] Playback stalled'));
+  els.video.addEventListener('waiting', () => console.log('[Player] Waiting for data'));
 })(); 

@@ -18,7 +18,7 @@ const getAxiosCookieJarSupport = async () => {
 // All requests are direct
 
 // --- Domain Fetching ---
-let uhdMoviesDomain = 'https://uhdmovies.email'; // Fallback domain
+let uhdMoviesDomain = 'https://uhdmovies.stream'; // Fallback domain
 let domainCacheTimestamp = 0;
 const DOMAIN_CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
 
@@ -124,7 +124,7 @@ async function searchMovies(query) {
     const searchResults = [];
 
     // New logic for grid-based search results
-    $('article.gridlove-post').each((index, element) => {
+    $('article.gridlove-post').each((_, element) => {
       const linkElement = $(element).find('a[href*="/download-"]');
       if (linkElement.length > 0) {
         const link = linkElement.first().attr('href');
@@ -603,7 +603,7 @@ async function extractDownloadLinks(moviePageUrl, targetYear = null) {
             const combinedText = `${quality} ${linkText} ${parentText}`;
 
             // Look for years in combined text
-            const allYearMatches = combinedText.match(/\((\d{4})\)/g) || combinedText.match(/(\d{4})/g);
+            const allYearMatches = combinedText.match(/\((19[89]\d|20\d{2})\)/g) || combinedText.match(/\b(19[89]\d|20\d{2})\b/g);
             if (allYearMatches) {
               let foundTargetYear = false;
               for (const yearMatch of allYearMatches) {

@@ -6,6 +6,36 @@ const cors = require('cors');
 const fetch = require('node-fetch');
 let cryptoJs;
 
+// Retry configuration for fetch operations
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 1000;
+const FETCH_TIMEOUT_MS = 30000; // 30 seconds
+
+// Helper function to fetch with retry logic
+async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
+    // Ensure timeout is set
+    if (!options.timeout) {
+        options.timeout = FETCH_TIMEOUT_MS;
+    }
+    
+    let lastError;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await fetch(url, options);
+        } catch (error) {
+            lastError = error;
+            // Only retry on network errors and timeouts
+            if (error.type !== 'system' || attempt >= maxRetries) {
+                throw error;
+            }
+            // Wait before retrying
+            console.log(`[retry] Attempt ${attempt}/${maxRetries} failed for ${url}: ${error.message}, retrying in ${RETRY_DELAY_MS}ms...`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt));
+        }
+    }
+    throw lastError;
+}
+
 const CACHE_MAX_SIZE = 2000;
 const CACHE_EXPIRY_MS = 2 * 60 * 60 * 1000; // 2 hours
 const segmentCache = new Map();
@@ -87,30 +117,183 @@ function inferContentType(upstreamCT, targetUrl) {
 }
 
 function decodeVidzeeToken(token) {
+    const debug = process.env.VIDZEE_DEBUG === '1';
     try {
-        if (typeof token !== 'string') return null;
-        if (/^https?:\/\//i.test(token)) return null;
-        const raw = Buffer.from(token, 'base64').toString('utf8');
-        if (!raw.includes(':')) return null;
+        if (typeof token !== 'string') {
+            if (debug) console.log('[VidZee] Token is not a string');
+            return null;
+        }
+        if (/^https?:\/\//i.test(token.trim())) return null;
+        // Skip obviously invalid tokens
+        if (token.length < 20) {
+            if (debug) console.log('[VidZee] Token too short');
+            return null;
+        }
+        
+        if (debug) {
+            console.log('[VidZee] Token starts with:', token.substring(0, 50));
+            console.log('[VidZee] Token contains spaces:', token.includes(' '));
+        }
+        
+        // Normalize base64 - handle URL-safe and spaces
+        let normalized = token
+            .replace(/-/g, '+')
+            .replace(/_/g, '/')
+            .replace(/\s/g, '+') // Replace spaces with +
+            .replace(/[^A-Za-z0-9+/=]/g, '');
+        const pad = normalized.length % 4;
+        const fixed = pad ? normalized + '='.repeat(4 - pad) : normalized;
+        
+        if (debug) {
+            console.log('[VidZee] Fixed token starts with:', fixed.substring(0, 50));
+            console.log('[VidZee] Fixed token length:', fixed.length);
+        }
+        
+        let raw;
+        let buffer;
+        
+        try {
+            // First get the buffer from base64
+            buffer = Buffer.from(fixed, 'base64');
+            
+            if (debug) {
+                console.log('[VidZee] Buffer created, length:', buffer.length);
+                console.log('[VidZee] Buffer first 20 bytes:', Array.from(buffer.slice(0, 20)).map(b => b.toString(16).padStart(2, '0')).join(''));
+            }
+            
+            // Try multiple encoding strategies in order of preference
+            try {
+                // Try UTF-8 first (standard approach)
+                raw = buffer.toString('utf8');
+                if (debug) console.log('[VidZee] UTF-8 decode success, raw length:', raw.length);
+            } catch (e) {
+                try {
+                    // Fall back to binary encoding if UTF-8 fails
+                    raw = buffer.toString('binary');
+                    console.log('[VidZee] Fallback to binary encoding for token');
+                } catch (e2) {
+                    try {
+                        // Last resort: latin1 (handles all byte values)
+                        raw = buffer.toString('latin1');
+                        console.log('[VidZee] Fallback to latin1 encoding for token');
+                    } catch (e3) {
+                        // Only log if debug enabled
+                        if (process.env.VIDZEE_DEBUG === '1') {
+                            console.error('[VidZee] Decode error: Failed with all encodings');
+                        }
+                        return null;
+                    }
+                }
+            }
+        } catch (e) {
+            // Only log if debug enabled
+            if (process.env.VIDZEE_DEBUG === '1') {
+                console.error('[VidZee] Decode error: Failed to decode base64:', e.message);
+            }
+            return null;
+        }
+        
+        // Extra validation and sanitization
+        if (!raw) {
+            if (debug) console.log('[VidZee] No raw data after decode');
+            return null;
+        }
+        
+        if (debug) {
+            console.log('[VidZee] Raw before sanitization:', raw.substring(0, 100));
+            console.log('[VidZee] Raw contains colon:', raw.includes(':'));
+        }
+        
+        // Aggressive sanitization of non-printable and control characters
+        raw = raw.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+        
+        // Make sure we still have a valid structure after sanitization
+        if (!raw.includes(':')) {
+            if (debug) console.log('[VidZee] No colon after sanitization');
+            return null;
+        }
         const [ivB64, cipherB64] = raw.split(':');
-        if (!ivB64 || !cipherB64) return null;
+        if (!ivB64 || !cipherB64) {
+            if (debug) console.log('[VidZee] Missing IV or cipher after split');
+            return null;
+        }
+        
+        if (debug) {
+            console.log('[VidZee] IV length:', ivB64.length);
+            console.log('[VidZee] Cipher length:', cipherB64.length);
+        }
+        
+        // Normalize inner base64 strings
+        const normalizeInner = (s) => {
+            let n = s.replace(/-/g, '+').replace(/_/g, '/').replace(/[^A-Za-z0-9+/=]/g, '');
+            const p = n.length % 4;
+            return p ? n + '='.repeat(4 - p) : n;
+        };
+        
+        const fixedIv = normalizeInner(ivB64);
+        const fixedCipher = normalizeInner(cipherB64);
+        
         if (!cryptoJs) cryptoJs = require('crypto-js');
-        const iv = cryptoJs.enc.Base64.parse(ivB64.trim());
+        const iv = cryptoJs.enc.Base64.parse(fixedIv.trim());
         const keyStr = 'qrincywincyspider';
         const keyUtf8 = cryptoJs.enc.Utf8.parse(keyStr.padEnd(32, '\0'));
-        const decrypted = cryptoJs.AES.decrypt(cipherB64.trim(), keyUtf8, {
-            iv,
-            mode: cryptoJs.mode.CBC,
-            padding: cryptoJs.pad.Pkcs7
-        }).toString(cryptoJs.enc.Utf8);
-        if (!decrypted || !/^https?:\/\//i.test(decrypted)) return null;
+        
+        // Decrypt with proper error handling for crypto-js malformed UTF-8 errors
+        let decrypted;
+        try {
+            const decryptedWords = cryptoJs.AES.decrypt(fixedCipher.trim(), keyUtf8, {
+                iv,
+                mode: cryptoJs.mode.CBC,
+                padding: cryptoJs.pad.Pkcs7
+            });
+            
+            if (debug) {
+                console.log('[VidZee] CryptoJS decrypt completed');
+                console.log('[VidZee] Decrypted words length:', decryptedWords.sigBytes);
+            }
+            
+            // First try standard UTF-8 decoding
+            try {
+                decrypted = decryptedWords.toString(cryptoJs.enc.Utf8);
+                if (debug) console.log('[VidZee] UTF-8 toString success');
+            } catch (utf8Error) {
+                // Fall back to Latin1 if UTF-8 fails - silent fallback to reduce logs
+                decrypted = decryptedWords.toString(cryptoJs.enc.Latin1);
+                if (debug) console.log('[VidZee] Latin1 toString fallback');
+            }
+        } catch (cryptoError) {
+            if (debug) console.log('[VidZee] CryptoJS decrypt error:', cryptoError.message);
+            // Silent failure to reduce logs
+            return null;
+        }
+        
+        if (!decrypted) {
+            if (debug) console.log('[VidZee] No decrypted result');
+            return null;
+        }
+        
+        if (!/^https?:\/\//i.test(decrypted)) {
+            if (debug) console.log('[VidZee] Decrypted result is not a URL');
+            // Silent failure
+            return null;
+        }
+        
+        if (debug) console.log('[VidZee] Successfully decoded URL');
         return decrypted.trim();
-    } catch (_e) { return null; }
+    } catch (_e) {
+        // Silently handle decode errors to reduce log spam
+        // Only log detailed errors if debug is enabled
+        if (process.env.VIDZEE_DEBUG === '1') {
+            console.error('[VidZee] Decode error:', _e.message);
+        }
+        return null;
+    }
 }
 
 function extractOriginalUrl(proxyUrl) {
     try {
-        const url = new URL(proxyUrl);
+        if (!proxyUrl || typeof proxyUrl !== 'string') return proxyUrl;
+        const url = new URL(proxyUrl, 'http://localhost'); // Provide base if relative
         if (url.pathname.includes('/proxy/')) {
             const m = url.pathname.match(/\/proxy\/(.+)$/);
             if (m) {
@@ -121,7 +304,10 @@ function extractOriginalUrl(proxyUrl) {
                 return decoded;
             }
         }
-        if (url.searchParams.has('url')) return decodeURIComponent(url.searchParams.get('url'));
+        if (url.searchParams.has('url')) {
+            let u = url.searchParams.get('url');
+            if (u && u !== 'undefined') return u;
+        }
         const patterns = [
             /\/api\/[^/]+\/proxy\?url=(.+)$/,
             /\/proxy\?.*url=([^&]+)/,
@@ -129,7 +315,7 @@ function extractOriginalUrl(proxyUrl) {
             /\/p\/(.+)$/
         ];
         for (const p of patterns) {
-            const m = proxyUrl.match(p); if (m) return decodeURIComponent(m[1]);
+            const m = proxyUrl.match(p); if (m && m[1] && m[1] !== 'undefined') return decodeURIComponent(m[1]);
         }
         return proxyUrl;
     } catch { return proxyUrl; }
@@ -138,6 +324,8 @@ function extractOriginalUrl(proxyUrl) {
 function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
     const lines = content.split('\n');
     const out = []; const segmentUrls = [];
+    let nextLineIsStreamUrl = false;
+    
     for (const line of lines) {
         if (line.startsWith('#')) {
             if (line.startsWith('#EXT-X-KEY:')) {
@@ -145,7 +333,7 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
                 if (uriMatch) {
                     try {
                         const absKey = new URL(uriMatch[1], targetUrl).href;
-                    const proxyUrl = `${baseProxyUrl}/ts-proxy?url=${encodeURIComponent(absKey)}&headers=${encodeURIComponent(JSON.stringify(headers))}&clampOpen=0&progressiveOpen=0&noSynth=1&force200=1&tailPrefetch=0`;
+                        const proxyUrl = `${baseProxyUrl}/ts-proxy?url=${encodeURIComponent(absKey)}&headers=${encodeURIComponent(JSON.stringify(headers))}&clampOpen=0&progressiveOpen=0&noSynth=1&force200=1&tailPrefetch=0`;
                         out.push(line.replace(uriMatch[1], proxyUrl));
                         if (!isCacheDisabled()) prefetchSegment(absKey, headers);
                     } catch (_e) {
@@ -161,25 +349,43 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
                         out.push(line.replace(uriMatch[1], proxyUrl));
                     } catch { out.push(line); }
                 } else out.push(line);
+            } else if (line.startsWith('#EXT-X-STREAM-INF:')) {
+                // The URL for EXT-X-STREAM-INF is on the next line
+                nextLineIsStreamUrl = true;
+                out.push(line);
             } else out.push(line);
         } else if (line.trim()) {
             try {
                 let candidate = line.trim();
                 const decoded = decodeVidzeeToken(candidate);
                 if (decoded) candidate = decoded;
+                
+                // If candidate still doesn't look like a URL after decoding attempts, skip rewriting
+                if (!candidate.startsWith('http') && !candidate.startsWith('/')) {
+                     out.push(line);
+                     nextLineIsStreamUrl = false;
+                     continue;
+                }
+
                 const abs = new URL(candidate, targetUrl).href;
                 if (/\.ts(\?|$)/i.test(abs) || /\.mp4(\?|$)/i.test(abs)) {
                     segmentUrls.push(abs);
-                    out.push(`${baseProxyUrl}/ts-proxy?url=${encodeURIComponent(abs)}&headers=${encodeURIComponent(JSON.stringify(headers))}&clampOpen=0&progressiveOpen=0&noSynth=1&force200=1&tailPrefetch=0`);
+                    // Removed force200=1 for segments to allow Range requests if needed
+                    out.push(`${baseProxyUrl}/ts-proxy?url=${encodeURIComponent(abs)}&headers=${encodeURIComponent(JSON.stringify(headers))}&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0`);
                 } else {
                     // Default: proxy any HTTP/S child URL through m3u8-proxy so nested playlists (even without .m3u8 extension) get rewritten.
-                    out.push(`${baseProxyUrl}/m3u8-proxy?url=${encodeURIComponent(abs)}&headers=${encodeURIComponent(JSON.stringify(headers))}`);
+                    const proxyUrl = `${baseProxyUrl}/m3u8-proxy?url=${encodeURIComponent(abs)}&headers=${encodeURIComponent(JSON.stringify(headers))}`;
+                    out.push(nextLineIsStreamUrl ? proxyUrl : `${baseProxyUrl}/m3u8-proxy?url=${encodeURIComponent(abs)}&headers=${encodeURIComponent(JSON.stringify(headers))}`);
+                    nextLineIsStreamUrl = false;
                 }
             } catch { out.push(line); }
-        } else out.push(line);
+        } else {
+            out.push(line);
+            nextLineIsStreamUrl = false;
+        }
     }
     if (segmentUrls.length && !isCacheDisabled()) {
-        Promise.all(segmentUrls.map(u => prefetchSegment(u, headers))).catch(() => undefined);
+        Promise.all(segmentUrls.length > 5 ? segmentUrls.slice(0, 5).map(u => prefetchSegment(u, headers)) : segmentUrls.map(u => prefetchSegment(u, headers))).catch(() => undefined);
     }
     return out.join('\n');
 }
@@ -188,17 +394,25 @@ function createProxyRoutes(app) {
     // m3u8 playlist proxy
     app.get('/m3u8-proxy', cors(), async (req, res) => {
         let targetUrl = req.query.url; if (!targetUrl) return res.status(400).json({ error: 'URL parameter required' });
+        const debug = process.env.VIDZEE_DEBUG === '1';
+        if (debug) console.log('[m3u8-proxy] Received URL:', targetUrl);
+        
         let headers = {};
         try { headers = JSON.parse(req.query.headers || '{}'); } catch {
             // Ignore URL parsing errors
         }
         const decoded = decodeVidzeeToken(targetUrl);
+        if (debug) console.log('[m3u8-proxy] After decodeVidzeeToken:', decoded || 'null');
         if (decoded) targetUrl = decoded;
+        if (!/^https?:\/\//i.test(targetUrl)) {
+            if (debug) console.log('[m3u8-proxy] Invalid URL check failed, targetUrl:', targetUrl);
+            return res.status(400).json({ error: 'Invalid target URL', target: targetUrl });
+        }
         if (headers.Referer && !headers.Origin) {
             try { headers.Origin = new URL(headers.Referer).origin; } catch (_e) { /* ignore */ }
         }
         try {
-            const response = await fetch(targetUrl, { headers: { 'User-Agent': DEFAULT_UA, ...headers } });
+            const response = await fetchWithRetry(targetUrl, { headers: { 'User-Agent': DEFAULT_UA, ...headers } });
             if (!response.ok) return res.status(response.status).json({ error: `M3U8 fetch failed: ${response.status}`, target: targetUrl });
             const text = await response.text();
             const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
@@ -209,14 +423,20 @@ function createProxyRoutes(app) {
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.send(rewritten);
         } catch (e) {
-            console.error('[m3u8-proxy] error', e.message);
-            res.status(500).json({ error: e.message });
+            console.error('[m3u8-proxy] error', e);
+            console.error('[m3u8-proxy] stack', e.stack);
+            console.error('[m3u8-proxy] targetUrl', targetUrl);
+            console.error('[m3u8-proxy] headers', headers);
+            res.status(500).json({ error: e.message, details: e.stack });
         }
     });
 
     // ts / key segment proxy
     app.get('/ts-proxy', cors(), async (req, res) => {
-        const targetUrl = req.query.url; if (!targetUrl) return res.status(400).json({ error: 'URL parameter required' });
+        let targetUrl = req.query.url; if (!targetUrl) return res.status(400).json({ error: 'URL parameter required' });
+        if (!/^https?:\/\//i.test(targetUrl)) {
+            return res.status(400).json({ error: 'Invalid target URL', target: targetUrl });
+        }
         const debug = req.query.debug === '1';
         const noSynth = req.query.noSynth === '1';
         const force200 = req.query.force200 === '1';
@@ -322,12 +542,12 @@ function createProxyRoutes(app) {
                 }
             }
 
-            // HEAD preflight (only when no explicit Range requested) to get size for synthesized partial response
+            // HEAD preflight (only when no explicit Range requested and not disabled) to get size for synthesized partial response
             let contentLength = null;
             let upstreamAcceptRanges = null;
-            if (!effectiveRange) {
+            if (!effectiveRange && !noSynth && !force200) {
                 try {
-                    const headResp = await fetch(targetUrl, { method: 'HEAD', headers: { 'User-Agent': DEFAULT_UA, ...headers } });
+                    const headResp = await fetchWithRetry(targetUrl, { method: 'HEAD', headers: { 'User-Agent': DEFAULT_UA, ...headers } });
                     if (headResp.ok) {
                         contentLength = headResp.headers.get('content-length');
                         upstreamAcceptRanges = headResp.headers.get('accept-ranges');
@@ -339,11 +559,11 @@ function createProxyRoutes(app) {
             }
 
             // Fallback probe: if still no size, attempt a 0-0 range request to derive total size from Content-Range
-            if (!effectiveRange && !contentLength) {
+            if (!effectiveRange && !contentLength && !noSynth && !force200) {
                 try {
                     const probeRange = 'bytes=0-0';
                     if (debug) console.log('[ts-proxy] probe range');
-                    const probeResp = await fetch(targetUrl, { headers: { 'User-Agent': DEFAULT_UA, ...headers, 'Range': probeRange } });
+                    const probeResp = await fetchWithRetry(targetUrl, { headers: { 'User-Agent': DEFAULT_UA, ...headers, 'Range': probeRange } });
                     if (probeResp.status === 206) {
                         const cr = probeResp.headers.get('content-range');
                         if (cr) {
@@ -370,7 +590,7 @@ function createProxyRoutes(app) {
                     (async () => {
                         try {
                             if (debug) console.log('[ts-proxy] tail prefetch start', { tailRange });
-                            const tr = await fetch(targetUrl, { headers: { 'User-Agent': DEFAULT_UA, ...headers, Range: tailRange } });
+                            const tr = await fetchWithRetry(targetUrl, { headers: { 'User-Agent': DEFAULT_UA, ...headers, Range: tailRange } });
                             if (tr.status === 206) {
                                 const buf = Buffer.from(await tr.arrayBuffer());
                                 const cr = tr.headers.get('content-range');
@@ -398,7 +618,7 @@ function createProxyRoutes(app) {
                 const desired = initChunkKB * 1024;
                 const chunkSize = Math.min(desired, Math.max(0, total - 1));
                 const syntheticRange = `bytes=0-${chunkSize}`;
-                const resp = await fetch(targetUrl, { headers: { 'User-Agent': DEFAULT_UA, ...headers, 'Range': syntheticRange } });
+                const resp = await fetchWithRetry(targetUrl, { headers: { 'User-Agent': DEFAULT_UA, ...headers, 'Range': syntheticRange } });
                 if (resp.status === 206) {
                     if (debug) console.log('[ts-proxy] synthetic 206', syntheticRange);
                     const upstreamCT = inferContentType(resp.headers.get('content-type'), targetUrl);
@@ -419,7 +639,7 @@ function createProxyRoutes(app) {
             const upstreamOptions = { headers: { 'User-Agent': DEFAULT_UA, ...headers } };
             // If client supplied a suffix range like bytes=0- we pass it; force200 strips Range
             if (force200 && headers.Range) delete headers.Range;
-            let resp = await fetch(targetUrl, upstreamOptions);
+            let resp = await fetchWithRetry(targetUrl, upstreamOptions);
             if (!resp.ok && resp.status !== 206) {
                 if (debug) console.log('[ts-proxy] upstream error', resp.status);
                 // Retry once without Range if upstream rejects range / partial
@@ -427,7 +647,7 @@ function createProxyRoutes(app) {
                     const { Range, ...rest } = headers;
                     const retryOpts = { headers: { 'User-Agent': DEFAULT_UA, ...rest } };
                     try {
-                        const retry = await fetch(targetUrl, retryOpts);
+                        const retry = await fetchWithRetry(targetUrl, retryOpts);
                         if (retry.ok || retry.status === 206) {
                             resp = retry;
                         } else {
@@ -468,7 +688,13 @@ function createProxyRoutes(app) {
             res.setHeader('Access-Control-Allow-Origin', '*');
             if (debug) console.log('[ts-proxy] streaming body', { status: resp.status, ct: upstreamCT, cl, contentRange: force200 ? undefined : contentRange });
             resp.body.pipe(res);
-        } catch (e) { if (debug) console.log('[ts-proxy] exception', e.message); res.status(500).json({ error: e.message }); }
+        } catch (e) { 
+            if (debug) console.log('[ts-proxy] exception', e.message, e.stack); 
+            console.error('[ts-proxy] error', e);
+            console.error('[ts-proxy] stack', e.stack);
+            console.error('[ts-proxy] targetUrl', targetUrl);
+            res.status(500).json({ error: e.message, details: e.stack }); 
+        }
     });
 
     // subtitle proxy
@@ -478,7 +704,7 @@ function createProxyRoutes(app) {
             // Ignore URL parsing errors
         }
         try {
-            const resp = await fetch(targetUrl, { headers: { 'User-Agent': DEFAULT_UA, ...headers } });
+            const resp = await fetchWithRetry(targetUrl, { headers: { 'User-Agent': DEFAULT_UA, ...headers } });
             if (!resp.ok) return res.status(resp.status).json({ error: `subtitle fetch failed: ${resp.status}` });
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Cache-Control', 'public, max-age=3600');
