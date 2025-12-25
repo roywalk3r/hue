@@ -263,7 +263,8 @@ app.post('/api/refresh-proxies', async (req, res) => {
       success: false, 
       error: error.message 
     });
-  });
+  }
+});
 
 // Consolidated status (metrics + providers + endpoints)
 app.get('/api/status', (req,res) => {
