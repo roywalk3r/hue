@@ -296,7 +296,7 @@ app.get('/api/status', (req,res) => {
     tmdbToImdbLookups: metrics.tmdbToImdbLookups,
     lastRequestAt: metrics.lastRequestAt,
     memoryMB: Math.round(process.memoryUsage().rss/1024/1024)
-  }, endpoints, providers });
+  }, endpoints, providers, tmdbKeyConfigured: !!(config.tmdbApiKeys && config.tmdbApiKeys.length) });
 });
 
 // Providers list
@@ -310,6 +310,7 @@ app.get('/api/debug/env', (req,res) => {
   res.json({
     port: config.port,
     defaultProviders: config.defaultProviders,
+    tmdbKeyConfigured: !!(config.tmdbApiKeys && config.tmdbApiKeys.length),
     febboxCookieCount: config.febboxCookies.length,
     showboxCacheDir: process.env.SHOWBOX_CACHE_DIR || '(os tmp)',
     nodeVersion: process.version,
@@ -412,6 +413,9 @@ const server = app.listen(PORT, HOST, () => {
   console.log('  POST /api/streams/:type/:id');
   if (!config.febboxCookies || config.febboxCookies.length === 0) {
     console.warn('[startup][warning] No FEBBOX_COOKIES configured. Showbox / PStream related streams may be unavailable. Set FEBBOX_COOKIES in your environment to enable these sources.');
+  }
+  if (!config.tmdbApiKeys || config.tmdbApiKeys.length === 0) {
+    console.warn('[startup][warning] No TMDB_API_KEY configured. Providers relying on TMDB metadata (MoviesMod, MP4Hydra, etc.) will fail.');
   }
 });
 
