@@ -350,7 +350,9 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
     streams = applyFilters(streams, 'aggregate', config.minQualities, config.excludeCodecs);
     metrics.streamsReturned += streams.length;
     if (config.enableProxy) {
-      const serverUrl = `${req.protocol}://${req.get('host')}`;
+      // Force HTTPS for HelioHost deployment
+      const protocol = 'https';
+      const serverUrl = `${protocol}://${req.get('host')}`;
       streams = processStreamsForProxy(streams, serverUrl);
     }
     res.json({ success:true, tmdbId, imdbId, count: streams.length, providerTimings, streams });
@@ -380,7 +382,9 @@ app.get('/api/streams/:provider/:type/:tmdbId', async (req,res) => {
     streams = applyFilters(streams, prov.name, config.minQualities, config.excludeCodecs);
     metrics.streamsReturned += streams.length;
     if (config.enableProxy) {
-      const serverUrl = `${req.protocol}://${req.get('host')}`;
+      // Force HTTPS for HelioHost deployment
+      const protocol = 'https';
+      const serverUrl = `${protocol}://${req.get('host')}`;
       streams = processStreamsForProxy(streams, serverUrl);
     }
     res.json({ success:true, provider: prov.name, tmdbId, imdbId, count: streams.length, providerTimings, streams });
