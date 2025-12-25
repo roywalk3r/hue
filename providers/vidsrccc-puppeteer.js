@@ -1,6 +1,5 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const { getNextProxy } = require('../utils/proxyHelper');
 
 // Use stealth plugin
 puppeteer.use(StealthPlugin());
@@ -31,11 +30,7 @@ async function getVidsrcStreams(tmdbId, mediaType, season, episode, imdbId) {
         
         console.log(`[VidsrcCC] Launching Puppeteer to fetch: ${url} (attempt ${attempt + 1}/${maxRetries})`);
         
-        // Get proxy for Puppeteer
-        const proxy = getNextProxy();
-        console.log(`[VidsrcCC] Using proxy: ${proxy}`);
-        
-        // Launch browser with stealth settings and proxy
+        // Launch browser with stealth settings (no proxy - causes 403 errors)
         browser = await puppeteer.launch({
             headless: true,
             args: [
@@ -49,7 +44,6 @@ async function getVidsrcStreams(tmdbId, mediaType, season, episode, imdbId) {
                 "--disable-gpu",
                 "--disable-blink-features=AutomationControlled",
                 "--disable-features=VizDisplayCompositor",
-                `--proxy-server=http://${proxy}`,
                 "--disable-web-security"
             ]
         });
