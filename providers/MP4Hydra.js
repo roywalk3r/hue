@@ -1,6 +1,6 @@
 const axios = require('axios');
 const FormData = require('form-data');
-const { createAxiosConfig, requestWithRetry } = require('../utils/proxyHelper');
+const { createAxiosConfig, requestWithRetry, randomDelay } = require('../utils/proxyHelper');
 
 // Helper function to generate slug from title
 function generateSlug(title) {
@@ -61,24 +61,21 @@ async function getMP4HydraStreams(tmdbId, mediaType, seasonNum = null, episodeNu
             ep: episodeNum
         }]));
 
-        // Make request to MP4Hydra API with proxy
+        // Make request to MP4Hydra API with proxy and browser headers
         const response = await requestWithRetry(async () => {
+            // Add random delay to avoid rate limiting
+            await randomDelay(1000, 3000);
+            
             return axios(createAxiosConfig({
                 method: 'post',
                 url: 'https://mp4hydra.org/info2?v=8',
                 data: formData,
                 headers: {
                     ...formData.getHeaders(),
-                    'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
-                    'Accept': '*/*',
-                    'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8',
                     'Origin': 'https://mp4hydra.org',
-                    'Referer': `https://mp4hydra.org/${mediaType}/${slug}`,
-                    'Sec-Fetch-Dest': 'empty',
-                    'Sec-Fetch-Mode': 'cors',
-                    'Sec-Fetch-Site': 'same-origin'
+                    'Referer': `https://mp4hydra.org/${mediaType}/${slug}`
                 },
-                timeout: 10000
+                timeout: 15000
             }));
         });
 
@@ -468,7 +465,7 @@ async function getTMDBDetails(tmdbId, mediaType) {
         const response = await requestWithRetry(async () => {
             return axios(createAxiosConfig({
                 url: `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}`,
-                timeout: 10000
+                timeout: 15000
             }));
         });
 

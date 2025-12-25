@@ -1,4 +1,5 @@
 const { HttpsProxyAgent } = require('https-proxy-agent');
+const { HttpProxyAgent } = require('http-proxy-agent');
 
 // List of proxies from proxyscrape
 const PROXY_LIST = [
@@ -2004,6 +2005,87 @@ const PROXY_LIST = [
         "73.31.173.80:8888"
 ];
 
+// Latest browser user agents
+const USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+];
+
+// Screen resolutions for headers
+const SCREEN_RESOLUTIONS = [
+    '1920x1080',
+    '1366x768',
+    '1440x900',
+    '1536x864',
+    '2560x1440'
+];
+
+let currentProxyIndex = 0;
+let currentUAIndex = 0;
+let failedProxies = new Set();
+
+// Get random user agent
+function getRandomUserAgent() {
+    const ua = USER_AGENTS[currentUAIndex];
+    currentUAIndex = (currentUAIndex + 1) % USER_AGENTS.length;
+    return ua;
+}
+
+// Get random screen resolution
+function getRandomScreenResolution() {
+    return SCREEN_RESOLUTIONS[Math.floor(Math.random() * SCREEN_RESOLUTIONS.length)];
+}
+
+// Generate browser-like headers
+function generateBrowserHeaders(url, referer = null) {
+    const userAgent = getRandomUserAgent();
+    const screen = getRandomScreenResolution();
+    const isChrome = userAgent.includes('Chrome');
+    const isFirefox = userAgent.includes('Firefox');
+    
+    const headers = {
+        'User-Agent': userAgent,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Cache-Control': 'max-age=0'
+    };
+    
+    // Add Chrome-specific headers
+    if (isChrome) {
+        headers['sec-ch-ua'] = '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"';
+        headers['sec-ch-ua-mobile'] = '?0';
+        headers['sec-ch-ua-platform'] = '"Windows"';
+    }
+    
+    // Add Firefox-specific headers
+    if (isFirefox) {
+        headers['TE'] = 'trailers';
+    }
+    
+    // Add viewport header
+    const [width, height] = screen.split('x');
+    headers['Viewport-Width'] = width;
+    
+    // Add referer if provided
+    if (referer) {
+        headers['Referer'] = referer;
+    }
+    
+    return headers;
+}
+
 let currentProxyIndex = 0;
 let failedProxies = new Set();
 
@@ -2029,23 +2111,32 @@ function markProxyFailed(proxy) {
     console.log(`[proxy] Marked proxy as failed: ${proxy} (${failedProxies.size}/${PROXY_LIST.length} failed)`);
 }
 
-// Create axios config with proxy
+// Create axios config with proxy and browser headers
 function createAxiosConfig(baseConfig = {}) {
     const useProxy = process.env.USE_PROXIES !== 'false';
     
-    if (!useProxy) {
-        return baseConfig;
+    // Start with browser headers
+    const config = {
+        ...baseConfig,
+        headers: {
+            ...generateBrowserHeaders(baseConfig.url),
+            ...baseConfig.headers
+        }
+    };
+    
+    // Add proxy if enabled
+    if (useProxy) {
+        const proxy = getNextProxy();
+        const proxyUrl = `http://${proxy}`;
+        
+        config.httpsAgent = new HttpsProxyAgent(proxyUrl);
+        config.httpAgent = new HttpProxyAgent(proxyUrl);
+        config.proxy = false; // Disable axios's built-in proxy
+        
+        console.log(`[proxy] Using proxy: ${proxy}`);
     }
     
-    const proxy = getNextProxy();
-    const proxyUrl = `http://${proxy}`;
-    
-    return {
-        ...baseConfig,
-        httpsAgent: new HttpsProxyAgent(proxyUrl),
-        httpAgent: new HttpsProxyAgent(proxyUrl),
-        proxy: false // Disable axios's built-in proxy
-    };
+    return config;
 }
 
 // Retry request with different proxy
@@ -2076,9 +2167,16 @@ async function requestWithRetry(requestFn, maxRetries = 3) {
     throw lastError;
 }
 
+// Add delay between requests to avoid rate limiting
+function randomDelay(min = 500, max = 2000) {
+    return new Promise(resolve => setTimeout(resolve, Math.random() * (max - min) + min));
+}
+
 module.exports = {
     createAxiosConfig,
     requestWithRetry,
     getNextProxy,
-    markProxyFailed
+    markProxyFailed,
+    generateBrowserHeaders,
+    randomDelay
 };
