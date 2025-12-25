@@ -9,6 +9,21 @@ COPY package.json package-lock.json ./
 # If you later regenerate lock (npm install locally) you can revert to npm ci for reproducibility
 RUN npm install --omit=dev
 
+# Install Chrome for Puppeteer
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    freetype-dev \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont && \
+    rm -rf /var/cache/apk/*
+
+# Tell Puppeteer to skip installing Chromium since we installed it manually
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
 # Copy only required source (avoid sending screenshots, node_modules already installed)
 COPY apiServer.js ./
 COPY providers ./providers
@@ -24,6 +39,21 @@ ENV NODE_ENV=production \
     API_PORT=8787 \
     BIND_HOST=0.0.0.0 \
     APP_VERSION=${VERSION}
+
+# Install Chrome for Puppeteer in runtime stage
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    freetype-dev \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont && \
+    rm -rf /var/cache/apk/*
+
+# Tell Puppeteer to skip installing Chromium since we installed it manually
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Create non-root user
 RUN addgroup -S app && adduser -S app -G app
