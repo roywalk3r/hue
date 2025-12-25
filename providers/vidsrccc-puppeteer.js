@@ -1,5 +1,6 @@
-const puppeteer = require("puppeteer-extra");
-const StealthPlugin = require("puppeteer-extra-plugin-stealth");
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const { getNextProxy } = require('../utils/proxyHelper');
 
 // Use stealth plugin
 puppeteer.use(StealthPlugin());
@@ -10,24 +11,31 @@ const BASE_URL = "https://vidsrc.cc";
 async function getVidsrcStreams(tmdbId, mediaType, season, episode, imdbId) {
     console.log(`[VidsrcCC] Called with tmdbId=${tmdbId}, mediaType=${mediaType}, season=${season}, episode=${episode}, imdbId=${imdbId}`);
     const streams = [];
-    let browser;
+    let browser = null;
     
-    try {
-        // Build the URL
-        let url;
-        if (mediaType === "movie") {
-            url = `${BASE_URL}/v2/embed/movie/${tmdbId}`;
-        } else if (mediaType === "anime") {
-            url = `${BASE_URL}/v2/embed/anime/${tmdbId}/${season}/${episode}`;
-        } else {
-            // For TV series, prefer IMDB ID if available, otherwise use TMDB ID
-            const id = imdbId || tmdbId;
-            url = `${BASE_URL}/v2/embed/tv/${id}/${season}/${episode}`;
-        }
+    // Retry with different proxies
+    const maxRetries = 3;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            // Build the URL
+            let url;
+            if (mediaType === "movie") {
+                url = `${BASE_URL}/v2/embed/movie/${tmdbId}`;
+            } else if (mediaType === "anime") {
+                url = `${BASE_URL}/v2/embed/anime/${tmdbId}/${season}/${episode}`;
+            } else {
+                // For TV series, prefer IMDB ID if available, otherwise use TMDB ID
+                const id = imdbId || tmdbId;
+                url = `${BASE_URL}/v2/embed/tv/${id}/${season}/${episode}`;
+            }
         
-        console.log(`[VidsrcCC] Launching Puppeteer to fetch: ${url}`);
+        console.log(`[VidsrcCC] Launching Puppeteer to fetch: ${url} (attempt ${attempt + 1}/${maxRetries})`);
         
-        // Launch browser with stealth settings
+        // Get proxy for Puppeteer
+        const proxy = getNextProxy();
+        console.log(`[VidsrcCC] Using proxy: ${proxy}`);
+        
+        // Launch browser with stealth settings and proxy
         browser = await puppeteer.launch({
             headless: true,
             args: [
@@ -40,7 +48,9 @@ async function getVidsrcStreams(tmdbId, mediaType, season, episode, imdbId) {
                 "--single-process",
                 "--disable-gpu",
                 "--disable-blink-features=AutomationControlled",
-                "--disable-features=VizDisplayCompositor"
+                "--disable-features=VizDisplayCompositor",
+                `--proxy-server=http://${proxy}`,
+                "--disable-web-security"
             ]
         });
         
@@ -375,15 +385,21 @@ async function getVidsrcStreams(tmdbId, mediaType, season, episode, imdbId) {
         }
         
         console.log(`[VidsrcCC] Returning ${streams.length} streams`);
-        return streams;
-        
-    } catch (e) {
-        console.error("[VidsrcCC] Error:", e.message);
-        console.error("[VidsrcCC] Stack:", e.stack);
-        return [];
-    } finally {
-        if (browser) {
-            await browser.close();
+            return streams;
+            
+        } catch (e) {
+            console.error(`[VidsrcCC] Error on attempt ${attempt + 1}:`, e.message);
+            if (attempt === maxRetries - 1) {
+                console.error("[VidsrcCC] Max retries reached");
+                return [];
+            }
+            console.log("[VidsrcCC] Retrying with different proxy...");
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+        } finally {
+            if (browser) {
+                await browser.close();
+                browser = null;
+            }
         }
     }
 }

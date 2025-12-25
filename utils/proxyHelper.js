@@ -2110,7 +2110,9 @@ function markProxyFailed(proxy) {
 
 // Create axios config with proxy and browser headers
 function createAxiosConfig(baseConfig = {}) {
-    const useProxy = process.env.USE_PROXIES !== 'false';
+    // Don't use proxy for TMDB API
+    const isTmdbApi = baseConfig.url && baseConfig.url.includes('api.themoviedb.org');
+    const useProxy = !isTmdbApi && process.env.USE_PROXIES !== 'false';
     
     // Start with browser headers
     const config = {
@@ -2121,7 +2123,7 @@ function createAxiosConfig(baseConfig = {}) {
         }
     };
     
-    // Add proxy if enabled
+    // Add proxy if enabled and not TMDB
     if (useProxy) {
         const proxy = getNextProxy();
         const proxyUrl = `http://${proxy}`;
@@ -2131,6 +2133,8 @@ function createAxiosConfig(baseConfig = {}) {
         config.proxy = false; // Disable axios's built-in proxy
         
         console.log(`[proxy] Using proxy: ${proxy}`);
+    } else if (isTmdbApi) {
+        console.log(`[proxy] Skipping proxy for TMDB API`);
     }
     
     return config;
