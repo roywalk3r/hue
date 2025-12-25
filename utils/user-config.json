@@ -1,5 +1,5 @@
 {
-  "defaultProviders": ["vidsrc"],
+  "defaultProviders": ["mp4hydra"],
   "configVersion": 1,
   "tmdbApiKeys": ["ee49cfa0ba7290f7125021125f5d7c57"],
   "enableShowboxProvider": true,
