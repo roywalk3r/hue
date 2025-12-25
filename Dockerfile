@@ -56,8 +56,10 @@ RUN apk add --no-cache \
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-# Create non-root user
-RUN addgroup -S app && adduser -S app -G app
+# Create non-root user and persistent directories
+RUN addgroup -S app && adduser -S app -G app \
+    && mkdir -p /app/utils /app/cache \
+    && chown -R app:app /app
 
 # Copy node_modules from build and necessary source
 COPY --from=build /app/node_modules ./node_modules
