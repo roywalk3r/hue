@@ -1,5 +1,5 @@
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const puppeteer = require("puppeteer-extra");
+const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 
 // Use stealth plugin
 puppeteer.use(StealthPlugin());
@@ -10,30 +10,26 @@ const BASE_URL = "https://vidsrc.cc";
 async function getVidsrcStreams(tmdbId, mediaType, season, episode, imdbId) {
     console.log(`[VidsrcCC] Called with tmdbId=${tmdbId}, mediaType=${mediaType}, season=${season}, episode=${episode}, imdbId=${imdbId}`);
     const streams = [];
-    let browser = null;
+    let browser;
     
-    // Retry with different proxies
-    const maxRetries = 3;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-        try {
-            // Build the URL
-            let url;
-            if (mediaType === "movie") {
-                url = `${BASE_URL}/v2/embed/movie/${tmdbId}`;
-            } else if (mediaType === "anime") {
-                url = `${BASE_URL}/v2/embed/anime/${tmdbId}/${season}/${episode}`;
-            } else {
-                // For TV series, prefer IMDB ID if available, otherwise use TMDB ID
-                const id = imdbId || tmdbId;
-                url = `${BASE_URL}/v2/embed/tv/${id}/${season}/${episode}`;
-            }
+    try {
+        // Build the URL
+        let url;
+        if (mediaType === "movie") {
+            url = `${BASE_URL}/v2/embed/movie/${tmdbId}`;
+        } else if (mediaType === "anime") {
+            url = `${BASE_URL}/v2/embed/anime/${tmdbId}/${season}/${episode}`;
+        } else {
+            // For TV series, prefer IMDB ID if available, otherwise use TMDB ID
+            const id = imdbId || tmdbId;
+            url = `${BASE_URL}/v2/embed/tv/${id}/${season}/${episode}`;
+        }
         
-        console.log(`[VidsrcCC] Launching Puppeteer to fetch: ${url} (attempt ${attempt + 1}/${maxRetries})`);
+        console.log(`[VidsrcCC] Launching Puppeteer to fetch: ${url}`);
         
-        // Launch browser with minimal stable settings for Render
+        // Launch browser with stealth settings
         browser = await puppeteer.launch({
             headless: true,
-            executablePath: '/usr/bin/chromium-browser',
             args: [
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
@@ -41,13 +37,11 @@ async function getVidsrcStreams(tmdbId, mediaType, season, episode, imdbId) {
                 "--disable-accelerated-2d-canvas",
                 "--no-first-run",
                 "--no-zygote",
+                "--single-process",
                 "--disable-gpu",
                 "--disable-blink-features=AutomationControlled",
-                "--disable-web-security",
-                "--disable-features=IsolateOrigins,site-per-process",
-                "--disable-site-isolation-trials"
-            ],
-            dumpio: true
+                "--disable-features=VizDisplayCompositor"
+            ]
         });
         
         const page = await browser.newPage();
@@ -111,22 +105,13 @@ async function getVidsrcStreams(tmdbId, mediaType, season, episode, imdbId) {
         });
         
         // Set user agent and other headers
-        await page.setUserAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36");
+        await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
         await page.setExtraHTTPHeaders({
             "Accept-Language": "en-US,en;q=0.9",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
             "Accept-Encoding": "gzip, deflate, br",
-            "DNT": "1",
             "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
-            "Sec-Fetch-User": "?1",
-            "Cache-Control": "max-age=0",
-            "sec-ch-ua": '"Chromium";v="142", "Google Chrome";v="142", "Not:A-Brand";v="24"',
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": '"Linux"'
+            "Upgrade-Insecure-Requests": "1"
         });
         
         // Navigate to the page
@@ -381,21 +366,15 @@ async function getVidsrcStreams(tmdbId, mediaType, season, episode, imdbId) {
         }
         
         console.log(`[VidsrcCC] Returning ${streams.length} streams`);
-            return streams;
-            
-        } catch (e) {
-            console.error(`[VidsrcCC] Error on attempt ${attempt + 1}:`, e.message);
-            if (attempt === maxRetries - 1) {
-                console.error("[VidsrcCC] Max retries reached");
-                return [];
-            }
-            console.log("[VidsrcCC] Retrying with different proxy...");
-            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
-        } finally {
-            if (browser) {
-                await browser.close();
-                browser = null;
-            }
+        return streams;
+        
+    } catch (e) {
+        console.error("[VidsrcCC] Error:", e.message);
+        console.error("[VidsrcCC] Stack:", e.stack);
+        return [];
+    } finally {
+        if (browser) {
+            await browser.close();
         }
     }
 }

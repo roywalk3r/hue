@@ -9,7 +9,6 @@ const { listProviders, getProvider, getCookieStats } = require('./providers/regi
 const { createProxyRoutes, processStreamsForProxy } = require('./proxy/proxyServer');
 const { resolveImdbId } = require('./utils/tmdb');
 const { applyFilters } = require('./utils/streamFilters');
-const { fetchProxies } = require('./scripts/fetch-proxies');
 
 const app = express();
 
@@ -240,30 +239,25 @@ app.get('/api/health', (req, res) => {
 
 // Metrics endpoint
 app.get('/api/metrics', (req,res) => {
-  res.json(metrics);
-});
-
-// Refresh proxies endpoint
-app.post('/api/refresh-proxies', async (req, res) => {
-  try {
-    console.log('[api] Refreshing proxy list...');
-    const proxies = await fetchProxies();
-    
-    // Clear the require cache to reload the updated proxy list
-    delete require.cache[require.resolve('./utils/proxyHelper')];
-    
-    res.json({ 
-      success: true, 
-      message: `Updated proxy list with ${proxies.length} proxies`,
-      count: proxies.length
-    });
-  } catch (error) {
-    console.error('[api] Failed to refresh proxies:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
-  }
+  res.json({
+    uptimeSeconds: Math.round((Date.now()-metrics.startTime)/1000),
+    requestsTotal: metrics.requestsTotal,
+    streamRequests: metrics.streamRequests,
+    providerCalls: metrics.providerCalls,
+    streamsReturned: metrics.streamsReturned,
+    tmdbToImdbLookups: metrics.tmdbToImdbLookups,
+    lastRequestAt: metrics.lastRequestAt,
+    memoryMB: Math.round(process.memoryUsage().rss/1024/1024),
+    loadAvg: os.loadavg ? os.loadavg() : [],
+    nodeVersion: process.version,
+    configDefaults: {
+      region: config.defaultRegion,
+      providers: config.defaultProviders,
+      minQualities: config.minQualities ? Object.keys(config.minQualities).length : 0,
+      excludeCodecs: config.excludeCodecs ? Object.keys(config.excludeCodecs).filter(k=>config.excludeCodecs[k]).length : 0,
+      febboxCookies: config.febboxCookies.length
+    }
+  });
 });
 
 // Consolidated status (metrics + providers + endpoints)
@@ -277,7 +271,6 @@ app.get('/api/status', (req,res) => {
     'GET /api/streams/:type/:tmdbId',
     'GET /api/streams/:provider/:type/:tmdbId',
     'POST /api/config',
-    'POST /api/refresh-proxies',
     'GET /api/config'
   ];
   // Determine cookie requirement heuristically (currently Showbox / PStream)
@@ -296,7 +289,7 @@ app.get('/api/status', (req,res) => {
     tmdbToImdbLookups: metrics.tmdbToImdbLookups,
     lastRequestAt: metrics.lastRequestAt,
     memoryMB: Math.round(process.memoryUsage().rss/1024/1024)
-  }, endpoints, providers, tmdbKeyConfigured: !!(config.tmdbApiKeys && config.tmdbApiKeys.length) });
+  }, endpoints, providers });
 });
 
 // Providers list
@@ -310,7 +303,6 @@ app.get('/api/debug/env', (req,res) => {
   res.json({
     port: config.port,
     defaultProviders: config.defaultProviders,
-    tmdbKeyConfigured: !!(config.tmdbApiKeys && config.tmdbApiKeys.length),
     febboxCookieCount: config.febboxCookies.length,
     showboxCacheDir: process.env.SHOWBOX_CACHE_DIR || '(os tmp)',
     nodeVersion: process.version,
@@ -413,9 +405,6 @@ const server = app.listen(PORT, HOST, () => {
   console.log('  POST /api/streams/:type/:id');
   if (!config.febboxCookies || config.febboxCookies.length === 0) {
     console.warn('[startup][warning] No FEBBOX_COOKIES configured. Showbox / PStream related streams may be unavailable. Set FEBBOX_COOKIES in your environment to enable these sources.');
-  }
-  if (!config.tmdbApiKeys || config.tmdbApiKeys.length === 0) {
-    console.warn('[startup][warning] No TMDB_API_KEY configured. Providers relying on TMDB metadata (MoviesMod, MP4Hydra, etc.) will fail.');
   }
 });
 

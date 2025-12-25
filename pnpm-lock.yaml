@@ -41,6 +41,9 @@ importers:
       hls-parser:
         specifier: ^0.13.5
         version: 0.13.6
+      https-proxy-agent:
+        specifier: ^7.0.6
+        version: 7.0.6
       jsdom:
         specifier: ^26.1.0
         version: 26.1.0

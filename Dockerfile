@@ -9,28 +9,11 @@ COPY package.json package-lock.json ./
 # If you later regenerate lock (npm install locally) you can revert to npm ci for reproducibility
 RUN npm install --omit=dev
 
-# Install Chrome for Puppeteer
-RUN apk add --no-cache \
-    chromium \
-    nss \
-    freetype \
-    freetype-dev \
-    harfbuzz \
-    ca-certificates \
-    ttf-freefont && \
-    rm -rf /var/cache/apk/*
-
-# Tell Puppeteer to skip installing Chromium since we installed it manually
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
-
 # Copy only required source (avoid sending screenshots, node_modules already installed)
 COPY apiServer.js ./
 COPY providers ./providers
-COPY proxy ./proxy
 COPY public ./public
 COPY utils ./utils
-COPY scripts ./scripts
 COPY README.md ./
 
 # ---------- Runtime Stage ----------
@@ -42,34 +25,15 @@ ENV NODE_ENV=production \
     BIND_HOST=0.0.0.0 \
     APP_VERSION=${VERSION}
 
-# Install Chrome for Puppeteer in runtime stage
-RUN apk add --no-cache \
-    chromium \
-    nss \
-    freetype \
-    freetype-dev \
-    harfbuzz \
-    ca-certificates \
-    ttf-freefont && \
-    rm -rf /var/cache/apk/*
-
-# Tell Puppeteer to skip installing Chromium since we installed it manually
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
-
-# Create non-root user and persistent directories
-RUN addgroup -S app && adduser -S app -G app \
-    && mkdir -p /app/utils /app/cache \
-    && chown -R app:app /app
+# Create non-root user
+RUN addgroup -S app && adduser -S app -G app
 
 # Copy node_modules from build and necessary source
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apiServer.js ./
-COPY --from=build /app/providers ./providers
-COPY --from=build /app/proxy ./proxy
 COPY --from=build /app/public ./public
+COPY --from=build /app/providers ./providers
 COPY --from=build /app/utils ./utils
-COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/package.json ./
 COPY --from=build /app/README.md ./
 
