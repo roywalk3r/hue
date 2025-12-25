@@ -9,6 +9,7 @@ const { listProviders, getProvider, getCookieStats } = require('./providers/regi
 const { createProxyRoutes, processStreamsForProxy } = require('./proxy/proxyServer');
 const { resolveImdbId } = require('./utils/tmdb');
 const { applyFilters } = require('./utils/streamFilters');
+const { fetchProxies } = require('./scripts/fetch-proxies');
 
 const app = express();
 
@@ -239,26 +240,30 @@ app.get('/api/health', (req, res) => {
 
 // Metrics endpoint
 app.get('/api/metrics', (req,res) => {
-  res.json({
-    uptimeSeconds: Math.round((Date.now()-metrics.startTime)/1000),
-    requestsTotal: metrics.requestsTotal,
-    streamRequests: metrics.streamRequests,
-    providerCalls: metrics.providerCalls,
-    streamsReturned: metrics.streamsReturned,
-    tmdbToImdbLookups: metrics.tmdbToImdbLookups,
-    lastRequestAt: metrics.lastRequestAt,
-    memoryMB: Math.round(process.memoryUsage().rss/1024/1024),
-    loadAvg: os.loadavg ? os.loadavg() : [],
-    nodeVersion: process.version,
-    configDefaults: {
-      region: config.defaultRegion,
-      providers: config.defaultProviders,
-      minQualities: config.minQualities ? Object.keys(config.minQualities).length : 0,
-      excludeCodecs: config.excludeCodecs ? Object.keys(config.excludeCodecs).filter(k=>config.excludeCodecs[k]).length : 0,
-      febboxCookies: config.febboxCookies.length
-    }
-  });
+  res.json(metrics);
 });
+
+// Refresh proxies endpoint
+app.post('/api/refresh-proxies', async (req, res) => {
+  try {
+    console.log('[api] Refreshing proxy list...');
+    const proxies = await fetchProxies();
+    
+    // Clear the require cache to reload the updated proxy list
+    delete require.cache[require.resolve('./utils/proxyHelper')];
+    
+    res.json({ 
+      success: true, 
+      message: `Updated proxy list with ${proxies.length} proxies`,
+      count: proxies.length
+    });
+  } catch (error) {
+    console.error('[api] Failed to refresh proxies:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  });
 
 // Consolidated status (metrics + providers + endpoints)
 app.get('/api/status', (req,res) => {
@@ -271,6 +276,7 @@ app.get('/api/status', (req,res) => {
     'GET /api/streams/:type/:tmdbId',
     'GET /api/streams/:provider/:type/:tmdbId',
     'POST /api/config',
+    'POST /api/refresh-proxies',
     'GET /api/config'
   ];
   // Determine cookie requirement heuristically (currently Showbox / PStream)
