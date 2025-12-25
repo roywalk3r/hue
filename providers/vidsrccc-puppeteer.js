@@ -30,9 +30,10 @@ async function getVidsrcStreams(tmdbId, mediaType, season, episode, imdbId) {
         
         console.log(`[VidsrcCC] Launching Puppeteer to fetch: ${url} (attempt ${attempt + 1}/${maxRetries})`);
         
-        // Launch browser with stealth settings (no proxy - causes 403 errors)
+        // Launch browser with minimal stable settings for Render
         browser = await puppeteer.launch({
             headless: true,
+            executablePath: '/usr/bin/chromium-browser',
             args: [
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
@@ -40,12 +41,13 @@ async function getVidsrcStreams(tmdbId, mediaType, season, episode, imdbId) {
                 "--disable-accelerated-2d-canvas",
                 "--no-first-run",
                 "--no-zygote",
-                "--single-process",
                 "--disable-gpu",
                 "--disable-blink-features=AutomationControlled",
-                "--disable-features=VizDisplayCompositor",
-                "--disable-web-security"
-            ]
+                "--disable-web-security",
+                "--disable-features=IsolateOrigins,site-per-process",
+                "--disable-site-isolation-trials"
+            ],
+            dumpio: true
         });
         
         const page = await browser.newPage();
