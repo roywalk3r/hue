@@ -2007,12 +2007,11 @@ const PROXY_LIST = [
 
 // Latest browser user agents
 const USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15'
 ];
 
 // Screen resolutions for headers
@@ -2064,9 +2063,9 @@ function generateBrowserHeaders(url, referer = null) {
     
     // Add Chrome-specific headers
     if (isChrome) {
-        headers['sec-ch-ua'] = '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"';
+        headers['sec-ch-ua'] = '"Chromium";v="142", "Google Chrome";v="142", "Not:A-Brand";v="24"';
         headers['sec-ch-ua-mobile'] = '?0';
-        headers['sec-ch-ua-platform'] = '"Windows"';
+        headers['sec-ch-ua-platform'] = '"Linux"';
     }
     
     // Add Firefox-specific headers
@@ -2086,8 +2085,6 @@ function generateBrowserHeaders(url, referer = null) {
     return headers;
 }
 
-let currentProxyIndex = 0;
-let failedProxies = new Set();
 
 // Get next working proxy
 function getNextProxy() {
