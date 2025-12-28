@@ -39,7 +39,10 @@ WORKDIR /app
 ENV NODE_ENV=production \
     API_PORT=8787 \
     BIND_HOST=0.0.0.0 \
-    APP_VERSION=${VERSION}
+    APP_VERSION=${VERSION} \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
+    PUPPETEER_ARGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --no-zygote --single-process --disable-gpu"
 
 # Install Chrome for Puppeteer in runtime stage
 RUN apk add --no-cache \

@@ -1,5 +1,6 @@
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
+const { buildLaunchOptions } = require("../utils/puppeteerConfig");
 
 // Use stealth plugin
 puppeteer.use(StealthPlugin());
@@ -28,21 +29,7 @@ async function getVidsrcStreams(tmdbId, mediaType, season, episode, imdbId) {
         console.log(`[VidsrcCC] Launching Puppeteer to fetch: ${url}`);
         
         // Launch browser with stealth settings
-        browser = await puppeteer.launch({
-            headless: true,
-            args: [
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-accelerated-2d-canvas",
-                "--no-first-run",
-                "--no-zygote",
-                "--single-process",
-                "--disable-gpu",
-                "--disable-blink-features=AutomationControlled",
-                "--disable-features=VizDisplayCompositor"
-            ]
-        });
+        browser = await puppeteer.launch(buildLaunchOptions());
         
         const page = await browser.newPage();
         
