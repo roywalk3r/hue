@@ -12,6 +12,19 @@ const { applyFilters } = require('./utils/streamFilters');
 
 const app = express();
 
+function resolveServerUrl(req) {
+  const host = req.get('host') || 'localhost';
+  const forwardedProto = (req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  let protocol = forwardedProto || req.protocol || 'http';
+
+  // Always use HTTP for local loopback hosts; avoids HTTPS->HTTP mismatch (EPROTO) when listener is plain HTTP.
+  if (/^(localhost|127\.0\.0\.1|\[?::1\]?)(:\d+)?$/i.test(host)) {
+    protocol = 'http';
+  }
+
+  return `${protocol}://${host}`;
+}
+
 // Conditionally mount proxy routes early so downstream handlers can use them
 if (config.enableProxy) {
   console.log('[startup] enableProxy flag active: mounting proxy routes');
@@ -350,9 +363,7 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
     streams = applyFilters(streams, 'aggregate', config.minQualities, config.excludeCodecs);
     metrics.streamsReturned += streams.length;
     if (config.enableProxy) {
-      // Force HTTPS for HelioHost deployment
-      const protocol = 'https';
-      const serverUrl = `${protocol}://${req.get('host')}`;
+      const serverUrl = resolveServerUrl(req);
       streams = processStreamsForProxy(streams, serverUrl);
     }
     res.json({ success:true, tmdbId, imdbId, count: streams.length, providerTimings, streams });
@@ -382,9 +393,7 @@ app.get('/api/streams/:provider/:type/:tmdbId', async (req,res) => {
     streams = applyFilters(streams, prov.name, config.minQualities, config.excludeCodecs);
     metrics.streamsReturned += streams.length;
     if (config.enableProxy) {
-      // Force HTTPS for HelioHost deployment
-      const protocol = 'https';
-      const serverUrl = `${protocol}://${req.get('host')}`;
+      const serverUrl = resolveServerUrl(req);
       streams = processStreamsForProxy(streams, serverUrl);
     }
     res.json({ success:true, provider: prov.name, tmdbId, imdbId, count: streams.length, providerTimings, streams });
@@ -394,22 +403,28 @@ app.get('/api/streams/:provider/:type/:tmdbId', async (req,res) => {
   }
 });
 
-const PORT = config.port;
-const HOST = process.env.BIND_HOST || '0.0.0.0';
-const server = app.listen(PORT, HOST, () => {
-  console.log(`TMDB Embed REST API listening on http://${HOST}:${PORT}`);
-  if (HOST !== 'localhost') {
-    console.log(`Local access (if running on your machine): http://localhost:${PORT}`);
-  }
-  console.log('Endpoints:');
-  console.log('  GET  /api/health');
-  console.log('  GET  /api/metrics');
-  console.log('  GET  /api/providers');
-  console.log('  GET  /api/streams/:type/:id');
-  console.log('  POST /api/streams/:type/:id');
-  if (!config.febboxCookies || config.febboxCookies.length === 0) {
-    console.warn('[startup][warning] No FEBBOX_COOKIES configured. Showbox / PStream related streams may be unavailable. Set FEBBOX_COOKIES in your environment to enable these sources.');
-  }
-});
+// For Vercel deployment: export the app
+module.exports = app;
 
-server.on('error', (err)=>{ console.error('[diagnostic] server error', err); });
+// For local development: start server if not in Vercel environment
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  const PORT = config.port;
+  const HOST = process.env.BIND_HOST || '0.0.0.0';
+  const server = app.listen(PORT, HOST, () => {
+    console.log(`TMDB Embed REST API listening on http://${HOST}:${PORT}`);
+    if (HOST !== 'localhost') {
+      console.log(`Local access (if running on your machine): http://localhost:${PORT}`);
+    }
+    console.log('Endpoints:');
+    console.log('  GET  /api/health');
+    console.log('  GET  /api/metrics');
+    console.log('  GET  /api/providers');
+    console.log('  GET  /api/streams/:type/:id');
+    console.log('  POST /api/streams/:type/:id');
+    if (!config.febboxCookies || config.febboxCookies.length === 0) {
+      console.warn('[startup][warning] No FEBBOX_COOKIES configured. Showbox / PStream related streams may be unavailable. Set FEBBOX_COOKIES in your environment to enable these sources.');
+    }
+  });
+
+  server.on('error', (err)=>{ console.error('[diagnostic] server error', err); });
+}

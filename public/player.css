@@ -205,23 +205,100 @@ video {
 .stream-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .stream-header h2 { margin: 2px 0 0; letter-spacing: -0.01em; }
 .stream-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 8px;
+}
+
+.stream-instruction {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent-2);
+  margin: 0 0 8px;
+  padding: 10px 14px;
+  background: rgba(49, 215, 169, 0.1);
+  border: 1px solid rgba(49, 215, 169, 0.3);
+  border-radius: 10px;
+  text-align: center;
+}
+
+.stream-hint {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  text-align: center;
 }
 .stream-card {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: rgba(255,255,255,0.03);
-  padding: 10px 12px;
+  padding: 12px 14px;
   text-align: left;
   cursor: pointer;
-  transition: border 0.15s ease, background 0.15s ease, transform 0.1s ease;
+  transition: border 0.15s ease, background 0.15s ease, transform 0.1s ease, box-shadow 0.2s ease;
+  position: relative;
 }
-.stream-card:hover { transform: translateY(-1px); border-color: rgba(124, 93, 255, 0.6); }
-.stream-card.active { border-color: var(--accent); box-shadow: 0 8px 20px rgba(124,93,255,0.25); }
-.stream-card h3 { margin: 0 0 6px; font-size: 1rem; }
-.stream-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.stream-card:hover { 
+  transform: translateY(-2px); 
+  border-color: rgba(124, 93, 255, 0.6); 
+  background: rgba(124, 93, 255, 0.08);
+  box-shadow: 0 4px 12px rgba(124, 93, 255, 0.15);
+}
+.stream-card.active { 
+  border-color: var(--accent); 
+  background: rgba(124, 93, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(124,93,255,0.3); 
+}
+
+.stream-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.stream-card h3 { 
+  margin: 0; 
+  font-size: 1rem;
+  flex: 1;
+  line-height: 1.3;
+}
+
+.play-icon {
+  font-size: 1.2rem;
+  color: var(--accent);
+  opacity: 0.6;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.stream-card:hover .play-icon {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+.stream-card.active .play-icon {
+  opacity: 1;
+  color: var(--accent-2);
+}
+
+.stream-title {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.stream-meta { 
+  display: flex; 
+  flex-wrap: wrap; 
+  gap: 6px;
+  margin-bottom: 6px;
+}
 .tag {
   background: rgba(255,255,255,0.07);
   color: var(--muted);
@@ -243,4 +320,6 @@ video {
   body.player-body { padding: 18px; }
   .layout { grid-template-columns: 1fr; }
   video { height: 320px; }
+  .stream-card-header h3 { font-size: 0.9rem; }
+  .play-icon { font-size: 1rem; }
 }

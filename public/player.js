@@ -187,18 +187,33 @@
       els.headerNote.style.display = 'none';
       return;
     }
+    
+    // Add instruction header
+    const instruction = document.createElement('p');
+    instruction.className = 'stream-instruction';
+    instruction.textContent = '👆 Click any stream below to play it';
+    els.streamList.appendChild(instruction);
     cleaned.forEach((stream, idx) => {
       const card = document.createElement('button');
       card.type = 'button';
       card.className = 'stream-card';
       card.dataset.idx = idx;
+      card.setAttribute('aria-label', `Play ${stream.name || stream.title || 'stream'} from ${stream.provider}`);
       const needsHeaders = stream.headers && Object.keys(stream.headers).length > 0;
       const encoded = looksEncrypted(stream.url);
+      const title = stream.title || stream.name || 'Untitled';
+      const sizeMeta = title.match(/([0-9.]+\s*(?:GB|MB|TB))/i)?.[0] || '';
+      
       card.innerHTML = `
-        <h3>${escapeHtml(stream.name || stream.title || 'Untitled')}</h3>
+        <div class="stream-card-header">
+          <h3>${escapeHtml(stream.name || 'Untitled')}</h3>
+          <span class="play-icon">▶</span>
+        </div>
+        ${stream.title ? `<div class="stream-title">${escapeHtml(truncate(stream.title, 90))}</div>` : ''}
         <div class="stream-meta">
           <span class="tag">${escapeHtml(stream.provider || 'Unknown')}</span>
           <span class="tag">${escapeHtml(stream.quality || '?')}</span>
+          ${sizeMeta ? `<span class="tag">${escapeHtml(sizeMeta)}</span>` : ''}
           ${needsHeaders ? '<span class="tag">headers</span>' : ''}
           ${encoded ? '<span class="tag">encoded</span>' : ''}
         </div>
@@ -206,6 +221,13 @@
       `;
       els.streamList.appendChild(card);
     });
+    
+    // Add navigation hint
+    const hint = document.createElement('p');
+    hint.className = 'stream-hint';
+    hint.textContent = `💡 ${cleaned.length} stream${cleaned.length > 1 ? 's' : ''} available. Auto-playing best quality...`;
+    els.streamList.appendChild(hint);
+    
     // Auto-play best option
     playStream(0);
   }
@@ -403,18 +425,32 @@
 
   function normalizedBase() {
     const base = (els.apiBase.value || '').trim();
-    if (!base) return `${location.protocol}//${location.host}`;
-    return base.replace(/\/+$/, '');
+    if (!base) {
+      // Force HTTP for localhost to avoid SSL errors
+      const protocol = location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 'http:' : location.protocol;
+      return `${protocol}//${location.host}`;
+    }
+    // Ensure localhost URLs use http:// not https://
+    const normalized = base.replace(/\/+$/, '');
+    if (normalized.includes('localhost') || normalized.includes('127.0.0.1')) {
+      return normalized.replace(/^https:/, 'http:');
+    }
+    return normalized;
   }
 
   function shouldProxy(url, stream) {
     const needsHeaders = stream.headers && Object.keys(stream.headers).length > 0;
     const isEncoded = !/^https?:\/\//i.test(url);
+    
+    // Check if URL is already proxied (regardless of origin)
+    if (url.includes('/m3u8-proxy') || url.includes('/ts-proxy') || url.includes('/dash-proxy')) {
+      console.log('[Player] URL already proxied, skipping proxy wrap');
+      return false;
+    }
+    
     try {
       const u = new URL(url, location.href);
       const sameOrigin = u.origin === location.origin;
-      const alreadyProxied = sameOrigin && (u.pathname.includes('m3u8-proxy') || u.pathname.includes('ts-proxy') || u.pathname.includes('dash-proxy'));
-      if (alreadyProxied) return false;
       return needsHeaders || !sameOrigin || isEncoded;
     } catch {
       return needsHeaders || isEncoded;
