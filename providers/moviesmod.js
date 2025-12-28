@@ -27,7 +27,7 @@ function escapeRegExp(string) {
 
 
 // --- Domain Fetching ---
-let moviesModDomain = 'https://moviesmod.card'; // Fallback domain
+let moviesModDomain = 'https://moviesmod.cards'; // Fallback domain
 let domainCacheTimestamp = 0;
 const DOMAIN_CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
 
@@ -41,9 +41,17 @@ async function getMoviesModDomain() {
         console.log('[MoviesMod] Fetching latest domain...');
         const response = await makeRequest('https://raw.githubusercontent.com/phisher98/TVVVV/refs/heads/main/domains.json', { timeout: 10000 });
         if (response.data && response.data.moviesmod) {
-            moviesModDomain = response.data.moviesmod;
-            domainCacheTimestamp = now;
-            console.log(`[MoviesMod] Updated domain to: ${moviesModDomain}`);
+            const newDomain = response.data.moviesmod;
+            
+            // Validate the domain by making a test request
+            try {
+                await makeRequest(newDomain, { timeout: 5000, validateStatus: () => true });
+                moviesModDomain = newDomain;
+                domainCacheTimestamp = now;
+                console.log(`[MoviesMod] Updated domain to: ${moviesModDomain}`);
+            } catch (validationError) {
+                console.warn(`[MoviesMod] Domain ${newDomain} failed validation (${validationError.message}), using fallback.`);
+            }
         } else {
             console.warn('[MoviesMod] Domain JSON fetched, but "moviesmod" key was not found. Using fallback.');
         }
@@ -160,7 +168,7 @@ function getTechDetails(qualityString) {
 // Search for content on MoviesMod
 async function searchMoviesMod(query) {
     try {
-        const baseUrl = await getMoviesModDomain();
+        const baseUrl = 'https://moviesmod.cards';
         const searchUrl = `${baseUrl}/?s=${encodeURIComponent(query)}`;
         const { data } = await makeRequest(searchUrl);
         const $ = cheerio.load(data);

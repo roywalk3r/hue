@@ -123,6 +123,8 @@ function validateUrl(url) {
 }
 
 function makeRequest(url, options = {}) {
+    const redirectCount = options._redirects || 0;
+
     return new Promise((resolve, reject) => {
         const urlObj = new URL(url);
         const isHttps = urlObj.protocol === 'https:';
@@ -141,20 +143,28 @@ function makeRequest(url, options = {}) {
         };
 
         const req = httpModule.request(requestOptions, (res) => {
-            if (options.allowRedirects === false && (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 303 || res.statusCode === 307 || res.statusCode === 308)) {
-                resolve({ statusCode: res.statusCode, headers: res.headers });
+            const isRedirect = res.statusCode >= 300 && res.statusCode < 400 && res.headers.location;
+            if (isRedirect && options.allowRedirects !== false) {
+                if (redirectCount >= 5) {
+                    console.log(`[4KHDHub] Redirect limit reached for ${url}`);
+                } else {
+                    const nextUrl = new URL(res.headers.location, url).toString();
+                    console.log(`[4KHDHub] Redirect ${res.statusCode} -> ${nextUrl}`);
+                    resolve(makeRequest(nextUrl, { ...options, _redirects: redirectCount + 1 }));
+                    res.destroy();
+                    return;
+                }
+            } else if (isRedirect && options.allowRedirects === false) {
+                resolve({ statusCode: res.statusCode, headers: res.headers, body: '' });
                 return;
             }
 
             let data = '';
             res.on('data', chunk => data += chunk);
             res.on('end', () => {
-                if (options.parseHTML && data) {
-                    const $ = cheerio.load(data);
-                    resolve({ $: $, body: data, statusCode: res.statusCode, headers: res.headers });
-                } else {
-                    resolve({ body: data, statusCode: res.statusCode, headers: res.headers });
-                }
+                const body = data || '';
+                const parsed = options.parseHTML ? cheerio.load(body) : null;
+                resolve({ $: parsed, body, statusCode: res.statusCode, headers: res.headers });
             });
         });
 
@@ -651,7 +661,7 @@ function extractHubCloudLinks(url, referer) {
 
     return makeRequest(url, { parseHTML: true })
         .then(response => {
-            const $ = response.$;
+            const $ = typeof response.$ === 'function' ? response.$ : cheerio.load(response.body || '');
             console.log(`[4KHDHub] Got HubCloud page, looking for download element...`);
 
             // Check if this is already a hubcloud.php URL
@@ -698,7 +708,17 @@ function extractHubCloudLinks(url, referer) {
             return makeRequest(href, { parseHTML: true });
         })
         .then(response => {
-            const $ = response.$;
+            const statusCode = response.statusCode || 0;
+            const redirectLocation = response.headers && response.headers.location ? response.headers.location : null;
+            
+            // Ensure $ is properly initialized as a cheerio instance
+            let $;
+            if (response.$ && typeof response.$ === 'function') {
+                $ = response.$;
+            } else {
+                const bodyContent = response.body || '';
+                $ = cheerio.load(bodyContent);
+            }
 
             console.log(`[4KHDHub] Processing HubCloud download page...`);
 
@@ -707,16 +727,32 @@ function extractHubCloudLinks(url, referer) {
             const header = $('div.card-header').text() || '';
             const quality = getIndexQuality(header);
             const headerDetails = cleanTitle(header);
+            const qualityLabel = quality ? ` - ${quality}p` : '';
+            const titleParts = [];
+            if (headerDetails) titleParts.push(headerDetails);
+            if (size) titleParts.push(size);
+            const fallbackTitle = titleParts.join('\n') || 'HubCloud';
+
+            // If HubCloud returns a redirect (common), treat it as the direct link
+            if (statusCode >= 300 && statusCode < 400 && redirectLocation) {
+                const finalUrl = new URL(redirectLocation, href).toString();
+                console.log(`[4KHDHub] HubCloud download page redirected to ${finalUrl}`);
+                return [{
+                    name: `4KHDHub - HubCloud${qualityLabel}`,
+                    title: fallbackTitle,
+                    url: finalUrl,
+                    quality: quality,
+                    provider: '4khdhub',
+                    headers: {}
+                }];
+            }
 
             console.log(`[4KHDHub] Extracted info - Size: ${size}, Header: ${header}, Quality: ${quality}, HeaderDetails: ${headerDetails}`);
-
-            // Extract just the quality for clean naming
-            const qualityLabel = quality ? ` - ${quality}p` : '';
 
             // We'll build the title format later after getting actual filename from HEAD request
 
             // Find download buttons
-            const downloadButtons = $('div.card-body h2 a.btn');
+            const downloadButtons = $('a#download, a.btn-primary, div.card-body h2 a.btn');
             console.log(`[4KHDHub] Found ${downloadButtons.length} download buttons`);
 
             if (downloadButtons.length === 0) {

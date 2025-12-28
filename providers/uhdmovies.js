@@ -700,24 +700,57 @@ function extractCodecs(rawQuality) {
 async function tryInstantDownload($) {
   const instantDownloadLink = $('a:contains("Instant Download")').attr('href');
   if (!instantDownloadLink) {
+    console.log('[UHDMovies] No "Instant Download" button found.');
     return null;
   }
+  console.log(`[UHDMovies] Found Instant Download link: ${instantDownloadLink}`);
 
   console.log('[UHDMovies] Found "Instant Download" link, attempting to extract final URL...');
 
   try {
-    const urlParams = new URLSearchParams(new URL(instantDownloadLink).search);
+    const parsedUrl = new URL(instantDownloadLink);
+    
+    // Check if it's a CDN link (video-leech.pro or videoseed.dev)
+    if (parsedUrl.hostname.includes('video-leech.pro') || parsedUrl.hostname.includes('videoseed.dev')) {
+      console.log('[UHDMovies] CDN link detected, following redirect to get final URL...');
+      
+      // Follow the CDN link to get the final download URL
+      const response = await axiosInstance.get(instantDownloadLink, { 
+        maxRedirects: 10,
+        validateStatus: (status) => status >= 200 && status < 400
+      });
+      
+      // The final URL should be in the response URL after redirects
+      const finalUrl = response.request.res.responseUrl || instantDownloadLink;
+      
+      // Fix spaces in workers.dev URLs by encoding them properly
+      if (finalUrl.includes('workers.dev')) {
+        const urlParts = finalUrl.split('/');
+        const filename = urlParts[urlParts.length - 1];
+        const encodedFilename = filename.replace(/ /g, '%20');
+        urlParts[urlParts.length - 1] = encodedFilename;
+        const encodedUrl = urlParts.join('/');
+        console.log('[UHDMovies] Extracted final CDN link:', encodedUrl);
+        return encodedUrl;
+      }
+      
+      console.log('[UHDMovies] Extracted final CDN link:', finalUrl);
+      return finalUrl;
+    }
+    
+    // Original API-based method for other links
+    const urlParams = new URLSearchParams(parsedUrl.search);
     const keys = urlParams.get('url');
 
     if (keys) {
-      const apiUrl = `${new URL(instantDownloadLink).origin}/api`;
+      const apiUrl = `${parsedUrl.origin}/api`;
       const formData = new FormData();
       formData.append('keys', keys);
 
       const apiResponse = await axiosInstance.post(apiUrl, formData, {
         headers: {
           ...formData.getHeaders(),
-          'x-token': new URL(instantDownloadLink).hostname
+          'x-token': parsedUrl.hostname
         }
       });
 
@@ -745,18 +778,23 @@ async function tryInstantDownload($) {
 }
 
 // Function to try Resume Cloud method
-async function tryResumeCloud($) {
+async function tryResumeCloud($, session = null) {
   // Look for both "Resume Cloud" and "Cloud Resume Download" buttons
   const resumeCloudButton = $('a:contains("Resume Cloud"), a:contains("Cloud Resume Download")');
 
   if (resumeCloudButton.length === 0) {
+    console.log('[UHDMovies] No "Resume Cloud" or "Cloud Resume Download" button found.');
     return null;
   }
+  
+  console.log(`[UHDMovies] Found ${resumeCloudButton.length} Resume Cloud button(s).`);
 
   const resumeLink = resumeCloudButton.attr('href');
   if (!resumeLink) {
+    console.log('[UHDMovies] Resume Cloud button has no href attribute.');
     return null;
   }
+  console.log(`[UHDMovies] Resume Cloud button href: ${resumeLink}`);
 
   // Check if it's already a direct download link (workers.dev)
   if (resumeLink.includes('workers.dev') || resumeLink.startsWith('http')) {
@@ -778,8 +816,8 @@ async function tryResumeCloud($) {
     const resumeUrl = new URL(resumeLink, 'https://driveleech.net').href;
     console.log(`[UHDMovies] Found 'Resume Cloud' page link. Following to: ${resumeUrl}`);
 
-    // "Click" the link by making another request
-    const finalPageResponse = await makeRequest(resumeUrl, { maxRedirects: 10 });
+    // "Click" the link by making another request using session if available
+    const finalPageResponse = session ? await session.get(resumeUrl, { maxRedirects: 10 }) : await makeRequest(resumeUrl, { maxRedirects: 10 });
     const $$ = cheerio.load(finalPageResponse.data);
 
     // Look for direct download links
@@ -1318,8 +1356,12 @@ async function getUHDMoviesStreams(tmdbId, mediaType = 'movie', season = null, e
     console.log(`[UHDMovies] Processing ${cachedLinks.length} cached driveleech redirect URL(s) to get streaming links.`);
     const streamPromises = cachedLinks.map(async (linkInfo) => {
       try {
+        // Create a session with cookies for driveleech requests
+        const jar = new CookieJar();
+        const session = await createSession(jar);
+        
         // First, resolve the driveleech redirect URL to get the final file page URL
-        const response = await makeRequest(linkInfo.driveleechRedirectUrl, { maxRedirects: 10 });
+        const response = await session.get(linkInfo.driveleechRedirectUrl, { maxRedirects: 10 });
         let $ = cheerio.load(response.data);
 
         // Check for JavaScript redirect (window.location.replace)
@@ -1327,14 +1369,26 @@ async function getUHDMoviesStreams(tmdbId, mediaType = 'movie', season = null, e
         const redirectMatch = scriptContent && scriptContent.match(/window\.location\.replace\("([^"]+)"\)/);
 
         let finalFilePageUrl = linkInfo.driveleechRedirectUrl;
+        let finalPageData = response.data;
         if (redirectMatch && redirectMatch[1]) {
-          finalFilePageUrl = new URL(redirectMatch[1], 'https://driveleech.net/').href;
+          // Extract domain from the driveleech redirect URL (could be driveseed.org or driveleech.net)
+          const parsedUrl = new URL(linkInfo.driveleechRedirectUrl);
+          const baseUrl = `${parsedUrl.protocol}//${parsedUrl.host}`;
+          finalFilePageUrl = new URL(redirectMatch[1], baseUrl).href;
           console.log(`[UHDMovies] Resolved redirect to final file page: ${finalFilePageUrl}`);
 
-          // Load the final file page
-          const finalResponse = await makeRequest(finalFilePageUrl, { maxRedirects: 10 });
+          // Load the final file page using the session to maintain cookies
+          const finalResponse = await session.get(finalFilePageUrl, { maxRedirects: 10 });
           $ = cheerio.load(finalResponse.data);
+          finalPageData = finalResponse.data;
         }
+
+        // Log page structure for debugging
+        console.log(`[UHDMovies] File page HTML length: ${finalPageData.length}`);
+        const allLinks = $('a').map((i, el) => $(el).text().trim()).get().filter(t => t);
+        console.log(`[UHDMovies] Found ${allLinks.length} links on page. Sample: ${allLinks.slice(0, 10).join(', ')}`);
+        const allButtons = $('button, a.btn').map((i, el) => $(el).text().trim()).get().filter(t => t);
+        console.log(`[UHDMovies] Found ${allButtons.length} buttons on page: ${allButtons.join(', ')}`);
 
         // Extract file size and name information
         let sizeInfo = 'Unknown';
@@ -1366,7 +1420,7 @@ async function getUHDMoviesStreams(tmdbId, mediaType = 'movie', season = null, e
 
         for (const method of downloadMethods) {
           try {
-            const finalUrl = await method.func($);
+            const finalUrl = await method.func($, session);
 
             if (finalUrl) {
               const isValid = await validateVideoUrl(finalUrl);
@@ -1381,7 +1435,8 @@ async function getUHDMoviesStreams(tmdbId, mediaType = 'movie', season = null, e
                   url: finalUrl,
                   quality: linkInfo.quality,
                   provider: 'uhdmovies',
-                  headers: {}
+                  headers: {},
+                  skipProxy: true  // Direct CDN links, don't wrap with proxy
                 };
               }
             }

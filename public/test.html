@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Video Player</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #1f2937, #020617);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      color: #e5e7eb;
+    }
+
+    .video-card {
+      width: 100%;
+      max-width: 900px;
+      background: #020617;
+      border-radius: 16px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      overflow: hidden;
+    }
+
+    .video-header {
+      padding: 1rem 1.25rem;
+      background: linear-gradient(to right, #0f172a, #020617);
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .video-header h1 {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    video {
+      width: 100%;
+      height: auto;
+      display: block;
+      background: black;
+    }
+
+    .video-footer {
+      padding: 0.75rem 1.25rem;
+      font-size: 0.85rem;
+      color: #94a3b8;
+      background: #020617;
+      border-top: 1px solid #1e293b;
+    }
+
+    .video-footer span {
+      color: #38bdf8;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="video-card">
+    <div class="video-header">
+      <h1>🎬 Watch Party Stream</h1>
+    </div>
+
+    <video controls playsinline preload="metadata">
+      <source src="https://video-downloads.googleusercontent.com/ADGPM2nD1DAEDv4UY0InB44J28DLhgV9a2kq2dRcrhpF_KSTSBKYGha1VZTlfDk05HLY0M1wVTtSylaSASbT5FJ8dqicTfuIm5HAwL6huOe6rr0Vj3qjIzDXwbbfCQeKQ_68M5CGubYg6vAeLr8Kz9tkj9zZi4bCuz0i30zBFsKUfeMSrdQQajxlto4H7tO5Gb8zOkDP_7zPnFCg0FVTlXAZzMnwC3VpaWUUPyvhaHSF9-T5x2HQQyUMJTXs33rriWYkm7i5XIHo8WREjXWg0Z8Ieu_WJKkm4MFFdMHaoUwAypuChdrblAYm6IGEiUWu-eDAvxW2O9oqRS9LobkDucdUoYFEhNkif88hVe9QlIll6sR9kXAopuxJH4pkKKqx6OnSnTtTUwaG_Ew5g1nN0WmxAuRMul0Sp9gnhxW66usJ8AkFXYNRR1r1uRjjyFpd4Q0vBK2-JiLrIiy_IuYhgIZbkBKKr04eqHI7N0o3Fb2aHuiifpNL4iO7wS0GTBD8QXAxZxZy4UBcbY3fRk9oV8gXu2aKMUVfTJtY_OsSONvIYNolF3-eWdVFw4NGs5lq3s0Xc8g0f8qIrneTy1AixP_gWa1bud2-f6DeVXH-L_7KhYOZlO4-58gs8epVifZy7yeiJ7H-bLHVk8QBjjCWnE6I4zY7tPh9F_7lrIJ4JEmyi_N-eS_DtqGW9GBUqntTCKj3iSEPRHUUGNt-B0t3KOYgQqHtEH9jk7ZgQQlLXs4Ug4bhx2p-P31tu91UFWERsO2ZkJQwUejPXuml8aDIp4on98V9vQu7zNzIYxMSWjNgoG4QaIDyhNpoVxwHdJR5v9dI_wVHRan0KNjbT740g-9JaEqXxWNFx55T-GrDksOm1Q10tM8UFpYAvxVTwnbyBZTK7tRmafnsxk9xxy4FBPH7-t-2JJj_AvS-9iof-PIe_2s9GAjKruP1VNtzyaqAPs38i6sLBljDN1ZyHDpEFmlxxE5YCeMKRvtUgBekbUAv4vMf7pvkjAF4OIjancWnVT5CbF6chE-bLFyaQ3eBmhD4SS4aXhad6pYlFOyd7QAwcoySm6xrbWNrNVCnp6fzdPrmR7QkGVXU" />
+      Your browser does not support the video tag.
+    </video>
+
+    <div class="video-footer">
+      Streaming via <span>Googleusercontent</span>
+    </div>
+  </div>
+
+</body>
+</html>

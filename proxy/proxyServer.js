@@ -718,6 +718,12 @@ function processStreamsForProxy(streams, serverUrl) {
     if (!Array.isArray(streams)) return streams;
     return streams.map(s => {
         if (!s || !s.url || typeof s.url !== 'string') return s;
+        
+        // Skip proxy wrapping if explicitly requested (e.g., direct CDN links)
+        if (s.skipProxy === true) {
+            return s;
+        }
+        
         const original = extractOriginalUrl(s.url);
         const headers = s.headers || {};
         const hParam = Object.keys(headers).length ? `&headers=${encodeURIComponent(JSON.stringify(headers))}` : '';
