@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Livesport Stream Scraper</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            background: #0f0f23; 
+            color: #fff; 
+            min-height: 100vh;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .input-group { 
+            display: flex; 
+            gap: 10px; 
+            margin-bottom: 30px; 
+            flex-wrap: wrap;
+        }
+        .url-input { 
+            flex: 1; 
+            min-width: 300px; 
+            padding: 15px; 
+            border: 1px solid #333; 
+            border-radius: 8px; 
+            background: #1a1a2e; 
+            color: #fff; 
+            font-size: 16px;
+        }
+        .btn { 
+            padding: 15px 30px; 
+            background: #dc2626; 
+            color: #fff; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 16px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #b91c1c; }
+        .btn:disabled { background: #666; cursor: not-allowed; }
+        .results { margin-top: 30px; }
+        .stream-card { 
+            background: #1a1a2e; 
+            border-radius: 8px; 
+            padding: 20px; 
+            margin-bottom: 15px;
+            border: 1px solid #333;
+        }
+        .stream-title { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
+        .stream-info { display: flex; gap: 20px; margin-bottom: 15px; flex-wrap: wrap; }
+        .stream-info span { background: #2a2a3e; padding: 5px 10px; border-radius: 5px; font-size: 14px; }
+        .m3u8-url { 
+            background: #0f0f23; 
+            padding: 10px; 
+            border-radius: 5px; 
+            font-family: monospace; 
+            font-size: 12px; 
+            word-break: break-all;
+            margin-bottom: 10px;
+        }
+        .video-container { 
+            background: #000; 
+            border-radius: 8px; 
+            overflow: hidden; 
+            margin-top: 15px;
+        }
+        #video { width: 100%; }
+        .loading { text-align: center; padding: 40px; }
+        .error { 
+            background: #dc262633; 
+            border: 1px solid #dc2626; 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎺 Livesport Stream Scraper</h1>
+            <p>Extract M3U8 URLs from Livesport.su</p>
+        </div>
+
+        <div class="input-group">
+            <input type="text" 
+                   id="watchUrl" 
+                   class="url-input" 
+                   placeholder="Enter Livesport watch URL (e.g., https://livesport.su/watch/match-name)"
+                   value="https://livesport.su/watch/ppv-world-darts-championship">
+            <button id="scrapeBtn" class="btn">Scrape Streams</button>
+        </div>
+
+        <div id="results" class="results"></div>
+    </div>
+
+    <script>
+        const proxyUrl = 'https://m3u8.testpjmail.workers.dev';
+        
+        async function scrapeStreams() {
+            const url = document.getElementById('watchUrl').value.trim();
+            const results = document.getElementById('results');
+            const scrapeBtn = document.getElementById('scrapeBtn');
+            
+            if (!url) {
+                alert('Please enter a URL');
+                return;
+            }
+            
+            scrapeBtn.disabled = true;
+            scrapeBtn.textContent = 'Scraping...';
+            
+            results.innerHTML = '<div class="loading">🔄 Scraping streams...</div>';
+            
+            try {
+                // You'll need to deploy the scraper backend
+                const response = await fetch('/api/scrape', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    results.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                } else {
+                    displayResults(data);
+                }
+            } catch (error) {
+                // Fallback to demo data if backend not deployed
+                displayDemoResults();
+            }
+            
+            scrapeBtn.disabled = false;
+            scrapeBtn.textContent = 'Scrape Streams';
+        }
+        
+        function displayResults(data) {
+            const results = document.getElementById('results');
+            let html = `<h2>📺 ${data.title}</h2>`;
+            
+            data.streams.forEach((stream, index) => {
+                const m3u8ProxyUrl = stream.m3u8Url ? 
+                    stream.m3u8Url.replace('https://gg.poocloud.in', proxyUrl) : null;
+                
+                html += `
+                    <div class="stream-card">
+                        <div class="stream-title">${stream.title}</div>
+                        <div class="stream-info">
+                            <span>📂 ${stream.category}</span>
+                            <span>🎥 ${stream.quality}</span>
+                            <span>👥 ${stream.viewers || 'N/A'}</span>
+                            <span>🌐 ${stream.language}</span>
+                            ${stream.isCurrent ? '<span>⭐ Current</span>' : ''}
+                        </div>
+                        ${stream.m3u8Url ? `
+                            <div class="m3u8-url">
+                                🔗 Direct: ${stream.m3u8Url}<br>
+                                🌐 Proxy: <a href="${m3u8ProxyUrl}" target="_blank">${m3u8ProxyUrl}</a>
+                            </div>
+                            <button class="btn" onclick="playStream('${m3u8ProxyUrl}', ${index})">
+                                ▶️ Play Stream
+                            </button>
+                            <div id="video-${index}" class="video-container" style="display:none;">
+                                <video controls></video>
+                            </div>
+                        ` : '<div class="error">❌ No M3U8 URL found</div>'}
+                    </div>
+                `;
+            });
+            
+            results.innerHTML = html;
+        }
+        
+        function displayDemoResults() {
+            // Demo data for when backend is not deployed
+            const demoData = {
+                title: "Demo Match (Backend Required)",
+                streams: [
+                    {
+                        title: "Stream 1",
+                        category: "admin",
+                        quality: "HD",
+                        viewers: 1000,
+                        language: "English",
+                        isCurrent: true,
+                        m3u8Url: "https://gg.poocloud.in/pl_sun/tracks-v1a1/mono.ts.m3u8"
+                    }
+                ]
+            };
+            
+            const results = document.getElementById('results');
+            results.innerHTML = `
+                <div class="error">
+                    ⚠️ Backend not deployed. This is demo data.<br>
+                    Deploy the Node.js backend to enable scraping.
+                </div>
+            `;
+            displayResults(demoData);
+        }
+        
+        function playStream(m3u8Url, index) {
+            const container = document.getElementById(`video-${index}`);
+            const video = container.querySelector('video');
+            
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                
+                if (Hls.isSupported()) {
+                    const hls = new Hls();
+                    hls.loadSource(m3u8Url);
+                    hls.attachMedia(video);
+                    hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+                } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                    video.src = m3u8Url;
+                    video.play();
+                }
+            } else {
+                container.style.display = 'none';
+                video.pause();
+            }
+        }
+        
+        document.getElementById('scrapeBtn').addEventListener('click', scrapeStreams);
+        
+        // Allow Enter key to scrape
+        document.getElementById('watchUrl').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') scrapeStreams();
+        });
+    </script>
+</body>
+</html>

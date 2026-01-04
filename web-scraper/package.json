@@ -1,0 +1,23 @@
+{
+  "name": "livesport-web-scraper",
+  "version": "1.0.0",
+  "description": "Web interface for Livesport stream scraping",
+  "main": "api-server.js",
+  "scripts": {
+    "start": "node api-server.js",
+    "dev": "vercel dev",
+    "build": "echo 'No build needed'"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12"
+  },
+  "devDependencies": {
+    "vercel": "^32.0.0"
+  },
+  "keywords": ["livesport", "scraper", "m3u8", "streaming"],
+  "author": "",
+  "license": "MIT"
+}

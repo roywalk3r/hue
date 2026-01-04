@@ -16,6 +16,7 @@ const providerFunctionMap = {
   'vixsrc.js': 'getVixsrcStreams',
   'uhdmovies.js': 'getUHDMoviesStreams',
   'vidsrccc-puppeteer.js': 'getVidsrcStreams',
+  'livesport.js': 'getLivesportStreams',
 };
 
 // Stats for debug endpoint
@@ -99,6 +100,9 @@ function createFetchFunction(providerInfo) {
         if (providerInfo.name === 'vidsrccc-puppeteer') {
           // VidsrcCC needs IMDB ID for TV series
           result = await module[funcName](ctx.tmdbId, mediaType, ctx.season || null, ctx.episode || null, ctx.imdbId || null);
+        } else if (providerInfo.name === 'livesport') {
+          // Livesport needs the request object to extract the match name
+          result = await module[funcName]({ ...ctx, req: ctx.req });
         } else {
           result = await module[funcName](ctx.tmdbId, mediaType, ctx.season || null, ctx.episode || null);
         }

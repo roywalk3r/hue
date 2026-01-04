@@ -373,6 +373,48 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
   }
 });
 
+// Livesport sports streams endpoint
+app.get('/sports-stream/:matchName*', async (req, res) => {
+  const matchName = req.params.matchName + (req.params[0] || '');
+  if (!matchName) {
+    return res.status(400).json({ success: false, error: 'Match name required' });
+  }
+
+  const prov = getProvider('livesport');
+  if (!prov) return res.status(404).json({ success: false, error: 'Livesport provider not found' });
+  if (!prov.enabled) return res.status(503).json({ success: false, error: 'Livesport provider disabled' });
+
+  try {
+    metrics.streamRequests++;
+    metrics.providerCalls[prov.name] = (metrics.providerCalls[prov.name] || 0) + 1;
+    
+    const t0 = Date.now();
+    // Pass the request object so the provider can extract the match name
+    let streams = await prov.fetch({ req, type: 'sports', matchName, filters: {} });
+    const providerTimings = { [prov.name]: Date.now() - t0 };
+    
+    streams = applyFilters(streams, prov.name, config.minQualities, config.excludeCodecs);
+    metrics.streamsReturned += streams.length;
+    
+    if (config.enableProxy) {
+      const serverUrl = resolveServerUrl(req);
+      streams = processStreamsForProxy(streams, serverUrl);
+    }
+    
+    res.json({ 
+      success: true, 
+      provider: prov.name, 
+      matchName, 
+      count: streams.length, 
+      providerTimings, 
+      streams 
+    });
+  } catch (e) {
+    metrics.lastError = e.message;
+    res.status(500).json({ success: false, error: 'INTERNAL_ERROR', message: e.message });
+  }
+});
+
 // Provider-specific streams
 app.get('/api/streams/:provider/:type/:tmdbId', async (req,res) => {
   const { provider, type, tmdbId } = req.params;
