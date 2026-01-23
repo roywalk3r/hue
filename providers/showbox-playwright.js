@@ -33,8 +33,11 @@ async function getStreamsFromTmdbId(tmdbId, mediaType, season, episode, imdbId, 
         
         console.log(`[ShowBoxPlaywright] Searching for: ${title} (${year})`);
         
-        context = await getNewContext();
-        const page = await context.newPage();
+        const { getNewPage } = require("../utils/browserManager");
+        const page = await getNewPage({
+            viewport: { width: 1920, height: 1080 }
+        });
+        context = page.context();
         
         // Set up request interception
         const streamUrls = new Set();

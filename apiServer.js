@@ -342,9 +342,11 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
     const imdbId = await resolveImdbId(tmdbType, tmdbId); if (imdbId) metrics.tmdbToImdbLookups++;
     const selectedProviders = (config.defaultProviders.length ? config.defaultProviders : listProviders().map(p=>p.name));
     const providerTimings = {};
-    const results = await Promise.all(selectedProviders.map(async name => {
+    const streamsResults = [];
+    
+    for (const name of selectedProviders) {
       const prov = getProvider(name);
-      if (!prov || !prov.enabled) return [];
+      if (!prov || !prov.enabled) continue;
       metrics.providerCalls[name] = (metrics.providerCalls[name]||0)+1;
       try {
         console.log(`[api] invoking provider ${name} for tmdbId=${tmdbId}`);
@@ -352,14 +354,13 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
         const r = await prov.fetch({ tmdbId, type, season, episode, imdbId, filters:{ } });
         providerTimings[name] = Date.now()-t0;
         console.log(`[api] provider ${name} returned ${Array.isArray(r)?r.length:0} streams`);
-        return r;
+        if (Array.isArray(r)) streamsResults.push(...r);
       } catch (e) {
         console.error(`[api] provider ${name} failed:`, e.message);
         providerTimings[name] = null;
-        return [];
       }
-    }));
-    let streams = results.flat();
+    }
+    let streams = streamsResults;
     streams = applyFilters(streams, 'aggregate', config.minQualities, config.excludeCodecs);
     metrics.streamsReturned += streams.length;
     if (config.enableProxy) {

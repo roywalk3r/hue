@@ -107,12 +107,12 @@ async function prefetchSegment(url, headers) {
 const DEFAULT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 function inferContentType(upstreamCT, targetUrl) {
-    const bad = !upstreamCT || /application\/octet-stream/i.test(upstreamCT) || /application\/(x-)?zip/i.test(upstreamCT);
+    const bad = !upstreamCT || /application\/octet-stream/i.test(upstreamCT) || /application\/(x-)?zip/i.test(upstreamCT) || /image\//i.test(upstreamCT);
     if (!bad) return upstreamCT;
     if (/\.mkv(\?|$)/i.test(targetUrl)) return 'video/x-matroska';
     if (/\.mp4(\?|$)/i.test(targetUrl)) return 'video/mp4';
     if (/\.m3u8(\?|$)/i.test(targetUrl)) return 'application/vnd.apple.mpegurl';
-    if (/\.ts(\?|$)/i.test(targetUrl)) return 'video/mp2t';
+    if (/\.(ts|png|jpg|jpeg|bmp)(\?|$)/i.test(targetUrl)) return 'video/mp2t';
     return 'application/octet-stream';
 }
 
@@ -368,7 +368,7 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
                 }
 
                 const abs = new URL(candidate, targetUrl).href;
-                if (/\.ts(\?|$)/i.test(abs) || /\.mp4(\?|$)/i.test(abs)) {
+                if (/\.(ts|mp4|png|jpg|jpeg|bmp)(\?|$)/i.test(abs)) {
                     segmentUrls.push(abs);
                     // Removed force200=1 for segments to allow Range requests if needed
                     out.push(`${baseProxyUrl}/ts-proxy?url=${encodeURIComponent(abs)}&headers=${encodeURIComponent(JSON.stringify(headers))}&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0`);

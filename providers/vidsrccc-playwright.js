@@ -21,22 +21,21 @@ async function getVidsrcStreams(tmdbId, mediaType, season, episode, imdbId) {
             url = `${BASE_URL}/v2/embed/tv/${id}/${season}/${episode}`;
         }
         
-        console.log(`[VidsrcCC] Fetching: ${url}`);
+                console.log(`[VidsrcCC] Fetching: ${url}`);
+                
+                const { getNewPage } = require("../utils/browserManager");
+                const page = await getNewPage({
+                    extraHTTPHeaders: {
+                        "Accept-Language": "en-US,en;q=0.9",
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                        "Accept-Encoding": "gzip, deflate, br",
+                        "Connection": "keep-alive",
+                        "Upgrade-Insecure-Requests": "1"
+                    }
+                });
+                context = page.context();
         
-        context = await getNewContext({
-            extraHTTPHeaders: {
-                "Accept-Language": "en-US,en;q=0.9",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Encoding": "gzip, deflate, br",
-                "Connection": "keep-alive",
-                "Upgrade-Insecure-Requests": "1"
-            }
-        });
-
-        const page = await context.newPage();
-        
-        // Set up request interception for all frames
-        const lightningboltUrls = new Set();
+                // Set up request interception for all frames        const lightningboltUrls = new Set();
         const vidboxUrls = new Set();
         const allM3u8Urls = new Set();
         

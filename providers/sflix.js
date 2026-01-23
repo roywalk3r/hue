@@ -138,15 +138,21 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
         const { id, slug } = await getMediaInfo(detailUrl, title);
         console.log(`[SFlix] Extracted ID: ${id}, Slug: ${slug}`);
 
-        context = await getNewContext();
-        page = await context.newPage();
+        page = await require("../utils/browserManager").getNewPage();
+        context = page.context();
         
         const capturedUrls = { video: new Set(), subtitles: new Set() };
         page.on("request", (request) => {
             const url = request.url();
-            const isVideo = url.includes(".mp4") || url.includes(".m3u8") || url.includes("hakunaymatata.com") || url.includes("lightningbolt.site") || url.includes("vidbox.site") || url.includes(".m3u8?");
-            if (isVideo && !url.includes("image/") && !url.includes("banner") && !url.includes("logo") && !url.includes(".js") && !url.includes(".css")) capturedUrls.video.add(url);
-            if (url.includes(".vtt") || url.includes(".srt") || url.includes("/subtitle/")) capturedUrls.subtitles.add(url);
+            const isSubtitle = url.includes(".vtt") || url.includes(".srt") || url.includes("/subtitle/");
+            const isVideo = (url.includes(".mp4") || url.includes(".m3u8") || url.includes("hakunaymatata.com") || url.includes("lightningbolt.site") || url.includes("vidbox.site") || url.includes(".m3u8?")) && !isSubtitle;
+            
+            if (isVideo && !url.includes("image/") && !url.includes("banner") && !url.includes("logo") && !url.includes(".js") && !url.includes(".css")) {
+                capturedUrls.video.add(url);
+            }
+            if (isSubtitle) {
+                capturedUrls.subtitles.add(url);
+            }
         });
 
         let playUrl = "";

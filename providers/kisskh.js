@@ -131,8 +131,8 @@ async function getKissKhStreams(tmdbId, mediaType, season, episode) {
         const directUrl = `${BASE_URL}/Drama/${slug}/Episode-${epNum}?id=${show.id}&ep=${episodeId}&page=0&pageSize=100`;
         console.log(`[KissKH] Navigate: ${directUrl}`);
 
-        context = await getNewContext();
-        page = await context.newPage();
+        page = await require("../utils/browserManager").getNewPage();
+        context = page.context();
 
         const capturedUrls = { video: new Set(), subtitles: new Set() };
         
