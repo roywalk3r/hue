@@ -1,15 +1,15 @@
-const puppeteer = require("puppeteer-extra");
+const { chromium } = require("playwright-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
-const { buildLaunchOptions } = require("../utils/puppeteerConfig");
+const { buildLaunchOptions } = require("../utils/browserConfig");
 
 // Use stealth plugin
-puppeteer.use(StealthPlugin());
+chromium.use(StealthPlugin());
 
 const BASE_URL = "https://www.showbox.media";
 
-// Main function to get streams using Puppeteer
+// Main function to get streams using Playwright
 async function getStreamsFromTmdbId(tmdbId, mediaType, season, episode, imdbId, userCookie) {
-    console.log(`[ShowBoxPuppeteer] Called with tmdbId=${tmdbId}, mediaType=${mediaType}, season=${season}, episode=${episode}`);
+    console.log(`[ShowBoxPlaywright] Called with tmdbId=${tmdbId}, mediaType=${mediaType}, season=${season}, episode=${episode}`);
     const streams = [];
     let browser;
     
@@ -18,7 +18,7 @@ async function getStreamsFromTmdbId(tmdbId, mediaType, season, episode, imdbId, 
         const { getTmdbApiKey } = require("../utils/tmdbKey");
         const TMDB_API_KEY = getTmdbApiKey();
         if (!TMDB_API_KEY) {
-            console.log("[ShowBoxPuppeteer] No TMDB API key available");
+            console.log("[ShowBoxPlaywright] No TMDB API key available");
             return streams;
         }
         
@@ -32,27 +32,21 @@ async function getStreamsFromTmdbId(tmdbId, mediaType, season, episode, imdbId, 
                      tmdbData.first_air_date ? new Date(tmdbData.first_air_date).getFullYear() : null;
         
         if (!title) {
-            console.log("[ShowBoxPuppeteer] No title found from TMDB");
+            console.log("[ShowBoxPlaywright] No title found from TMDB");
             return streams;
         }
         
-        console.log(`[ShowBoxPuppeteer] Searching for: ${title} (${year})`);
+        console.log(`[ShowBoxPlaywright] Searching for: ${title} (${year})`);
         
         // Launch browser with stealth settings
-        browser = await puppeteer.launch(buildLaunchOptions());
+        browser = await chromium.launch(buildLaunchOptions());
         
-        const page = await browser.newPage();
-        
-        // Set viewport and user agent
-        await page.setViewport({ width: 1920, height: 1080 });
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-        
-        // Hide webdriver
-        await page.evaluateOnNewDocument(() => {
-            Object.defineProperty(navigator, "webdriver", {
-                get: () => undefined,
-            });
+        const context = await browser.newContext({
+            viewport: { width: 1920, height: 1080 },
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         });
+
+        const page = await context.newPage();
         
         // Set up request interception
         const streamUrls = new Set();
@@ -67,7 +61,7 @@ async function getStreamsFromTmdbId(tmdbId, mediaType, season, episode, imdbId, 
                 url.includes("vidbox.site") ||
                 url.includes("febbox.com") ||
                 url.includes("pstream.mov")) {
-                console.log(`[ShowBoxPuppeteer] Found stream request: ${url}`);
+                console.log(`[ShowBoxPlaywright] Found stream request: ${url}`);
                 streamUrls.add(url);
                 
                 if (url.includes(".m3u8")) {
@@ -79,17 +73,17 @@ async function getStreamsFromTmdbId(tmdbId, mediaType, season, episode, imdbId, 
         page.on("response", response => {
             const url = response.url();
             if (url.includes("lightningbolt.site") || url.includes(".m3u8")) {
-                console.log(`[ShowBoxPuppeteer] Stream response status: ${response.status()}`);
+                console.log(`[ShowBoxPlaywright] Stream response status: ${response.status()}`);
             }
         });
         
         // Navigate to search page
         const searchQuery = year ? `${title} ${year}` : title;
         const searchUrl = `${BASE_URL}/search?keyword=${encodeURIComponent(searchQuery)}`;
-        console.log(`[ShowBoxPuppeteer] Navigating to search: ${searchUrl}`);
+        console.log(`[ShowBoxPlaywright] Navigating to search: ${searchUrl}`);
         
         await page.goto(searchUrl, {
-            waitUntil: "networkidle2",
+            waitUntil: "networkidle",
             timeout: 60000
         });
         
@@ -100,26 +94,17 @@ async function getStreamsFromTmdbId(tmdbId, mediaType, season, episode, imdbId, 
                                      pageContent.includes('DDoS protection'));
         
         if (isCloudflareChallenge) {
-            console.log(`[ShowBoxPuppeteer] Cloudflare challenge detected, waiting...`);
-            await new Promise(resolve => setTimeout(resolve, 15000)); // Wait 15 seconds
+            console.log(`[ShowBoxPlaywright] Cloudflare challenge detected, waiting...`);
+            await page.waitForTimeout(15000); // Wait 15 seconds
         }
         
         // Wait for search results to load
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await page.waitForTimeout(3000);
         
         // Debug: Log page content
         const searchPageContent = await page.content();
-        console.log(`[ShowBoxPuppeteer] Search page title: ${await page.title()}`);
-        console.log(`[ShowBoxPuppeteer] Search page content length: ${searchPageContent.length}`);
-        
-        // Check if we're still on Cloudflare or got blocked
-        if (searchPageContent.includes('Cloudflare')) {
-            console.log(`[ShowBoxPuppeteer] Still on Cloudflare page after wait`);
-        }
-        
-        // Log a snippet of the page for debugging
-        const contentSnippet = searchPageContent.substring(0, 1000);
-        console.log(`[ShowBoxPuppeteer] Search page snippet: ${contentSnippet}`);
+        console.log(`[ShowBoxPlaywright] Search page title: ${await page.title()}`);
+        console.log(`[ShowBoxPlaywright] Search page content length: ${searchPageContent.length}`);
         
         // Parse search results
         const searchResults = await page.evaluate(() => {
@@ -142,10 +127,11 @@ async function getStreamsFromTmdbId(tmdbId, mediaType, season, episode, imdbId, 
             return results;
         });
         
-        console.log(`[ShowBoxPuppeteer] Found ${searchResults.length} search results`);
+        console.log(`[ShowBoxPlaywright] Found ${searchResults.length} search results`);
         
         if (searchResults.length === 0) {
-            console.log(`[ShowBoxPuppeteer] No search results found`);
+            console.log(`[ShowBoxPlaywright] No search results found`);
+            await browser.close();
             return streams;
         }
         
@@ -156,23 +142,23 @@ async function getStreamsFromTmdbId(tmdbId, mediaType, season, episode, imdbId, 
         ) || searchResults[0];
         
         const movieUrl = `${BASE_URL}${bestMatch.href}`;
-        console.log(`[ShowBoxPuppeteer] Navigating to movie page: ${movieUrl}`);
+        console.log(`[ShowBoxPlaywright] Navigating to movie page: ${movieUrl}`);
         
         // Navigate to the movie page
         await page.goto(movieUrl, {
-            waitUntil: "networkidle2",
+            waitUntil: "networkidle",
             timeout: 60000
         });
         
         // Wait for content to load
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await page.waitForTimeout(5000);
         
         // Look for FebBox URLs in the page
         const finalContent = await page.content();
         const febboxRegex = /https?:\/\/(?:www\.)?febbox\.com\/(?:s\/|share\/)?([a-zA-Z0-9]+)/g;
         const febboxMatches = finalContent.match(febboxRegex) || [];
         
-        console.log(`[ShowBoxPuppeteer] Found ${febboxMatches.length} FebBox URLs`);
+        console.log(`[ShowBoxPlaywright] Found ${febboxMatches.length} FebBox URLs`);
         
         if (febboxMatches.length > 0) {
             // Import the FebBox stream extraction function
@@ -180,7 +166,7 @@ async function getStreamsFromTmdbId(tmdbId, mediaType, season, episode, imdbId, 
             
             for (const febboxUrl of febboxMatches) {
                 try {
-                    console.log(`[ShowBoxPuppeteer] Extracting streams from FebBox: ${febboxUrl}`);
+                    console.log(`[ShowBoxPlaywright] Extracting streams from FebBox: ${febboxUrl}`);
                     
                     // Extract share key from URL
                     const shareKeyMatch = febboxUrl.match(/\/(?:s\/|share\/)?([a-zA-Z0-9]+)/);
@@ -201,13 +187,13 @@ async function getStreamsFromTmdbId(tmdbId, mediaType, season, episode, imdbId, 
                                 title: `ShowBox ${source.quality}`,
                                 url: source.url,
                                 quality: source.quality,
-                                provider: "ShowBox Puppeteer",
+                                provider: "ShowBox Playwright",
                                 headers: {}
                             });
                         }
                     }
                 } catch (e) {
-                    console.error(`[ShowBoxPuppeteer] Error extracting from FebBox: ${e.message}`);
+                    console.error(`[ShowBoxPlaywright] Error extracting from FebBox: ${e.message}`);
                 }
             }
         }
@@ -227,15 +213,15 @@ async function getStreamsFromTmdbId(tmdbId, mediaType, season, episode, imdbId, 
                 title: `ShowBox ${quality}`,
                 url: url,
                 quality: quality,
-                provider: "ShowBox Puppeteer",
+                provider: "ShowBox Playwright",
                 headers: {}
             });
         }
         
-        console.log(`[ShowBoxPuppeteer] Found ${streams.length} total streams`);
+        console.log(`[ShowBoxPlaywright] Found ${streams.length} total streams`);
         
     } catch (error) {
-        console.error(`[ShowBoxPuppeteer] Error: ${error.message}`);
+        console.error(`[ShowBoxPlaywright] Error: ${error.message}`);
     } finally {
         if (browser) {
             await browser.close();

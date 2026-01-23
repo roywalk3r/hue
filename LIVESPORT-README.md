@@ -19,7 +19,7 @@ A Node.js project to extract M3U8 stream URLs from Livesport.su
 
 ### 1. Install dependencies
 ```bash
-npm install axios cheerio puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
+npm install axios cheerio playwright playwright-extra puppeteer-extra-plugin-stealth
 ```
 
 ### 2. Scrape a watch URL

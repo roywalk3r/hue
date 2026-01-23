@@ -3,8 +3,8 @@ require('dotenv').config();
 // Initialize config system to get TMDB API key
 const { config } = require('./utils/config');
 
-// Import the ShowBox puppeteer provider
-const { getStreamsFromTmdbId } = require('./providers/showbox-puppeteer');
+// Import the ShowBox playwright provider
+const { getStreamsFromTmdbId } = require('./providers/showbox-playwright');
 
 // Test parameters
 const TMDB_ID = '310131'; // The Witch (2016)
@@ -14,8 +14,8 @@ const EPISODE = null;
 const IMDB_ID = null;
 const USER_COOKIE = null;
 
-async function testShowBoxPuppeteer() {
-    console.log('=== Testing ShowBox Puppeteer Provider ===');
+async function testShowBoxPlaywright() {
+    console.log('=== Testing ShowBox Playwright Provider ===');
     console.log(`TMDB ID: ${TMDB_ID}`);
     console.log(`Media Type: ${MEDIA_TYPE}`);
     console.log(`TMDB API Keys configured: ${config.tmdbApiKeys ? config.tmdbApiKeys.length : 0}`);
@@ -56,4 +56,4 @@ async function testShowBoxPuppeteer() {
 }
 
 // Run the test
-testShowBoxPuppeteer();
+testShowBoxPlaywright();

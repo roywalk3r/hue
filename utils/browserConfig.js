@@ -5,10 +5,8 @@ const DEFAULT_ARGS = [
     '--disable-accelerated-2d-canvas',
     '--no-first-run',
     '--no-zygote',
-    '--single-process',
     '--disable-gpu',
-    '--disable-blink-features=AutomationControlled',
-    '--disable-features=VizDisplayCompositor'
+    '--disable-blink-features=AutomationControlled'
 ];
 
 function parseEnvArgs(raw) {
@@ -18,11 +16,11 @@ function parseEnvArgs(raw) {
 }
 
 function buildLaunchOptions(overrides = {}) {
-    const envArgs = parseEnvArgs(process.env.PUPPETEER_ARGS);
+    const envArgs = parseEnvArgs(process.env.BROWSER_ARGS || process.env.PUPPETEER_ARGS);
     const mergedArgs = Array.from(new Set([...(overrides.args || DEFAULT_ARGS), ...envArgs]));
 
-    const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || overrides.executablePath;
-    const headlessFlag = process.env.PUPPETEER_HEADLESS === 'false' ? false : true;
+    const executablePath = process.env.BROWSER_EXECUTABLE_PATH || process.env.PUPPETEER_EXECUTABLE_PATH || overrides.executablePath;
+    const headlessFlag = process.env.BROWSER_HEADLESS === 'false' || process.env.PUPPETEER_HEADLESS === 'false' ? false : true;
 
     const opts = {
         headless: headlessFlag,

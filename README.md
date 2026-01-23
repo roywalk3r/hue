@@ -361,7 +361,7 @@ Toggle `enableProxy` to activate the internal proxy. This adds lightweight playl
 For ephemeral platforms (e.g., Vercel) note that some providers use temporary directories; avoid enabling disk-heavy cache directories.
 
 ### Deno Deploy (limited)
-- Entry point: `deno_main.ts` (edge-compatible, no Node/Puppeteer).
+- Entry point: `deno_main.ts` (edge-compatible, no Node/Playwright).
 - Supports: `GET /api/health` (limited payload) and `GET /api/providers` (empty list with note).
 - Streams: `GET /api/streams/*` returns HTTP 501 with an explanation. Use the Node/Docker deployment for full provider coverage.
 

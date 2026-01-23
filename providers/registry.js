@@ -8,14 +8,14 @@ const providerCache = new Map();
 // Function name mappings for existing providers
 const providerFunctionMap = {
   'Showbox.js': 'getStreamsFromTmdbId',
-  'showbox-puppeteer.js': 'getStreamsFromTmdbId',
+  'showbox-playwright.js': 'getStreamsFromTmdbId',
   '4khdhub.js': 'get4KHDHubStreams',
   'moviesmod.js': 'getMoviesModStreams',
   'MP4Hydra.js': 'getMP4HydraStreams',
   'VidZee.js': 'getVidZeeStreams',
   'vixsrc.js': 'getVixsrcStreams',
   'uhdmovies.js': 'getUHDMoviesStreams',
-  'vidsrccc-puppeteer.js': 'getVidsrcStreams',
+  'vidsrccc-playwright.js': 'getVidsrcStreams',
   'livesport.js': 'getLivesportStreams',
 };
 
@@ -30,7 +30,12 @@ async function getEffectiveCookies() {
 function getProviderFiles() {
   const providersDir = path.join(__dirname);
   return fs.readdirSync(providersDir)
-    .filter(file => file.endsWith('.js') && file !== 'registry.js' && file !== 'vidsrcextractor.js' && file !== 'Showbox.js' && file !== 'showbox-puppeteer.js' && file !== 'VidZee.js') // VidZee disabled - encryption key changed
+    .filter(file => file.endsWith('.js') && 
+                    file !== 'registry.js' && 
+                    file !== 'vidsrcextractor.js' && 
+                    file !== 'Showbox.js' && 
+                    file !== 'showbox-playwright.js' && 
+                    file !== 'VidZee.js')
     .map(file => ({
       name: path.parse(file).name.toLowerCase(),
       file: file,
@@ -70,7 +75,7 @@ function createFetchFunction(providerInfo) {
       console.log(`[registry] Calling ${providerInfo.name} with tmdbId=${ctx.tmdbId}, mediaType=${mediaType}`);
 
       let result;
-      if (providerInfo.name === 'showbox' || providerInfo.name === 'showbox-puppeteer') {
+      if (providerInfo.name === 'showbox' || providerInfo.name === 'showbox-playwright') {
         // Special case for Showbox with TMDB key and cookies
         const { getTmdbApiKey } = require('../utils/tmdbKey');
         const tmdbApiKey = getTmdbApiKey();
@@ -97,7 +102,7 @@ function createFetchFunction(providerInfo) {
         global.currentRequestConfig = previousConfig || {};
       } else {
         // Standard provider call
-        if (providerInfo.name === 'vidsrccc-puppeteer') {
+        if (providerInfo.name === 'vidsrccc-playwright') {
           // VidsrcCC needs IMDB ID for TV series
           result = await module[funcName](ctx.tmdbId, mediaType, ctx.season || null, ctx.episode || null, ctx.imdbId || null);
         } else if (providerInfo.name === 'livesport') {
@@ -128,7 +133,7 @@ const providerFiles = getProviderFiles();
 const providers = [];
 
 for (const providerInfo of providerFiles) {
-  const enableFlag = `enable${providerInfo.name.charAt(0).toUpperCase() + providerInfo.name.slice(1)}Provider`;
+  const enableFlag = `enable${providerInfo.name.split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join('')}Provider`;
   const enabled = config[enableFlag] !== false;
 
   if (enabled) {
