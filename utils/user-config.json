@@ -10,7 +10,7 @@
   ],
   "enable4khdhubProvider": false,
   "enableMoviesmodProvider": false,
-  "enableMp4hydraProvider": true,
+  "enableMp4hydraProvider": false,
   "enableVidzeeProvider": false,
   "enableVixsrcProvider": true,
   "enableProxy": true,

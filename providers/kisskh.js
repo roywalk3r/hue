@@ -164,13 +164,20 @@ async function getKissKhStreams(tmdbId, mediaType, season, episode) {
         });
 
         await page.goto(directUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
-        await new Promise(r => setTimeout(r, 10000)); 
+        
+        // Wait for player/video or some activity
+        try {
+            await page.waitForSelector('video', { timeout: 5000 });
+        } catch (e) {
+            // Ignore if video doesn't appear fast
+        }
         
         await page.evaluate(() => {
             const v = document.querySelector('video');
             if (v) v.play().catch(() => {});
         });
 
+        // Wait a bit for the requests to fire
         await new Promise(r => setTimeout(r, 2000));
 
         const subtitles = Array.from(capturedUrls.subtitles).map(url => ({ 

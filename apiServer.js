@@ -344,12 +344,36 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
     const providerTimings = {};
     const streamsResults = [];
     
-    for (const name of selectedProviders) {
+    // Categorize providers
+    const browserProviders = ['sflix', 'kisskh', 'vidsrccc-playwright', 'showbox-playwright'];
+    const fastProviders = selectedProviders.filter(p => !browserProviders.includes(p));
+    const slowProviders = selectedProviders.filter(p => browserProviders.includes(p));
+
+    // Run fast providers in parallel
+    const fastResults = await Promise.all(fastProviders.map(async name => {
+      const prov = getProvider(name);
+      if (!prov || !prov.enabled) return [];
+      metrics.providerCalls[name] = (metrics.providerCalls[name]||0)+1;
+      try {
+        console.log(`[api] invoking fast provider ${name} for tmdbId=${tmdbId}`);
+        const t0 = Date.now();
+        const r = await prov.fetch({ tmdbId, type, season, episode, imdbId, filters:{ } });
+        providerTimings[name] = Date.now()-t0;
+        return r;
+      } catch (e) {
+        console.error(`[api] provider ${name} failed:`, e.message);
+        return [];
+      }
+    }));
+    fastResults.forEach(r => streamsResults.push(...r));
+
+    // Run browser providers sequentially to save CPU
+    for (const name of slowProviders) {
       const prov = getProvider(name);
       if (!prov || !prov.enabled) continue;
       metrics.providerCalls[name] = (metrics.providerCalls[name]||0)+1;
       try {
-        console.log(`[api] invoking provider ${name} for tmdbId=${tmdbId}`);
+        console.log(`[api] invoking browser provider ${name} for tmdbId=${tmdbId}`);
         const t0 = Date.now();
         const r = await prov.fetch({ tmdbId, type, season, episode, imdbId, filters:{ } });
         providerTimings[name] = Date.now()-t0;
