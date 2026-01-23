@@ -18,6 +18,6 @@
   "disable4khdhubUrlValidation": false,
   "excludeCodecsRaw": "{\"excludeDV\":false,\"excludeHDR\":false}",
   "minQualitiesRaw": "all",
-  "port": 8787,
+  "port": 24608,
   "enableVidsrcccProvider": true
 }
