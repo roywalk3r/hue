@@ -1,9 +1,4 @@
-const { chromium } = require("playwright-extra");
-const StealthPlugin = require("puppeteer-extra-plugin-stealth");
-const { buildLaunchOptions } = require("../utils/browserConfig");
-
-// Use stealth plugin
-chromium.use(StealthPlugin());
+const { getNewContext } = require("../utils/browserManager");
 
 const BASE_URL = "https://vidsrc.cc";
 
@@ -11,7 +6,7 @@ const BASE_URL = "https://vidsrc.cc";
 async function getVidsrcStreams(tmdbId, mediaType, season, episode, imdbId) {
     console.log(`[VidsrcCC] Called with tmdbId=${tmdbId}, mediaType=${mediaType}, season=${season}, episode=${episode}, imdbId=${imdbId}`);
     const streams = [];
-    let browser;
+    let context;
     
     try {
         // Build the URL
@@ -26,14 +21,9 @@ async function getVidsrcStreams(tmdbId, mediaType, season, episode, imdbId) {
             url = `${BASE_URL}/v2/embed/tv/${id}/${season}/${episode}`;
         }
         
-        console.log(`[VidsrcCC] Launching Playwright to fetch: ${url}`);
+        console.log(`[VidsrcCC] Fetching: ${url}`);
         
-        // Launch browser with stealth settings
-        browser = await chromium.launch(buildLaunchOptions());
-        
-        const context = await browser.newContext({
-            userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            viewport: { width: 1920, height: 1080 },
+        context = await getNewContext({
             extraHTTPHeaders: {
                 "Accept-Language": "en-US,en;q=0.9",
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
@@ -232,8 +222,8 @@ async function getVidsrcStreams(tmdbId, mediaType, season, episode, imdbId) {
         console.error("[VidsrcCC] Stack:", e.stack);
         return [];
     } finally {
-        if (browser) {
-            await browser.close();
+        if (context) {
+            await context.close();
         }
     }
 }

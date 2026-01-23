@@ -1,9 +1,4 @@
-const { chromium } = require("playwright-extra");
-const StealthPlugin = require("puppeteer-extra-plugin-stealth");
-const { buildLaunchOptions } = require("../utils/browserConfig");
-
-// Use stealth plugin
-chromium.use(StealthPlugin());
+const { getNewContext } = require("../utils/browserManager");
 
 const BASE_URL = "https://www.showbox.media";
 
@@ -11,7 +6,7 @@ const BASE_URL = "https://www.showbox.media";
 async function getStreamsFromTmdbId(tmdbId, mediaType, season, episode, imdbId, userCookie) {
     console.log(`[ShowBoxPlaywright] Called with tmdbId=${tmdbId}, mediaType=${mediaType}, season=${season}, episode=${episode}`);
     const streams = [];
-    let browser;
+    let context;
     
     try {
         // Get TMDB data for title
@@ -38,14 +33,7 @@ async function getStreamsFromTmdbId(tmdbId, mediaType, season, episode, imdbId, 
         
         console.log(`[ShowBoxPlaywright] Searching for: ${title} (${year})`);
         
-        // Launch browser with stealth settings
-        browser = await chromium.launch(buildLaunchOptions());
-        
-        const context = await browser.newContext({
-            viewport: { width: 1920, height: 1080 },
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        });
-
+        context = await getNewContext();
         const page = await context.newPage();
         
         // Set up request interception
@@ -223,8 +211,8 @@ async function getStreamsFromTmdbId(tmdbId, mediaType, season, episode, imdbId, 
     } catch (error) {
         console.error(`[ShowBoxPlaywright] Error: ${error.message}`);
     } finally {
-        if (browser) {
-            await browser.close();
+        if (context) {
+            await context.close();
         }
     }
     

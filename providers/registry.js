@@ -17,6 +17,8 @@ const providerFunctionMap = {
   'uhdmovies.js': 'getUHDMoviesStreams',
   'vidsrccc-playwright.js': 'getVidsrcStreams',
   'livesport.js': 'getLivesportStreams',
+  'sflix.js': 'getStreams',
+  'kisskh.js': 'getStreams',
 };
 
 // Stats for debug endpoint
@@ -35,7 +37,8 @@ function getProviderFiles() {
                     file !== 'vidsrcextractor.js' && 
                     file !== 'Showbox.js' && 
                     file !== 'showbox-playwright.js' && 
-                    file !== 'VidZee.js')
+                    file !== 'VidZee.js' &&
+                    file !== 'vidsrccc-puppeteer.js.bak')
     .map(file => ({
       name: path.parse(file).name.toLowerCase(),
       file: file,

@@ -1,15 +1,17 @@
 {
   "defaultProviders": [],
   "configVersion": 1,
-  "tmdbApiKeys": ["ee49cfa0ba7290f7125021125f5d7c57"],
-  "enableShowboxProvider": true,
+  "tmdbApiKeys": [
+    "ee49cfa0ba7290f7125021125f5d7c57"
+  ],
+  "enableShowboxProvider": false,
   "febboxCookies": [
     "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NjY1NTkyNDcsIm5iZiI6MTc2NjU1OTI0NywiZXhwIjoxNzk3NjYzMjY3LCJkYXRhIjp7InVpZCI6MTI0NjYzMCwidG9rZW4iOiJjMmEwNmVmMmY2ODZiY2RlNTFmNmQyNzkwZWQxZTI0ZiJ9fQ.ZzIaKrsLOKkwNfSAqIXh2TFtFRGarij0QJaEuEXiS_Y"
   ],
-  "enable4khdhubProvider": true,
-  "enableMoviesmodProvider": true,
+  "enable4khdhubProvider": false,
+  "enableMoviesmodProvider": false,
   "enableMp4hydraProvider": true,
-  "enableVidzeeProvider": true,
+  "enableVidzeeProvider": false,
   "enableVixsrcProvider": true,
   "enableProxy": true,
   "disableCache": false,
@@ -19,5 +21,11 @@
   "excludeCodecsRaw": "{\"excludeDV\":false,\"excludeHDR\":false}",
   "minQualitiesRaw": "all",
   "port": 24608,
-  "enableVidsrcccProvider": true
+  "enableVidsrcccProvider": false,
+  "enableVidsrcccPlaywrightProvider": false,
+  "enableLivesportProvider": false,
+  "enableUhdmoviesProvider": false,
+  "enableShowboxPlaywrightProvider": false,
+  "enableSflixProvider": true,
+  "enableKisskhProvider": true
 }
