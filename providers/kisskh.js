@@ -177,6 +177,17 @@ async function getKissKhStreams(tmdbId, mediaType, season, episode) {
                     if (data && data.ThirdParty) {
                         capturedUrls.video.add(data.ThirdParty);
                     }
+                    if (data && Array.isArray(data.Subtitles)) {
+                        data.Subtitles.forEach(sub => {
+                            if (sub.src) {
+                                capturedUrls.subtitles.add(JSON.stringify({
+                                    url: sub.src,
+                                    label: sub.label || 'English',
+                                    lang: (sub.label || 'en').toLowerCase().substring(0, 2)
+                                }));
+                            }
+                        });
+                    }
                 } catch (e) {
                     // Ignore parsing errors
                 }
@@ -187,10 +198,8 @@ async function getKissKhStreams(tmdbId, mediaType, season, episode) {
         
         // Wait for player/video or some activity
         try {
-            await page.waitForSelector('video', { timeout: 5000 });
-        } catch (e) {
-            // Ignore if video doesn't appear fast
-        }
+            await page.waitForSelector('video, iframe', { timeout: 10000 });
+        } catch (e) {}
         
         await page.evaluate(() => {
             const v = document.querySelector('video');
@@ -198,13 +207,11 @@ async function getKissKhStreams(tmdbId, mediaType, season, episode) {
         });
 
         // Wait a bit for the requests to fire
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 5000));
 
-        const subtitles = Array.from(capturedUrls.subtitles).map(url => ({ 
-            url, 
-            lang: "en", 
-            label: "English"
-        }));
+        const subtitles = Array.from(capturedUrls.subtitles).map(s => {
+            try { return JSON.parse(s); } catch { return { url: s, lang: 'en', label: 'English' }; }
+        });
 
         for (const url of capturedUrls.video) {
             if (url.endsWith(".ts") && Array.from(capturedUrls.video).some(u => u.includes(".m3u8"))) {
@@ -236,4 +243,85 @@ async function getKissKhStreams(tmdbId, mediaType, season, episode) {
     return streams;
 }
 
-module.exports = { getStreams: getKissKhStreams };
+async function getStreamsDirect(showId, episodeNumber) {
+    console.log(`[KissKH] Fetching streams for Show ID: ${showId} Episode ${episodeNumber}`);
+    const streams = [];
+    let context;
+    let page;
+
+    try {
+        const epNum = parseInt(episodeNumber || "1");
+        const episodeId = await getEpisodeId(showId, epNum);
+        if (!episodeId) {
+            console.log(`[KissKH] Episode ${epNum} not found in API.`);
+            return [];
+        }
+
+        // We don't have the slug, but we can use a placeholder since the API only cares about ID and EP
+        const directUrl = `${BASE_URL}/Drama/Direct/Episode-${epNum}?id=${showId}&ep=${episodeId}&page=0&pageSize=100`;
+        console.log(`[KissKH] Navigate: ${directUrl}`);
+
+        const { getNewPage } = require("../utils/browserManager");
+        page = await getNewPage();
+        context = page.context();
+
+        const capturedUrls = { video: new Set(), subtitles: new Set() };
+        
+        page.on("response", async (response) => {
+            const url = response.url();
+            if (url.includes("/api/DramaList/Episode/") && url.includes(".png")) {
+                try {
+                    const data = await response.json();
+                    if (data && data.Video) capturedUrls.video.add(data.Video);
+                    if (data && data.ThirdParty) capturedUrls.video.add(data.ThirdParty);
+                    if (data && Array.isArray(data.Subtitles)) {
+                        data.Subtitles.forEach(sub => {
+                            if (sub.src) {
+                                capturedUrls.subtitles.add(JSON.stringify({
+                                    url: sub.src,
+                                    label: sub.label || 'English',
+                                    lang: (sub.label || 'en').toLowerCase().substring(0, 2)
+                                }));
+                            }
+                        });
+                    }
+                } catch (e) {}
+            }
+        });
+
+        await page.goto(directUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+        try { await page.waitForSelector('video, iframe', { timeout: 10000 }); } catch (e) {}
+        await page.evaluate(() => {
+            const v = document.querySelector('video');
+            if (v) v.play().catch(() => {});
+        });
+        await new Promise(r => setTimeout(r, 5000));
+
+        const subtitles = Array.from(capturedUrls.subtitles).map(s => {
+            try { return JSON.parse(s); } catch { return { url: s, lang: 'en', label: 'English' }; }
+        });
+
+        for (const url of capturedUrls.video) {
+            if (url.endsWith(".ts") && Array.from(capturedUrls.video).some(u => u.includes(".m3u8"))) continue;
+            const isThirdParty = url.includes("sbplay") || url.includes("ok.ru") || url.includes("vidoza");
+            streams.push({
+                url,
+                quality: isThirdParty ? "ThirdParty" : "Auto",
+                provider: "KissKH",
+                subtitles: subtitles.length > 0 ? subtitles : undefined,
+                headers: { "Referer": BASE_URL, "Origin": BASE_URL, "User-Agent": USER_AGENT }
+            });
+        }
+        console.log(`[KissKH] Found ${streams.length} streams.`);
+    } catch (error) {
+        console.error(`[KissKH] Error: ${error.message}`);
+    } finally {
+        if (context) await context.close();
+    }
+    return streams;
+}
+
+module.exports = { 
+    getStreams: getKissKhStreams,
+    getStreamsDirect
+};
