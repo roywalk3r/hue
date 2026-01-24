@@ -452,23 +452,40 @@ function createProxyRoutes(app) {
             try { headers.Origin = new URL(headers.Referer).origin; } catch (_e) { /* ignore */ }
         }
         
-        // Normalize headers to avoid duplicates (especially User-Agent)
-        const mergedHeaders = { ...headers };
+        // Normalize headers to avoid duplicates and strip problematic ones
+        const mergedHeaders = {};
+        const skipHeaders = ['host', 'connection', 'content-length', 'content-type', 'accept-encoding', 'cookie', 'if-none-match', 'if-modified-since', 'range'];
+        
+        Object.keys(headers).forEach(k => {
+            if (!skipHeaders.includes(k.toLowerCase())) {
+                mergedHeaders[k] = headers[k];
+            }
+        });
+
         const hasUA = Object.keys(mergedHeaders).some(k => k.toLowerCase() === 'user-agent');
         if (!hasUA) {
             mergedHeaders['User-Agent'] = DEFAULT_UA;
         }
 
+        // Pass through Range header if present (for MP4s sent to m3u8-proxy)
+        if (req.headers.range) {
+            mergedHeaders['Range'] = req.headers.range;
+        }
+
         try {
             const response = await fetchWithRetry(targetUrl, { headers: mergedHeaders });
-            if (!response.ok) return res.status(response.status).json({ error: `M3U8 fetch failed: ${response.status}`, target: targetUrl });
+            if (!response.ok && response.status !== 206) return res.status(response.status).json({ error: `M3U8 fetch failed: ${response.status}`, target: targetUrl });
             
             const contentType = response.headers.get('content-type') || '';
             const isVideo = contentType.includes('video/') || /\.(mp4|mkv|mov|avi|ts)$/i.test(targetUrl.split('?')[0]);
             
-            if (isVideo) {
-                if (debug) console.log('[m3u8-proxy] Detected non-M3U8 content type, piping raw', { contentType, targetUrl });
+            if (isVideo || response.status === 206) {
+                if (debug) console.log('[m3u8-proxy] Detected video or 206 response, piping raw', { contentType, status: response.status, targetUrl });
+                res.status(response.status);
                 res.setHeader('Content-Type', contentType || 'video/mp4');
+                if (response.headers.get('content-range')) res.setHeader('Content-Range', response.headers.get('content-range'));
+                if (response.headers.get('accept-ranges')) res.setHeader('Accept-Ranges', response.headers.get('accept-ranges'));
+                if (response.headers.get('content-length')) res.setHeader('Content-Length', response.headers.get('content-length'));
                 res.setHeader('Access-Control-Allow-Origin', '*');
                 return response.body.pipe(res);
             }
@@ -527,7 +544,14 @@ function createProxyRoutes(app) {
             try { headers.Origin = new URL(headers.Referer).origin; } catch (_e) { /* ignore */ }
         }
 
-        // Normalize headers to avoid duplicates
+        // Normalize headers to avoid duplicates and strip problematic ones
+        const skipHeaders = ['host', 'connection', 'content-length', 'content-type', 'accept-encoding', 'cookie', 'if-none-match', 'if-modified-since', 'range'];
+        Object.keys(headers).forEach(k => {
+            if (skipHeaders.includes(k.toLowerCase())) {
+                delete headers[k];
+            }
+        });
+
         const hasUA = Object.keys(headers).some(k => k.toLowerCase() === 'user-agent');
         if (!hasUA) {
             headers['User-Agent'] = DEFAULT_UA;
