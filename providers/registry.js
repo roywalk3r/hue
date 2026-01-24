@@ -3,6 +3,55 @@ const fs = require('fs');
 const path = require('path');
 const { getCachedStreams, setCachedStreams } = require('../utils/cache');
 
+// Map real provider names to "special" names for the API response
+const PROVIDER_RENAME_MAP = {
+  'sflix': 'Nova',
+  'vixsrc': 'Aura',
+  'vidrock': 'Luna',
+  'vidsrc-xyz': 'Solar',
+  'vidsrc-icu': 'Stellar',
+  'vidsrc-embed': 'Nebula',
+  'kisskh': 'Zenith',
+  'dramacool': 'Orient',
+  'moviesmod': 'Cine',
+  'uhdmovies': 'Ultra',
+  '4khdhub': 'Prime',
+  'mp4hydra': 'Hydra',
+  'showbox': 'Echo',
+  'showbox-playwright': 'Echo Pro',
+  'livesport': 'Stadium',
+  'vidsrccc-playwright': 'Vertex'
+};
+
+// Keywords to sanitize from titles/names (maps to public names)
+const SANITIZE_KEYWORDS = {
+  'vidsrc': 'Aura',
+  'vidrock': 'Luna',
+  'sflix': 'Nova',
+  'kisskh': 'Zenith',
+  'dramacool': 'Orient',
+  'moviesmod': 'Cine',
+  'uhdmovies': 'Ultra',
+  '4khdhub': 'Prime',
+  'mp4hydra': 'Hydra',
+  'showbox': 'Echo',
+  'livesport': 'Stadium'
+};
+
+function getPublicName(realName) {
+  return PROVIDER_RENAME_MAP[realName.toLowerCase()] || realName;
+}
+
+function sanitizeText(text) {
+  if (!text) return text;
+  let sanitized = text;
+  for (const [key, replacement] of Object.entries(SANITIZE_KEYWORDS)) {
+    const regex = new RegExp(key, 'gi');
+    sanitized = sanitized.replace(regex, replacement);
+  }
+  return sanitized;
+}
+
 // Lazy load cache for providers
 const providerCache = new Map();
 
@@ -139,12 +188,23 @@ function createFetchFunction(providerInfo) {
 
       if (!Array.isArray(result)) return [];
 
-      // Add provider name if not present
-      const finalResult = result.map(s => ({ ...s, provider: s.provider || providerInfo.name }));
+      // Add special provider name and sanitize titles
+      const publicName = getPublicName(providerInfo.realName);
+      const finalResult = result.map(s => {
+          let sanitizedTitle = s.title || s.name || 'Stream';
+          sanitizedTitle = sanitizeText(sanitizedTitle);
+          
+          return { 
+              ...s, 
+              title: sanitizedTitle,
+              name: s.name ? sanitizeText(s.name) : undefined,
+              provider: publicName 
+          };
+      });
       
       // Cache success result (skip livesport)
-      if (providerInfo.name !== 'livesport' && finalResult.length > 0) {
-          const cacheKeyType = `${providerInfo.name}:${mediaType}`;
+      if (providerInfo.realName !== 'livesport' && finalResult.length > 0) {
+          const cacheKeyType = `${providerInfo.realName}:${mediaType}`;
           setCachedStreams(cacheKeyType, ctx.tmdbId, ctx.season, ctx.episode, finalResult);
       }
 
@@ -166,19 +226,24 @@ for (const providerInfo of providerFiles) {
   const enabled = config[enableFlag] !== false;
 
   if (enabled) {
+    const publicName = getPublicName(providerInfo.name);
     providers.push({
-      name: providerInfo.name,
+      name: publicName,
+      realName: providerInfo.name,
       enabled: true,
-      fetch: createFetchFunction(providerInfo)
+      fetch: createFetchFunction({ ...providerInfo, realName: providerInfo.name, publicName })
     });
-    console.log(`[registry] ${providerInfo.name} provider enabled`);
+    console.log(`[registry] ${providerInfo.name} provider enabled as "${publicName}"`);
   } else {
     console.log(`[registry] ${providerInfo.name} disabled via config`);
   }
 }
 
 function listProviders() { return providers.map(p => ({ name: p.name, enabled: p.enabled })); }
-function getProvider(name) { return providers.find(p => p.name === name.toLowerCase()) || null; }
+function getProvider(name) { 
+  const lowName = name.toLowerCase();
+  return providers.find(p => p.name.toLowerCase() === lowName || p.realName.toLowerCase() === lowName) || null; 
+}
 
 function getCookieStats() { return lastCookieStats; }
 
