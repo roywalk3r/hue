@@ -20,7 +20,21 @@ function setCachedStreams(type, tmdbId, season, episode, streams) {
     cache.set(key, streams);
 }
 
+function addCachedStreams(type, tmdbId, season, episode, newStreams) {
+    const key = getCacheKey(type, tmdbId, season, episode);
+    const existing = cache.get(key) || [];
+    const urlMap = new Map();
+    
+    // Index existing
+    existing.forEach(s => { if(s.url) urlMap.set(s.url, s); });
+    // Merge new (overwrite existing with same URL if any, or just add)
+    newStreams.forEach(s => { if(s.url) urlMap.set(s.url, s); });
+    
+    cache.set(key, Array.from(urlMap.values()));
+}
+
 module.exports = {
     getCachedStreams,
-    setCachedStreams
+    setCachedStreams,
+    addCachedStreams
 };

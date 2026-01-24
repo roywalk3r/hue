@@ -41,9 +41,9 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     // Navigate and wait for network activity to settle
     await page.goto(embedUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-    // Wait up to 15 seconds for the player to initialize and hlsUrl to be captured
+    // Wait up to 45 seconds for the player to initialize and hlsUrl to be captured
     const start = Date.now();
-    while (!hlsUrl && Date.now() - start < 15000) {
+    while (!hlsUrl && Date.now() - start < 45000) {
       await new Promise(r => setTimeout(r, 1000));
       
       // Attempt to click play buttons if they appear in iframes

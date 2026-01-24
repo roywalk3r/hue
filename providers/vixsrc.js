@@ -6,7 +6,7 @@ const https = require('https');
 const axiosInstance = axios.create({
     httpAgent: new http.Agent({ family: 4 }),
     httpsAgent: new https.Agent({ family: 4 }),
-    timeout: 10000
+    timeout: 30000
 });
 
 const TMDB_API_KEY = "68e094699525b18a70bab2f86b1fa706";

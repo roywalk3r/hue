@@ -19,7 +19,8 @@ async function getTmdbInfo(tmdbId, mediaType) {
     const TMDB_API_KEY = getTmdbApiKey();
     if (!TMDB_API_KEY) return { title: null, year: null };
 
-    const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}`;
+    const type = mediaType === 'series' || mediaType === 'tv' ? 'tv' : 'movie';
+    const url = `https://api.themoviedb.org/3/${type}/${tmdbId}?api_key=${TMDB_API_KEY}`;
     const response = await axiosInstance.get(url);
     const data = response.data;
     const releaseDate = data.release_date || data.first_air_date;

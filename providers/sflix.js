@@ -41,32 +41,55 @@ async function searchSflix(title, mediaType, year, season) {
             const item = $(el);
             const titleEl = item.find(".subject-card-bottom .line-1").length ? item.find(".subject-card-bottom .line-1") : item.find("h2.line-1");
             const href = item.attr("href");
+            const metaEl = item.find(".subject-card-bottom .line-2");
+            const metaText = metaEl.text().trim().toLowerCase();
+            const itemYearMatch = metaText.match(/\d{4}/);
+            const itemYear = itemYearMatch ? itemYearMatch[0] : null;
             
             if (titleEl.length && href) {
                 const text = titleEl.text().trim();
                 const normalizedText = normalize(text);
                 let currentScore = 0;
 
+                // Title match
                 if (normalizedText === target) currentScore += 100;
-                else if (normalizedText.includes(target)) currentScore += 50;
+                else if (normalizedText.includes(target) || target.includes(normalizedText)) currentScore += 50;
                 
+                // Season match for TV
                 if (season && (normalizedText.includes(target + targetSeason) || normalizedText.includes(target + "season" + season))) {
                     currentScore += 150;
                 }
 
-                if (year && text.includes(year.toString())) currentScore += 80;
-
-                if (mediaType === "tv") {
-                    if (!normalizedText.includes("s1") && !normalizedText.includes("season")) currentScore += 10;
-                } else {
-                    if (normalizedText.includes("s1") || normalizedText.includes("season")) currentScore -= 150;
+                // Year match (check title and meta)
+                if (year) {
+                    if (text.includes(year.toString())) currentScore += 80;
+                    else if (itemYear === year.toString()) currentScore += 80;
                 }
+
+                // Media type match/mismatch
+                const isTVResult = metaText.includes("series") || metaText.includes("season") || metaText.includes("ss") || normalizedText.includes("season") || normalizedText.includes("s1") || normalizedText.includes("s2");
+                
+                if (mediaType === "tv") {
+                    if (isTVResult) currentScore += 50;
+                    else currentScore -= 100;
+                } else {
+                    if (isTVResult) currentScore -= 150;
+                    else currentScore += 20;
+                }
+
+                console.log(`[SFlix] Candidate: "${text}" (${itemYear || 'N/A'}) [${isTVResult ? 'TV' : 'Movie'}] - Score: ${currentScore} - URL: ${href}`);
 
                 if (currentScore > bestMatch.score) {
                     bestMatch = { href, score: currentScore };
                 }
             }
         });
+
+        if (bestMatch.href) {
+            console.log(`[SFlix] Selected best match: ${bestMatch.href} with score ${bestMatch.score}`);
+        } else {
+            console.log(`[SFlix] No suitable matches found for "${title}"`);
+        }
 
         return bestMatch.href ? (bestMatch.href.startsWith("http") ? bestMatch.href : `${BASE_URL}${bestMatch.href}`) : null;
     } catch (e) {
@@ -144,7 +167,8 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
         const capturedUrls = { video: new Set(), subtitles: new Set() };
         page.on("request", (request) => {
             const url = request.url();
-            const isVideo = url.includes(".mp4") || url.includes(".m3u8") || url.includes("hakunaymatata.com") || url.includes("lightningbolt.site") || url.includes("vidbox.site") || url.includes(".m3u8?");
+            const isVideo = (url.includes(".mp4") || url.includes(".m3u8") || url.includes("hakunaymatata.com") || url.includes("lightningbolt.site") || url.includes("vidbox.site") || url.includes(".m3u8?")) 
+                            && !url.includes("/subtitle/") && !url.includes(".vtt") && !url.includes(".srt");
             if (isVideo && !url.includes("image/") && !url.includes("banner") && !url.includes("logo") && !url.includes(".js") && !url.includes(".css")) capturedUrls.video.add(url);
             if (url.includes(".vtt") || url.includes(".srt") || url.includes("/subtitle/")) capturedUrls.subtitles.add(url);
         });

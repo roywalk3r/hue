@@ -13,7 +13,7 @@ const { listProviders, getProvider, getCookieStats } = require('./providers/regi
 const { createProxyRoutes, processStreamsForProxy } = require('./proxy/proxyServer');
 const { resolveImdbId } = require('./utils/tmdb');
 const { applyFilters } = require('./utils/streamFilters');
-const { getCachedStreams, setCachedStreams } = require('./utils/cache');
+const { getCachedStreams, setCachedStreams, addCachedStreams } = require('./utils/cache');
 const kisskhApi = require('./utils/kisskh-api');
 const kisskhProvider = require('./providers/kisskh');
 const dramacoolApi = require('./utils/dramacool-api');
@@ -442,7 +442,7 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
     const streamsResults = [];
     
     // Categorize providers
-    const browserProviders = ['sflix', 'vidsrccc-playwright', 'showbox-playwright', 'vidsrc-xyz', 'vidsrc-icu']; // removed kisskh, dramacool
+    const browserProviders = ['sflix', 'vidsrccc-playwright', 'showbox-playwright', 'vidsrc-xyz', 'vidsrc-icu', 'vidsrc-embed', 'vidrock']; // removed kisskh, dramacool
     const fastProviders = selectedProviders.filter(p => !browserProviders.includes(p) && p !== 'kisskh' && p !== 'dramacool');
     const slowProviders = selectedProviders.filter(p => browserProviders.includes(p));
 
@@ -503,6 +503,11 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
                         logger.info(`[background] invoking browser provider ${name} for tmdbId=${tmdbId}`);
                         const r = await prov.fetch({ tmdbId, type, season, episode, imdbId, filters:{ } });
                         logger.info(`[background] provider ${name} returned ${Array.isArray(r)?r.length:0} streams`);
+                        
+                        if (Array.isArray(r) && r.length > 0) {
+                            logger.info(`[cache] incremental update for ${taskKey} from ${name} with ${r.length} streams`);
+                            addCachedStreams(type, tmdbId, season, episode, r);
+                        }
                         return Array.isArray(r) ? r : [];
                     } catch (e) {
                         logger.error(`[background] provider ${name} failed:`, e.message);
@@ -510,13 +515,7 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
                     }
                 });
 
-                const results = await Promise.all(promises);
-                results.forEach(r => backgroundResults.push(...r));
-
-                if (backgroundResults.length > 0) {
-                    logger.info(`[cache] updating cache for ${taskKey} with ${backgroundResults.length} streams`);
-                    setCachedStreams(type, tmdbId, season, episode, backgroundResults);
-                }
+                await Promise.all(promises);
             } finally {
                 pendingBackgroundTasks.delete(taskKey);
             }

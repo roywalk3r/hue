@@ -26,6 +26,8 @@
   "enableLivesportProvider": false,
   "enableUhdmoviesProvider": false,
   "enableShowboxPlaywrightProvider": false,
+  "enableVidrockProvider": true,
+  "enableVidsrcEmbedProvider": false,
   "enableSflixProvider": true,
   "enableKisskhProvider": true,
   "enableDramacoolProvider": true

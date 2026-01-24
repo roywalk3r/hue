@@ -81,6 +81,12 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         const streams = [];
         Object.values(responseBody).forEach(source => {
             if (source && source.url) {
+                // Filter out problematic/incorrect domains
+                if (source.url.includes('67streams.online')) {
+                    console.log(`[VidRock] Skipping incorrect source: ${source.url}`);
+                    return;
+                }
+
                 streams.push({
                     title: `VidRock - ${source.language || 'Unknown'} - ${source.url.includes('m3u8') ? 'HLS' : 'MP4'}`,
                     url: source.url,

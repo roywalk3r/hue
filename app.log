@@ -64,3 +64,117 @@
 [2026-01-24T16:25:02.350Z] [INFO] [background] provider vidsrc-xyz returned 0 streams
 [2026-01-24T16:25:07.505Z] [INFO] [background] provider sflix returned 11 streams
 [2026-01-24T16:25:07.505Z] [INFO] [cache] updating cache for movie_1208348_null_null with 11 streams
+[2026-01-24T19:43:20.792Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-24T19:43:43.548Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
+[2026-01-24T19:43:43.559Z] [INFO] [api] invoking fast provider vidrock for tmdbId=1242898
+[2026-01-24T19:43:43.566Z] [INFO] [api] invoking fast provider vidsrc-embed for tmdbId=1242898
+[2026-01-24T19:43:43.570Z] [INFO] [api] invoking fast provider vixsrc for tmdbId=1242898
+[2026-01-24T19:44:34.639Z] [INFO] [background] invoking browser provider sflix for tmdbId=1242898
+[2026-01-24T19:44:34.903Z] [INFO] [background] invoking browser provider vidsrc-icu for tmdbId=1242898
+[2026-01-24T19:44:34.904Z] [INFO] [background] invoking browser provider vidsrc-xyz for tmdbId=1242898
+[2026-01-24T19:44:42.688Z] [INFO] [background] provider sflix returned 1 streams
+[2026-01-24T19:45:02.498Z] [INFO] [background] provider vidsrc-icu returned 0 streams
+[2026-01-24T19:45:13.522Z] [INFO] [background] provider vidsrc-xyz returned 0 streams
+[2026-01-24T19:45:13.523Z] [INFO] [cache] updating cache for movie_1242898_null_null with 1 streams
+[2026-01-24T19:46:51.186Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
+[2026-01-24T19:46:51.192Z] [INFO] [api] invoking fast provider vidrock for tmdbId=1242898
+[2026-01-24T19:46:51.193Z] [INFO] [api] invoking fast provider vidsrc-embed for tmdbId=1242898
+[2026-01-24T19:46:51.193Z] [INFO] [api] invoking fast provider vixsrc for tmdbId=1242898
+[2026-01-24T19:47:39.209Z] [INFO] [background] invoking browser provider sflix for tmdbId=1242898
+[2026-01-24T19:47:39.209Z] [INFO] [background] invoking browser provider vidsrc-icu for tmdbId=1242898
+[2026-01-24T19:47:39.210Z] [INFO] [background] invoking browser provider vidsrc-xyz for tmdbId=1242898
+[2026-01-24T19:47:39.211Z] [INFO] [background] provider sflix returned 1 streams
+[2026-01-24T19:48:07.077Z] [INFO] [background] provider vidsrc-icu returned 0 streams
+[2026-01-24T19:48:12.447Z] [INFO] [background] provider vidsrc-xyz returned 0 streams
+[2026-01-24T19:48:12.447Z] [INFO] [cache] updating cache for movie_1242898_null_null with 1 streams
+[2026-01-24T19:49:37.777Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-24T19:51:06.014Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
+[2026-01-24T19:51:06.023Z] [INFO] [api] invoking fast provider vidrock for tmdbId=1242898
+[2026-01-24T19:51:06.030Z] [INFO] [api] invoking fast provider vidsrc-embed for tmdbId=1242898
+[2026-01-24T19:51:06.032Z] [INFO] [api] invoking fast provider vixsrc for tmdbId=1242898
+[2026-01-24T19:51:55.786Z] [INFO] [background] invoking browser provider sflix for tmdbId=1242898
+[2026-01-24T19:51:55.908Z] [INFO] [background] invoking browser provider vidsrc-icu for tmdbId=1242898
+[2026-01-24T19:51:55.909Z] [INFO] [background] invoking browser provider vidsrc-xyz for tmdbId=1242898
+[2026-01-24T19:52:01.773Z] [INFO] [background] provider sflix returned 1 streams
+[2026-01-24T19:52:22.826Z] [INFO] [background] provider vidsrc-icu returned 0 streams
+[2026-01-24T19:52:29.273Z] [INFO] [background] provider vidsrc-xyz returned 0 streams
+[2026-01-24T19:52:29.274Z] [INFO] [cache] updating cache for movie_1242898_null_null with 1 streams
+[2026-01-24T19:53:59.713Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
+[2026-01-24T19:53:59.720Z] [INFO] [api] invoking fast provider vidrock for tmdbId=1242898
+[2026-01-24T19:53:59.721Z] [INFO] [api] invoking fast provider vidsrc-embed for tmdbId=1242898
+[2026-01-24T19:53:59.722Z] [INFO] [api] invoking fast provider vixsrc for tmdbId=1242898
+[2026-01-24T19:54:30.531Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
+[2026-01-24T19:54:30.535Z] [INFO] [api] invoking fast provider vidrock for tmdbId=1242898
+[2026-01-24T19:54:30.536Z] [INFO] [api] invoking fast provider vidsrc-embed for tmdbId=1242898
+[2026-01-24T19:54:30.537Z] [INFO] [api] invoking fast provider vixsrc for tmdbId=1242898
+[2026-01-24T19:54:47.389Z] [INFO] [background] invoking browser provider sflix for tmdbId=1242898
+[2026-01-24T19:54:47.390Z] [INFO] [background] invoking browser provider vidsrc-icu for tmdbId=1242898
+[2026-01-24T19:54:47.390Z] [INFO] [background] invoking browser provider vidsrc-xyz for tmdbId=1242898
+[2026-01-24T19:54:47.390Z] [INFO] [background] provider sflix returned 1 streams
+[2026-01-24T19:55:14.745Z] [INFO] [background] provider vidsrc-icu returned 0 streams
+[2026-01-24T19:59:03.948Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-24T19:59:05.904Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-24T19:59:20.310Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
+[2026-01-24T19:59:20.322Z] [INFO] [api] invoking fast provider vidrock for tmdbId=1242898
+[2026-01-24T19:59:20.328Z] [INFO] [api] invoking fast provider vixsrc for tmdbId=1242898
+[2026-01-24T19:59:25.880Z] [INFO] [background] invoking browser provider sflix for tmdbId=1242898
+[2026-01-24T19:59:26.112Z] [INFO] [background] invoking browser provider vidsrc-icu for tmdbId=1242898
+[2026-01-24T19:59:26.113Z] [INFO] [background] invoking browser provider vidsrc-xyz for tmdbId=1242898
+[2026-01-24T19:59:31.338Z] [INFO] [background] provider sflix returned 1 streams
+[2026-01-24T19:59:46.443Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
+[2026-01-24T19:59:46.443Z] [INFO] [api] invoking fast provider vidrock for tmdbId=1242898
+[2026-01-24T19:59:46.444Z] [INFO] [api] invoking fast provider vixsrc for tmdbId=1242898
+[2026-01-24T19:59:51.215Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
+[2026-01-24T19:59:51.217Z] [INFO] [api] invoking fast provider vidrock for tmdbId=1242898
+[2026-01-24T19:59:51.218Z] [INFO] [api] invoking fast provider vixsrc for tmdbId=1242898
+[2026-01-24T19:59:53.915Z] [INFO] [background] provider vidsrc-icu returned 0 streams
+[2026-01-24T20:00:01.499Z] [INFO] [background] provider vidsrc-xyz returned 0 streams
+[2026-01-24T20:00:01.499Z] [INFO] [cache] updating cache for movie_1242898_null_null with 1 streams
+[2026-01-24T20:04:06.490Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-24T20:04:25.595Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
+[2026-01-24T20:04:25.606Z] [INFO] [api] invoking fast provider vidrock for tmdbId=1242898
+[2026-01-24T20:04:25.612Z] [INFO] [api] invoking fast provider vixsrc for tmdbId=1242898
+[2026-01-24T20:04:30.328Z] [INFO] [background] invoking browser provider sflix for tmdbId=1242898
+[2026-01-24T20:04:30.525Z] [INFO] [background] invoking browser provider vidsrc-icu for tmdbId=1242898
+[2026-01-24T20:04:30.525Z] [INFO] [background] invoking browser provider vidsrc-xyz for tmdbId=1242898
+[2026-01-24T20:04:36.086Z] [INFO] [background] provider sflix returned 1 streams
+[2026-01-24T20:04:36.086Z] [INFO] [cache] incremental update for movie_1242898_null_null from sflix with 1 streams
+[2026-01-24T20:04:38.363Z] [INFO] [background] provider vidsrc-icu returned 1 streams
+[2026-01-24T20:04:38.363Z] [INFO] [cache] incremental update for movie_1242898_null_null from vidsrc-icu with 1 streams
+[2026-01-24T20:04:43.945Z] [INFO] [background] provider vidsrc-xyz returned 1 streams
+[2026-01-24T20:04:43.945Z] [INFO] [cache] incremental update for movie_1242898_null_null from vidsrc-xyz with 1 streams
+[2026-01-24T20:04:51.461Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
+[2026-01-24T20:04:51.462Z] [INFO] [api] invoking fast provider vidrock for tmdbId=1242898
+[2026-01-24T20:04:51.462Z] [INFO] [api] invoking fast provider vixsrc for tmdbId=1242898
+[2026-01-24T20:04:51.463Z] [INFO] [background] invoking browser provider sflix for tmdbId=1242898
+[2026-01-24T20:04:51.464Z] [INFO] [background] invoking browser provider vidsrc-icu for tmdbId=1242898
+[2026-01-24T20:04:51.464Z] [INFO] [background] invoking browser provider vidsrc-xyz for tmdbId=1242898
+[2026-01-24T20:04:51.464Z] [INFO] [background] provider sflix returned 1 streams
+[2026-01-24T20:04:51.464Z] [INFO] [cache] incremental update for movie_1242898_null_null from sflix with 1 streams
+[2026-01-24T20:04:51.464Z] [INFO] [background] provider vidsrc-icu returned 1 streams
+[2026-01-24T20:04:51.464Z] [INFO] [cache] incremental update for movie_1242898_null_null from vidsrc-icu with 1 streams
+[2026-01-24T20:04:51.464Z] [INFO] [background] provider vidsrc-xyz returned 1 streams
+[2026-01-24T20:04:51.464Z] [INFO] [cache] incremental update for movie_1242898_null_null from vidsrc-xyz with 1 streams
+[2026-01-24T20:08:04.542Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
+[2026-01-24T20:08:04.543Z] [INFO] [api] invoking fast provider vidrock for tmdbId=1242898
+[2026-01-24T20:08:04.543Z] [INFO] [api] invoking fast provider vixsrc for tmdbId=1242898
+[2026-01-24T20:08:04.546Z] [INFO] [background] invoking browser provider sflix for tmdbId=1242898
+[2026-01-24T20:08:04.547Z] [INFO] [background] invoking browser provider vidsrc-icu for tmdbId=1242898
+[2026-01-24T20:08:04.548Z] [INFO] [background] invoking browser provider vidsrc-xyz for tmdbId=1242898
+[2026-01-24T20:08:04.548Z] [INFO] [background] provider sflix returned 1 streams
+[2026-01-24T20:08:04.548Z] [INFO] [cache] incremental update for movie_1242898_null_null from sflix with 1 streams
+[2026-01-24T20:08:04.548Z] [INFO] [background] provider vidsrc-icu returned 1 streams
+[2026-01-24T20:08:04.550Z] [INFO] [cache] incremental update for movie_1242898_null_null from vidsrc-icu with 1 streams
+[2026-01-24T20:08:04.550Z] [INFO] [background] provider vidsrc-xyz returned 1 streams
+[2026-01-24T20:08:04.550Z] [INFO] [cache] incremental update for movie_1242898_null_null from vidsrc-xyz with 1 streams
+[2026-01-24T20:08:12.092Z] [INFO] [request] GET /player.html from 12ca17b4
+[2026-01-24T20:08:12.172Z] [INFO] [request] GET /player.css from 12ca17b4
+[2026-01-24T20:08:12.490Z] [INFO] [request] GET /player.js from 12ca17b4
+[2026-01-24T20:08:13.297Z] [INFO] [request] GET /api/config from 12ca17b4
+[2026-01-24T20:08:32.934Z] [INFO] [request] GET /player.css from 12ca17b4
+[2026-01-24T20:08:32.976Z] [INFO] [request] GET /.well-known/appspecific/com.chrome.devtools.json from 12ca17b4
+[2026-01-24T20:08:58.382Z] [INFO] [request] GET /favicon.ico from 12ca17b4
+[2026-01-24T20:18:37.585Z] [INFO] [request] GET /api/kdrama/search?q=The%20judge from 12ca17b4
+[2026-01-24T20:26:03.878Z] [INFO] [request] GET /api/streams/kisskh/series/221112 from 12ca17b4
+[2026-01-24T20:26:48.348Z] [INFO] [request] GET /api/kdrama/search?q=Squid%20Game from 12ca17b4
+[2026-01-24T20:29:55.962Z] [INFO] [startup] enableProxy flag active: mounting proxy routes

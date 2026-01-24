@@ -9,7 +9,7 @@ let browserInstance = null;
 let firefoxInstance = null;
 
 // Semaphore for concurrency control
-const MAX_GLOBAL_CONCURRENT_PAGES = process.env.MAX_CONCURRENT_PAGES ? parseInt(process.env.MAX_CONCURRENT_PAGES) : 10;
+const MAX_GLOBAL_CONCURRENT_PAGES = process.env.MAX_CONCURRENT_PAGES ? parseInt(process.env.MAX_CONCURRENT_PAGES) : 15;
 const queue = [];
 let activePages = 0;
 

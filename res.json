@@ -1,0 +1,784 @@
+{
+  "success": true,
+  "tmdbId": "1208348",
+  "imdbId": null,
+  "count": 16,
+  "providerTimings": {
+    "vidrock": 1,
+    "vidsrc-embed": 0,
+    "vixsrc": 0
+  },
+  "streams": [
+    {
+      "title": "VidRock - English - MP4",
+      "url": "http://piper.hidencloud.com:24608/m3u8-proxy?url=https%3A%2F%2Fstorm.9zrtdddkev.workers.dev%2F3hbZCfhybOAzRncNwr6qgaIKnlNu7vmg8tbRDsgRjfcbfJD7r1PhRScumE04r78HCRbIMADGQff1HUwMkk_Ca5XXS1vmEG027tdKuuoxcTLbKy1iDvRszyJzYn7U0lL3QiP5_-HQue8deTzU0zkDKtenRupBqeMG_4WSO9-OdPNsgteIjyqWfWWz4-ZYU5BIxOuUiZhmVwUd0P-HnKB3MHLy9xNizDagMoREavM1j19EnUctNU4y-9j6AqPXeqnJ05RuP8LcfVR5mMVf4ldQjyONSg2gKxv3C9GXe3pS42UJXiSy4kssqJvZqUP7fS3D&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fvidrock.net%2Fmovie%2F1208348%22%2C%22Origin%22%3A%22https%3A%2F%2Fvidrock.net%22%2C%22User-Agent%22%3A%22Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F120.0.0.0%20Safari%2F537.36%22%7D",
+      "quality": "Auto",
+      "provider": "VidRock",
+      "headers": {
+        "Referer": "https://vidrock.net/movie/1208348",
+        "Origin": "https://vidrock.net",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      }
+    },
+    {
+      "url": "http://piper.hidencloud.com:24608/m3u8-proxy?url=https%3A%2F%2Ftmstr2.quibblezoomfable.com%2Fpl%2FH4sIAAAAAAAAAw3IW3uCIBgA4L_04aFilwVa7dE2CRDuBHrmRM1W8_Trt_fy3aFNZAA7F4ZuG0Z4a28YYRybjd1VURW_MZTTihfN5fAMcx8vvOXTe0BBp_nz1g3IwWnNvjE33fzrqMsuclBS1hNHe.R6cVHLi4jjgKzkqzy8Ju71YvzXVATiYQCNptFjFu4bBTUx6ZBwUueSilKKZCMAId7fIwFacKqfTJ5.8vRcFtSO.ZHODOlIk7Z1SPQM4sYm9bVKhw_rhbddhGzrpmxtg.tq4bNxnIEHQ9WsuijQ_297kSgYZu1hYqWj1.bMWHpeszW_FySJCyIelcexbvhSQFtrUoem16MjKpRdjPQK.A8DvacBQQEAAA--%2Fmaster.m3u8&headers=%7B%22host%22%3A%22tmstr2.quibblezoomfable.com%22%2C%22user-agent%22%3A%22Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64%3B%20rv%3A121.0)%20Gecko%2F20100101%20Firefox%2F121.0%22%2C%22accept%22%3A%22*%2F*%22%2C%22accept-language%22%3A%22en-US%2Cen%3Bq%3D0.5%22%2C%22accept-encoding%22%3A%22gzip%2C%20deflate%2C%20br%2C%20zstd%22%2C%22referer%22%3A%22https%3A%2F%2Fcloudnestra.com%2F%22%2C%22origin%22%3A%22https%3A%2F%2Fcloudnestra.com%22%2C%22connection%22%3A%22keep-alive%22%2C%22sec-fetch-dest%22%3A%22empty%22%2C%22sec-fetch-mode%22%3A%22cors%22%2C%22sec-fetch-site%22%3A%22cross-site%22%7D",
+      "quality": "Auto",
+      "provider": "VidsrcEmbed",
+      "subtitles": [
+        {
+          "url": "https://cloudnestra.com/subs/e3596449ed52fb624f0167f2413f5da3/English-CC.eng.vtt",
+          "lang": "en",
+          "label": "English"
+        }
+      ],
+      "headers": {
+        "host": "tmstr2.quibblezoomfable.com",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+        "accept": "*/*",
+        "accept-language": "en-US,en;q=0.5",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "referer": "https://cloudnestra.com/",
+        "origin": "https://cloudnestra.com",
+        "connection": "keep-alive",
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "cross-site"
+      }
+    },
+    {
+      "name": "Vixsrc",
+      "title": "Auto Quality Stream",
+      "url": "http://piper.hidencloud.com:24608/m3u8-proxy?url=https%3A%2F%2Fvixsrc.to%2Fplaylist%2F612252%3Ftoken%3D51fc7ed4297a8ef9c5c806782f9b5128%26expires%3D1774466650%26h%3D1%26lang%3Den&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fvixsrc.to%2Fmovie%2F1208348%22%2C%22User-Agent%22%3A%22Mozilla%2F5.0%20(Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7)%20AppleWebKit%2F537.36%22%7D",
+      "quality": "1080p",
+      "provider": "Vidsrc",
+      "subtitles": [
+        {
+          "url": "https://sub.wyzie.ru/c/19a80c51/id/1962029911?format=srt&encoding=UTF-8",
+          "lang": "en",
+          "label": "English"
+        }
+      ],
+      "headers": {
+        "Referer": "https://vixsrc.to/movie/1208348",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+      }
+    },
+    {
+      "url": "http://piper.hidencloud.com:24608/ts-proxy?url=https%3A%2F%2Fbcdnxw.hakunaymatata.com%2Fresource%2F2c4834e7baaa86a3f99debca8818ae3d.mp4%3Fsign%3D71c2e5fbd729227a5b2f7f5912fd9a25%26t%3D1769282661&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fsflix.film%2F%22%2C%22User-Agent%22%3A%22Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F120.0.0.0%20Safari%2F537.36%22%2C%22Origin%22%3A%22https%3A%2F%2Fsflix.film%22%7D",
+      "quality": "Auto",
+      "provider": "SFlix",
+      "subtitles": [
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/f6cc66bb3a71dde4f63f4cb3924011d0.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/eeb39143ba06967e97cc63388c99dfa6.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/6b408ed11d905a3651c0021b2f8c132f.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8181d0f11b0fe8ec2f4f1d605ecee353.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/484cc219bbca628e72a9605f54eab892.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8252e769644fa3d2e80db49e0444fe77.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7aac3bec6a61658dd8b3accc076aa337.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/5973309b868d09c938b3649e483e0d44.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7dfdea85262ee22dee33f351e558ffe5.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/901f7637cd29499c8839a950160deab4.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        }
+      ],
+      "headers": {
+        "Referer": "https://sflix.film/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Origin": "https://sflix.film"
+      }
+    },
+    {
+      "url": "http://piper.hidencloud.com:24608/m3u8-proxy?url=https%3A%2F%2Fcacdn.hakunaymatata.com%2Fsubtitle%2Ff6cc66bb3a71dde4f63f4cb3924011d0.srt%3FPolicy%3DeyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_%26Signature%3D43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__%26Key-Pair-Id%3DKMHN1LQ1HEUPL&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fsflix.film%2F%22%2C%22User-Agent%22%3A%22Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F120.0.0.0%20Safari%2F537.36%22%2C%22Origin%22%3A%22https%3A%2F%2Fsflix.film%22%7D",
+      "quality": "Auto",
+      "provider": "SFlix",
+      "subtitles": [
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/f6cc66bb3a71dde4f63f4cb3924011d0.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/eeb39143ba06967e97cc63388c99dfa6.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/6b408ed11d905a3651c0021b2f8c132f.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8181d0f11b0fe8ec2f4f1d605ecee353.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/484cc219bbca628e72a9605f54eab892.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8252e769644fa3d2e80db49e0444fe77.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7aac3bec6a61658dd8b3accc076aa337.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/5973309b868d09c938b3649e483e0d44.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7dfdea85262ee22dee33f351e558ffe5.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/901f7637cd29499c8839a950160deab4.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        }
+      ],
+      "headers": {
+        "Referer": "https://sflix.film/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Origin": "https://sflix.film"
+      }
+    },
+    {
+      "url": "http://piper.hidencloud.com:24608/m3u8-proxy?url=https%3A%2F%2Fcacdn.hakunaymatata.com%2Fsubtitle%2Feeb39143ba06967e97cc63388c99dfa6.srt%3FPolicy%3DeyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_%26Signature%3D43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__%26Key-Pair-Id%3DKMHN1LQ1HEUPL&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fsflix.film%2F%22%2C%22User-Agent%22%3A%22Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F120.0.0.0%20Safari%2F537.36%22%2C%22Origin%22%3A%22https%3A%2F%2Fsflix.film%22%7D",
+      "quality": "Auto",
+      "provider": "SFlix",
+      "subtitles": [
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/f6cc66bb3a71dde4f63f4cb3924011d0.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/eeb39143ba06967e97cc63388c99dfa6.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/6b408ed11d905a3651c0021b2f8c132f.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8181d0f11b0fe8ec2f4f1d605ecee353.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/484cc219bbca628e72a9605f54eab892.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8252e769644fa3d2e80db49e0444fe77.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7aac3bec6a61658dd8b3accc076aa337.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/5973309b868d09c938b3649e483e0d44.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7dfdea85262ee22dee33f351e558ffe5.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/901f7637cd29499c8839a950160deab4.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        }
+      ],
+      "headers": {
+        "Referer": "https://sflix.film/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Origin": "https://sflix.film"
+      }
+    },
+    {
+      "url": "http://piper.hidencloud.com:24608/m3u8-proxy?url=https%3A%2F%2Fcacdn.hakunaymatata.com%2Fsubtitle%2F6b408ed11d905a3651c0021b2f8c132f.srt%3FPolicy%3DeyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_%26Signature%3D43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__%26Key-Pair-Id%3DKMHN1LQ1HEUPL&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fsflix.film%2F%22%2C%22User-Agent%22%3A%22Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F120.0.0.0%20Safari%2F537.36%22%2C%22Origin%22%3A%22https%3A%2F%2Fsflix.film%22%7D",
+      "quality": "Auto",
+      "provider": "SFlix",
+      "subtitles": [
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/f6cc66bb3a71dde4f63f4cb3924011d0.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/eeb39143ba06967e97cc63388c99dfa6.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/6b408ed11d905a3651c0021b2f8c132f.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8181d0f11b0fe8ec2f4f1d605ecee353.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/484cc219bbca628e72a9605f54eab892.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8252e769644fa3d2e80db49e0444fe77.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7aac3bec6a61658dd8b3accc076aa337.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/5973309b868d09c938b3649e483e0d44.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7dfdea85262ee22dee33f351e558ffe5.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/901f7637cd29499c8839a950160deab4.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        }
+      ],
+      "headers": {
+        "Referer": "https://sflix.film/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Origin": "https://sflix.film"
+      }
+    },
+    {
+      "url": "http://piper.hidencloud.com:24608/m3u8-proxy?url=https%3A%2F%2Fcacdn.hakunaymatata.com%2Fsubtitle%2F8181d0f11b0fe8ec2f4f1d605ecee353.srt%3FPolicy%3DeyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_%26Signature%3D43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__%26Key-Pair-Id%3DKMHN1LQ1HEUPL&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fsflix.film%2F%22%2C%22User-Agent%22%3A%22Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F120.0.0.0%20Safari%2F537.36%22%2C%22Origin%22%3A%22https%3A%2F%2Fsflix.film%22%7D",
+      "quality": "Auto",
+      "provider": "SFlix",
+      "subtitles": [
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/f6cc66bb3a71dde4f63f4cb3924011d0.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/eeb39143ba06967e97cc63388c99dfa6.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/6b408ed11d905a3651c0021b2f8c132f.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8181d0f11b0fe8ec2f4f1d605ecee353.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/484cc219bbca628e72a9605f54eab892.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8252e769644fa3d2e80db49e0444fe77.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7aac3bec6a61658dd8b3accc076aa337.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/5973309b868d09c938b3649e483e0d44.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7dfdea85262ee22dee33f351e558ffe5.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/901f7637cd29499c8839a950160deab4.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        }
+      ],
+      "headers": {
+        "Referer": "https://sflix.film/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Origin": "https://sflix.film"
+      }
+    },
+    {
+      "url": "http://piper.hidencloud.com:24608/m3u8-proxy?url=https%3A%2F%2Fcacdn.hakunaymatata.com%2Fsubtitle%2F484cc219bbca628e72a9605f54eab892.srt%3FPolicy%3DeyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_%26Signature%3D43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__%26Key-Pair-Id%3DKMHN1LQ1HEUPL&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fsflix.film%2F%22%2C%22User-Agent%22%3A%22Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F120.0.0.0%20Safari%2F537.36%22%2C%22Origin%22%3A%22https%3A%2F%2Fsflix.film%22%7D",
+      "quality": "Auto",
+      "provider": "SFlix",
+      "subtitles": [
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/f6cc66bb3a71dde4f63f4cb3924011d0.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/eeb39143ba06967e97cc63388c99dfa6.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/6b408ed11d905a3651c0021b2f8c132f.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8181d0f11b0fe8ec2f4f1d605ecee353.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/484cc219bbca628e72a9605f54eab892.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8252e769644fa3d2e80db49e0444fe77.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7aac3bec6a61658dd8b3accc076aa337.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/5973309b868d09c938b3649e483e0d44.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7dfdea85262ee22dee33f351e558ffe5.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/901f7637cd29499c8839a950160deab4.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        }
+      ],
+      "headers": {
+        "Referer": "https://sflix.film/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Origin": "https://sflix.film"
+      }
+    },
+    {
+      "url": "http://piper.hidencloud.com:24608/m3u8-proxy?url=https%3A%2F%2Fcacdn.hakunaymatata.com%2Fsubtitle%2F8252e769644fa3d2e80db49e0444fe77.srt%3FPolicy%3DeyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_%26Signature%3D43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__%26Key-Pair-Id%3DKMHN1LQ1HEUPL&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fsflix.film%2F%22%2C%22User-Agent%22%3A%22Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F120.0.0.0%20Safari%2F537.36%22%2C%22Origin%22%3A%22https%3A%2F%2Fsflix.film%22%7D",
+      "quality": "Auto",
+      "provider": "SFlix",
+      "subtitles": [
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/f6cc66bb3a71dde4f63f4cb3924011d0.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/eeb39143ba06967e97cc63388c99dfa6.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/6b408ed11d905a3651c0021b2f8c132f.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8181d0f11b0fe8ec2f4f1d605ecee353.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/484cc219bbca628e72a9605f54eab892.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8252e769644fa3d2e80db49e0444fe77.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7aac3bec6a61658dd8b3accc076aa337.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/5973309b868d09c938b3649e483e0d44.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7dfdea85262ee22dee33f351e558ffe5.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/901f7637cd29499c8839a950160deab4.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        }
+      ],
+      "headers": {
+        "Referer": "https://sflix.film/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Origin": "https://sflix.film"
+      }
+    },
+    {
+      "url": "http://piper.hidencloud.com:24608/m3u8-proxy?url=https%3A%2F%2Fcacdn.hakunaymatata.com%2Fsubtitle%2F7aac3bec6a61658dd8b3accc076aa337.srt%3FPolicy%3DeyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_%26Signature%3D43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__%26Key-Pair-Id%3DKMHN1LQ1HEUPL&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fsflix.film%2F%22%2C%22User-Agent%22%3A%22Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F120.0.0.0%20Safari%2F537.36%22%2C%22Origin%22%3A%22https%3A%2F%2Fsflix.film%22%7D",
+      "quality": "Auto",
+      "provider": "SFlix",
+      "subtitles": [
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/f6cc66bb3a71dde4f63f4cb3924011d0.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/eeb39143ba06967e97cc63388c99dfa6.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/6b408ed11d905a3651c0021b2f8c132f.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8181d0f11b0fe8ec2f4f1d605ecee353.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/484cc219bbca628e72a9605f54eab892.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8252e769644fa3d2e80db49e0444fe77.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7aac3bec6a61658dd8b3accc076aa337.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/5973309b868d09c938b3649e483e0d44.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7dfdea85262ee22dee33f351e558ffe5.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/901f7637cd29499c8839a950160deab4.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        }
+      ],
+      "headers": {
+        "Referer": "https://sflix.film/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Origin": "https://sflix.film"
+      }
+    },
+    {
+      "url": "http://piper.hidencloud.com:24608/m3u8-proxy?url=https%3A%2F%2Fcacdn.hakunaymatata.com%2Fsubtitle%2F5973309b868d09c938b3649e483e0d44.srt%3FPolicy%3DeyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_%26Signature%3D43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__%26Key-Pair-Id%3DKMHN1LQ1HEUPL&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fsflix.film%2F%22%2C%22User-Agent%22%3A%22Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F120.0.0.0%20Safari%2F537.36%22%2C%22Origin%22%3A%22https%3A%2F%2Fsflix.film%22%7D",
+      "quality": "Auto",
+      "provider": "SFlix",
+      "subtitles": [
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/f6cc66bb3a71dde4f63f4cb3924011d0.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/eeb39143ba06967e97cc63388c99dfa6.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/6b408ed11d905a3651c0021b2f8c132f.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8181d0f11b0fe8ec2f4f1d605ecee353.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/484cc219bbca628e72a9605f54eab892.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8252e769644fa3d2e80db49e0444fe77.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7aac3bec6a61658dd8b3accc076aa337.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/5973309b868d09c938b3649e483e0d44.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7dfdea85262ee22dee33f351e558ffe5.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/901f7637cd29499c8839a950160deab4.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        }
+      ],
+      "headers": {
+        "Referer": "https://sflix.film/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Origin": "https://sflix.film"
+      }
+    },
+    {
+      "url": "http://piper.hidencloud.com:24608/m3u8-proxy?url=https%3A%2F%2Fcacdn.hakunaymatata.com%2Fsubtitle%2F7dfdea85262ee22dee33f351e558ffe5.srt%3FPolicy%3DeyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_%26Signature%3D43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__%26Key-Pair-Id%3DKMHN1LQ1HEUPL&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fsflix.film%2F%22%2C%22User-Agent%22%3A%22Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F120.0.0.0%20Safari%2F537.36%22%2C%22Origin%22%3A%22https%3A%2F%2Fsflix.film%22%7D",
+      "quality": "Auto",
+      "provider": "SFlix",
+      "subtitles": [
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/f6cc66bb3a71dde4f63f4cb3924011d0.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/eeb39143ba06967e97cc63388c99dfa6.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/6b408ed11d905a3651c0021b2f8c132f.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8181d0f11b0fe8ec2f4f1d605ecee353.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/484cc219bbca628e72a9605f54eab892.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8252e769644fa3d2e80db49e0444fe77.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7aac3bec6a61658dd8b3accc076aa337.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/5973309b868d09c938b3649e483e0d44.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7dfdea85262ee22dee33f351e558ffe5.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/901f7637cd29499c8839a950160deab4.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        }
+      ],
+      "headers": {
+        "Referer": "https://sflix.film/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Origin": "https://sflix.film"
+      }
+    },
+    {
+      "url": "http://piper.hidencloud.com:24608/m3u8-proxy?url=https%3A%2F%2Fcacdn.hakunaymatata.com%2Fsubtitle%2F901f7637cd29499c8839a950160deab4.srt%3FPolicy%3DeyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_%26Signature%3D43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__%26Key-Pair-Id%3DKMHN1LQ1HEUPL&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fsflix.film%2F%22%2C%22User-Agent%22%3A%22Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F120.0.0.0%20Safari%2F537.36%22%2C%22Origin%22%3A%22https%3A%2F%2Fsflix.film%22%7D",
+      "quality": "Auto",
+      "provider": "SFlix",
+      "subtitles": [
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/f6cc66bb3a71dde4f63f4cb3924011d0.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/eeb39143ba06967e97cc63388c99dfa6.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/6b408ed11d905a3651c0021b2f8c132f.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8181d0f11b0fe8ec2f4f1d605ecee353.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/484cc219bbca628e72a9605f54eab892.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/8252e769644fa3d2e80db49e0444fe77.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7aac3bec6a61658dd8b3accc076aa337.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/5973309b868d09c938b3649e483e0d44.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/7dfdea85262ee22dee33f351e558ffe5.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        },
+        {
+          "url": "https://cacdn.hakunaymatata.com/subtitle/901f7637cd29499c8839a950160deab4.srt?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9jYWNkbi5oYWt1bmF5bWF0YXRhLmNvbS9zdWJ0aXRsZS8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5ODg0ODI0fX19XX0_&Signature=43SHXCUzNMdUpsOiRDKBGq4CGdgY2xEEXOG6o4zd65RKBBWn2KBLySSArC81ciGtDf6ubKO8n8qA5KGq747MGv1BkKbCRZ0pHDfIP0Cbo8WH5vyutH-NwcWKZpkeNMhutdWQZfSdT9poc45ShYizxb6UZeAjrXpzQGfDzdx6U~xrntOsGgySucmWIeL7skNTymDaVmmn3HZSNy5wa6CZvxsayXQqMISU8WXsxhKsMPkXJNnrcHT5vSu41ZV5~BAUdHX42FTHScx-2pgXAugEcDkIKOYToZlhSMgwA~dKegdpIkaSLsoA6hGOGQFglInA1YjFf416RfkUItAKBKJ2pQ__&Key-Pair-Id=KMHN1LQ1HEUPL",
+          "lang": "en",
+          "label": "English"
+        }
+      ],
+      "headers": {
+        "Referer": "https://sflix.film/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Origin": "https://sflix.film"
+      }
+    },
+    {
+      "url": "http://piper.hidencloud.com:24608/m3u8-proxy?url=https%3A%2F%2Ftmstr2.quibblezoomfable.com%2Fpl%2FH4sIAAAAAAAAAw3LXXeCIBgA4L8E.LV2NxfkMihRcHKnvp5porWOZxq_fj33T.CjEMCLIp.EqEOk8UMfEYTrCLfdWxS9Z6NmMOlj4cxiknjjUzBoxAONIK4TeHS2R5Juoyz0ANpwyaAWw25JPfhMyddTWGkMuaGG.l5jdVBQ9ZCup7mDQWC2ZbOkGgUjLz78896y1BP7lmBbjuuTz9VWJDYuvw0Gop7VxB_l6ytyZIr0tsmXQ810CmVw6crNgWZ_au55kdxWvucrp_Y3L34QTCtpEdBM30_Z1QpBAav5yATZXo_7LbNLd6icInCCq17ya3w2yoQN3ZUSs4tC_dSqEdfznVRan4XCTjtDwaHdP0YNHw9BAQAA%2Fmaster.m3u8&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fvidsrcme.vidsrc.icu%2F%22%2C%22User-Agent%22%3A%22Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64%3B%20rv%3A121.0)%20Gecko%2F20100101%20Firefox%2F121.0%22%2C%22Origin%22%3A%22https%3A%2F%2Fvidsrcme.vidsrc.icu%22%7D",
+      "quality": "Auto",
+      "provider": "VidsrcICU",
+      "subtitles": [
+        {
+          "url": "https://cloudnestra.com/subs/e3596449ed52fb624f0167f2413f5da3/English-CC.eng.vtt",
+          "lang": "en",
+          "label": "English"
+        }
+      ],
+      "headers": {
+        "Referer": "https://vidsrcme.vidsrc.icu/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+        "Origin": "https://vidsrcme.vidsrc.icu"
+      }
+    },
+    {
+      "url": "http://piper.hidencloud.com:24608/m3u8-proxy?url=https%3A%2F%2Ftmstr2.quibblezoomfable.com%2Fpl%2FH4sIAAAAAAAAAxXHyXaCMBQA0F8iAQe6tDI45GmAJDY7k2fLIUxFqMrXt13dc.0ayXId4CoIyfLTLIMVmv9Ye_OJb82bptHTJjihshTq7GIJgv0T4npno8jnrn8X.fiSXnmQVE_WE4H09ZkLR44UPSM14CskxgMmZqgyuRt4y2ZW6fHD27tCjQfdhJlycMeK.VLFC97E2c0xX7jnNlfYFVFHpCcHrDY5tH1tqnoyc5nmxVdwS_QJLhsFro9F2w0iIS5r5EkkC8FbfcYtTDhvuFX3n6siS92KB0sFUVE_6cYGnNYNpOVUXKBDWjJL2eNAyc4oeSyojHkVpyx5tpDAlbv9t1X7AZ0kKMaOF174Czbag_pBAQAA%2Fmaster.m3u8&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fvidsrc.xyz%2F%22%2C%22User-Agent%22%3A%22Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64%3B%20rv%3A121.0)%20Gecko%2F20100101%20Firefox%2F121.0%22%2C%22Origin%22%3A%22https%3A%2F%2Fvidsrc.xyz%22%7D",
+      "quality": "Auto",
+      "provider": "VidsrcXYZ",
+      "subtitles": [
+        {
+          "url": "https://cloudnestra.com/subs/e3596449ed52fb624f0167f2413f5da3/English-CC.eng.vtt",
+          "lang": "en",
+          "label": "English"
+        }
+      ],
+      "headers": {
+        "Referer": "https://vidsrc.xyz/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+        "Origin": "https://vidsrc.xyz"
+      }
+    }
+  ],
+  "backgroundTasks": "Cached"
+}

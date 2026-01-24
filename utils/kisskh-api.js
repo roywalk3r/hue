@@ -1,6 +1,16 @@
-const { getNewPage } = require("./browserManager");
+const axios = require("axios");
+const http = require('http');
+const https = require('https');
 
-const BASE_URL = "https://kisskh.co/api";
+const BASE_URL = "https://kisskh.ovh/api";
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+const axiosInstance = axios.create({
+    headers: { "User-Agent": USER_AGENT, "Accept": "application/json" },
+    httpAgent: new http.Agent({ family: 4 }),
+    httpsAgent: new https.Agent({ family: 4 }),
+    timeout: 10000
+});
 
 const COUNTRY_MAP = {
     'all': 0,
@@ -25,48 +35,36 @@ const STATUS_MAP = {
     'completed': 2
 };
 
-async function fetchWithBrowser(endpoint) {
-    let page;
+async function fetchWithAxios(endpoint) {
     try {
-        page = await getNewPage({ browserType: 'chromium' });
         const url = `${BASE_URL}${endpoint}`;
-        
-        const data = await page.evaluate(async (targetUrl) => {
-            try {
-                const res = await fetch(targetUrl);
-                if (!res.ok) return null;
-                return await res.json();
-            } catch (e) { return null; }
-        }, url);
-        
-        return data;
+        const res = await axiosInstance.get(url);
+        return res.data;
     } catch (e) {
-        console.error(`[KissKH API] Browser fetch failed for ${endpoint}: ${e.message}`);
+        console.error(`[KissKH API] Fetch failed for ${endpoint}: ${e.message}`);
         return null;
-    } finally {
-        if (page) await page.context().close();
     }
 }
 
 async function search(query) {
-    console.log(`[KissKH API] Searching (Browser): ${query}`);
-    const data = await fetchWithBrowser(`/DramaList/Search?q=${encodeURIComponent(query)}`);
+    console.log(`[KissKH API] Searching: ${query}`);
+    const data = await fetchWithAxios(`/DramaList/Search?q=${encodeURIComponent(query)}`);
     return data || [];
 }
 
 async function getList({ page = 1, type = 0, sub = 0, country = 0, status = 0, order = 2 } = {}) {
     const params = new URLSearchParams({ page, type, sub, country, status, order });
-    const data = await fetchWithBrowser(`/DramaList/List?${params.toString()}`);
+    const data = await fetchWithAxios(`/DramaList/List?${params.toString()}`);
     return data || { data: [] };
 }
 
 async function getDetail(id) {
-    const data = await fetchWithBrowser(`/DramaList/Drama/${id}?isq=false`);
+    const data = await fetchWithAxios(`/DramaList/Drama/${id}?isq=false`);
     return data;
 }
 
 async function getUpcoming() {
-    const data = await fetchWithBrowser(`/DramaList/upcoming`);
+    const data = await fetchWithAxios(`/DramaList/upcoming`);
     return data || [];
 }
 
