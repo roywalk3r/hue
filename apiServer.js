@@ -1,4 +1,8 @@
 require('dotenv').config();
+// Polyfill File for environments/libraries that expect it
+if (typeof File === 'undefined') {
+  global.File = class { constructor() { throw new Error("File polyfill: not implemented"); } };
+}
 const express = require('express');
 const cors = require('cors');
 const os = require('os');

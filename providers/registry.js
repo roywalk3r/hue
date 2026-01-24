@@ -59,6 +59,7 @@ function loadProvider(providerFile) {
       providerCache.set(providerFile, require(path.join(__dirname, providerFile)));
     } catch (e) {
       console.error(`Failed to load provider ${providerFile}:`, e.message);
+      console.error(e.stack); // Added stack trace
       return null;
     }
   }

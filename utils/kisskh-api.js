@@ -1,21 +1,6 @@
-const axios = require('axios');
-const http = require('http');
-const https = require('https');
+const { getNewPage } = require("./browserManager");
 
 const BASE_URL = "https://kisskh.co/api";
-const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-
-// Force IPv4 as per project convention for VPS stability
-const axiosInstance = axios.create({
-    baseURL: BASE_URL,
-    headers: { 
-        "User-Agent": USER_AGENT, 
-        "Accept": "application/json" 
-    },
-    httpAgent: new http.Agent({ family: 4 }),
-    httpsAgent: new https.Agent({ family: 4 }),
-    timeout: 15000
-});
 
 const COUNTRY_MAP = {
     'all': 0,
@@ -40,63 +25,55 @@ const STATUS_MAP = {
     'completed': 2
 };
 
-async function search(query) {
+async function fetchWithBrowser(endpoint) {
+    let page;
     try {
-        const url = `/DramaList/Search?q=${encodeURIComponent(query)}`;
-        const { data } = await axiosInstance.get(url);
-        return data || [];
+        page = await getNewPage({ browserType: 'chromium' });
+        const url = `${BASE_URL}${endpoint}`;
+        
+        const data = await page.evaluate(async (targetUrl) => {
+            try {
+                const res = await fetch(targetUrl);
+                if (!res.ok) return null;
+                return await res.json();
+            } catch (e) { return null; }
+        }, url);
+        
+        return data;
     } catch (e) {
-        console.error(`[KissKH API] Search failed: ${e.message}`);
-        return [];
+        console.error(`[KissKH API] Browser fetch failed for ${endpoint}: ${e.message}`);
+        return null;
+    } finally {
+        if (page) await page.context().close();
     }
+}
+
+async function search(query) {
+    console.log(`[KissKH API] Searching (Browser): ${query}`);
+    const data = await fetchWithBrowser(`/DramaList/Search?q=${encodeURIComponent(query)}`);
+    return data || [];
 }
 
 async function getList({ page = 1, type = 0, sub = 0, country = 0, status = 0, order = 2 } = {}) {
-    try {
-        // type: 0=All?, 1=Drama? (Plan log mostly uses type=1 or 0)
-        // sub: 0=All?, 1=English Sub?
-        const params = new URLSearchParams({
-            page, type, sub, country, status, order
-        });
-        const url = `/DramaList/List?${params.toString()}`;
-        const { data } = await axiosInstance.get(url);
-        return data; // Returns object with { page, pageSize, totalCount, data: [] }
-    } catch (e) {
-        console.error(`[KissKH API] List failed: ${e.message}`);
-        return { data: [] };
-    }
+    const params = new URLSearchParams({ page, type, sub, country, status, order });
+    const data = await fetchWithBrowser(`/DramaList/List?${params.toString()}`);
+    return data || { data: [] };
 }
 
 async function getDetail(id) {
-    try {
-        const url = `/DramaList/Drama/${id}?isq=false`;
-        const { data } = await axiosInstance.get(url);
-        return data;
-    } catch (e) {
-        console.error(`[KissKH API] Detail failed: ${e.message}`);
-        return null;
-    }
+    const data = await fetchWithBrowser(`/DramaList/Drama/${id}?isq=false`);
+    return data;
 }
 
 async function getUpcoming() {
-    try {
-        const url = `/DramaList/upcoming`;
-        const { data } = await axiosInstance.get(url);
-        return data || [];
-    } catch (e) {
-        console.error(`[KissKH API] Upcoming failed: ${e.message}`);
-        return [];
-    }
+    const data = await fetchWithBrowser(`/DramaList/upcoming`);
+    return data || [];
 }
 
 async function getEpisodeIds(id) {
-    try {
-        const data = await getDetail(id);
-        if (!data || !data.episodes) return [];
-        return data.episodes;
-    } catch (e) {
-        return [];
-    }
+    const data = await getDetail(id);
+    if (!data || !data.episodes) return [];
+    return data.episodes;
 }
 
 module.exports = {
