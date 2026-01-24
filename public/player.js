@@ -75,7 +75,8 @@
     activeIndex: null,
     proxyAvailable: true,
     retryCount: 0,
-    maxRetries: 3
+    maxRetries: 3,
+    watchdog: null
   };
 
   function init() {
@@ -323,12 +324,19 @@
     
     destroyHls();
     destroyDash();
+    if (state.watchdog) clearTimeout(state.watchdog);
     
     const isHls = isHlsUrl(url);
     const isDash = isDashUrl(url);
     const isDirect = isDirectVideoUrl(url);
     
     console.log('[Player] Loading stream:', { url, isHls, isDash, isDirect });
+    
+    // Start watchdog for initial load
+    state.watchdog = setTimeout(() => {
+      console.warn('[Player] Watchdog triggered: stream took too long to start');
+      handleStreamError('Watchdog', { message: 'Stream load timeout (15s)' }, stream);
+    }, 15000);
     
     if (isHls && window.Hls && window.Hls.isSupported()) {
       loadHlsStream(url, stream);
@@ -643,7 +651,19 @@
         raw: state.currentSource.raw 
       }, stream);
     } else {
-      setStatus(`Stream failed: ${error.message || error.details || 'Unknown error'}`, true);
+      if (state.watchdog) {
+        clearTimeout(state.watchdog);
+        state.watchdog = null;
+      }
+      
+      const nextIdx = state.activeIndex + 1;
+      if (nextIdx < state.streams.length) {
+        setStatus(`Stream failed; trying next source (${nextIdx + 1}/${state.streams.length})...`, true);
+        state.retryCount = 0;
+        setTimeout(() => playStream(nextIdx), 2000);
+      } else {
+        setStatus(`All streams failed: ${error.message || error.details || 'Unknown error'}`, true);
+      }
     }
   }
   
@@ -674,6 +694,10 @@
   els.video.addEventListener('canplay', () => {
     console.log('[Player] Can play');
     state.retryCount = 0;
+    if (state.watchdog) {
+      clearTimeout(state.watchdog);
+      state.watchdog = null;
+    }
   });
   els.video.addEventListener('stalled', () => console.log('[Player] Playback stalled'));
   els.video.addEventListener('waiting', () => console.log('[Player] Waiting for data'));

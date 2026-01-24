@@ -42,6 +42,11 @@ function getPublicName(realName) {
   return PROVIDER_RENAME_MAP[realName.toLowerCase()] || realName;
 }
 
+function isFastProvider(name) {
+  const n = name.toLowerCase();
+  return n === 'vixsrc' || n === 'aura';
+}
+
 function sanitizeText(text) {
   if (!text) return text;
   let sanitized = text;

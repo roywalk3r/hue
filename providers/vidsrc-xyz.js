@@ -39,7 +39,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         await page.goto(url, { waitUntil: 'commit', timeout: 30000 });
         
         // Wait for initial load
-        await new Promise(r => setTimeout(r, 5000));
+        await new Promise(r => setTimeout(r, 2000));
 
         // Logic to handle frames and play button
         const maxWait = 25000;

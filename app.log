@@ -178,3 +178,4 @@
 [2026-01-24T20:26:03.878Z] [INFO] [request] GET /api/streams/kisskh/series/221112 from 12ca17b4
 [2026-01-24T20:26:48.348Z] [INFO] [request] GET /api/kdrama/search?q=Squid%20Game from 12ca17b4
 [2026-01-24T20:29:55.962Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-24T22:11:58.610Z] [INFO] [startup] enableProxy flag active: mounting proxy routes

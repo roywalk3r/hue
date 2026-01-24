@@ -59,15 +59,18 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         });
 
         // We navigate to the referrer page first to set cookies/headers
-        // Then we can try to fetch the API endpoint via page.evaluate
         const refererUrl = `${DOMAIN}/${mediaType === 'tv' ? 'tv' : 'movie'}/${tmdbId}`;
-        await page.goto(refererUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        await page.goto(refererUrl, { waitUntil: 'commit', timeout: 15000 });
+        
+        // Wait a few seconds for cookies/tokens to settle
+        await new Promise(r => setTimeout(r, 3000));
 
         // Now manually fetch the API using the browser context (which has the CF tokens)
         responseBody = await page.evaluate(async (url) => {
             try {
-                const r = await fetch(url);
-                return await r.json();
+                const res = await fetch(url);
+                if (!res.ok) return null;
+                return await res.json();
             } catch (e) {
                 return null;
             }

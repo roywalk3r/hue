@@ -450,37 +450,59 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
     const providerTimings = {};
     const streamsResults = [];
     
-    logger.info(`[api] fetching all streams for tmdbId=${tmdbId} (this may take a while...)`);
+    logger.info(`[api] fetching streams for tmdbId=${tmdbId} (Smart Wait: 12s)`);
     const tStart = Date.now();
 
-    // Run all selected providers in parallel
-    // BrowserManager will handle the actual concurrency limiting for browser-based providers
-    const results = await Promise.all(selectedProviders.map(async name => {
+    // Map each provider to a promise that includes its own 60s safety timeout
+    const providerPromises = selectedProviders.map(async name => {
       const prov = getProvider(name);
       if (!prov || !prov.enabled) return [];
       
+      const isFast = prov.realName === 'vixsrc' || prov.realName === 'aura';
       metrics.providerCalls[name] = (metrics.providerCalls[name]||0)+1;
       try {
         const t0 = Date.now();
-        const r = await prov.fetch({ tmdbId, type, season, episode, imdbId, filters:{ } });
+        // Add a safety timeout per provider
+        const r = await Promise.race([
+            prov.fetch({ tmdbId, type, season, episode, imdbId, filters:{ } }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Provider timeout')), isFast ? 15000 : 60000))
+        ]);
         providerTimings[name] = Date.now()-t0;
-        return Array.isArray(r) ? r : [];
+        const results = Array.isArray(r) ? r : [];
+        
+        if (results.length > 0) {
+            addCachedStreams(type, tmdbId, season, episode, results);
+        }
+        return results;
       } catch (e) {
-        logger.error(`[api] provider ${name} failed:`, e.message);
+        logger.error(`[api] provider ${name} failed or timed out:`, e.message);
         return [];
       }
-    }));
+    });
 
-    results.forEach(r => streamsResults.push(...r));
-    const totalDuration = Date.now() - tStart;
-    logger.info(`[api] aggregation completed in ${totalDuration}ms, found ${streamsResults.length} raw streams`);
+    // Create a "deadline" promise that resolves after 12 seconds
+    const deadline = new Promise(resolve => setTimeout(() => resolve('DEADLINE'), 12000));
 
-    // Cache the successful results
-    if (streamsResults.length > 0) {
-        setCachedStreams(type, tmdbId, season, episode, streamsResults);
+    // Wait for either all providers to finish OR the 12s deadline
+    const resultsOrDeadline = await Promise.race([
+        Promise.all(providerPromises),
+        deadline
+    ]);
+
+    if (resultsOrDeadline === 'DEADLINE') {
+        logger.info(`[api] deadline reached, returning partial results for ${tmdbId}`);
+        // We don't need to do anything else; the providerPromises are already running
+        // and will update the cache incrementally as they finish.
+    } else {
+        logger.info(`[api] all providers completed within deadline for ${tmdbId}`);
+        resultsOrDeadline.forEach(r => streamsResults.push(...r));
     }
 
-    let streams = streamsResults;
+    // Always check the cache for the final response to include anything that finished just now
+    const finalStreams = getCachedStreams(type, tmdbId, season, episode) || streamsResults;
+    const totalDuration = Date.now() - tStart;
+
+    let streams = finalStreams;
     streams = applyFilters(streams, 'aggregate', config.minQualities, config.excludeCodecs);
     metrics.streamsReturned += streams.length;
     
@@ -496,8 +518,10 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
         count: streams.length, 
         providerTimings, 
         streams,
-        totalDurationMs: totalDuration
+        totalDurationMs: totalDuration,
+        status: resultsOrDeadline === 'DEADLINE' ? "Partial" : "Complete"
     });
+    return;
   } catch (e) {
     metrics.lastError = e.message;
     res.status(500).json({ success:false, error:'INTERNAL_ERROR', message:e.message });

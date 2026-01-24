@@ -20,9 +20,15 @@ async function getTmdbInfo(tmdbId, mediaType) {
 }
 
 async function searchSflix(title, mediaType, year, season) {
-    const keyword = (mediaType === "tv" && season) ? `${title} Season ${season}` : title;
+    let keyword = title;
+    if (mediaType === "tv" && season) {
+        keyword = `${title} Season ${season}`;
+    } else if (mediaType === "movie" && year) {
+        keyword = `${title} ${year}`;
+    }
+    
     const searchUrl = `${BASE_URL}/search-result?keyword=${encodeURIComponent(keyword)}`;
-    console.log(`[SFlix] Searching (${mediaType}): ${searchUrl}`);
+    console.log(`[SFlix] Searching (${mediaType}) with keyword "${keyword}": ${searchUrl}`);
     
     try {
         const response = await axios.get(searchUrl, {
