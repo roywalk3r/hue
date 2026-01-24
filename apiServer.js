@@ -434,40 +434,52 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
     const tmdbType = type === 'movie' ? 'movie' : 'tv';
     const imdbId = await resolveImdbId(tmdbType, tmdbId); if (imdbId) metrics.tmdbToImdbLookups++;
     
-    // Check global cache for previously found slow streams
-    const cachedSlowStreams = getCachedStreams(type, tmdbId, season, episode) || [];
+    // Check global cache first
+    const cachedStreams = getCachedStreams(type, tmdbId, season, episode);
+    if (cachedStreams && cachedStreams.length > 0) {
+        logger.info(`[api] returning ${cachedStreams.length} streams from cache for ${tmdbId}`);
+        let streams = applyFilters(cachedStreams, 'aggregate', config.minQualities, config.excludeCodecs);
+        const serverUrl = resolveServerUrl(req);
+        if (config.enableProxy) {
+          streams = processStreamsForProxy(streams, serverUrl);
+        }
+        return res.json({ success: true, tmdbId, imdbId, count: streams.length, streams, fromCache: true });
+    }
     
     const selectedProviders = (config.defaultProviders.length ? config.defaultProviders : listProviders().map(p=>p.name));
     const providerTimings = {};
     const streamsResults = [];
     
-    // Categorize providers
-    const browserProviders = ['sflix', 'vidsrccc-playwright', 'showbox-playwright', 'vidsrc-xyz', 'vidsrc-icu', 'vidsrc-embed', 'vidrock']; // removed kisskh, dramacool
-    const fastProviders = selectedProviders.filter(p => !browserProviders.includes(p) && p !== 'kisskh' && p !== 'dramacool');
-    const slowProviders = selectedProviders.filter(p => browserProviders.includes(p));
+    logger.info(`[api] fetching all streams for tmdbId=${tmdbId} (this may take a while...)`);
+    const tStart = Date.now();
 
-    // 1. Run fast providers in parallel (Immediate results)
-    const fastResults = await Promise.all(fastProviders.map(async name => {
+    // Run all selected providers in parallel
+    // BrowserManager will handle the actual concurrency limiting for browser-based providers
+    const results = await Promise.all(selectedProviders.map(async name => {
       const prov = getProvider(name);
       if (!prov || !prov.enabled) return [];
+      
       metrics.providerCalls[name] = (metrics.providerCalls[name]||0)+1;
       try {
-        logger.info(`[api] invoking fast provider ${name} for tmdbId=${tmdbId}`);
         const t0 = Date.now();
         const r = await prov.fetch({ tmdbId, type, season, episode, imdbId, filters:{ } });
         providerTimings[name] = Date.now()-t0;
-        return r;
+        return Array.isArray(r) ? r : [];
       } catch (e) {
         logger.error(`[api] provider ${name} failed:`, e.message);
         return [];
       }
     }));
-    fastResults.forEach(r => streamsResults.push(...r));
 
-    // 2. Add cached results from previous slow runs
-    streamsResults.push(...cachedSlowStreams);
+    results.forEach(r => streamsResults.push(...r));
+    const totalDuration = Date.now() - tStart;
+    logger.info(`[api] aggregation completed in ${totalDuration}ms, found ${streamsResults.length} raw streams`);
 
-    // 3. Return what we have immediately
+    // Cache the successful results
+    if (streamsResults.length > 0) {
+        setCachedStreams(type, tmdbId, season, episode, streamsResults);
+    }
+
     let streams = streamsResults;
     streams = applyFilters(streams, 'aggregate', config.minQualities, config.excludeCodecs);
     metrics.streamsReturned += streams.length;
@@ -477,7 +489,6 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
       streams = processStreamsForProxy(streams, serverUrl);
     }
     
-    // Send response now
     res.json({ 
         success: true, 
         tmdbId, 
@@ -485,43 +496,8 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
         count: streams.length, 
         providerTimings, 
         streams,
-        backgroundTasks: slowProviders.length > 0 && cachedSlowStreams.length === 0 ? "Started" : "Cached"
+        totalDurationMs: totalDuration
     });
-
-    // 4. Trigger slow providers in background to populate cache
-    const taskKey = `${type}_${tmdbId}_${season}_${episode}`;
-    if (slowProviders.length > 0 && !pendingBackgroundTasks.has(taskKey)) {
-        pendingBackgroundTasks.add(taskKey);
-        (async () => {
-            try {
-                const backgroundResults = [];
-                // Run all slow providers in parallel; BrowserManager handles the concurrency limit (queue)
-                const promises = slowProviders.map(async (name) => {
-                    const prov = getProvider(name);
-                    if (!prov || !prov.enabled) return [];
-                    try {
-                        logger.info(`[background] invoking browser provider ${name} for tmdbId=${tmdbId}`);
-                        const r = await prov.fetch({ tmdbId, type, season, episode, imdbId, filters:{ } });
-                        logger.info(`[background] provider ${name} returned ${Array.isArray(r)?r.length:0} streams`);
-                        
-                        if (Array.isArray(r) && r.length > 0) {
-                            logger.info(`[cache] incremental update for ${taskKey} from ${name} with ${r.length} streams`);
-                            addCachedStreams(type, tmdbId, season, episode, r);
-                        }
-                        return Array.isArray(r) ? r : [];
-                    } catch (e) {
-                        logger.error(`[background] provider ${name} failed:`, e.message);
-                        return [];
-                    }
-                });
-
-                await Promise.all(promises);
-            } finally {
-                pendingBackgroundTasks.delete(taskKey);
-            }
-        })().catch(err => logger.error("[background] Worker error:", err));
-    }
-    return; // Already responded
   } catch (e) {
     metrics.lastError = e.message;
     res.status(500).json({ success:false, error:'INTERNAL_ERROR', message:e.message });

@@ -9,20 +9,21 @@ const https = require('https');
 let cryptoJs;
 
 // Force IPv4 for proxy requests to avoid VPS connectivity issues
-const httpAgent = new http.Agent({ family: 4 });
-const httpsAgent = new https.Agent({ family: 4 });
+const httpAgent = new http.Agent({ family: 4, keepAlive: true, maxSockets: 100 });
+const httpsAgent = new https.Agent({ family: 4, keepAlive: true, maxSockets: 100 });
 
 // Retry configuration for fetch operations
 const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 1000;
-const FETCH_TIMEOUT_MS = 30000; // Increased timeout for slower VPS connections
+const RETRY_DELAY_MS = 500;
+const FETCH_TIMEOUT_MS = 20000; // Optimized timeout for initial loads
 
 // Helper function to fetch with retry logic
 async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
     const fetchOptions = {
         ...options,
         agent: (parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgent : httpsAgent),
-        timeout: options.timeout || FETCH_TIMEOUT_MS
+        timeout: options.timeout || FETCH_TIMEOUT_MS,
+        compress: true // Enable compression for faster manifest downloads
     };
     
     let lastError;

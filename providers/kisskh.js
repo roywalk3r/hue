@@ -9,9 +9,9 @@ const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 
 const axiosInstance = axios.create({
     headers: { "User-Agent": USER_AGENT, "Accept": "application/json" },
-    httpAgent: new http.Agent({ family: 4 }),
-    httpsAgent: new https.Agent({ family: 4 }),
-    timeout: 10000
+    httpAgent: new http.Agent({ family: 4, keepAlive: true }),
+    httpsAgent: new https.Agent({ family: 4, keepAlive: true }),
+    timeout: 30000
 });
 
 async function getTmdbInfo(tmdbId, mediaType) {
