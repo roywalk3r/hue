@@ -86,8 +86,8 @@ async function getMediaInfo(detailUrl, title) {
         if (match1) id = match1[1];
 
         if (!id) {
-            const safeTitle = title.replace(/[.*+?^${}()|[\\]/g, '\\$&');
-            const regex = new RegExp(`"(\d{15,})",\d+,\"${safeTitle}"`);
+            const safeTitle = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`"(\\d{15,})",\\d+,"${safeTitle}"`);
             const match2 = html.match(regex);
             if (match2) id = match2[1];
         }
@@ -138,21 +138,15 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
         const { id, slug } = await getMediaInfo(detailUrl, title);
         console.log(`[SFlix] Extracted ID: ${id}, Slug: ${slug}`);
 
-        page = await require("../utils/browserManager").getNewPage();
-        context = page.context();
+        context = await getNewContext();
+        page = await context.newPage();
         
         const capturedUrls = { video: new Set(), subtitles: new Set() };
         page.on("request", (request) => {
             const url = request.url();
-            const isSubtitle = url.includes(".vtt") || url.includes(".srt") || url.includes("/subtitle/");
-            const isVideo = (url.includes(".mp4") || url.includes(".m3u8") || url.includes("hakunaymatata.com") || url.includes("lightningbolt.site") || url.includes("vidbox.site") || url.includes(".m3u8?")) && !isSubtitle;
-            
-            if (isVideo && !url.includes("image/") && !url.includes("banner") && !url.includes("logo") && !url.includes(".js") && !url.includes(".css")) {
-                capturedUrls.video.add(url);
-            }
-            if (isSubtitle) {
-                capturedUrls.subtitles.add(url);
-            }
+            const isVideo = url.includes(".mp4") || url.includes(".m3u8") || url.includes("hakunaymatata.com") || url.includes("lightningbolt.site") || url.includes("vidbox.site") || url.includes(".m3u8?");
+            if (isVideo && !url.includes("image/") && !url.includes("banner") && !url.includes("logo") && !url.includes(".js") && !url.includes(".css")) capturedUrls.video.add(url);
+            if (url.includes(".vtt") || url.includes(".srt") || url.includes("/subtitle/")) capturedUrls.subtitles.add(url);
         });
 
         let playUrl = "";
@@ -162,8 +156,42 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
             playUrl = `${BASE_URL}/spa/videoPlayPage/${pathSegment}/${slug}?id=${id}&type=${encodeURIComponent(typeParam)}&lang=en`;
         }
 
-        await page.waitForSelector('.art-video-player, video, iframe', { timeout: 5000 });
-        } catch (e) { /* ignore */ }
+        const waitForStreams = async (timeout) => {
+            const start = Date.now();
+            while (Date.now() - start < timeout) {
+                if (capturedUrls.video.size > 0) return true;
+                await new Promise(r => setTimeout(r, 200));
+            }
+            return false;
+        };
+
+        if (playUrl) {
+            console.log(`[SFlix] Navigating directly to play page: ${playUrl}`);
+            await page.goto(playUrl, { waitUntil: "commit", timeout: 60000 }).catch(() => {});
+        } else {
+            console.log(`[SFlix] Falling back to detail page navigation: ${detailUrl}`);
+            await page.goto(detailUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+            
+            console.log("[SFlix] Falling back to button click strategy...");
+            const watchSelectors = [".watch-btn", "button.btn", "h4:has-text('Watch Free')"];
+            let clicked = false;
+            for (const selector of watchSelectors) {
+                try {
+                    const btn = await page.waitForSelector(selector, { timeout: 10000, state: 'visible' }).catch(() => null);
+                    if (btn) {
+                        await btn.click({ force: true }).catch(() => {});
+                        clicked = true;
+                        break;
+                    }
+                } catch { continue; }
+            }
+            if (!clicked) await page.evaluate(() => document.querySelector('.watch-btn')?.click());
+            await new Promise(r => setTimeout(r, 10000));
+        }
+
+        try {
+            await page.waitForSelector('.art-video-player, video, iframe', { timeout: 5000 });
+        } catch { /* ignore */ }
 
         if (mediaType === "tv" && (season || episode)) {
             console.log(`[SFlix] Series detected, looking for S${season} E${episode}...`);
@@ -174,7 +202,7 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
                     const epItems = document.querySelectorAll('.ep-item, .eps-item');
                     return seasonBox && seasonBox.textContent?.trim().length > 0 && 
                            epItems.length > 0 && Array.from(epItems).some(i => i.textContent?.trim().length > 0);
-                }, { timeout: 15000 }); // Reduced timeout for faster failure
+                }, { timeout: 25000 });
             } catch (e) {
                 console.log("[SFlix] UI hydration timeout");
             }
@@ -201,7 +229,7 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
                 };
 
                 let seasonBox = null;
-                for (let i = 0; i < 15; i++) { // Reduced loop count
+                for (let i = 0; i < 25; i++) {
                     const boxes = Array.from(document.querySelectorAll('.season-box, .season-box2, .ss-box, .choice-header .season-box'));
                     seasonBox = boxes.find(el => {
                         const t = el.textContent?.trim() || "";
@@ -209,7 +237,7 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
                     }) || findByText('Season');
                     
                     if (seasonBox && seasonBox.textContent?.trim()) break;
-                    await sleep(500); // Reduced sleep
+                    await sleep(1000);
                 }
                 
                 const currentSeasonText = (seasonBox?.innerText || seasonBox?.textContent || "").trim();
@@ -221,11 +249,11 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
 
                 if (seasonBox && s && !isCorrectSeason) {
                     clickSafe(seasonBox);
-                    await sleep(1500); // Reduced sleep
+                    await sleep(2500);
                     let items = Array.from(document.querySelectorAll('.choice-season, .season-item, .ss-item, [data-season], .ss-dropdown-item, .se-item, .choice-seasons div'));
                     if (items.length === 0) {
                         clickSafe(seasonBox);
-                        await sleep(1000); // Reduced sleep
+                        await sleep(2000);
                         items = Array.from(document.querySelectorAll('.choice-season, .season-item, .ss-item, [data-season], .ss-dropdown-item, .se-item, .choice-seasons div'));
                     }
                     const target = items.find(i => {
@@ -235,21 +263,21 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
                     if (target) {
                         clickSafe(target);
                         hasChanged = true;
-                        await sleep(3000); // Reduced sleep
+                        await sleep(5000);
                     }
                 }
                 
                 const normE = e ? e.toString().padStart(2, '0') : "";
                 const eStr = e ? e.toString() : "";
                 let epItems = [];
-                for (let i = 0; i < 10; i++) { // Reduced loop count
-                    if (i === 3 && epItems.length === 0 && hasChanged) { // Reduced loop count
+                for (let i = 0; i < 20; i++) {
+                    if (i === 5 && epItems.length === 0 && hasChanged) {
                          const active = document.querySelector('.se-item-active, .active-season, .choice-season.se-item-active');
                          if (active) clickSafe(active);
                     }
                     epItems = Array.from(document.querySelectorAll('.ep-item, .eps-item, [data-episode]'));
                     if (epItems.length > 0 && epItems.some(item => (item.innerText || item.textContent || "").trim())) break;
-                    await sleep(500); // Reduced sleep
+                    await sleep(1000);
                 }
                 
                 const targetEp = epItems.find(i => {
@@ -267,7 +295,7 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
                     if (!isActive || hasChanged) {
                         clickSafe(targetEp);
                         hasChanged = true;
-                        await sleep(2000); // Reduced sleep
+                        await sleep(3000);
                     }
                 }
                 return hasChanged;
@@ -276,18 +304,18 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
                 return false;
             });
             
-            await new Promise(r => setTimeout(r, 2000)); // Reduced wait
+            await new Promise(r => setTimeout(r, 3000));
             capturedUrls.video.clear();
             capturedUrls.subtitles.clear();
         }
 
         if (capturedUrls.video.size === 0) {
             await triggerPlayback(page, "final");
-            const gotStreams = await waitForStreams(8000); // Reduced wait
+            const gotStreams = await waitForStreams(10000);
             
             if (!gotStreams) {
                  await triggerPlayback(page, "retry");
-                 await waitForStreams(6000); // Reduced wait
+                 await waitForStreams(8000);
             }
         }
 
@@ -332,7 +360,7 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
             for (const videoUrl of valid) {
                 streams.push({
                     url: videoUrl, 
-                    quality: "Auto",
+                    quality: "Auto", 
                     provider: "SFlix",
                     headers: { "Referer": "https://sflix.film/", "User-Agent": USER_AGENT, "Origin": "https://sflix.film" }
                 });

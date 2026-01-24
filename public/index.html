@@ -1,65 +1,196 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta charset="utf-8" />
-	<title>TMDB Embed Login</title>
-	<meta name="viewport" content="width=device-width,initial-scale=1" />
-	<link rel="stylesheet" href="/style.css" />
-	<style>
-		body { display:flex; align-items:center; justify-content:center; min-height:100vh; background:#0f141a; font-family: system-ui, sans-serif; }
-		.login-card { background:#1e1e24; padding:2rem 2.25rem; border-radius:12px; width:100%; max-width:380px; box-shadow:0 4px 24px -4px rgba(0,0,0,.6); }
-		.login-card h1 { margin:0 0 1rem; font-size:1.3rem; color: white; text-align: center;}
-		.pw-change { display:none; background:#1e1e24; padding:2rem 2.25rem; border-radius:12px; width:100%; max-width:380px; box-shadow:0 4px 24px -4px rgba(0,0,0,.6); }
-		.pw-change h2 { margin:0 0 1rem; font-size:1.3rem; color: white; text-align: center;}
-		.field { display:flex; flex-direction:column; gap:.35rem; margin-bottom:.9rem; }
-		.field label { font-size:.85rem; text-transform:uppercase; letter-spacing:.08em; color:#bbb; text-align: center;}
-		.field input { padding:.65rem .75rem !important; border:1px solid #333 !important; color:#bbb !important; border-radius:6px !important; background:#111 !important; font-size:.95rem !important; }
-		.actions { display:block; gap:.75rem; align-items:center; text-align: center;}
-		button.primary { background:#2563eb; color:#fff; padding:.65rem 1rem; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:.95rem; }
-		button.primary:disabled { opacity:.55; cursor:default; }
-		.status { min-height:1.1rem; font-size:.8rem; color:#eee; }
-		.error { color:#f87171; }
-		.success { color:#4ade80; }
-		.meta { margin-top:1.25rem; font-size:.7rem; line-height:1.2; color:#666; text-align:center; }
-		.link-btn { background:none; border:none; color:#60a5fa; cursor:pointer; font-size:.75rem; padding:0; }
-		.expiry-text { margin-top:.5rem; margin-bottom: .5rem; font-weight: 500; color: yellow;}
-	</style>
-	<script defer src="/login.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hue Stream</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .card { background-color: #1e1e1e; border: none; transition: transform 0.2s; }
+        .card:hover { transform: scale(1.03); z-index: 10; }
+        .nav-tabs .nav-link { color: #aaa; border: none; }
+        .nav-tabs .nav-link.active { background-color: #1e1e1e; color: #fff; border-bottom: 2px solid #0d6efd; }
+        .btn-primary { background-color: #0d6efd; border: none; }
+        .poster { height: 300px; object-fit: cover; width: 100%; border-radius: 4px; }
+        #results { min-height: 400px; }
+        .badge-quality { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); }
+        .spinner-border { width: 3rem; height: 3rem; }
+    </style>
 </head>
 <body>
-	<div class="login-card" id="loginCard">
-		<div id="lockoutBanner" style="display:none; background:#7f1d1d; color:#fca5a5; padding:.6rem .75rem; border-radius:8px; font-size:.8rem; line-height:1.2; margin-bottom:1rem;">
-			<strong>Too Many Attempts.</strong> Try again in <span id="lockoutCountdown">00:00</span>.
-		</div>
-		<h1>TMDB Embed Admin</h1>
-		<form id="loginForm" autocomplete="off">
-			<div class="field">
-				<label for="username">Username</label>
-				<input id="username" name="username" type="text" required autofocus />
-			</div>
-			<div class="field">
-				<label for="password">Password</label>
-				<input id="password" name="password" type="password" required />
-			</div>
-			<div class="actions">
-				<button id="loginBtn" class="primary" type="submit">Login</button>
-				<div class="status" id="status" aria-live="polite"></div>
-			</div>
-		</form>
-		<div class="pw-change" id="pwChange">
-			<h2>Change Password</h2>
-			<form id="pwForm" autocomplete="off">
-				<div class="field"><label for="oldPw">Old Password</label><input id="oldPw" type="password" required /></div>
-				<div class="field"><label for="newPw">New Password</label><input id="newPw" type="password" minlength="8" required /></div>
-				<div class="actions"><button id="pwBtn" class="primary" type="submit">Update</button><div class="status" id="pwStatus" aria-live="polite"></div></div>
-			</form>
-		</div>
-		<div class="meta">
-			<button id="togglePw" class="link-btn" type="button">Change Password</button>
-			<div class="expiry-text">Sessions expire after 12h or on server restart.</div>
-			<p class="login-hint">Default user created if none exists: admin / change-me (change it!).</p>
-		</div>
-	</div>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="#">Hue Stream</a>
+            <div class="ms-auto">
+                <a href="/api/docs" class="btn btn-outline-light btn-sm me-2">API Docs</a>
+                <a href="/api/metrics" class="btn btn-outline-info btn-sm">Metrics</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <ul class="nav nav-tabs mb-4" id="searchTabs">
+            <li class="nav-item"><button class="nav-link active" data-source="tmdb">Movies & TV</button></li>
+            <li class="nav-item"><button class="nav-link" data-source="kisskh">KissKH (KDrama)</button></li>
+            <li class="nav-item"><button class="nav-link" data-source="dramacool">Dramacool</button></li>
+        </ul>
+
+        <div class="input-group mb-4">
+            <input type="text" id="searchInput" class="form-control form-control-lg bg-dark text-light border-secondary" placeholder="Search for content...">
+            <button class="btn btn-primary" id="searchBtn">Search</button>
+        </div>
+
+        <div id="loading" class="text-center my-5 d-none">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">Searching...</p>
+        </div>
+
+        <div id="results" class="row g-4"></div>
+    </div>
+
+    <!-- Stream Modal -->
+    <div class="modal fade" id="streamModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">Streams Found</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="modalLoading" class="text-center d-none"><div class="spinner-border text-light"></div></div>
+                    <div id="streamList" class="list-group"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentSource = 'tmdb';
+        const resultsDiv = document.getElementById('results');
+        const loadingDiv = document.getElementById('loading');
+
+        document.querySelectorAll('#searchTabs button').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelector('#searchTabs .active').classList.remove('active');
+                e.target.classList.add('active');
+                currentSource = e.target.dataset.source;
+                resultsDiv.innerHTML = ''; 
+            });
+        });
+
+        document.getElementById('searchBtn').addEventListener('click', performSearch);
+        document.getElementById('searchInput').addEventListener('keypress', (e) => e.key === 'Enter' && performSearch());
+
+        async function performSearch() {
+            const q = document.getElementById('searchInput').value;
+            if (!q) return;
+
+            loadingDiv.classList.remove('d-none');
+            resultsDiv.innerHTML = '';
+
+            try {
+                let items = [];
+                if (currentSource === 'tmdb') {
+                    // This assumes you might want to use a public TMDB search or add a search proxy later.
+                    // For now, since the API doesn't have a generic TMDB search, we'll simulate or use KDrama endpoints for demo.
+                    // Actually, let's use the Dramacool/KissKH logic since they are fully implemented proxies.
+                    // For TMDB, the user usually inputs an ID. Let's make this clear.
+                    if(!isNaN(q)) { // If numeric, assume ID direct lookup
+                         // Only for direct stream testing
+                         alert('For TMDB, please use the API directly with an ID for now, or browse Dramas.');
+                         loadingDiv.classList.add('d-none');
+                         return;
+                    }
+                    // Fallback to KDrama for demo
+                    alert('TMDB Search UI not implemented. Switching to KissKH.');
+                    currentSource = 'kisskh';
+                    document.querySelector('[data-source="kisskh"]').click();
+                    return performSearch();
+                } 
+                
+                if (currentSource === 'kisskh') {
+                    const res = await fetch(`/api/kdrama/search?q=${encodeURIComponent(q)}`);
+                    const data = await res.json();
+                    items = data.results || [];
+                } else if (currentSource === 'dramacool') {
+                    const res = await fetch(`/api/dramacool/search?q=${encodeURIComponent(q)}`);
+                    const data = await res.json();
+                    items = data.data || [];
+                }
+
+                renderResults(items);
+            } catch (e) {
+                console.error(e);
+                resultsDiv.innerHTML = '<div class="text-center text-danger">Error fetching results</div>';
+            } finally {
+                loadingDiv.classList.add('d-none');
+            }
+        }
+
+        function renderResults(items) {
+            if (items.length === 0) {
+                resultsDiv.innerHTML = '<p class="text-center text-muted">No results found.</p>';
+                return;
+            }
+
+            resultsDiv.innerHTML = items.map(item => `
+                <div class="col-6 col-md-4 col-lg-3">
+                    <div class="card h-100 cursor-pointer" onclick="loadStreams('${item.id}', '${item.title.replace(/'/g, "")}')">
+                        <img src="${item.thumbnail || item.image || 'https://via.placeholder.com/300x450?text=No+Image'}" class="poster card-img-top" alt="${item.title}">
+                        <div class="card-body p-2">
+                            <h6 class="card-title text-truncate small mb-0">${item.title}</h6>
+                            <small class="text-muted">${item.releaseYear || ''}</small>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        window.loadStreams = async (id, title) => {
+            const modal = new bootstrap.Modal(document.getElementById('streamModal'));
+            modal.show();
+            
+            const list = document.getElementById('streamList');
+            const loader = document.getElementById('modalLoading');
+            list.innerHTML = '';
+            loader.classList.remove('d-none');
+
+            try {
+                // Default to episode 1 for demo
+                const ep = prompt(`Enter Episode Number for "${title}"`, "1") || 1;
+                
+                let url;
+                if (currentSource === 'kisskh') url = `/api/kdrama/streams/${id}/${ep}`;
+                if (currentSource === 'dramacool') url = `/api/dramacool/browse/streams/${id}/${ep}`;
+
+                const res = await fetch(url);
+                const data = await res.json();
+
+                loader.classList.add('d-none');
+                
+                if (!data.streams || data.streams.length === 0) {
+                    list.innerHTML = '<div class="alert alert-warning">No streams found. Background task started? Try again in 30s.</div>';
+                    return;
+                }
+
+                list.innerHTML = data.streams.map(s => `
+                    <a href="${s.url}" target="_blank" class="list-group-item list-group-item-action bg-dark text-light border-secondary">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1 text-primary">${s.provider || 'Unknown'}</h6>
+                            <small>${s.quality || 'Auto'}</small>
+                        </div>
+                        <p class="mb-1 text-truncate small text-muted">${s.url}</p>
+                        <small class="text-success">Click to Play / Download</small>
+                    </a>
+                `).join('');
+
+            } catch (e) {
+                loader.classList.add('d-none');
+                list.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
+            }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-

@@ -27,5 +27,6 @@
   "enableUhdmoviesProvider": false,
   "enableShowboxPlaywrightProvider": false,
   "enableSflixProvider": true,
-  "enableKisskhProvider": true
+  "enableKisskhProvider": true,
+  "enableDramacoolProvider": true
 }

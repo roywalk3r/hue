@@ -4,32 +4,35 @@
 
 const cors = require('cors');
 const fetch = require('node-fetch');
+const http = require('http');
+const https = require('https');
 let cryptoJs;
+
+// Force IPv4 for proxy requests to avoid VPS connectivity issues
+const httpAgent = new http.Agent({ family: 4 });
+const httpsAgent = new https.Agent({ family: 4 });
 
 // Retry configuration for fetch operations
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
-const FETCH_TIMEOUT_MS = 30000; // 30 seconds
+const FETCH_TIMEOUT_MS = 15000; // Increased timeout for slower VPS connections
 
 // Helper function to fetch with retry logic
 async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
-    // Ensure timeout is set
-    if (!options.timeout) {
-        options.timeout = FETCH_TIMEOUT_MS;
-    }
+    const fetchOptions = {
+        ...options,
+        agent: (parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgent : httpsAgent),
+        timeout: options.timeout || FETCH_TIMEOUT_MS
+    };
     
     let lastError;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            return await fetch(url, options);
+            return await fetch(url, fetchOptions);
         } catch (error) {
             lastError = error;
-            // Only retry on network errors and timeouts
-            if (error.type !== 'system' || attempt >= maxRetries) {
-                throw error;
-            }
-            // Wait before retrying
-            console.log(`[retry] Attempt ${attempt}/${maxRetries} failed for ${url}: ${error.message}, retrying in ${RETRY_DELAY_MS}ms...`);
+            if (attempt >= maxRetries) throw error;
+            console.log(`[retry] Attempt ${attempt}/${maxRetries} failed for ${url}: ${error.message}`);
             await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt));
         }
     }
@@ -360,14 +363,33 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
                 const decoded = decodeVidzeeToken(candidate);
                 if (decoded) candidate = decoded;
                 
-                // If candidate still doesn't look like a URL after decoding attempts, skip rewriting
-                if (!candidate.startsWith('http') && !candidate.startsWith('/')) {
-                     out.push(line);
-                     nextLineIsStreamUrl = false;
-                     continue;
+                // Correctly resolve relative and absolute-path-style URLs
+                let abs;
+                try {
+                    // Standard resolution
+                    const resolved = new URL(candidate, targetUrl);
+                    
+                    // Inherit query parameters from the parent playlist URL if the segment doesn't have them
+                    // This is crucial for signed HLS (VixSrc, etc.) where the token is on the playlist URL
+                    const parentUrl = new URL(targetUrl);
+                    if (parentUrl.search) {
+                        parentUrl.searchParams.forEach((value, key) => {
+                            if (!resolved.searchParams.has(key)) {
+                                resolved.searchParams.set(key, value);
+                            }
+                        });
+                    }
+                    abs = resolved.href;
+                } catch (urlErr) {
+                    // Fallback for absolute-path-style if URL constructor fails with relative base
+                    if (candidate.startsWith('/')) {
+                        const origin = new URL(targetUrl).origin;
+                        abs = origin + candidate;
+                    } else {
+                        throw urlErr;
+                    }
                 }
 
-                const abs = new URL(candidate, targetUrl).href;
                 if (/\.(ts|mp4|png|jpg|jpeg|bmp)(\?|$)/i.test(abs)) {
                     segmentUrls.push(abs);
                     // Removed force200=1 for segments to allow Range requests if needed

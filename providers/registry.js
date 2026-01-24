@@ -1,6 +1,7 @@
 const { config } = require('../utils/config');
 const fs = require('fs');
 const path = require('path');
+const { getCachedStreams, setCachedStreams } = require('../utils/cache');
 
 // Lazy load cache for providers
 const providerCache = new Map();
@@ -19,6 +20,11 @@ const providerFunctionMap = {
   'livesport.js': 'getLivesportStreams',
   'sflix.js': 'getStreams',
   'kisskh.js': 'getStreams',
+  'vidrock.js': 'getStreams',
+  'vidsrc-xyz.js': 'getStreams',
+  'vidsrc-icu.js': 'getStreams',
+  'dramacool.js': 'getStreams',
+  'vidsrc-embed.js': 'getStreams',
 };
 
 // Stats for debug endpoint
@@ -62,6 +68,18 @@ function loadProvider(providerFile) {
 // Create fetch function for a provider
 function createFetchFunction(providerInfo) {
   return async function(ctx) {
+    const mediaType = ctx.type === 'movie' ? 'movie' : 'tv';
+    
+    // Check cache first (skip for complex providers like livesport that rely on 'req')
+    if (providerInfo.name !== 'livesport') {
+        const cacheKeyType = `${providerInfo.name}:${mediaType}`;
+        const cached = getCachedStreams(cacheKeyType, ctx.tmdbId, ctx.season, ctx.episode);
+        if (cached) {
+            console.log(`[registry] ${providerInfo.name} returned from cache`);
+            return cached;
+        }
+    }
+
     const module = loadProvider(providerInfo.file);
     if (!module) return [];
 
@@ -72,7 +90,6 @@ function createFetchFunction(providerInfo) {
     }
 
     try {
-      const mediaType = ctx.type === 'movie' ? 'movie' : 'tv';
       const t0 = Date.now();
       
       console.log(`[registry] Calling ${providerInfo.name} with tmdbId=${ctx.tmdbId}, mediaType=${mediaType}`);
@@ -122,7 +139,15 @@ function createFetchFunction(providerInfo) {
       if (!Array.isArray(result)) return [];
 
       // Add provider name if not present
-      return result.map(s => ({ ...s, provider: s.provider || providerInfo.name }));
+      const finalResult = result.map(s => ({ ...s, provider: s.provider || providerInfo.name }));
+      
+      // Cache success result (skip livesport)
+      if (providerInfo.name !== 'livesport' && finalResult.length > 0) {
+          const cacheKeyType = `${providerInfo.name}:${mediaType}`;
+          setCachedStreams(cacheKeyType, ctx.tmdbId, ctx.season, ctx.episode, finalResult);
+      }
+
+      return finalResult;
 
     } catch (e) {
       console.error(`[registry] ${providerInfo.name} fetch error:`, e.message);

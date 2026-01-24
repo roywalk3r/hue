@@ -58,7 +58,7 @@ async function searchShow(title, season) {
     }
 }
 
-function findBestMatch(results, title, season) {
+function findBestMatch(results, title, season, targetYear) {
     const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, "");
     const targetTitle = normalize(title);
     const targetSeason = season ? normalize(`season${season}`) : "";
@@ -75,6 +75,15 @@ function findBestMatch(results, title, season) {
         if (season) {
             if (itemTitle.includes(targetSeason) || itemTitle.includes(normalize(`Season ${season}`))) {
                 score += 50;
+            }
+        }
+        
+        // Year matching (highly prioritize the correct year, penalize the wrong year)
+        if (targetYear) {
+            if (item.title.includes(targetYear.toString())) {
+                score += 200;
+            } else if (/\d{4}/.test(item.title) && !item.title.includes(targetYear.toString())) {
+                score -= 150; // Wrong year detected
             }
         }
 
@@ -117,10 +126,19 @@ async function getKissKhStreams(tmdbId, mediaType, season, episode) {
             console.log("[KissKH] Show not found via API.");
             return [];
         }
-        console.log(`[KissKH] Found Show: "${show.title}" (ID: ${show.id})`);
+        
+        // Refine selection with year if API search returned multiple
+        const finalShow = await (async () => {
+            const url = `${API_BASE}/DramaList/Search?q=${encodeURIComponent(title)}`;
+            const resp = await axiosInstance.get(url);
+            return findBestMatch(resp.data, title, season, year);
+        })();
+
+        const selectedShow = finalShow || show;
+        console.log(`[KissKH] Found Show: "${selectedShow.title}" (ID: ${selectedShow.id})`);
 
         const epNum = parseInt(episode || "1");
-        const episodeId = await getEpisodeId(show.id, epNum);
+        const episodeId = await getEpisodeId(selectedShow.id, epNum);
         if (!episodeId) {
             console.log(`[KissKH] Episode ${epNum} not found in API.`);
             return [];
@@ -131,7 +149,8 @@ async function getKissKhStreams(tmdbId, mediaType, season, episode) {
         const directUrl = `${BASE_URL}/Drama/${slug}/Episode-${epNum}?id=${show.id}&ep=${episodeId}&page=0&pageSize=100`;
         console.log(`[KissKH] Navigate: ${directUrl}`);
 
-        page = await require("../utils/browserManager").getNewPage();
+        const { getNewPage } = require("../utils/browserManager");
+        page = await getNewPage();
         context = page.context();
 
         const capturedUrls = { video: new Set(), subtitles: new Set() };

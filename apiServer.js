@@ -9,8 +9,35 @@ const { listProviders, getProvider, getCookieStats } = require('./providers/regi
 const { createProxyRoutes, processStreamsForProxy } = require('./proxy/proxyServer');
 const { resolveImdbId } = require('./utils/tmdb');
 const { applyFilters } = require('./utils/streamFilters');
+const { getCachedStreams, setCachedStreams } = require('./utils/cache');
+const kisskhApi = require('./utils/kisskh-api');
+const kisskhProvider = require('./providers/kisskh');
+const dramacoolApi = require('./utils/dramacool-api');
+const dramacoolProvider = require('./providers/dramacool');
+const logger = require('./utils/logger');
+const stealth = require('./utils/stealth');
+
+// Register secrets
+if (config.tmdbApiKeys) config.tmdbApiKeys.forEach(k => logger.registerSecret(k));
+if (process.env.TMDB_KEY) logger.registerSecret(process.env.TMDB_KEY);
+
+const swaggerUi = require('swagger-ui-express');
+const redoc = require('redoc-express');
+const swaggerDef = require('./utils/swagger-def');
 
 const app = express();
+
+// Serve the raw OpenAPI spec for Redoc to consume
+app.get('/api/docs/swagger.json', (req, res) => res.json(swaggerDef));
+
+// Mount Redoc at the primary docs URL
+app.get('/api/docs', redoc({
+  title: 'Hue Stream API Docs',
+  specUrl: '/api/docs/swagger.json'
+}));
+
+// Mount Swagger UI as an alternative
+app.use('/api/docs/swagger', swaggerUi.serve, swaggerUi.setup(swaggerDef));
 
 function resolveServerUrl(req) {
   const host = req.get('host') || 'localhost';
@@ -27,10 +54,10 @@ function resolveServerUrl(req) {
 
 // Conditionally mount proxy routes early so downstream handlers can use them
 if (config.enableProxy) {
-  console.log('[startup] enableProxy flag active: mounting proxy routes');
+  logger.info('[startup] enableProxy flag active: mounting proxy routes');
   createProxyRoutes(app);
 } else {
-  console.log('[startup] enableProxy flag disabled: proxy routes not mounted');
+  logger.info('[startup] enableProxy flag disabled: proxy routes not mounted');
 }
 
 // --- Simple In-Memory Rate Limiting for /auth/login ---
@@ -99,6 +126,13 @@ process.exit = function(code){
 setImmediate(()=>console.log('[diagnostic] post-start setImmediate fired'));
 app.use(cors());
 app.use(express.json());
+
+// Stealth Logger Middleware
+app.use((req, res, next) => {
+    const ip = getClientIp(req);
+    logger.info(`[request] ${req.method} ${req.url} from ${stealth.anonymize(ip)}`);
+    next();
+});
 
 // --- Auth Routes (login before static serving) ---
 app.post('/auth/login', (req,res) => {
@@ -198,6 +232,9 @@ const metrics = {
   streamsReturned: 0,
   tmdbToImdbLookups: 0
 };
+
+// Track background tasks to avoid duplicates
+const pendingBackgroundTasks = new Set();
 
 app.use((req,res,next)=>{ metrics.requestsTotal++; metrics.lastRequestAt = Date.now(); next(); });
 // Serve static UI (login page at /)
@@ -330,6 +367,58 @@ app.get('/api/providers/:name', (req,res) => {
   res.json({ success:true, provider:{ name: p.name, enabled: p.enabled } });
 });
 
+// Dedicated Drama Endpoint (KissKH + Dramacool only)
+app.get('/api/drama/:type/:tmdbId', async (req,res) => {
+  const { type, tmdbId } = req.params;
+  const season = req.query.season ? Number(req.query.season) : null;
+  const episode = req.query.episode ? Number(req.query.episode) : null;
+  
+  try {
+    metrics.streamRequests++;
+    const dramaProviders = ['kisskh', 'dramacool'];
+    const streamsResults = [];
+    const providerTimings = {};
+
+    // Run drama providers sequentially/parallel
+    await Promise.all(dramaProviders.map(async name => {
+      const prov = getProvider(name);
+      if (!prov || !prov.enabled) return;
+      
+      metrics.providerCalls[name] = (metrics.providerCalls[name]||0)+1;
+      try {
+        console.log(`[api] invoking drama provider ${name} for tmdbId=${tmdbId}`);
+        const t0 = Date.now();
+        const r = await prov.fetch({ tmdbId, type: 'tv', season, episode, imdbId: null, filters:{} });
+        providerTimings[name] = Date.now()-t0;
+        if (Array.isArray(r)) streamsResults.push(...r);
+      } catch (e) {
+        console.error(`[api] drama provider ${name} failed:`, e.message);
+      }
+    }));
+
+    let streams = streamsResults;
+    streams = applyFilters(streams, 'drama', config.minQualities, config.excludeCodecs);
+    metrics.streamsReturned += streams.length;
+
+    if (config.enableProxy) {
+      const serverUrl = resolveServerUrl(req);
+      streams = processStreamsForProxy(streams, serverUrl);
+    }
+
+    res.json({ 
+        success: true, 
+        tmdbId, 
+        type: 'drama',
+        count: streams.length, 
+        providerTimings, 
+        streams 
+    });
+  } catch (e) {
+    metrics.lastError = e.message;
+    res.status(500).json({ success:false, error:'INTERNAL_ERROR', message:e.message });
+  }
+});
+
 // Aggregate streams across all enabled providers
 app.get('/api/streams/:type/:tmdbId', async (req,res) => {
   const { type, tmdbId } = req.params;
@@ -340,58 +429,96 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
     metrics.streamRequests++;
     const tmdbType = type === 'movie' ? 'movie' : 'tv';
     const imdbId = await resolveImdbId(tmdbType, tmdbId); if (imdbId) metrics.tmdbToImdbLookups++;
+    
+    // Check global cache for previously found slow streams
+    const cachedSlowStreams = getCachedStreams(type, tmdbId, season, episode) || [];
+    
     const selectedProviders = (config.defaultProviders.length ? config.defaultProviders : listProviders().map(p=>p.name));
     const providerTimings = {};
     const streamsResults = [];
     
     // Categorize providers
-    const browserProviders = ['sflix', 'kisskh', 'vidsrccc-playwright', 'showbox-playwright'];
-    const fastProviders = selectedProviders.filter(p => !browserProviders.includes(p));
+    const browserProviders = ['sflix', 'vidsrccc-playwright', 'showbox-playwright', 'vidsrc-xyz', 'vidsrc-icu']; // removed kisskh, dramacool
+    const fastProviders = selectedProviders.filter(p => !browserProviders.includes(p) && p !== 'kisskh' && p !== 'dramacool');
     const slowProviders = selectedProviders.filter(p => browserProviders.includes(p));
 
-    // Run fast providers in parallel
+    // 1. Run fast providers in parallel (Immediate results)
     const fastResults = await Promise.all(fastProviders.map(async name => {
       const prov = getProvider(name);
       if (!prov || !prov.enabled) return [];
       metrics.providerCalls[name] = (metrics.providerCalls[name]||0)+1;
       try {
-        console.log(`[api] invoking fast provider ${name} for tmdbId=${tmdbId}`);
+        logger.info(`[api] invoking fast provider ${name} for tmdbId=${tmdbId}`);
         const t0 = Date.now();
         const r = await prov.fetch({ tmdbId, type, season, episode, imdbId, filters:{ } });
         providerTimings[name] = Date.now()-t0;
         return r;
       } catch (e) {
-        console.error(`[api] provider ${name} failed:`, e.message);
+        logger.error(`[api] provider ${name} failed:`, e.message);
         return [];
       }
     }));
     fastResults.forEach(r => streamsResults.push(...r));
 
-    // Run browser providers sequentially to save CPU
-    for (const name of slowProviders) {
-      const prov = getProvider(name);
-      if (!prov || !prov.enabled) continue;
-      metrics.providerCalls[name] = (metrics.providerCalls[name]||0)+1;
-      try {
-        console.log(`[api] invoking browser provider ${name} for tmdbId=${tmdbId}`);
-        const t0 = Date.now();
-        const r = await prov.fetch({ tmdbId, type, season, episode, imdbId, filters:{ } });
-        providerTimings[name] = Date.now()-t0;
-        console.log(`[api] provider ${name} returned ${Array.isArray(r)?r.length:0} streams`);
-        if (Array.isArray(r)) streamsResults.push(...r);
-      } catch (e) {
-        console.error(`[api] provider ${name} failed:`, e.message);
-        providerTimings[name] = null;
-      }
-    }
+    // 2. Add cached results from previous slow runs
+    streamsResults.push(...cachedSlowStreams);
+
+    // 3. Return what we have immediately
     let streams = streamsResults;
     streams = applyFilters(streams, 'aggregate', config.minQualities, config.excludeCodecs);
     metrics.streamsReturned += streams.length;
+    
+    const serverUrl = resolveServerUrl(req);
     if (config.enableProxy) {
-      const serverUrl = resolveServerUrl(req);
       streams = processStreamsForProxy(streams, serverUrl);
     }
-    res.json({ success:true, tmdbId, imdbId, count: streams.length, providerTimings, streams });
+    
+    // Send response now
+    res.json({ 
+        success: true, 
+        tmdbId, 
+        imdbId, 
+        count: streams.length, 
+        providerTimings, 
+        streams,
+        backgroundTasks: slowProviders.length > 0 && cachedSlowStreams.length === 0 ? "Started" : "Cached"
+    });
+
+    // 4. Trigger slow providers in background to populate cache
+    const taskKey = `${type}_${tmdbId}_${season}_${episode}`;
+    if (slowProviders.length > 0 && !pendingBackgroundTasks.has(taskKey)) {
+        pendingBackgroundTasks.add(taskKey);
+        (async () => {
+            try {
+                const backgroundResults = [];
+                // Run all slow providers in parallel; BrowserManager handles the concurrency limit (queue)
+                const promises = slowProviders.map(async (name) => {
+                    const prov = getProvider(name);
+                    if (!prov || !prov.enabled) return [];
+                    try {
+                        logger.info(`[background] invoking browser provider ${name} for tmdbId=${tmdbId}`);
+                        const r = await prov.fetch({ tmdbId, type, season, episode, imdbId, filters:{ } });
+                        logger.info(`[background] provider ${name} returned ${Array.isArray(r)?r.length:0} streams`);
+                        return Array.isArray(r) ? r : [];
+                    } catch (e) {
+                        logger.error(`[background] provider ${name} failed:`, e.message);
+                        return [];
+                    }
+                });
+
+                const results = await Promise.all(promises);
+                results.forEach(r => backgroundResults.push(...r));
+
+                if (backgroundResults.length > 0) {
+                    logger.info(`[cache] updating cache for ${taskKey} with ${backgroundResults.length} streams`);
+                    setCachedStreams(type, tmdbId, season, episode, backgroundResults);
+                }
+            } finally {
+                pendingBackgroundTasks.delete(taskKey);
+            }
+        })().catch(err => logger.error("[background] Worker error:", err));
+    }
+    return; // Already responded
   } catch (e) {
     metrics.lastError = e.message;
     res.status(500).json({ success:false, error:'INTERNAL_ERROR', message:e.message });
@@ -468,6 +595,250 @@ app.get('/api/streams/:provider/:type/:tmdbId', async (req,res) => {
     metrics.lastError = e.message;
     res.status(500).json({ success:false, error:'INTERNAL_ERROR', message:e.message });
   }
+});
+
+// --- KDrama API (KissKH Direct) ---
+app.get('/api/kdrama/search', async (req, res) => {
+    const q = req.query.q;
+    if (!q) return res.status(400).json({ success: false, error: 'Query required' });
+    try {
+        const results = await kisskhApi.search(q);
+        res.json({ success: true, results });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/kdrama/list', async (req, res) => {
+    try {
+        const { page, type, sub, country, status, order } = req.query;
+        // Map string keys to IDs if provided
+        const countryId = kisskhApi.COUNTRY_MAP[country] !== undefined ? kisskhApi.COUNTRY_MAP[country] : (country || 0);
+        const orderId = kisskhApi.ORDER_MAP[order] !== undefined ? kisskhApi.ORDER_MAP[order] : (order || 2);
+        const statusId = kisskhApi.STATUS_MAP[status] !== undefined ? kisskhApi.STATUS_MAP[status] : (status || 0);
+
+        const data = await kisskhApi.getList({ 
+            page: page || 1, 
+            type: type || 0, 
+            sub: sub || 0, 
+            country: countryId, 
+            status: statusId, 
+            order: orderId 
+        });
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/kdrama/latest', async (req, res) => {
+    try {
+        const page = req.query.page || 1;
+        const data = await kisskhApi.getList({ page, order: 2 }); // Latest
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/kdrama/popular', async (req, res) => {
+    try {
+        const page = req.query.page || 1;
+        const data = await kisskhApi.getList({ page, order: 1 }); // Popular
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/kdrama/upcoming', async (req, res) => {
+    try {
+        const data = await kisskhApi.getUpcoming();
+        res.json({ success: true, results: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/kdrama/detail/:id', async (req, res) => {
+    try {
+        const data = await kisskhApi.getDetail(req.params.id);
+        if (!data) return res.status(404).json({ success: false, error: 'Not found' });
+        res.json({ success: true, data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/kdrama/streams/:id/:episode?', async (req, res) => {
+    const showId = req.params.id;
+    const episode = req.params.episode || 1;
+    
+    try {
+        metrics.streamRequests++;
+        console.log(`[api] kdrama stream request: ${showId} ep ${episode}`);
+        
+        const streams = await kisskhProvider.getStreamsDirect(showId, episode);
+        
+        let finalStreams = applyFilters(streams, 'kisskh', config.minQualities, config.excludeCodecs);
+        metrics.streamsReturned += finalStreams.length;
+
+        if (config.enableProxy) {
+            const serverUrl = resolveServerUrl(req);
+            finalStreams = processStreamsForProxy(finalStreams, serverUrl);
+        }
+
+        res.json({
+            success: true,
+            showId,
+            episode,
+            count: finalStreams.length,
+            streams: finalStreams
+        });
+    } catch (e) {
+        metrics.lastError = e.message;
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/dramacool/streams', async (req, res) => {
+    const url = req.query.url;
+    if (!url) return res.status(400).json({ success: false, error: 'URL required' });
+    
+    try {
+        metrics.streamRequests++;
+        console.log(`[api] dramacool direct URL request: ${url}`);
+        
+        const streams = await dramacoolProvider.getStreamsByUrl(url);
+        
+        let finalStreams = applyFilters(streams, 'dramacool', config.minQualities, config.excludeCodecs);
+        metrics.streamsReturned += finalStreams.length;
+
+        if (config.enableProxy) {
+            const serverUrl = resolveServerUrl(req);
+            finalStreams = processStreamsForProxy(finalStreams, serverUrl);
+        }
+
+        res.json({
+            success: true,
+            url,
+            count: finalStreams.length,
+            streams: finalStreams
+        });
+    } catch (e) {
+        metrics.lastError = e.message;
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// --- Dramacool Browse API (Xyra Stream) ---
+app.get('/api/dramacool/search', async (req, res) => {
+    const { q, page } = req.query;
+    if (!q) return res.status(400).json({ success: false, error: 'Query required' });
+    try {
+        const data = await dramacoolApi.search(q, page || 1);
+        res.json(data);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/dramacool/latest', async (req, res) => {
+    try {
+        const data = await dramacoolApi.getLatest(req.query.page || 1);
+        res.json(data);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/dramacool/latest-kdrama', async (req, res) => {
+    try {
+        const data = await dramacoolApi.getLatestKdrama(req.query.page || 1);
+        res.json(data);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/dramacool/popular', async (req, res) => {
+    try {
+        const data = await dramacoolApi.getPopular(req.query.page || 1);
+        res.json(data);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/dramacool/ongoing', async (req, res) => {
+    try {
+        const data = await dramacoolApi.getOngoing(req.query.page || 1);
+        res.json(data);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/dramacool/upcoming', async (req, res) => {
+    try {
+        const data = await dramacoolApi.getUpcoming(req.query.page || 1);
+        res.json(data);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/dramacool/home', async (req, res) => {
+    try {
+        const data = await dramacoolApi.getHome();
+        res.json(data);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/dramacool/info', async (req, res) => {
+    const id = req.query.id;
+    if (!id) return res.status(400).json({ success: false, error: 'ID required' });
+    try {
+        const data = await dramacoolApi.getDetail(id);
+        res.json(data);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/dramacool/browse/streams/:id/:episode', async (req, res) => {
+    const { id, episode } = req.params;
+    // Build the direct dramacool.sh URL from the ID and episode
+    const url = `https://dramacool.sh/${id}-episode-${episode}/`;
+    
+    try {
+        metrics.streamRequests++;
+        console.log(`[api] dramacool browse stream request: ${url}`);
+        
+        const streams = await dramacoolProvider.getStreamsByUrl(url);
+        
+        let finalStreams = applyFilters(streams, 'dramacool', config.minQualities, config.excludeCodecs);
+        metrics.streamsReturned += finalStreams.length;
+
+        if (config.enableProxy) {
+            const serverUrl = resolveServerUrl(req);
+            finalStreams = processStreamsForProxy(finalStreams, serverUrl);
+        }
+
+        res.json({
+            success: true,
+            id,
+            episode,
+            url,
+            count: finalStreams.length,
+            streams: finalStreams
+        });
+    } catch (e) {
+        metrics.lastError = e.message;
+        res.status(500).json({ success: false, error: e.message });
+    }
 });
 
 // For Vercel deployment: export the app

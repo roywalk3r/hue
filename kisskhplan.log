@@ -1,0 +1,143 @@
+
+
+#latest update enpoint /all enpoint
+https://kisskh.co/api/DramaList/List?page=1&type=0&sub=0&country=0&status=0&order=2
+
+#search endpoint
+https://kisskh.co/api/DramaList/Search?q=Judge
+
+#upcomming
+https://kisskh.co/api/DramaList/upcoming
+
+#latest from south korea
+https://kisskh.co/api/DramaList/List?page=1&type=1&sub=0&country=2&status=0&order=2
+
+#south korea popular
+https://kisskh.co/api/DramaList/List?page=1&type=1&sub=0&country=2&status=0&order=1
+
+#chinise =latest
+https://kisskh.co/api/DramaList/List?page=1&type=1&sub=0&country=1&status=0&order=2
+
+#chinise popular
+https://kisskh.co/api/DramaList/List?page=1&type=1&sub=0&country=1&status=0&order=1
+
+#ongoing 
+https://kisskh.co/api/DramaList/List?page=1&type=1&sub=1&country=0&status=1&order=1
+
+#completed
+https://kisskh.co/api/DramaList/List?page=1&type=1&sub=1&country=0&status=2&order=1
+
+#details
+https://kisskh.co/api/DramaList/Drama/975?isq=false
+
+
+#all format
+{
+    "page": 1,
+    "pageSize": 10,
+    "totalCount": 11502,
+    "data": [
+        {
+            "episodesCount": 19,
+            "label": "",
+            "favoriteID": 0,
+            "thumbnail": "https://image-v1.pages.dev/c0d73a81-d05b-4873-83a7-a838d8aff09a.jpg",
+            "id": 9987,
+            "title": "Ang Mutya ng Section E - The Muse of Section E"
+        },
+        {
+            "episodesCount": 24,
+            "label": "",
+            "favoriteID": 0,
+            "thumbnail": "https://image-v1.pages.dev/4705f3c1-bde4-4f12-87d9-44e285b9f8dc.jpg",
+            "id": 10826,
+            "title": "Revenged Love"
+        },
+        {
+            "episodesCount": 32,
+            "label": "Unlock All Ep",
+            "favoriteID": 0,
+            "thumbnail": "https://media.themoviedb.org/t/p/w1000_and_h563_face/aL3J5pi3bbqHPicpELZ0f5r6X34.jpg",
+            "id": 8316,
+            "title": "The First Frost"
+        },
+        {
+            "episodesCount": 26,
+            "label": "Remake Sub",
+            "favoriteID": 0,
+            "thumbnail": "https://media.themoviedb.org/t/p/w1000_and_h563_face/rtmtyqzaS0uJvVY5MNjhWImqhsh.jpg",
+            "id": 6158,
+            "title": "Hidden Love (2023)"
+        },
+        {
+            "episodesCount": 9,
+            "label": "",
+            "favoriteID": 0,
+            "thumbnail": "https://image-v1.pages.dev/a7a1fffe-19a9-471a-ae7d-68e0172ca637.jpg",
+            "id": 10741,
+            "title": "Ang Mutya ng Section E 2: The Dark Side - The Muse of Section E: The Dark Side"
+        },
+        {
+            "episodesCount": 29,
+            "label": "Unlock All Ep",
+            "favoriteID": 0,
+            "thumbnail": "https://image-v1.pages.dev/f7bc07be-eeed-498d-8684-77a5a91b3c57.jpg",
+            "id": 10606,
+            "title": "Speed and Love"
+        },
+        {
+            "episodesCount": 31,
+            "label": "",
+            "favoriteID": 0,
+            "thumbnail": "https://puui.wetvinfo.com/vcover_hz_pic/0/2knhnaakii18oxj1683882661123/0?imageMogr2/thumbnail/600x|imageMogr2/thumbnail/600x",
+            "id": 773,
+            "title": "Falling Into Your Smile"
+        },
+        {
+            "episodesCount": 16,
+            "label": "",
+            "favoriteID": 0,
+            "thumbnail": "https://prod-images.viu.com/3659420014/f7d86cfe0584f4a1e6c933f9c903b0493179f10e?im=Resize,width=1920",
+            "id": 975,
+            "title": "True Beauty"
+        },
+        {
+            "episodesCount": 16,
+            "label": "",
+            "favoriteID": 0,
+            "thumbnail": "https://image-v1.pages.dev/4fde85f2-7231-4c0c-9678-885e90f05cc2.jpg",
+            "id": 7977,
+            "title": "Twinkling Watermelon"
+        },
+        {
+            "episodesCount": 16,
+            "label": "",
+            "favoriteID": 0,
+            "thumbnail": "https://image-v1.pages.dev/6c4616a5-c01b-4a43-bc5f-062e04d85d90.jpg",
+            "id": 10794,
+            "title": "Seducing Drake Palma"
+        }
+    ]
+}
+#thai 
+country=5
+
+# korea 
+country = 2
+
+#chinise
+country=1
+#philipine = 
+country=8
+# japanise
+country=3
+#honkong
+country=4
+#taiwan
+country=7
+
+#sub =1 is english subtitles
+#popular = order 1 
+#latest = order 2
+#release date = order 3
+
