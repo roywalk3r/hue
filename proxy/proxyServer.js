@@ -15,7 +15,7 @@ const httpsAgent = new https.Agent({ family: 4 });
 // Retry configuration for fetch operations
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
-const FETCH_TIMEOUT_MS = 15000; // Increased timeout for slower VPS connections
+const FETCH_TIMEOUT_MS = 30000; // Increased timeout for slower VPS connections
 
 // Helper function to fetch with retry logic
 async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
@@ -351,6 +351,16 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
                         const proxyUrl = `${baseProxyUrl}/m3u8-proxy?url=${encodeURIComponent(mediaUrl)}&headers=${encodeURIComponent(JSON.stringify(headers))}`;
                         out.push(line.replace(uriMatch[1], proxyUrl));
                     } catch { out.push(line); }
+                } else out.push(line);
+            } else if (line.startsWith('#EXT-X-MAP:')) {
+                const uriMatch = line.match(/URI="([^"]+)"/);
+                if (uriMatch) {
+                    try {
+                        const mapUrl = new URL(uriMatch[1], targetUrl).href;
+                        const proxyUrl = `${baseProxyUrl}/ts-proxy?url=${encodeURIComponent(mapUrl)}&headers=${encodeURIComponent(JSON.stringify(headers))}&clampOpen=0&progressiveOpen=0&noSynth=1&force200=1&tailPrefetch=0`;
+                        out.push(line.replace(uriMatch[1], proxyUrl));
+                        if (!isCacheDisabled()) prefetchSegment(mapUrl, headers);
+                    } catch (_e) { out.push(line); }
                 } else out.push(line);
             } else if (line.startsWith('#EXT-X-STREAM-INF:')) {
                 // The URL for EXT-X-STREAM-INF is on the next line

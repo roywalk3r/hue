@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@definisi/vidsrc-scraper':
+        specifier: ^1.0.3
+        version: 1.1.0
       aromanize:
         specifier: ^0.1.5
         version: 0.1.5
@@ -53,18 +56,24 @@ importers:
       p-limit:
         specifier: ^6.2.0
         version: 6.2.0
-      puppeteer:
-        specifier: ^24.34.0
-        version: 24.34.0
-      puppeteer-extra:
-        specifier: ^3.3.6
-        version: 3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0)
+      playwright:
+        specifier: ^1.58.0
+        version: 1.58.0
+      playwright-extra:
+        specifier: ^4.3.6
+        version: 4.3.6(playwright-core@1.58.0)(playwright@1.58.0)
       puppeteer-extra-plugin-stealth:
         specifier: ^2.11.2
-        version: 2.11.2(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0))
+        version: 2.11.2(playwright-extra@4.3.6(playwright-core@1.58.0)(playwright@1.58.0))(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0))
+      redoc-express:
+        specifier: ^2.1.3
+        version: 2.1.3
       string-similarity:
         specifier: ^4.0.4
         version: 4.0.4
+      swagger-ui-express:
+        specifier: ^5.0.1
+        version: 5.0.1(express@4.22.1)
       tough-cookie:
         specifier: ^5.1.2
         version: 5.1.2
@@ -123,6 +132,10 @@ packages:
     resolution: {integrity: sha512-Vd/9EVDiu6PPJt9yAh6roZP6El1xHrdvIVGjyBsHR0RYwNHgL7FJPyIIW4fANJNG6FtyZfvlRPpFI4ZM/lubvw==}
     engines: {node: '>=18'}
 
+  '@definisi/vidsrc-scraper@1.1.0':
+    resolution: {integrity: sha512-RDL8WIUHZNavU6bErHitMOgpShl2c6VLBh2JQkVsFdgMBecbxgqo4GQMPKK2ok7Qlg+wDIpZ4zcgmgLpkKQltA==}
+    engines: {node: '>=18.0.0'}
+
   '@eslint-community/eslint-utils@4.9.0':
     resolution: {integrity: sha512-ayVFHdtZ+hsq1t2Dy24wCmGXGe4q9Gu3smhLYALJrr473ZH27MsnSL+LKUlimp4BWJqMDMLmPpx/Q9R3OAlL4g==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
@@ -170,6 +183,9 @@ packages:
     resolution: {integrity: sha512-n6oQX6mYkG8TRPuPXmbPidkUbsSRalhmaaVAQxvH1IkQy63cwsH+kOjB3e4cpCDHg0aSvsiX9bQ4s2VB6mGWUQ==}
     engines: {node: '>=18'}
     hasBin: true
+
+  '@scarf/scarf@1.4.0':
+    resolution: {integrity: sha512-xxeapPiUXdZAE3che6f3xogoJPeZgig6omHEy1rIY5WVsB3H2BHNnZH+gHG6x91SCWyQCzWGsuL2Hh3ClO5/qQ==}
 
   '@tootallnate/quickjs-emscripten@0.23.0':
     resolution: {integrity: sha512-C5Mc6rdnsaJDjO3UpGW/CQTHtCKaYlScZTly4JIu97Jxo/odCiH0ITnDXSJPTOrEKk/ycSZ0AOgTmkDtkOsvIA==}
@@ -712,6 +728,11 @@ packages:
   fs.realpath@1.0.0:
     resolution: {integrity: sha512-OO0pH2lK6a0hZnAdau5ItzHPI6pUlvI7jMVnxUQRtw4owF2wk8lOSabtGDCTP4Ggrg2MbGnWO9X8K1t4+fGMDw==}
 
+  fsevents@2.3.2:
+    resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
+    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
+    os: [darwin]
+
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -1159,6 +1180,28 @@ packages:
     resolution: {integrity: sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA==}
     engines: {node: '>=8.6'}
 
+  playwright-core@1.58.0:
+    resolution: {integrity: sha512-aaoB1RWrdNi3//rOeKuMiS65UCcgOVljU46At6eFcOFPFHWtd2weHRRow6z/n+Lec0Lvu0k9ZPKJSjPugikirw==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+  playwright-extra@4.3.6:
+    resolution: {integrity: sha512-q2rVtcE8V8K3vPVF1zny4pvwZveHLH8KBuVU2MoE3Jw4OKVoBWsHI9CH9zPydovHHOCDxjGN2Vg+2m644q3ijA==}
+    engines: {node: '>=12'}
+    peerDependencies:
+      playwright: '*'
+      playwright-core: '*'
+    peerDependenciesMeta:
+      playwright:
+        optional: true
+      playwright-core:
+        optional: true
+
+  playwright@1.58.0:
+    resolution: {integrity: sha512-2SVA0sbPktiIY/MCOPX8e86ehA/e+tDNq+e5Y8qjKYti2Z/JG7xnronT/TXTIkKbYGWlCbuucZ6dziEgkoEjQQ==}
+    engines: {node: '>=18'}
+    hasBin: true
+
   prelude-ls@1.2.1:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}
     engines: {node: '>= 0.8.0'}
@@ -1282,6 +1325,9 @@ packages:
   readdirp@3.6.0:
     resolution: {integrity: sha512-hOS089on8RduqdbhvQ5Z37A0ESjsqz6qnRcffsMU3495FuTdqSm+7bhJ29JvIOsBDEEnan5DPu9t3To9VRlMzA==}
     engines: {node: '>=8.10.0'}
+
+  redoc-express@2.1.3:
+    resolution: {integrity: sha512-m4bS7FeGeAqPHjdyDkT/0cx9yGQ2Wt8eDwN9thqSva0ewv0ZPoemwhwu8O/ZiBAbD8IIM5EBDzCsjd5cKEZuxA==}
 
   require-directory@2.1.1:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
@@ -1410,6 +1456,15 @@ packages:
   supports-color@7.2.0:
     resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==}
     engines: {node: '>=8'}
+
+  swagger-ui-dist@5.31.0:
+    resolution: {integrity: sha512-zSUTIck02fSga6rc0RZP3b7J7wgHXwLea8ZjgLA3Vgnb8QeOl3Wou2/j5QkzSGeoz6HusP/coYuJl33aQxQZpg==}
+
+  swagger-ui-express@5.0.1:
+    resolution: {integrity: sha512-SrNU3RiBGTLLmFU8GIJdOdanJTl4TOmT27tt3bWWHppqYmAZ6IDuEuBvMU6nZq0zLEe6b/1rACXCgLZqO6ZfrA==}
+    engines: {node: '>= v0.10.32'}
+    peerDependencies:
+      express: '>=4.0.0 || >=5.0.0-beta'
 
   symbol-tree@3.2.4:
     resolution: {integrity: sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw==}
@@ -1615,8 +1670,10 @@ snapshots:
       '@babel/helper-validator-identifier': 7.28.5
       js-tokens: 4.0.0
       picocolors: 1.1.1
+    optional: true
 
-  '@babel/helper-validator-identifier@7.28.5': {}
+  '@babel/helper-validator-identifier@7.28.5':
+    optional: true
 
   '@csstools/color-helpers@5.1.0': {}
 
@@ -1637,6 +1694,8 @@ snapshots:
       '@csstools/css-tokenizer': 3.0.4
 
   '@csstools/css-tokenizer@3.0.4': {}
+
+  '@definisi/vidsrc-scraper@1.1.0': {}
 
   '@eslint-community/eslint-utils@4.9.0(eslint@8.57.1)':
     dependencies:
@@ -1699,8 +1758,12 @@ snapshots:
       - bare-buffer
       - react-native-b4a
       - supports-color
+    optional: true
 
-  '@tootallnate/quickjs-emscripten@0.23.0': {}
+  '@scarf/scarf@1.4.0': {}
+
+  '@tootallnate/quickjs-emscripten@0.23.0':
+    optional: true
 
   '@types/debug@4.1.12':
     dependencies:
@@ -1762,6 +1825,7 @@ snapshots:
   ast-types@0.13.4:
     dependencies:
       tslib: 2.8.1
+    optional: true
 
   asynckit@0.4.0: {}
 
@@ -1781,11 +1845,13 @@ snapshots:
     transitivePeerDependencies:
       - debug
 
-  b4a@1.7.3: {}
+  b4a@1.7.3:
+    optional: true
 
   balanced-match@1.0.2: {}
 
-  bare-events@2.8.2: {}
+  bare-events@2.8.2:
+    optional: true
 
   bare-fs@4.5.2:
     dependencies:
@@ -1822,7 +1888,8 @@ snapshots:
       bare-path: 3.0.0
     optional: true
 
-  basic-ftp@5.0.5: {}
+  basic-ftp@5.0.5:
+    optional: true
 
   binary-extensions@2.3.0: {}
 
@@ -1868,7 +1935,8 @@ snapshots:
     dependencies:
       fill-range: 7.1.1
 
-  buffer-crc32@0.2.13: {}
+  buffer-crc32@0.2.13:
+    optional: true
 
   bytes@3.1.2: {}
 
@@ -1929,6 +1997,7 @@ snapshots:
       devtools-protocol: 0.0.1534754
       mitt: 3.0.1
       zod: 3.25.76
+    optional: true
 
   cliui@8.0.1:
     dependencies:
@@ -1977,6 +2046,7 @@ snapshots:
       import-fresh: 3.3.1
       js-yaml: 4.1.1
       parse-json: 5.2.0
+    optional: true
 
   cross-spawn@7.0.6:
     dependencies:
@@ -2001,7 +2071,8 @@ snapshots:
       '@asamuzakjp/css-color': 3.2.0
       rrweb-cssom: 0.8.0
 
-  data-uri-to-buffer@6.0.2: {}
+  data-uri-to-buffer@6.0.2:
+    optional: true
 
   data-urls@5.0.0:
     dependencies:
@@ -2029,6 +2100,7 @@ snapshots:
       ast-types: 0.13.4
       escodegen: 2.1.0
       esprima: 4.0.1
+    optional: true
 
   delayed-stream@1.0.0: {}
 
@@ -2036,7 +2108,8 @@ snapshots:
 
   destroy@1.2.0: {}
 
-  devtools-protocol@0.0.1534754: {}
+  devtools-protocol@0.0.1534754:
+    optional: true
 
   doctrine@3.0.0:
     dependencies:
@@ -2082,16 +2155,19 @@ snapshots:
   end-of-stream@1.4.5:
     dependencies:
       once: 1.4.0
+    optional: true
 
   entities@4.5.0: {}
 
   entities@6.0.1: {}
 
-  env-paths@2.2.1: {}
+  env-paths@2.2.1:
+    optional: true
 
   error-ex@1.3.4:
     dependencies:
       is-arrayish: 0.2.1
+    optional: true
 
   es-define-property@1.0.1: {}
 
@@ -2121,6 +2197,7 @@ snapshots:
       esutils: 2.0.3
     optionalDependencies:
       source-map: 0.6.1
+    optional: true
 
   eslint-scope@7.2.2:
     dependencies:
@@ -2178,7 +2255,8 @@ snapshots:
       acorn-jsx: 5.3.2(acorn@8.15.0)
       eslint-visitor-keys: 3.4.3
 
-  esprima@4.0.1: {}
+  esprima@4.0.1:
+    optional: true
 
   esquery@1.6.0:
     dependencies:
@@ -2199,6 +2277,7 @@ snapshots:
       bare-events: 2.8.2
     transitivePeerDependencies:
       - bare-abort-controller
+    optional: true
 
   express@4.22.1:
     dependencies:
@@ -2245,10 +2324,12 @@ snapshots:
       '@types/yauzl': 2.10.3
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   fast-deep-equal@3.1.3: {}
 
-  fast-fifo@1.3.2: {}
+  fast-fifo@1.3.2:
+    optional: true
 
   fast-json-stable-stringify@2.1.0: {}
 
@@ -2261,6 +2342,7 @@ snapshots:
   fd-slicer@1.1.0:
     dependencies:
       pend: 1.2.0
+    optional: true
 
   file-entry-cache@6.0.1:
     dependencies:
@@ -2325,6 +2407,9 @@ snapshots:
 
   fs.realpath@1.0.0: {}
 
+  fsevents@2.3.2:
+    optional: true
+
   fsevents@2.3.3:
     optional: true
 
@@ -2353,6 +2438,7 @@ snapshots:
   get-stream@5.2.0:
     dependencies:
       pump: 3.0.3
+    optional: true
 
   get-uri@6.0.5:
     dependencies:
@@ -2361,6 +2447,7 @@ snapshots:
       debug: 4.4.3(supports-color@5.5.0)
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   glob-parent@5.1.2:
     dependencies:
@@ -2475,11 +2562,13 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  ip-address@10.1.0: {}
+  ip-address@10.1.0:
+    optional: true
 
   ipaddr.js@1.9.1: {}
 
-  is-arrayish@0.2.1: {}
+  is-arrayish@0.2.1:
+    optional: true
 
   is-binary-path@2.1.0:
     dependencies:
@@ -2511,7 +2600,8 @@ snapshots:
 
   isobject@3.0.1: {}
 
-  js-tokens@4.0.0: {}
+  js-tokens@4.0.0:
+    optional: true
 
   js-yaml@4.1.1:
     dependencies:
@@ -2546,7 +2636,8 @@ snapshots:
 
   json-buffer@3.0.1: {}
 
-  json-parse-even-better-errors@2.3.1: {}
+  json-parse-even-better-errors@2.3.1:
+    optional: true
 
   json-schema-traverse@0.4.1: {}
 
@@ -2579,7 +2670,8 @@ snapshots:
       prelude-ls: 1.2.1
       type-check: 0.4.0
 
-  lines-and-columns@1.2.4: {}
+  lines-and-columns@1.2.4:
+    optional: true
 
   locate-path@6.0.0:
     dependencies:
@@ -2589,7 +2681,8 @@ snapshots:
 
   lru-cache@10.4.3: {}
 
-  lru-cache@7.18.3: {}
+  lru-cache@7.18.3:
+    optional: true
 
   math-intrinsics@1.1.0: {}
 
@@ -2625,7 +2718,8 @@ snapshots:
     dependencies:
       brace-expansion: 1.1.12
 
-  mitt@3.0.1: {}
+  mitt@3.0.1:
+    optional: true
 
   mixin-object@2.0.1:
     dependencies:
@@ -2640,7 +2734,8 @@ snapshots:
 
   negotiator@0.6.3: {}
 
-  netmask@2.0.2: {}
+  netmask@2.0.2:
+    optional: true
 
   node-fetch@2.7.0:
     dependencies:
@@ -2712,11 +2807,13 @@ snapshots:
       socks-proxy-agent: 8.0.5
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   pac-resolver@7.0.1:
     dependencies:
       degenerator: 5.0.1
       netmask: 2.0.2
+    optional: true
 
   parent-module@1.0.1:
     dependencies:
@@ -2728,6 +2825,7 @@ snapshots:
       error-ex: 1.3.4
       json-parse-even-better-errors: 2.3.1
       lines-and-columns: 1.2.4
+    optional: true
 
   parse5-htmlparser2-tree-adapter@7.1.0:
     dependencies:
@@ -2752,15 +2850,35 @@ snapshots:
 
   path-to-regexp@0.1.12: {}
 
-  pend@1.2.0: {}
+  pend@1.2.0:
+    optional: true
 
-  picocolors@1.1.1: {}
+  picocolors@1.1.1:
+    optional: true
 
   picomatch@2.3.1: {}
 
+  playwright-core@1.58.0: {}
+
+  playwright-extra@4.3.6(playwright-core@1.58.0)(playwright@1.58.0):
+    dependencies:
+      debug: 4.4.3(supports-color@5.5.0)
+    optionalDependencies:
+      playwright: 1.58.0
+      playwright-core: 1.58.0
+    transitivePeerDependencies:
+      - supports-color
+
+  playwright@1.58.0:
+    dependencies:
+      playwright-core: 1.58.0
+    optionalDependencies:
+      fsevents: 2.3.2
+
   prelude-ls@1.2.1: {}
 
-  progress@2.0.3: {}
+  progress@2.0.3:
+    optional: true
 
   proxy-addr@2.0.7:
     dependencies:
@@ -2779,6 +2897,7 @@ snapshots:
       socks-proxy-agent: 8.0.5
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   proxy-from-env@1.1.0: {}
 
@@ -2788,6 +2907,7 @@ snapshots:
     dependencies:
       end-of-stream: 1.4.5
       once: 1.4.0
+    optional: true
 
   punycode@2.3.1: {}
 
@@ -2807,45 +2927,50 @@ snapshots:
       - react-native-b4a
       - supports-color
       - utf-8-validate
+    optional: true
 
-  puppeteer-extra-plugin-stealth@2.11.2(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0)):
+  puppeteer-extra-plugin-stealth@2.11.2(playwright-extra@4.3.6(playwright-core@1.58.0)(playwright@1.58.0))(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0)):
     dependencies:
       debug: 4.4.3(supports-color@5.5.0)
-      puppeteer-extra-plugin: 3.2.3(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0))
-      puppeteer-extra-plugin-user-preferences: 2.4.1(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0))
+      puppeteer-extra-plugin: 3.2.3(playwright-extra@4.3.6(playwright-core@1.58.0)(playwright@1.58.0))(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0))
+      puppeteer-extra-plugin-user-preferences: 2.4.1(playwright-extra@4.3.6(playwright-core@1.58.0)(playwright@1.58.0))(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0))
     optionalDependencies:
+      playwright-extra: 4.3.6(playwright-core@1.58.0)(playwright@1.58.0)
       puppeteer-extra: 3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0)
     transitivePeerDependencies:
       - supports-color
 
-  puppeteer-extra-plugin-user-data-dir@2.4.1(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0)):
+  puppeteer-extra-plugin-user-data-dir@2.4.1(playwright-extra@4.3.6(playwright-core@1.58.0)(playwright@1.58.0))(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0)):
     dependencies:
       debug: 4.4.3(supports-color@5.5.0)
       fs-extra: 10.1.0
-      puppeteer-extra-plugin: 3.2.3(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0))
+      puppeteer-extra-plugin: 3.2.3(playwright-extra@4.3.6(playwright-core@1.58.0)(playwright@1.58.0))(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0))
       rimraf: 3.0.2
     optionalDependencies:
+      playwright-extra: 4.3.6(playwright-core@1.58.0)(playwright@1.58.0)
       puppeteer-extra: 3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0)
     transitivePeerDependencies:
       - supports-color
 
-  puppeteer-extra-plugin-user-preferences@2.4.1(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0)):
+  puppeteer-extra-plugin-user-preferences@2.4.1(playwright-extra@4.3.6(playwright-core@1.58.0)(playwright@1.58.0))(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0)):
     dependencies:
       debug: 4.4.3(supports-color@5.5.0)
       deepmerge: 4.3.1
-      puppeteer-extra-plugin: 3.2.3(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0))
-      puppeteer-extra-plugin-user-data-dir: 2.4.1(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0))
+      puppeteer-extra-plugin: 3.2.3(playwright-extra@4.3.6(playwright-core@1.58.0)(playwright@1.58.0))(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0))
+      puppeteer-extra-plugin-user-data-dir: 2.4.1(playwright-extra@4.3.6(playwright-core@1.58.0)(playwright@1.58.0))(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0))
     optionalDependencies:
+      playwright-extra: 4.3.6(playwright-core@1.58.0)(playwright@1.58.0)
       puppeteer-extra: 3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0)
     transitivePeerDependencies:
       - supports-color
 
-  puppeteer-extra-plugin@3.2.3(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0)):
+  puppeteer-extra-plugin@3.2.3(playwright-extra@4.3.6(playwright-core@1.58.0)(playwright@1.58.0))(puppeteer-extra@3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0)):
     dependencies:
       '@types/debug': 4.1.12
       debug: 4.4.3(supports-color@5.5.0)
       merge-deep: 3.0.3
     optionalDependencies:
+      playwright-extra: 4.3.6(playwright-core@1.58.0)(playwright@1.58.0)
       puppeteer-extra: 3.3.6(puppeteer-core@24.34.0)(puppeteer@24.34.0)
     transitivePeerDependencies:
       - supports-color
@@ -2860,6 +2985,7 @@ snapshots:
       puppeteer-core: 24.34.0
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   puppeteer@24.34.0:
     dependencies:
@@ -2877,6 +3003,7 @@ snapshots:
       - supports-color
       - typescript
       - utf-8-validate
+    optional: true
 
   qs@6.14.0:
     dependencies:
@@ -2903,6 +3030,8 @@ snapshots:
   readdirp@3.6.0:
     dependencies:
       picomatch: 2.3.1
+
+  redoc-express@2.1.3: {}
 
   require-directory@2.1.1: {}
 
@@ -3004,7 +3133,8 @@ snapshots:
     dependencies:
       semver: 7.7.3
 
-  smart-buffer@4.2.0: {}
+  smart-buffer@4.2.0:
+    optional: true
 
   socks-proxy-agent@8.0.5:
     dependencies:
@@ -3013,11 +3143,13 @@ snapshots:
       socks: 2.8.7
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   socks@2.8.7:
     dependencies:
       ip-address: 10.1.0
       smart-buffer: 4.2.0
+    optional: true
 
   source-map@0.6.1:
     optional: true
@@ -3032,6 +3164,7 @@ snapshots:
     transitivePeerDependencies:
       - bare-abort-controller
       - react-native-b4a
+    optional: true
 
   string-similarity@4.0.4: {}
 
@@ -3055,6 +3188,15 @@ snapshots:
     dependencies:
       has-flag: 4.0.0
 
+  swagger-ui-dist@5.31.0:
+    dependencies:
+      '@scarf/scarf': 1.4.0
+
+  swagger-ui-express@5.0.1(express@4.22.1):
+    dependencies:
+      express: 4.22.1
+      swagger-ui-dist: 5.31.0
+
   symbol-tree@3.2.4: {}
 
   tar-fs@3.1.1:
@@ -3068,6 +3210,7 @@ snapshots:
       - bare-abort-controller
       - bare-buffer
       - react-native-b4a
+    optional: true
 
   tar-stream@3.1.7:
     dependencies:
@@ -3077,12 +3220,14 @@ snapshots:
     transitivePeerDependencies:
       - bare-abort-controller
       - react-native-b4a
+    optional: true
 
   text-decoder@1.2.3:
     dependencies:
       b4a: 1.7.3
     transitivePeerDependencies:
       - react-native-b4a
+    optional: true
 
   text-table@0.2.0: {}
 
@@ -3110,7 +3255,8 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
-  tslib@2.8.1: {}
+  tslib@2.8.1:
+    optional: true
 
   ttl-cache@1.0.2: {}
 
@@ -3131,7 +3277,8 @@ snapshots:
       media-typer: 1.1.0
       mime-types: 3.0.2
 
-  typed-query-selector@2.12.0: {}
+  typed-query-selector@2.12.0:
+    optional: true
 
   undefsafe@2.0.5: {}
 
@@ -3156,7 +3303,8 @@ snapshots:
     dependencies:
       xml-name-validator: 5.0.0
 
-  webdriver-bidi-protocol@0.3.10: {}
+  webdriver-bidi-protocol@0.3.10:
+    optional: true
 
   webidl-conversions@3.0.1: {}
 
@@ -3216,9 +3364,11 @@ snapshots:
     dependencies:
       buffer-crc32: 0.2.13
       fd-slicer: 1.1.0
+    optional: true
 
   yocto-queue@0.1.0: {}
 
   yocto-queue@1.2.2: {}
 
-  zod@3.25.76: {}
+  zod@3.25.76:
+    optional: true

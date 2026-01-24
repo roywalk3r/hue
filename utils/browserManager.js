@@ -9,7 +9,7 @@ let browserInstance = null;
 let firefoxInstance = null;
 
 // Semaphore for concurrency control
-const MAX_GLOBAL_CONCURRENT_PAGES = process.env.MAX_CONCURRENT_PAGES ? parseInt(process.env.MAX_CONCURRENT_PAGES) : 5;
+const MAX_GLOBAL_CONCURRENT_PAGES = process.env.MAX_CONCURRENT_PAGES ? parseInt(process.env.MAX_CONCURRENT_PAGES) : 10;
 const queue = [];
 let activePages = 0;
 
@@ -66,7 +66,11 @@ async function getBrowser(type = 'chromium') {
             '--disable-breakpad',
             '--disable-component-extensions-with-background-pages',
             '--disable-ipc-flooding-protection',
-            '--disable-renderer-backgrounding'
+            '--disable-renderer-backgrounding',
+            '--disable-notifications',
+            '--disable-popup-blocking',
+            '--no-first-run',
+            '--no-default-browser-check'
         ];
         const mergedArgs = Array.from(new Set([...(baseOptions.args || []), ...extraArgs]));
         browserInstance = await chromium.launch({ ...baseOptions, args: mergedArgs });

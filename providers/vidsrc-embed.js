@@ -19,6 +19,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     page = await getNewPage({ browserType: 'firefox' });
     
     let hlsUrl = null;
+    let hlsHeaders = {};
     const subtitles = [];
 
     // Capture the M3U8 from network traffic
@@ -28,6 +29,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
       if (u.includes('.m3u8') && !u.includes('{v')) {
         if (!hlsUrl) {
             hlsUrl = u;
+            hlsHeaders = req.headers(); // Capture actual headers used
             console.log(`[VidsrcEmbed] Captured HLS: ${u.substring(0, 60)}...`);
         }
       }
@@ -67,15 +69,23 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     }
 
     if (hlsUrl) {
+      // Clean headers (remove pseudo-headers starting with :)
+      const cleanHeaders = {};
+      for (const [k, v] of Object.entries(hlsHeaders)) {
+          if (!k.startsWith(':')) cleanHeaders[k] = v;
+      }
+      
+      // Ensure User-Agent is present
+      if (!cleanHeaders['user-agent']) cleanHeaders['user-agent'] = UA;
+      // Ensure Referer is present (default to cloudnestra if missing)
+      if (!cleanHeaders['referer']) cleanHeaders['referer'] = "https://cloudnestra.com/";
+
       return [{
         url: hlsUrl,
         quality: "Auto",
         provider: "VidsrcEmbed",
         subtitles: subtitles.length > 0 ? subtitles : undefined,
-        headers: { 
-            "Referer": "https://cloudnestra.com/", 
-            "User-Agent": UA 
-        }
+        headers: cleanHeaders
       }];
     }
   } catch (error) {
