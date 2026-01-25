@@ -483,13 +483,8 @@ async function getStreamsDirect(title, episode, season = 1) {
             const url = request.url();
             const isVideo = (url.includes(".mp4") || url.includes(".m3u8") || url.includes("hakunaymatata.com") || url.includes("lightningbolt.site") || url.includes("vidbox.site") || url.includes(".m3u8?")) 
                             && !url.includes("/subtitle/") && !url.includes(".vtt") && !url.includes(".srt")
-                            && !url.includes("aoneroom.com") && !url.includes("macdn"); // Exclude trailers
+                            && !url.includes("aoneroom.com") && !url.includes("macdn");
             
-            // Debug: Log potential candidates we might be missing
-            if (url.includes('.m3u8') || url.includes('.mp4') || url.includes('master.txt')) {
-                console.log(`[SFlix-Debug] Saw video-like URL: ${url}`);
-            }
-
             if (isVideo && !url.includes("image/") && !url.includes("banner") && !url.includes("logo") && !url.includes(".js") && !url.includes(".css")) capturedUrls.video.add(url);
             if (url.includes(".vtt") || url.includes(".srt") || url.includes("/subtitle/")) capturedUrls.subtitles.add(url);
         });
@@ -589,9 +584,6 @@ async function getStreamsBySlug(id, slug, episode, season = 1) {
     
     try {
         context = await getNewContext();
-        const page = await context.newPage();
-        const capturedUrls = { video: new Set(), subtitles: new Set() };
-        
         page.on("request", (request) => {
             const url = request.url();
             const isVideo = (url.includes(".mp4") || url.includes(".m3u8") || url.includes("hakunaymatata.com") || url.includes("lightningbolt.site") || url.includes("vidbox.site") || url.includes(".m3u8?")) 
@@ -601,9 +593,6 @@ async function getStreamsBySlug(id, slug, episode, season = 1) {
             if (isVideo && !url.includes("image/") && !url.includes("banner") && !url.includes("logo") && !url.includes(".js") && !url.includes(".css")) capturedUrls.video.add(url);
             if (url.includes(".vtt") || url.includes(".srt") || url.includes("/subtitle/")) capturedUrls.subtitles.add(url);
         });
-
-        // Use Detail Page Navigation -> Click Watch
-        const detailUrl = `${BASE_URL}/detail/${slug}?id=${id}`;
         
         console.log(`[SFlix] Navigating to detail page: ${detailUrl}`);
         await page.goto(detailUrl, { waitUntil: "domcontentloaded", timeout: 60000 });

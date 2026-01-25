@@ -7,9 +7,10 @@ chromium.use(StealthPlugin());
 
 let browserInstance = null;
 let firefoxInstance = null;
+let launchMutex = Promise.resolve();
 
 // Semaphore for concurrency control
-const MAX_GLOBAL_CONCURRENT_PAGES = process.env.MAX_CONCURRENT_PAGES ? parseInt(process.env.MAX_CONCURRENT_PAGES) : 15;
+const MAX_GLOBAL_CONCURRENT_PAGES = process.env.MAX_CONCURRENT_PAGES ? parseInt(process.env.MAX_CONCURRENT_PAGES) : 5;
 const queue = [];
 let activePages = 0;
 
@@ -31,6 +32,20 @@ function releasePageSlot() {
 }
 
 async function getBrowser(type = 'chromium') {
+    // Lock the launch process so only one browser spawns at a time
+    return new Promise((resolve, reject) => {
+        launchMutex = launchMutex.then(async () => {
+            try {
+                const browser = await _getBrowserInternal(type);
+                resolve(browser);
+            } catch (e) {
+                reject(e);
+            }
+        });
+    });
+}
+
+async function _getBrowserInternal(type = 'chromium') {
     const headless = process.env.BROWSER_HEADLESS !== 'false';
 
     if (type === 'firefox') {

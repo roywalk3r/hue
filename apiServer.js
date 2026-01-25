@@ -493,9 +493,9 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
     }
     
     // EXCLUDE specialized Asian drama providers from general aggregation
-    const dramaProviders = ['kisskh', 'dramacool'];
+    const dramaProviders = ['kisskh', 'dramacool', 'zenith', 'orient'];
     const selectedProviders = (config.defaultProviders.length ? config.defaultProviders : listProviders().map(p=>p.name))
-        .filter(name => !dramaProviders.includes(name));
+        .filter(name => !dramaProviders.includes(name.toLowerCase()));
 
     const providerTimings = {};
     const streamsResults = [];
