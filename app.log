@@ -513,3 +513,8 @@
 [2026-01-25T20:51:25.218Z] [INFO] [api] fetching streams for tmdbId=1242898 (Smart Wait: 15s)
 [2026-01-25T20:51:32.635Z] [INFO] [api] all providers completed within deadline for 1242898
 [2026-01-25T20:57:30.146Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T21:00:52.004Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T21:02:04.369Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T21:03:31.543Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T21:13:02.441Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T21:13:09.241Z] [INFO] [request] GET /api/health from 12ca17b4

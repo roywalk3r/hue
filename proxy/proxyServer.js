@@ -31,35 +31,46 @@ const httpsAgentV4 = new https.Agent({ family: 4, keepAlive: true, maxSockets: 1
 // Retry configuration for fetch operations
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 500;
-const FETCH_TIMEOUT_MS = 40000; 
+const FETCH_TIMEOUT_MS = 60000; 
 
 // Helper function to fetch with retry logic
 async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
     let host = '';
     const isSegment = /\.(ts|m4s|mp4|mkv|m4v|m4a|fmp4)(\?|$)/i.test(url) || url.includes('/resource/') || url.includes('/bt/');
-    // Prevent fetching localhost or internal IPs
+    
     try {
         const u = new URL(url);
         host = u.hostname.toLowerCase();
         if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host.startsWith('192.168.') || host.startsWith('10.')) {
             throw new Error(`Blocked internal/local URL: ${url}`);
         }
-        
-        // Add browser-like headers for common CDNs and redirectors
-        const highReputationDomains = ['redirector', 'cdnsync', 'quibble', 'lightning', 'cdnvideo', 'embedload', 'bunny', 'hakunaymatata', 'vidhide', 'stream', 'load', 'vidbox', 'lightningbolt'];
-        if (highReputationDomains.some(d => host.includes(d))) {
+    } catch(e) {
+        if (e.message.includes('Blocked')) throw e;
+    }
+
+    // Calculate dynamic timeout based on domain and type
+    const slowDomains = ['redirector', 'cdnsync', 'quibble', 'lightning', 'cdnvideo', 'embedload', 'bunny', 'hakunaymatata', 'vidhide', 'stream', 'load', 'vidbox', 'lightningbolt', 'vixsrc'];
+    const isSlowDomain = slowDomains.some(d => host.includes(d));
+    
+    let baseTimeout = FETCH_TIMEOUT_MS;
+    if (isSegment) baseTimeout = 120000;
+    else if (isSlowDomain) baseTimeout = 60000;
+
+    // Use the larger of the calculated timeout and the requested timeout
+    const finalTimeout = Math.max(baseTimeout, options.timeout || 0);
+    
+    // Auto-headers for streaming
+    try {
+        if (isSlowDomain && !url.includes('/api/')) {
             if (!options.headers) options.headers = {};
             options.headers['Cache-Control'] = 'no-cache';
             options.headers['Connection'] = 'keep-alive';
         }
-    } catch (e) {
-        if (e.message.includes('Blocked')) throw e;
-    }
+    } catch (e) {}
 
-    const baseTimeout = isSegment ? 120000 : (host.includes('redirector') || host.includes('cdnsync') || host.includes('cdnvideo') || host.includes('hakunaymatata') || host.includes('vixsrc') ? 45000 : (options.timeout || FETCH_TIMEOUT_MS));
     const actualRetries = isSegment ? 1 : maxRetries;
 
-    // Force IPv4 for known problematic CDNs on first attempt (IPv6 often unreachable)
+    // Force IPv4 for known problematic CDNs on first attempt
     const forceIPv4 = host.includes('redirector') || 
                       host.includes('cdnsync') || 
                       host.includes('quibble') || 
@@ -95,10 +106,10 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
                 }
             }
             
-            const res = await fetch(url, { ...fetchOptions, timeout: baseTimeout });
+            const res = await fetch(url, { ...fetchOptions, timeout: finalTimeout });
             const duration = Date.now() - t0;
             
-            if (isSegment && duration > 5000) {
+            if (isSegment && duration > 10000) {
                 console.log(`[fetch] Slow segment (${duration}ms): ${url}`);
             }
             
@@ -106,7 +117,7 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
         } catch (error) {
             lastError = error;
             if (error.name === 'AbortError' || error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
-                console.warn(`[fetch] Timeout on ${url} (Attempt ${attempt}/${actualRetries}, timeout: ${baseTimeout}ms)`);
+                console.warn(`[fetch] Timeout on ${url} (Attempt ${attempt}/${actualRetries}, timeout: ${finalTimeout}ms)`);
             }
             if (attempt >= actualRetries) throw error;
             await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt));
@@ -928,12 +939,12 @@ function createProxyRoutes(app) {
             let currentUrl = targetUrl;
             let redirectCount = 0;
             const maxRedirects = 3; // Segments shouldn't redirect much
-            const isSegment = /\.(ts|m4s|mp4|mkv)$/i.test(targetUrl.split('?')[0]);
+            const isSegment = /\.(ts|m4s|mp4|mkv|m4v|m4a|fmp4)(\?|$)/i.test(targetUrl) || targetUrl.includes('/resource/') || targetUrl.includes('/bt/');
 
             while (redirectCount <= maxRedirects) {
                 resp = await fetchWithRetry(currentUrl, { 
                     ...upstreamOptions, 
-                    timeout: 15000 
+                    timeout: isSegment ? 120000 : 45000 
                 });
 
                 if (resp.status >= 300 && resp.status < 400) {
