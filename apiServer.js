@@ -648,6 +648,17 @@ app.get('/api/hitv/trending', async (req, res) => {
     }
 });
 
+app.get('/api/hitv/search', async (req, res) => {
+    const q = req.query.q;
+    if (!q) return res.status(400).json({ success: false, error: 'Query required' });
+    try {
+        const data = await hitvApi.searchHiTv(q);
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 app.get('/api/hitv/countries', (req, res) => {
     res.json(hitvApi.getHiTvCountries());
 });
@@ -681,30 +692,61 @@ app.get('/api/hitv/info/:id', async (req, res) => {
 // So I will fix the declaration.
 
 const kisskhDirect = require('./providers/kisskh');
+const sflixDirect = require('./providers/sflix');
 
 app.get('/api/hitv/play/:id/:episode', async (req, res) => {
     const { id, episode } = req.params;
     try {
-        // 1. Get Title from HiTV ID
-        const info = await hitvApi.getHiTvDetail(id);
-        if (!info || !info.title) {
-            return res.status(404).json({ success: false, error: 'Show not found' });
+        // 1. Check Cache
+        // We use a custom type 'hitv' for caching since we lack TMDB ID
+        const cached = getCachedStreams('hitv', id, 1, episode);
+        if (cached && cached.length > 0) {
+            console.log(`[HiTV-Play] Returning cached streams for ${id} Ep ${episode}`);
+            let finalStreams = cached;
+            if (config.enableProxy) {
+                const serverUrl = resolveServerUrl(req);
+                finalStreams = processStreamsForProxy(finalStreams, serverUrl);
+            }
+            return res.json({ success: true, source: 'cache', episode, streams: finalStreams });
         }
 
-        console.log(`[HiTV-Play] Mapping "${info.title}" Ep ${episode} to providers...`);
-
-        // 2. Try Zenith (KissKH) - The KDrama Specialist
-        let streams = await kisskhDirect.getStreamsDirect(info.title, episode); // KissKH search uses title
+        // 2. Resolve Title
+        // Use query param 'title' if provided (most reliable), otherwise fetch from HiTV API
+        let targetTitle = req.query.title;
         
-        // 3. Fallback to SFlix (Nova) if empty
-        if (!streams || streams.length === 0) {
-             console.log(`[HiTV-Play] Zenith failed, trying Nova (SFlix)...`);
-             // SFlix requires TMDB ID usually, but we can try search. 
-             // Since SFlix provider structure expects TMDB ID, we might skip it for now or implement a search-based fetch.
-             // For now, let's stick to Zenith which we just upgraded to be robust.
+        if (!targetTitle) {
+            const info = await hitvApi.getHiTvDetail(id);
+            if (info && info.title && info.title !== "Unknown") {
+                targetTitle = info.title;
+            }
         }
 
-        // 4. Proxy if enabled
+        if (!targetTitle || targetTitle === "Unknown") {
+            return res.status(404).json({ success: false, error: 'Show title not found. Please provide ?title= param.' });
+        }
+
+        console.log(`[HiTV-Play] Mapping "${targetTitle}" Ep ${episode} to providers...`);
+
+        // 3. Parallel Fetch from Zenith (KissKH) and Nova (SFlix)
+        const [kissStreams, sflixStreams] = await Promise.all([
+            kisskhDirect.getStreamsDirect(targetTitle, episode).catch(e => {
+                console.error(`[HiTV] Zenith failed: ${e.message}`);
+                return [];
+            }),
+            sflixDirect.getStreamsDirect(targetTitle, episode, 1).catch(e => {
+                console.error(`[HiTV] Nova failed: ${e.message}`);
+                return [];
+            })
+        ]);
+
+        let streams = [...kissStreams, ...sflixStreams];
+        
+        // 4. Cache Results
+        if (streams.length > 0) {
+            addCachedStreams('hitv', id, 1, episode, streams);
+        }
+
+        // 5. Proxy
         if (config.enableProxy) {
             const serverUrl = resolveServerUrl(req);
             streams = processStreamsForProxy(streams, serverUrl);
@@ -712,7 +754,7 @@ app.get('/api/hitv/play/:id/:episode', async (req, res) => {
 
         res.json({
             success: true,
-            title: info.title,
+            title: targetTitle,
             episode,
             streams
         });
