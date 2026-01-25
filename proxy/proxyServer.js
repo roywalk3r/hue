@@ -59,7 +59,7 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
         if (e.message.includes('Blocked')) throw e;
     }
 
-    const baseTimeout = isSegment ? 25000 : (host.includes('redirector') || host.includes('cdnsync') ? 15000 : (options.timeout || FETCH_TIMEOUT_MS));
+    const baseTimeout = isSegment ? 25000 : (host.includes('redirector') || host.includes('cdnsync') || host.includes('cdnvideo') ? 30000 : (options.timeout || FETCH_TIMEOUT_MS));
     const actualRetries = isSegment ? 1 : maxRetries;
 
     // Force IPv4 for known problematic CDNs on first attempt (IPv6 often unreachable)
