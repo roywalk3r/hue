@@ -4,3 +4,5 @@ restart.trigger
 *.log
 app.log.old
 *.txt
+.gemini/
+gha-creds-*.json

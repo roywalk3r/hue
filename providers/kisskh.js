@@ -228,9 +228,23 @@ async function getKissKhStreams(tmdbId, mediaType, season, episode) {
     }
 }
 
-async function getStreamsDirect(showId, episodeNumber) {
-    console.log(`[KissKH] Fetching streams for Show ID: ${showId} Episode ${episodeNumber}`);
+async function getStreamsDirect(idOrTitle, episodeNumber) {
+    console.log(`[KissKH] Smart Fetch for: "${idOrTitle}" Episode ${episodeNumber}`);
+    let showId = idOrTitle;
+
     try {
+        // If input is NOT a number, assume it's a title and search for the ID
+        if (isNaN(parseInt(idOrTitle))) {
+            console.log(`[KissKH] Resolving title "${idOrTitle}" to ID...`);
+            const show = await searchShow(idOrTitle);
+            if (!show) {
+                console.log(`[KissKH] Title not found: ${idOrTitle}`);
+                return [];
+            }
+            showId = show.id;
+            console.log(`[KissKH] Resolved "${idOrTitle}" -> ID ${showId}`);
+        }
+
         const epNum = parseInt(episodeNumber || "1");
         const episodeId = await getEpisodeId(showId, epNum);
         if (!episodeId) return [];

@@ -61,8 +61,19 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
     const baseTimeout = isSegment ? 25000 : (host.includes('redirector') || host.includes('cdnsync') ? 15000 : (options.timeout || FETCH_TIMEOUT_MS));
     const actualRetries = isSegment ? 1 : maxRetries;
 
+    // Force IPv4 for known problematic CDNs on first attempt (IPv6 often unreachable)
+    const forceIPv4 = host.includes('redirector') || 
+                      host.includes('cdnsync') || 
+                      host.includes('quibble') || 
+                      host.includes('lightning') ||
+                      host.includes('videodelivery') ||
+                      host.includes('cdnvideo');
+
     const fetchOptions = {
         ...options,
+        agent: options.agent || (forceIPv4 
+            ? ((parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgentV4 : httpsAgentV4))
+            : ((parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgent : httpsAgent))),
         compress: true 
     };
     
@@ -71,16 +82,16 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
         try {
             const t0 = Date.now();
             
-            // Force User-Agent rotation
-            if (!fetchOptions.headers) fetchOptions.headers = {};
-            fetchOptions.headers['User-Agent'] = attempt % 2 === 0 ? FALLBACK_UA : DEFAULT_UA;
-
-            // STRATEGY:
-            // 1st attempt: Try default (usually IPv6 preferred if available)
-            // 2nd+ attempt: Force IPv4 to bypass VPS routing hangups
-            fetchOptions.agent = (attempt > 1) 
-                ? ((parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgentV4 : httpsAgentV4))
-                : ((parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgent : httpsAgent));
+            // On retry attempts, rotate User-Agent (IPv4 already forced for CDNs on first attempt)
+            if (attempt > 1) {
+                if (!fetchOptions.headers) fetchOptions.headers = {};
+                fetchOptions.headers['User-Agent'] = attempt % 2 === 0 ? FALLBACK_UA : DEFAULT_UA;
+                
+                // If not forced initially but failed, force IPv4 on retry for everyone else
+                if (!forceIPv4) {
+                    fetchOptions.agent = (parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgentV4 : httpsAgentV4);
+                }
+            }
             
             const res = await fetch(url, { ...fetchOptions, timeout: baseTimeout });
             const duration = Date.now() - t0;

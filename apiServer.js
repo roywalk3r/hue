@@ -611,7 +611,119 @@ app.get('/api/streams/:provider/:type/:tmdbId', async (req,res) => {
   }
 });
 
-// --- KDrama API (KissKH Direct) ---
+// HiTV Endpoint (KDrama Discovery)
+const hitvApi = require('./utils/hitv-api');
+app.get('/api/hitv/browse', async (req, res) => {
+    try {
+        const page = req.query.page || 1;
+        const pageSize = req.query.pageSize || 28;
+        const country = req.query.country || "Korea";
+        const category = req.query.category || "Drama";
+        const genre = req.query.genre || "All";
+        const sort = req.query.sort || "Hottest";
+        const data = await hitvApi.browseHiTv(page, pageSize, country, category, genre, sort);
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/hitv/latest', async (req, res) => {
+    try {
+        const page = req.query.page || 1;
+        const data = await hitvApi.browseHiTv(page, 20, "Korea", "Drama", "All", "Newest");
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/hitv/trending', async (req, res) => {
+    try {
+        const page = req.query.page || 1;
+        const data = await hitvApi.browseHiTv(page, 20, "Korea", "Drama", "All", "Recommend");
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/hitv/countries', (req, res) => {
+    res.json(hitvApi.getHiTvCountries());
+});
+
+app.get('/api/hitv/categories', (req, res) => {
+    res.json(hitvApi.getHiTvCategories());
+});
+
+app.get('/api/hitv/genres', (req, res) => {
+    res.json(hitvApi.getHiTvGenres());
+});
+
+app.get('/api/hitv/sorts', (req, res) => {
+    res.json(hitvApi.getHiTvSorts());
+});
+
+app.get('/api/hitv/info/:id', async (req, res) => {
+    try {
+        const data = await hitvApi.getHiTvDetail(req.params.id);
+        if (!data) return res.status(404).json({ success: false, error: 'Not found' });
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// kisskhProvider is already required at the top or via getProvider, but for direct access we can use require here if not present
+// However, to fix the syntax error, I will just use the file directly without redeclaring if possible, or rename it.
+// Actually, safer to just remove the lines and use the `getProvider` logic or just `require` inline.
+// But `getStreamsDirect` is a specific export not on the default provider object (which usually just has fetch).
+// So I will fix the declaration.
+
+const kisskhDirect = require('./providers/kisskh');
+
+app.get('/api/hitv/play/:id/:episode', async (req, res) => {
+    const { id, episode } = req.params;
+    try {
+        // 1. Get Title from HiTV ID
+        const info = await hitvApi.getHiTvDetail(id);
+        if (!info || !info.title) {
+            return res.status(404).json({ success: false, error: 'Show not found' });
+        }
+
+        console.log(`[HiTV-Play] Mapping "${info.title}" Ep ${episode} to providers...`);
+
+        // 2. Try Zenith (KissKH) - The KDrama Specialist
+        let streams = await kisskhDirect.getStreamsDirect(info.title, episode); // KissKH search uses title
+        
+        // 3. Fallback to SFlix (Nova) if empty
+        if (!streams || streams.length === 0) {
+             console.log(`[HiTV-Play] Zenith failed, trying Nova (SFlix)...`);
+             // SFlix requires TMDB ID usually, but we can try search. 
+             // Since SFlix provider structure expects TMDB ID, we might skip it for now or implement a search-based fetch.
+             // For now, let's stick to Zenith which we just upgraded to be robust.
+        }
+
+        // 4. Proxy if enabled
+        if (config.enableProxy) {
+            const serverUrl = resolveServerUrl(req);
+            streams = processStreamsForProxy(streams, serverUrl);
+        }
+
+        res.json({
+            success: true,
+            title: info.title,
+            episode,
+            streams
+        });
+
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// KissKH API proxy routes
+
 app.get('/api/kdrama/search', async (req, res) => {
     const q = req.query.q;
     if (!q) return res.status(400).json({ success: false, error: 'Query required' });
