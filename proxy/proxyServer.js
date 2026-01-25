@@ -851,7 +851,7 @@ function createProxyRoutes(app) {
             const upstreamCT = resp.headers.get('content-type');
             const ct = inferContentType(upstreamCT, currentUrl);
             res.setHeader('Content-Type', ct);
-            const upstreamAcceptRanges = resp.headers.get('accept-ranges');
+            upstreamAcceptRanges = resp.headers.get('accept-ranges');
             res.setHeader('Accept-Ranges', upstreamAcceptRanges || 'bytes');
             const contentRange = resp.headers.get('content-range');
             if (contentRange) res.setHeader('Content-Range', contentRange);
