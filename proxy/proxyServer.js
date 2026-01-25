@@ -25,18 +25,18 @@ const httpsAgent = new https.Agent({
 });
 
 // IPv4 Forced Agents for bypassing VPS routing issues
-const httpAgentV4 = new http.Agent({ family: 4, keepAlive: true, maxSockets: 50 });
-const httpsAgentV4 = new https.Agent({ family: 4, keepAlive: true, maxSockets: 50, minVersion: 'TLSv1.2' });
+const httpAgentV4 = new http.Agent({ family: 4, keepAlive: true, maxSockets: 100 });
+const httpsAgentV4 = new https.Agent({ family: 4, keepAlive: true, maxSockets: 100, minVersion: 'TLSv1.2' });
 
 // Retry configuration for fetch operations
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 500;
-const FETCH_TIMEOUT_MS = 20000; 
+const FETCH_TIMEOUT_MS = 40000; 
 
 // Helper function to fetch with retry logic
 async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
     let host = '';
-    const isSegment = /\.(ts|m4s|mp4|mkv|m4v|m4a|fmp4)$/i.test(url.split('?')[0]);
+    const isSegment = /\.(ts|m4s|mp4|mkv|m4v|m4a|fmp4)(\?|$)/i.test(url) || url.includes('/resource/') || url.includes('/bt/');
     // Prevent fetching localhost or internal IPs
     try {
         const u = new URL(url);
@@ -46,20 +46,17 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
         }
         
         // Add browser-like headers for common CDNs and redirectors
-        const highReputationDomains = ['redirector', 'cdnsync', 'quibble', 'lightning', 'cdnvideo', 'embedload', 'bunny', 'hakunaymatata', 'vidhide', 'stream', 'load'];
+        const highReputationDomains = ['redirector', 'cdnsync', 'quibble', 'lightning', 'cdnvideo', 'embedload', 'bunny', 'hakunaymatata', 'vidhide', 'stream', 'load', 'vidbox', 'lightningbolt'];
         if (highReputationDomains.some(d => host.includes(d))) {
             if (!options.headers) options.headers = {};
             options.headers['Cache-Control'] = 'no-cache';
-            options.headers['Sec-Fetch-Mode'] = 'cors';
-            options.headers['Sec-Fetch-Site'] = 'cross-site';
-            options.headers['Sec-Fetch-Dest'] = 'empty';
-            options.headers['Accept-Language'] = 'en-US,en;q=0.9';
+            options.headers['Connection'] = 'keep-alive';
         }
     } catch (e) {
         if (e.message.includes('Blocked')) throw e;
     }
 
-    const baseTimeout = isSegment ? 60000 : (host.includes('redirector') || host.includes('cdnsync') || host.includes('cdnvideo') || host.includes('hakunaymatata') ? 40000 : (options.timeout || FETCH_TIMEOUT_MS));
+    const baseTimeout = isSegment ? 120000 : (host.includes('redirector') || host.includes('cdnsync') || host.includes('cdnvideo') || host.includes('hakunaymatata') ? 45000 : (options.timeout || FETCH_TIMEOUT_MS));
     const actualRetries = isSegment ? 1 : maxRetries;
 
     // Force IPv4 for known problematic CDNs on first attempt (IPv6 often unreachable)
@@ -70,7 +67,9 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
                       host.includes('videodelivery') ||
                       host.includes('cdnvideo') ||
                       host.includes('hakunaymatata') ||
-                      host.includes('rabbitstream');
+                      host.includes('rabbitstream') ||
+                      host.includes('vidbox') ||
+                      host.includes('lightningbolt');
 
     const fetchOptions = {
         ...options,
