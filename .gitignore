@@ -1,7 +1,9 @@
 /node_modules
 restart.trigger
 .vscode/
-app.log.old
+*.log
+*.log.old
 *.txt
 .gemini/
 gha-creds-*.json
+.env
