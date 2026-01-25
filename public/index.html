@@ -31,14 +31,26 @@
 
     <div class="container">
         <ul class="nav nav-tabs mb-4" id="searchTabs">
-            <li class="nav-item"><button class="nav-link active" data-source="tmdb">Movies & TV</button></li>
-            <li class="nav-item"><button class="nav-link" data-source="kisskh">KissKH (KDrama)</button></li>
+            <li class="nav-item"><button class="nav-link active" data-source="hitv">Discovery (KDrama)</button></li>
+            <li class="nav-item"><button class="nav-link" data-source="tmdb">Movies & TV (ID)</button></li>
+            <li class="nav-item"><button class="nav-link" data-source="kisskh">KissKH</button></li>
             <li class="nav-item"><button class="nav-link" data-source="dramacool">Dramacool</button></li>
         </ul>
 
-        <div class="input-group mb-4">
-            <input type="text" id="searchInput" class="form-control form-control-lg bg-dark text-light border-secondary" placeholder="Search for content...">
-            <button class="btn btn-primary" id="searchBtn">Search</button>
+        <div class="input-group mb-4" id="searchGroup">
+            <input type="text" id="searchInput" class="form-control form-control-lg bg-dark text-light border-secondary" placeholder="Discover KDramas or enter Title/ID...">
+            <button class="btn btn-primary" id="searchBtn">Search / Browse</button>
+        </div>
+
+        <div id="filterBar" class="mb-4 d-flex gap-2 flex-wrap">
+            <select id="genreFilter" class="form-select bg-dark text-light border-secondary w-auto">
+                <option value="All">All Genres</option>
+            </select>
+            <select id="sortFilter" class="form-select bg-dark text-light border-secondary w-auto">
+                <option value="Hottest">Hottest</option>
+                <option value="Newest">Newest</option>
+                <option value="Recommend">Trending</option>
+            </select>
         </div>
 
         <div id="loading" class="text-center my-5 d-none">
@@ -66,50 +78,73 @@
     </div>
 
     <script>
-        let currentSource = 'tmdb';
+        let currentSource = 'hitv';
         const resultsDiv = document.getElementById('results');
         const loadingDiv = document.getElementById('loading');
+
+        // Fetch Genres on Load
+        async function loadMetadata() {
+            try {
+                const res = await fetch('/api/hitv/genres');
+                const genres = await res.json();
+                const select = document.getElementById('genreFilter');
+                genres.forEach(g => {
+                    if(g === 'All') return;
+                    const opt = document.createElement('option');
+                    opt.value = g;
+                    opt.textContent = g;
+                    select.appendChild(opt);
+                });
+            } catch(e) {}
+        }
+        loadMetadata();
 
         document.querySelectorAll('#searchTabs button').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 document.querySelector('#searchTabs .active').classList.remove('active');
                 e.target.classList.add('active');
                 currentSource = e.target.dataset.source;
+                document.getElementById('filterBar').classList.toggle('d-none', currentSource !== 'hitv');
                 resultsDiv.innerHTML = ''; 
+                if(currentSource === 'hitv') performSearch(); // Auto-browse on tab switch
             });
         });
+
+        // Initial browse
+        performSearch();
 
         document.getElementById('searchBtn').addEventListener('click', performSearch);
         document.getElementById('searchInput').addEventListener('keypress', (e) => e.key === 'Enter' && performSearch());
 
         async function performSearch() {
             const q = document.getElementById('searchInput').value;
-            if (!q) return;
-
             loadingDiv.classList.remove('d-none');
             resultsDiv.innerHTML = '';
 
             try {
                 let items = [];
-                if (currentSource === 'tmdb') {
-                    // This assumes you might want to use a public TMDB search or add a search proxy later.
-                    // For now, since the API doesn't have a generic TMDB search, we'll simulate or use KDrama endpoints for demo.
-                    // Actually, let's use the Dramacool/KissKH logic since they are fully implemented proxies.
-                    // For TMDB, the user usually inputs an ID. Let's make this clear.
-                    if(!isNaN(q)) { // If numeric, assume ID direct lookup
-                         // Only for direct stream testing
-                         alert('For TMDB, please use the API directly with an ID for now, or browse Dramas.');
+                if (currentSource === 'hitv') {
+                    if (q) {
+                        const res = await fetch(`/api/hitv/search?q=${encodeURIComponent(q)}`);
+                        const data = await res.json();
+                        items = data.items || [];
+                    } else {
+                        const genre = document.getElementById('genreFilter').value;
+                        const sort = document.getElementById('sortFilter').value;
+                        const res = await fetch(`/api/hitv/browse?genre=${genre}&sort=${sort}&pageSize=28`);
+                        const data = await res.json();
+                        items = data.items || [];
+                    }
+                } else if (currentSource === 'tmdb') {
+                    if(!isNaN(q) && q.length > 0) { 
+                         loadStreams(q, 'TMDB Content');
                          loadingDiv.classList.add('d-none');
                          return;
                     }
-                    // Fallback to KDrama for demo
-                    alert('TMDB Search UI not implemented. Switching to KissKH.');
-                    currentSource = 'kisskh';
-                    document.querySelector('[data-source="kisskh"]').click();
-                    return performSearch();
-                } 
-                
-                if (currentSource === 'kisskh') {
+                    alert('Please enter a TMDB ID (e.g. 1434 for Family Guy)');
+                    loadingDiv.classList.add('d-none');
+                    return;
+                } else if (currentSource === 'kisskh') {
                     const res = await fetch(`/api/kdrama/search?q=${encodeURIComponent(q)}`);
                     const data = await res.json();
                     items = data.results || [];
@@ -137,10 +172,13 @@
             resultsDiv.innerHTML = items.map(item => `
                 <div class="col-6 col-md-4 col-lg-3">
                     <div class="card h-100 cursor-pointer" onclick="loadStreams('${item.id}', '${item.title.replace(/'/g, "")}')">
-                        <img src="${item.thumbnail || item.image || 'https://via.placeholder.com/300x450?text=No+Image'}" class="poster card-img-top" alt="${item.title}">
+                        <img src="${item.cover || item.thumbnail || item.image || 'https://via.placeholder.com/300x450?text=No+Image'}" class="poster card-img-top" alt="${item.title}">
                         <div class="card-body p-2">
                             <h6 class="card-title text-truncate small mb-0">${item.title}</h6>
-                            <small class="text-muted">${item.releaseYear || ''}</small>
+                            <div class="d-flex justify-content-between align-items-center mt-1">
+                                <small class="text-muted">${item.rating || ''} ⭐</small>
+                                <small class="text-muted" style="font-size: 0.7rem;">${item.releaseDate ? item.releaseDate.split('-')[0] : ''}</small>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -153,16 +191,20 @@
             
             const list = document.getElementById('streamList');
             const loader = document.getElementById('modalLoading');
+            const modalTitle = document.querySelector('.modal-title');
             list.innerHTML = '';
             loader.classList.remove('d-none');
+            modalTitle.textContent = `Streams for ${title}`;
 
             try {
                 // Default to episode 1 for demo
                 const ep = prompt(`Enter Episode Number for "${title}"`, "1") || 1;
                 
                 let url;
-                if (currentSource === 'kisskh') url = `/api/kdrama/streams/${id}/${ep}`;
-                if (currentSource === 'dramacool') url = `/api/dramacool/browse/streams/${id}/${ep}`;
+                if (currentSource === 'hitv') url = `/api/hitv/play/${id}/${ep}?title=${encodeURIComponent(title)}`;
+                else if (currentSource === 'tmdb') url = `/api/streams/series/${id}?season=1&episode=${ep}`;
+                else if (currentSource === 'kisskh') url = `/api/kdrama/streams/${id}/${ep}`;
+                else if (currentSource === 'dramacool') url = `/api/dramacool/browse/streams/${id}/${ep}`;
 
                 const res = await fetch(url);
                 const data = await res.json();
@@ -170,18 +212,21 @@
                 loader.classList.add('d-none');
                 
                 if (!data.streams || data.streams.length === 0) {
-                    list.innerHTML = '<div class="alert alert-warning">No streams found. Background task started? Try again in 30s.</div>';
+                    list.innerHTML = '<div class="alert alert-warning">No streams found. Try another source or check logs.</div>';
                     return;
                 }
 
                 list.innerHTML = data.streams.map(s => `
-                    <a href="${s.url}" target="_blank" class="list-group-item list-group-item-action bg-dark text-light border-secondary">
-                        <div class="d-flex w-100 justify-content-between">
+                    <a href="${s.url}" target="_blank" class="list-group-item list-group-item-action bg-dark text-light border-secondary mb-2 rounded">
+                        <div class="d-flex w-100 justify-content-between align-items-center">
                             <h6 class="mb-1 text-primary">${s.provider || 'Unknown'}</h6>
-                            <small>${s.quality || 'Auto'}</small>
+                            <span class="badge bg-secondary">${s.quality || 'Auto'}</span>
                         </div>
                         <p class="mb-1 text-truncate small text-muted">${s.url}</p>
-                        <small class="text-success">Click to Play / Download</small>
+                        <div class="mt-2">
+                            ${s.subtitles ? `<span class="badge bg-info me-1">${s.subtitles.length} Subtitles</span>` : ''}
+                            <small class="text-success fw-bold">▶️ Play Stream</small>
+                        </div>
                     </a>
                 `).join('');
 

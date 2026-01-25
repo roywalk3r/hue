@@ -31,7 +31,19 @@
 
 ---
 
-## 🚀 Quick Start
+## 📖 Documentation
+Interactive API documentation is available via **Scalar** (Modern) and **Swagger UI** (Classic):
+- **Scalar Docs**: `http://localhost:24608/api/docs` (Recommended)
+- **Swagger UI**: `http://localhost:24608/api/docs/swagger`
+- **Raw Spec**: `http://localhost:24608/api/docs/swagger.json`
+
+## 🌟 New Features
+- **KDrama Discovery**: Full browsing, filtering (Country, Genre), and sorting (Hottest, Newest) powered by HiTV.
+- **Smart Play**: Intelligent mapping from HiTV IDs to KissKH (Zenith) and SFlix (Nova) streams.
+- **Networking Failover**: Automatic IPv4 failover for problematic CDNs.
+- **Subtitle Proxy**: CORS-bypass proxy for external subtitle files.
+
+## 🚀 Getting Started
 
 ### 1. Installation
 ```bash

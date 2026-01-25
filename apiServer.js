@@ -34,11 +34,27 @@ const app = express();
 // Serve the raw OpenAPI spec for Redoc to consume
 app.get('/api/docs/swagger.json', (req, res) => res.json(swaggerDef));
 
-// Mount Redoc at the primary docs URL
-app.get('/api/docs', redoc({
-  title: 'Hue Stream API Docs',
-  specUrl: '/api/docs/swagger.json'
-}));
+// Scalar API Reference (Modern Documentation)
+app.get('/api/docs', (req, res) => {
+  res.send(`
+    <!doctype html>
+    <html>
+      <head>
+        <title>Hue Stream API Documentation</title>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <style>body { margin: 0; }</style>
+      </head>
+      <body>
+        <script
+          id="api-reference"
+          data-url="/api/docs/swagger.json"
+          data-configuration='{"theme": "deepSpace"}'></script>
+        <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+      </body>
+    </html>
+  `);
+});
 
 // Mount Swagger UI as an alternative
 app.use('/api/docs/swagger', swaggerUi.serve, swaggerUi.setup(swaggerDef));
@@ -648,11 +664,12 @@ app.get('/api/hitv/trending', async (req, res) => {
     }
 });
 
-app.get('/api/hitv/search', async (req, res) => {
+app.get('/api/hitv/', async (req, res) => {
     const q = req.query.q;
+    const type = req.query.type || 2; // 1 for Movies, 2 for Series
     if (!q) return res.status(400).json({ success: false, error: 'Query required' });
     try {
-        const data = await hitvApi.searchHiTv(q);
+        const data = await hitvApi.searchHiTv(q, type);
         res.json({ success: true, ...data });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
@@ -710,16 +727,10 @@ app.get('/api/hitv/play/:id/:episode', async (req, res) => {
             return res.json({ success: true, source: 'cache', episode, streams: finalStreams });
         }
 
-        // 2. Resolve Title
-        // Use query param 'title' if provided (most reliable), otherwise fetch from HiTV API
-        let targetTitle = req.query.title;
-        
-        if (!targetTitle) {
-            const info = await hitvApi.getHiTvDetail(id);
-            if (info && info.title && info.title !== "Unknown") {
-                targetTitle = info.title;
-            }
-        }
+        // 2. Resolve Metadata (Title & Slug)
+        // We always fetch info to get the slug (detailPath) for SFlix mapping
+        const info = await hitvApi.getHiTvDetail(id);
+        let targetTitle = req.query.title || (info ? info.title : null);
 
         if (!targetTitle || targetTitle === "Unknown") {
             return res.status(404).json({ success: false, error: 'Show title not found. Please provide ?title= param.' });
@@ -728,15 +739,40 @@ app.get('/api/hitv/play/:id/:episode', async (req, res) => {
         console.log(`[HiTV-Play] Mapping "${targetTitle}" Ep ${episode} to providers...`);
 
         // 3. Parallel Fetch from Zenith (KissKH) and Nova (SFlix)
+        // Since SFlix shares IDs with HiTV, we use the Direct Slug approach for SFlix
+        const fetchWithTimeout = (promise, name, ms = 15000) => 
+            Promise.race([
+                promise,
+                new Promise(resolve => setTimeout(() => {
+                    console.log(`[HiTV] ${name} timed out after ${ms}ms`);
+                    resolve([]);
+                }, ms))
+            ]);
+
         const [kissStreams, sflixStreams] = await Promise.all([
-            kisskhDirect.getStreamsDirect(targetTitle, episode).catch(e => {
-                console.error(`[HiTV] Zenith failed: ${e.message}`);
-                return [];
-            }),
-            sflixDirect.getStreamsDirect(targetTitle, episode, 1).catch(e => {
-                console.error(`[HiTV] Nova failed: ${e.message}`);
-                return [];
-            })
+            fetchWithTimeout(
+                kisskhDirect.getStreamsDirect(targetTitle, episode).catch(e => {
+                    console.error(`[HiTV] Zenith failed: ${e.message}`);
+                    return [];
+                }), 
+                "Zenith",
+                30000 // Increased from 15s to 30s
+            ),
+            fetchWithTimeout(
+                (async () => {
+                    // Try direct slug if we have it from info (Sharing ID logic)
+                    if (info && info.detailPath) {
+                        return sflixDirect.getStreamsBySlug(id, info.detailPath, episode);
+                    }
+                    // Fallback to title search if slug is missing
+                    return sflixDirect.getStreamsDirect(targetTitle, episode, 1);
+                })().catch(e => {
+                    console.error(`[HiTV] Nova failed: ${e.message}`);
+                    return [];
+                }), 
+                "Nova", 
+                35000
+            )
         ]);
 
         let streams = [...kissStreams, ...sflixStreams];
