@@ -14,7 +14,9 @@ The **Hue Stream API** is a high-performance aggregator for Movies, TV Shows, an
 - **Dedicated Drama Endpoint**: Specialized /drama endpoint exclusively for Asian Dramas (KissKH, Dramacool) to avoid polluting main movie searches.
 - **Hybrid Extraction**: Dramacool provider uses API for discovery and Browser for fail-safe stream extraction.
 - **KDrama Hub**: Full browsing capabilities (Search, Popular, Upcoming) for KissKH and Dramacool.
-- **Proxy**: Built-in m3u8 proxy for bypassing CORS.
+- **HiTV Discovery**: New robust discovery system for Asian Dramas with rich metadata and filtering.
+- **Smart Mapping**: Automatically maps HiTV discovery items to Zenith (KissKH) and Nova (SFlix) streams.
+- **Proxy**: Built-in m3u8 proxy for bypassing CORS with IPv4 failover.
 
 ## 🔒 Authentication
 Currently public. Future versions may implement API Key protection.
@@ -32,6 +34,7 @@ Currently public. Future versions may implement API Key protection.
   ],
   tags: [
     { name: 'Aggregate', description: 'Unified stream extraction using TMDB IDs.' },
+    { name: 'HiTV (Discovery)', description: 'Discovery, Browse, and Smart Play for Asian content.' },
     { name: 'Drama', description: 'Specialized endpoint for KDrama/Asian content.' },
     { name: 'Direct Provider', description: 'Extract streams from a specific provider.' },
     { name: 'KDrama (KissKH)', description: 'KissKH browsing and extraction.' },
@@ -39,30 +42,64 @@ Currently public. Future versions may implement API Key protection.
     { name: 'Sports', description: 'Live sports streaming.' },
     { name: 'System', description: 'Health and Metrics.' }
   ],
-  components: {
-    schemas: {
-      Stream: {
-        type: 'object',
-        properties: {
-          name: { type: 'string', example: 'Hianime 1080p' },
-          url: { type: 'string', description: 'Playback URL' },
-          quality: { type: 'string', example: '1080p' },
-          provider: { type: 'string', example: 'Hianime' },
-          headers: { type: 'object', description: 'Required headers (Referer, User-Agent)' }
-        }
-      },
-      DramaItem: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          title: { type: 'string' },
-          image: { type: 'string' },
-          episodes: { type: 'integer' }
-        }
-      }
-    }
-  },
   paths: {
+    '/hitv/browse': {
+        get: {
+            tags: ['HiTV (Discovery)'],
+            summary: 'Browse KDramas/Movies',
+            description: 'Discover Asian content with rich metadata, filtering, and sorting.',
+            parameters: [
+                { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+                { name: 'country', in: 'query', schema: { type: 'string', default: 'Korea' } },
+                { name: 'category', in: 'query', schema: { type: 'string', default: 'Drama' } },
+                { name: 'genre', in: 'query', schema: { type: 'string', default: 'All' } },
+                { name: 'sort', in: 'query', schema: { type: 'string', default: 'Hottest' } }
+            ],
+            responses: { 200: { description: 'List of shows' } }
+        }
+    },
+    '/hitv/play/{id}/{episode}': {
+        get: {
+            tags: ['HiTV (Discovery)'],
+            summary: 'Smart Play (HiTV -> Stream)',
+            description: 'Maps a HiTV ID to a stream from Zenith (KissKH) or Nova (SFlix).',
+            parameters: [
+                { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+                { name: 'episode', in: 'path', required: true, schema: { type: 'integer' } },
+                { name: 'title', in: 'query', required: true, schema: { type: 'string' }, description: 'The exact title of the show (from browse) for accurate mapping' }
+            ],
+            responses: { 200: { description: 'Playable streams and subtitles' } }
+        }
+    },
+    '/hitv/search': {
+        get: {
+            tags: ['HiTV (Discovery)'],
+            summary: 'Search HiTV',
+            parameters: [
+                { name: 'q', in: 'query', required: true, schema: { type: 'string' } },
+                { name: 'type', in: 'query', schema: { type: 'integer', default: 2 }, description: '1=Movie, 2=Series' }
+            ],
+            responses: { 200: { description: 'Search results' } }
+        }
+    },
+    '/hitv/info/{id}': {
+        get: {
+            tags: ['HiTV (Discovery)'],
+            summary: 'Show Details',
+            parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+            responses: { 200: { description: 'Metadata and episodes' } }
+        }
+    },
+    '/hitv/trending': {
+        get: { tags: ['HiTV (Discovery)'], summary: 'Trending Shows', responses: { 200: { description: 'Trending list' } } }
+    },
+    '/hitv/latest': {
+        get: { tags: ['HiTV (Discovery)'], summary: 'Latest Releases', responses: { 200: { description: 'New releases list' } } }
+    },
+    '/hitv/countries': { get: { tags: ['HiTV (Discovery)'], summary: 'Get Countries', responses: { 200: { description: 'List of countries' } } } },
+    '/hitv/categories': { get: { tags: ['HiTV (Discovery)'], summary: 'Get Categories', responses: { 200: { description: 'List of categories' } } } },
+    '/hitv/genres': { get: { tags: ['HiTV (Discovery)'], summary: 'Get Genres', responses: { 200: { description: 'List of genres' } } } },
+    '/hitv/sorts': { get: { tags: ['HiTV (Discovery)'], summary: 'Get Sort Options', responses: { 200: { description: 'List of sort options' } } } },
     '/streams/{type}/{tmdbId}': {
       get: {
         tags: ['Aggregate'],
