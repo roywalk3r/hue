@@ -752,6 +752,10 @@ function createProxyRoutes(app) {
         const progressiveOpen = req.query.progressiveOpen === '1';
         const clampOpen = req.query.clampOpen === '1';
         const openChunkKB = parseInt(req.query.openChunkKB || '1024');
+        const noSynth = req.query.noSynth === '1';
+        const initChunkKB = parseInt(req.query.initChunkKB || '512');
+        const tailPrefetchEnabled = req.query.tailPrefetch === '1';
+        const tailPrefetchKB = parseInt(req.query.tailPrefetchKB || '256');
 
         let headers = decryptedHeaders || {};
         try { 
