@@ -495,3 +495,4 @@
 [2026-01-25T16:46:25.562Z] [INFO] [request] GET /api/streams/movie/353486 from 12ca17b4
 [2026-01-25T16:46:25.564Z] [INFO] [api] returning 3 streams from cache for 353486
 [2026-01-25T17:00:10.474Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T17:48:24.491Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
