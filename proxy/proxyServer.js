@@ -8,48 +8,94 @@ const http = require('http');
 const https = require('https');
 let cryptoJs;
 
-// Force persistent connections for proxy requests to avoid latency
-const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 100, timeout: 15000 });
-const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 100, timeout: 15000 });
+// Shared agents with optimized TLS and keepAlive settings
+const httpAgent = new http.Agent({ 
+    keepAlive: true, 
+    maxSockets: 150, 
+    timeout: 60000,
+    freeSocketTimeout: 30000 
+});
+const httpsAgent = new https.Agent({ 
+    keepAlive: true, 
+    maxSockets: 150, 
+    timeout: 60000,
+    freeSocketTimeout: 30000,
+    minVersion: 'TLSv1.2'
+});
+
+// IPv4 Forced Agents for bypassing VPS routing issues
+const httpAgentV4 = new http.Agent({ family: 4, keepAlive: true, maxSockets: 50 });
+const httpsAgentV4 = new https.Agent({ family: 4, keepAlive: true, maxSockets: 50, minVersion: 'TLSv1.2' });
 
 // Retry configuration for fetch operations
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 500;
-const FETCH_TIMEOUT_MS = 15000; // Reduced global timeout for faster failover
+const FETCH_TIMEOUT_MS = 20000; 
 
 // Helper function to fetch with retry logic
 async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
+    let host = '';
+    const isSegment = /\.(ts|m4s|mp4|mkv|m4v|m4a|fmp4)$/i.test(url.split('?')[0]);
     // Prevent fetching localhost or internal IPs
     try {
         const u = new URL(url);
-        const host = u.hostname.toLowerCase();
+        host = u.hostname.toLowerCase();
         if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host.startsWith('192.168.') || host.startsWith('10.')) {
             throw new Error(`Blocked internal/local URL: ${url}`);
+        }
+        
+        // Add browser-like headers for redirectors and CDNs
+        if (host.includes('redirector') || host.includes('cdnsync') || host.includes('quibble') || host.includes('lightning')) {
+            if (!options.headers) options.headers = {};
+            options.headers['Cache-Control'] = 'no-cache';
+            options.headers['Sec-Fetch-Mode'] = 'cors';
+            options.headers['Sec-Fetch-Site'] = 'cross-site';
+            options.headers['Sec-Fetch-Dest'] = 'empty';
+            options.headers['Accept-Language'] = 'en-US,en;q=0.9';
         }
     } catch (e) {
         if (e.message.includes('Blocked')) throw e;
     }
 
-    const isSegment = /\.(ts|m4s|mp4|mkv)$/i.test(url.split('?')[0]);
-    const timeout = isSegment ? 8000 : (options.timeout || FETCH_TIMEOUT_MS);
+    const baseTimeout = isSegment ? 25000 : (host.includes('redirector') || host.includes('cdnsync') ? 15000 : (options.timeout || FETCH_TIMEOUT_MS));
     const actualRetries = isSegment ? 1 : maxRetries;
 
     const fetchOptions = {
         ...options,
-        agent: (parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgent : httpsAgent),
-        timeout,
+        agent: options.agent || ((parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgent : httpsAgent)),
         compress: true 
     };
     
     let lastError;
     for (let attempt = 1; attempt <= actualRetries; attempt++) {
         try {
-            return await fetch(url, fetchOptions);
+            const t0 = Date.now();
+            
+            // On second attempt for redirectors/CDNs, switch to IPv4 and rotate UA
+            if (attempt > 1) {
+                if (!fetchOptions.headers) fetchOptions.headers = {};
+                fetchOptions.headers['User-Agent'] = attempt % 2 === 0 ? FALLBACK_UA : DEFAULT_UA;
+                
+                if (host.includes('redirector') || host.includes('cdnsync') || host.includes('quibble') || host.includes('lightning')) {
+                    fetchOptions.agent = (parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgentV4 : httpsAgentV4);
+                }
+            }
+            
+            const res = await fetch(url, { ...fetchOptions, timeout: baseTimeout });
+            const duration = Date.now() - t0;
+            
+            if (isSegment && duration > 5000) {
+                console.log(`[fetch] Slow segment (${duration}ms): ${url}`);
+            }
+            
+            return res;
         } catch (error) {
             lastError = error;
+            if (error.name === 'AbortError' || error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
+                console.warn(`[fetch] Timeout on ${url} (Attempt ${attempt}/${actualRetries}, timeout: ${baseTimeout}ms)`);
+            }
             if (attempt >= actualRetries) throw error;
-            // Short delay for retries to keep things moving
-            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt));
         }
     }
     throw lastError;
@@ -123,7 +169,8 @@ async function prefetchSegment(url, headers) {
     } catch (_e) { /* ignore */ }
 }
 
-const DEFAULT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const DEFAULT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+const FALLBACK_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 
 function inferContentType(upstreamCT, targetUrl) {
     const bad = !upstreamCT || /application\/octet-stream/i.test(upstreamCT) || /application\/(x-)?zip/i.test(upstreamCT) || /image\//i.test(upstreamCT);
@@ -494,37 +541,57 @@ function createProxyRoutes(app) {
             mergedHeaders['Accept'] = '*/*';
         }
 
-        // Pass through Range header if present (for MP4s sent to m3u8-proxy)
-        if (req.headers.range) {
+        // Pass through Range header only if it doesn't look like a standard HLS request
+        // Standard HLS players don't use Range for the master playlist
+        if (req.headers.range && !targetUrl.includes('.m3u8')) {
             mergedHeaders['Range'] = req.headers.range;
         }
 
         try {
             const t0 = Date.now();
-            const response = await fetchWithRetry(targetUrl, { headers: mergedHeaders, redirect: 'manual' });
-            const duration = Date.now() - t0;
-            
-            if (duration > 5000 && debug) {
-                console.warn(`[m3u8-proxy] Slow upstream response (${duration}ms): ${targetUrl}`);
-            }
+            let currentUrl = targetUrl;
+            let response = null;
+            let redirectCount = 0;
+            const maxRedirects = 5;
 
-            // Handle redirects manually to prevent redirection to localhost
-            if (response.status >= 300 && response.status < 400) {
-                const location = response.headers.get('location');
-                if (location) {
-                    if (location.includes('localhost') || location.includes('127.0.0.1')) {
-                        console.error(`[m3u8-proxy] Blocked redirect to localhost: ${location} from ${targetUrl}`);
+            // Manual redirect following with security checks
+            while (redirectCount <= maxRedirects) {
+                response = await fetchWithRetry(currentUrl, { 
+                    headers: mergedHeaders, 
+                    redirect: 'manual',
+                    timeout: 30000 // Higher timeout for redirect chains
+                });
+
+                if (response.status >= 300 && response.status < 400) {
+                    const location = response.headers.get('location');
+                    if (!location) break;
+                    
+                    const nextUrl = new URL(location, currentUrl).href;
+                    // Security check for the new location
+                    const u = new URL(nextUrl);
+                    const host = u.hostname.toLowerCase();
+                    if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host.startsWith('192.168.') || host.startsWith('10.')) {
+                        console.error(`[m3u8-proxy] Blocked redirect to internal network: ${nextUrl}`);
                         return res.status(403).json({ error: 'Blocked redirect to internal network', origin: targetUrl });
                     }
-                    // For safe external redirects, we could follow them, but for now just return the 302 or fail
-                    if (debug) console.log('[m3u8-proxy] Manual redirect required to:', location);
+                    
+                    currentUrl = nextUrl;
+                    redirectCount++;
+                    if (debug) console.log(`[m3u8-proxy] Following redirect ${redirectCount} to: ${currentUrl}`);
+                    continue;
                 }
+                break;
             }
 
-            if (!response.ok && response.status !== 206) return res.status(response.status).json({ error: `M3U8 fetch failed: ${response.status}`, target: targetUrl });
+            const duration = Date.now() - t0;
+            if (duration > 8000 && debug) {
+                console.warn(`[m3u8-proxy] Slow upstream chain (${duration}ms): ${targetUrl}`);
+            }
+
+            if (!response.ok && response.status !== 206) return res.status(response.status).json({ error: `M3U8 fetch failed: ${response.status}`, target: currentUrl, final: currentUrl });
             
             const contentType = response.headers.get('content-type') || '';
-            const isVideo = contentType.includes('video/') || /\.(mp4|mkv|mov|avi|ts)$/i.test(targetUrl.split('?')[0]);
+            const isVideo = contentType.includes('video/') || /\.(mp4|mkv|mov|avi|ts)$/i.test(currentUrl.split('?')[0]);
             
             if (isVideo || response.status === 206) {
                 if (debug) console.log('[m3u8-proxy] Detected video or 206 response, piping raw', { contentType, status: response.status, targetUrl });
@@ -789,15 +856,37 @@ function createProxyRoutes(app) {
             const upstreamOptions = { headers: { 'User-Agent': DEFAULT_UA, ...headers }, redirect: 'manual' };
             // If client supplied a suffix range like bytes=0- we pass it; force200 strips Range
             if (force200 && headers.Range) delete headers.Range;
-            let resp = await fetchWithRetry(targetUrl, upstreamOptions);
             
-            // Handle redirects manually to prevent redirection to localhost
-            if (resp.status >= 300 && resp.status < 400) {
-                const location = resp.headers.get('location');
-                if (location && (location.includes('localhost') || location.includes('127.0.0.1'))) {
-                    console.error(`[ts-proxy] Blocked redirect to localhost: ${location} from ${targetUrl}`);
-                    return res.status(403).json({ error: 'Blocked redirect to internal network', origin: targetUrl });
+            let resp = null;
+            let currentUrl = targetUrl;
+            let redirectCount = 0;
+            const maxRedirects = 3; // Segments shouldn't redirect much
+            const isSegment = /\.(ts|m4s|mp4|mkv)$/i.test(targetUrl.split('?')[0]);
+
+            while (redirectCount <= maxRedirects) {
+                resp = await fetchWithRetry(currentUrl, { 
+                    ...upstreamOptions, 
+                    timeout: 30000 
+                });
+
+                if (resp.status >= 300 && resp.status < 400) {
+                    const location = resp.headers.get('location');
+                    if (!location) break;
+                    
+                    const nextUrl = new URL(location, currentUrl).href;
+                    const u = new URL(nextUrl);
+                    const host = u.hostname.toLowerCase();
+                    if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host.startsWith('192.168.') || host.startsWith('10.')) {
+                        console.error(`[ts-proxy] Blocked redirect to localhost: ${nextUrl} from ${targetUrl}`);
+                        return res.status(403).json({ error: 'Blocked redirect to internal network', origin: targetUrl });
+                    }
+                    
+                    currentUrl = nextUrl;
+                    redirectCount++;
+                    if (debug) console.log(`[ts-proxy] Following redirect ${redirectCount} to: ${currentUrl}`);
+                    continue;
                 }
+                break;
             }
 
             if (!resp.ok && resp.status !== 206) {
@@ -863,8 +952,16 @@ function createProxyRoutes(app) {
         let headers = {}; try { headers = JSON.parse(req.query.headers || '{}'); } catch {
             // Ignore URL parsing errors
         }
+        
+        const mergedHeaders = {};
+        const skipHeaders = ['host', 'connection', 'content-length', 'content-type', 'accept-encoding', 'cookie', 'range'];
+        Object.keys(headers).forEach(k => {
+            if (!skipHeaders.includes(k.toLowerCase())) mergedHeaders[k] = headers[k];
+        });
+        if (!mergedHeaders['User-Agent']) mergedHeaders['User-Agent'] = DEFAULT_UA;
+
         try {
-            const resp = await fetchWithRetry(targetUrl, { headers: { 'User-Agent': DEFAULT_UA, ...headers } });
+            const resp = await fetchWithRetry(targetUrl, { headers: mergedHeaders, redirect: 'follow' });
             if (!resp.ok) return res.status(resp.status).json({ error: `subtitle fetch failed: ${resp.status}` });
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Cache-Control', 'public, max-age=3600');

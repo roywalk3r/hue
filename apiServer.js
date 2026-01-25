@@ -450,40 +450,18 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
     const providerTimings = {};
     const streamsResults = [];
     
-    logger.info(`[api] fetching streams for tmdbId=${tmdbId} (Smart Wait: 12s)`);
+    logger.info(`[api] fetching streams for tmdbId=${tmdbId} (Smart Wait: 15s)`);
     const tStart = Date.now();
 
     // Map each provider to a promise that includes its own 60s safety timeout
     const providerPromises = selectedProviders.map(async name => {
-      const prov = getProvider(name);
-      if (!prov || !prov.enabled) return [];
-      
-      const isFast = prov.realName === 'vixsrc' || prov.realName === 'aura';
-      metrics.providerCalls[name] = (metrics.providerCalls[name]||0)+1;
-      try {
-        const t0 = Date.now();
-        // Add a safety timeout per provider
-        const r = await Promise.race([
-            prov.fetch({ tmdbId, type, season, episode, imdbId, filters:{ } }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Provider timeout')), isFast ? 15000 : 60000))
-        ]);
-        providerTimings[name] = Date.now()-t0;
-        const results = Array.isArray(r) ? r : [];
-        
-        if (results.length > 0) {
-            addCachedStreams(type, tmdbId, season, episode, results);
-        }
-        return results;
-      } catch (e) {
-        logger.error(`[api] provider ${name} failed or timed out:`, e.message);
-        return [];
-      }
+// ... (omitted)
     });
 
-    // Create a "deadline" promise that resolves after 12 seconds
-    const deadline = new Promise(resolve => setTimeout(() => resolve('DEADLINE'), 12000));
+    // Create a "deadline" promise that resolves after 15 seconds
+    const deadline = new Promise(resolve => setTimeout(() => resolve('DEADLINE'), 15000));
 
-    // Wait for either all providers to finish OR the 12s deadline
+    // Wait for either all providers to finish OR the 15s deadline
     const resultsOrDeadline = await Promise.race([
         Promise.all(providerPromises),
         deadline

@@ -1,9 +1,9 @@
 const axios = require("axios");
-const { getNewPage } = require("../utils/browserManager");
+const { getNewPage, getNewContext } = require("../utils/browserManager");
 
 const XYRA_BASE = "https://api.xyra.stream/v1/dramacool";
 const XYRA_KEY = "key1";
-const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 async function makeRequest(endpoint, params = {}) {
     try {
@@ -20,53 +20,144 @@ async function makeRequest(endpoint, params = {}) {
 }
 
 async function extractFromUrlWithPlaywright(url) {
-    console.log(`[Dramacool] [Custom] Extracting from: ${url}`);
+    console.log(`[Orient] Extracting from: ${url}`);
     const streams = [];
     let page;
+    let context;
 
     try {
-        page = await getNewPage();
+        context = await getNewContext();
+        page = await context.newPage();
         const capturedUrls = new Set();
+        const subtitles = [];
         
         page.on("request", (req) => {
             const u = req.url();
             const isVideo = u.includes(".m3u8") || u.includes(".mp4") || u.includes("master.m3u8") || u.includes("index.m3u8");
-            if (isVideo && !u.includes("google") && !u.includes("analytics")) {
+            if (isVideo && !u.includes("google") && !u.includes("analytics") && !u.includes("blob:")) {
                 capturedUrls.add(u);
+            }
+            if ((u.includes(".vtt") || u.includes(".srt")) && !subtitles.some(s => s.url === u)) {
+                subtitles.push({ url: u, lang: 'en', label: 'English' });
+            }
+        });
+
+        page.on("response", async (res) => {
+            const u = res.url();
+            const ct = res.headers()['content-type'] || '';
+            
+            // Capture subtitles from API responses
+            if (ct.includes('application/json') || u.includes('subtitles') || u.includes('tracks')) {
+                try {
+                    const data = await res.json();
+                    const subArray = data.subtitles || data.tracks || data.captions;
+                    if (Array.isArray(subArray)) {
+                        subArray.forEach(s => {
+                            const subUrl = s.file || s.src || s.url;
+                            if (subUrl && !subtitles.some(existing => existing.url === subUrl)) {
+                                subtitles.push({
+                                    url: subUrl,
+                                    label: s.label || s.kind || 'English',
+                                    lang: (s.label || s.language || 'en').toLowerCase().substring(0, 2)
+                                });
+                            }
+                        });
+                    }
+                } catch {}
             }
         });
 
         await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+        
+        // Wait for server list to hydrate
+        await page.waitForSelector('.serverslist, .anime_muti_link li', { timeout: 10000 }).catch(() => {});
+        await new Promise(r => setTimeout(r, 2000));
 
-        // Trigger Playback
-        await page.evaluate(() => {
-            const triggers = ['video', '.vjs-big-play-button', '#play-now', '.play-btn', '.jw-display-icon-container'];
-            triggers.forEach(s => {
-                const el = document.querySelector(s);
-                if (el) el.click();
-            });
-            const v = document.querySelector('video');
-            if (v) v.play().catch(() => {});
+        // Scrape all available server URLs and their names
+        const servers = await page.evaluate(() => {
+            const list = Array.from(document.querySelectorAll('.serverslist, .anime_muti_link li'));
+            return list.map(s => ({
+                name: s.innerText.replace('Choose this server', '').trim(),
+                url: s.getAttribute('data-server') || s.getAttribute('data-video') || ''
+            })).filter(s => s.url && s.url.length > 5)
+               .map(s => ({ ...s, url: s.url.startsWith('//') ? 'https:' + s.url : s.url }));
         });
+        
+        console.log(`[Orient] Found ${servers.length} potential servers:`, servers.map(s => s.name));
 
-        // Wait for capture
-        const start = Date.now();
-        while (Date.now() - start < 10000 && capturedUrls.size === 0) {
-            await new Promise(r => setTimeout(r, 500));
-        }
-
-        for (const u of capturedUrls) {
-            streams.push({
-                url: u,
-                quality: "Auto",
-                provider: "Dramacool",
-                headers: { "Referer": url, "User-Agent": USER_AGENT }
+        // Trigger logic for playback
+        const triggerLogic = () => {
+            const triggers = ['video', '.vjs-big-play-button', '#play-now', '.play-btn', '.jw-display-icon-container', '#pl_but', '.art-video', '.art-state'];
+            triggers.forEach(s => {
+                try {
+                    const el = document.querySelector(s);
+                    if (el) el.click();
+                } catch {}
             });
+            try {
+                const v = document.querySelector('video');
+                if (v) v.play().catch(() => {});
+            } catch {}
+        };
+
+        // Helper to capture hidden HLS
+        const scanHidden = async () => {
+            const hiddenHls = await page.evaluate(() => {
+                const scripts = Array.from(document.querySelectorAll('script')).map(s => s.innerText);
+                const found = [];
+                scripts.forEach(s => {
+                    const m = s.match(/https?:\/\/[^"']+\.m3u8[^"']*/g);
+                    if (m) found.push(...m);
+                });
+                return found;
+            });
+            hiddenHls.forEach(u => capturedUrls.add(u));
+        };
+
+        // Visit each server link to capture its stream
+        // We limit to first 4 servers to avoid taking too long
+        for (const server of servers.slice(0, 4)) {
+            try {
+                console.log(`[Orient] Trying server: ${server.name} (${server.url})`);
+                await page.goto(server.url, { waitUntil: "commit", timeout: 20000 });
+                await new Promise(r => setTimeout(r, 3000)); // wait for redirect
+                await page.evaluate(triggerLogic);
+                await scanHidden();
+
+                // Wait for network capture
+                const start = Date.now();
+                while (Date.now() - start < 10000) {
+                    if (capturedUrls.size > 0) {
+                        // Check if these are NEW urls
+                        let foundNew = false;
+                        for (const u of capturedUrls) {
+                            if (!streams.some(s => s.url === u)) {
+                                                        streams.push({
+                                                            url: u,
+                                                            title: `Orient - ${server.name}`,
+                                                            quality: "Auto",
+                                                            provider: "Orient",
+                                                            subtitles: subtitles.length > 0 ? subtitles : undefined,
+                                                            headers: { "Referer": server.url, "User-Agent": USER_AGENT }
+                                                        });                                foundNew = true;
+                            }
+                        }
+                        if (foundNew) break;
+                    }
+                    await new Promise(r => setTimeout(r, 1000));
+                    await page.evaluate(triggerLogic).catch(() => {});
+                }
+                capturedUrls.clear(); 
+            } catch (e) {
+                console.log(`[Orient] Server failed: ${server.name} - ${e.message}`);
+            }
         }
+
+        return streams;
     } catch (e) {
-        console.error(`[Dramacool] [Custom] Error: ${e.message}`);
+        console.error(`[Orient] Error: ${e.message}`);
     } finally {
-        if (page) await page.context().close();
+        if (context) await context.close();
     }
     return streams;
 }
@@ -142,10 +233,27 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         // If Xyra found the link directly, use it
         if (streamRes && streamRes.success && streamRes.data && streamRes.data.link && streamRes.data.link.includes('.m3u8')) {
             console.log("[Dramacool] Xyra found direct link.");
+            
+            const subtitles = [];
+            const subArray = streamRes.data.subtitles || streamRes.data.tracks;
+            if (Array.isArray(subArray)) {
+                subArray.forEach(s => {
+                    const subUrl = s.url || s.file || s.src;
+                    if (subUrl) {
+                        subtitles.push({
+                            url: subUrl,
+                            lang: (s.lang || s.label || 'en').toLowerCase().substring(0, 2),
+                            label: s.lang || s.label || 'English'
+                        });
+                    }
+                });
+            }
+
             return [{
                 url: streamRes.data.link,
                 quality: "Auto",
-                provider: "Dramacool",
+                provider: "Orient",
+                subtitles: subtitles.length > 0 ? subtitles : undefined,
                 headers: { "Referer": "https://dramacool.sh/", "User-Agent": USER_AGENT }
             }];
         }

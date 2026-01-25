@@ -179,3 +179,34 @@
 [2026-01-24T20:26:48.348Z] [INFO] [request] GET /api/kdrama/search?q=Squid%20Game from 12ca17b4
 [2026-01-24T20:29:55.962Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
 [2026-01-24T22:11:58.610Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T06:47:20.932Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T06:52:14.265Z] [INFO] [request] GET /api/dramacool/info?id=the-tale-of-lady-ok-2024 from eff8e7ca
+[2026-01-25T06:52:15.785Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/1 from eff8e7ca
+[2026-01-25T06:53:21.917Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/2 from eff8e7ca
+[2026-01-25T06:53:25.118Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/16 from eff8e7ca
+[2026-01-25T06:54:09.453Z] [INFO] [request] GET /api/dramacool/info?id=the-tale-of-lady-ok-2024 from eff8e7ca
+[2026-01-25T06:54:10.689Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/1 from eff8e7ca
+[2026-01-25T06:55:46.878Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/1 from eff8e7ca
+[2026-01-25T06:55:59.670Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/1 from eff8e7ca
+[2026-01-25T06:56:48.888Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/1 from 12ca17b4
+[2026-01-25T06:57:03.149Z] [INFO] [request] GET /.well-known/appspecific/com.chrome.devtools.json from 12ca17b4
+[2026-01-25T07:15:05.366Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T07:18:15.757Z] [INFO] [request] GET /api/dramacool/info?id=the-tale-of-lady-ok-2024 from eff8e7ca
+[2026-01-25T07:18:17.152Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/1 from eff8e7ca
+[2026-01-25T07:19:52.523Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/2 from eff8e7ca
+[2026-01-25T07:19:56.653Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/1 from eff8e7ca
+[2026-01-25T07:24:41.480Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/2 from eff8e7ca
+[2026-01-25T07:24:51.753Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T07:25:20.321Z] [INFO] [request] GET /api/dramacool/info?id=the-tale-of-lady-ok-2024 from eff8e7ca
+[2026-01-25T07:25:21.767Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/1 from eff8e7ca
+[2026-01-25T07:39:14.232Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T07:39:50.410Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T07:44:40.515Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T07:44:50.279Z] [INFO] [request] GET /api/dramacool/info?id=the-tale-of-lady-ok-2024 from eff8e7ca
+[2026-01-25T07:44:51.711Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/1 from eff8e7ca
+[2026-01-25T07:51:39.973Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T07:52:14.580Z] [INFO] [request] GET /api/dramacool/info?id=the-tale-of-lady-ok-2024 from eff8e7ca
+[2026-01-25T07:52:16.034Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/1 from eff8e7ca
+[2026-01-25T07:56:47.918Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T07:57:35.025Z] [INFO] [request] GET /api/dramacool/info?id=the-tale-of-lady-ok-2024 from eff8e7ca
+[2026-01-25T07:57:36.475Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/1 from eff8e7ca
