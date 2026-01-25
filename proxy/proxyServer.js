@@ -555,6 +555,7 @@ function createProxyRoutes(app) {
         }
         
         // Headers to clean
+        const mergedHeaders = {};
         const skipHeaders = ['host', 'connection', 'content-length', 'content-type', 'accept-encoding', 'cookie', 'if-none-match', 'if-modified-since', 'range', 'sec-fetch-mode', 'sec-fetch-site', 'sec-fetch-dest', 'sec-fetch-user'];
         
         Object.keys(headers).forEach(k => {
