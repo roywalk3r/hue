@@ -18,6 +18,8 @@ The main entry point. It sets up:
 *   **Routes:**
     *   `/api/streams/:type/:tmdbId`: Main aggregation endpoint.
     *   `/api/drama/:type/:tmdbId`: **New** dedicated endpoint for Drama providers (KissKH, Dramacool).
+    *   `/api/hitv/browse`: **New** Discovery endpoint for Asian Dramas (Supports Sort, Genre, Country).
+    *   `/api/hitv/play/:id/:episode`: **New** Smart-play endpoint mapping HiTV IDs to Zenith/Nova streams.
     *   `/sports-stream/:matchName`: **New** endpoint for live sports.
     *   `/api/config`: Configuration management.
     *   `/api/health`, `/api/metrics`: Monitoring.
@@ -28,6 +30,7 @@ The main entry point. It sets up:
 Providers are pluggable JS modules that export a specific function signature to fetch streams.
 *   **Registry (`providers/registry.js`):** Dynamically loads providers, manages the `providerFunctionMap`, and handles execution.
 *   **Caching:** All provider results are now cached globally in `providers/registry.js` using `utils/cache.js` (1hr TTL).
+*   **Smart Mapping:** The `/api/hitv/play` endpoint uses concurrent searching on Zenith (KissKH) and Nova (SFlix) to find streams for discovery content.
 *   **Structure:** Each provider (e.g., `providers/dramacool.js`) fetches data and returns a normalized stream object:
     ```json
     {
@@ -75,6 +78,8 @@ Centralized management for Playwright instances.
 *   **Error Handling:** Providers should catch their own errors and return an empty array `[]` rather than crashing the aggregation promise.
 
 ## Current State & Notes
+*   **HiTV Ecosystem:** A full discovery system for Asian content has been added. `api/hitv/browse` offers filtering/sorting, and `api/hitv/play` intelligently maps these shows to stream providers.
+*   **Proxy Stability:** The proxy now features IPv4 failover, User-Agent rotation, and forced connection persistence to handle hostile CDNs (like KissKH's).
 *   **Drama Separation:** A new endpoint `/api/drama` has been created. `kisskh` and `dramacool` are excluded from the main `/api/streams` browser loop to improve performance.
 *   **Hybrid Dramacool:** The `dramacool` provider now uses the Xyra API for search/info but falls back to a custom Playwright scraper if the API returns a server URL instead of a direct link.
 *   **Caching Implemented:** `registry.js` now caches successful provider results, making repeat requests instant.
