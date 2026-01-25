@@ -56,7 +56,7 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
         if (e.message.includes('Blocked')) throw e;
     }
 
-    const baseTimeout = isSegment ? 120000 : (host.includes('redirector') || host.includes('cdnsync') || host.includes('cdnvideo') || host.includes('hakunaymatata') ? 45000 : (options.timeout || FETCH_TIMEOUT_MS));
+    const baseTimeout = isSegment ? 120000 : (host.includes('redirector') || host.includes('cdnsync') || host.includes('cdnvideo') || host.includes('hakunaymatata') || host.includes('vixsrc') ? 45000 : (options.timeout || FETCH_TIMEOUT_MS));
     const actualRetries = isSegment ? 1 : maxRetries;
 
     // Force IPv4 for known problematic CDNs on first attempt (IPv6 often unreachable)
@@ -608,7 +608,7 @@ function createProxyRoutes(app) {
                 response = await fetchWithRetry(currentUrl, { 
                     headers: mergedHeaders, 
                     redirect: 'manual',
-                    timeout: 15000 // Higher timeout for redirect chains
+                    timeout: 30000 // Increased from 15s to 30s
                 });
 
                 if (response.status >= 300 && response.status < 400) {
