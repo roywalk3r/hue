@@ -210,3 +210,55 @@
 [2026-01-25T07:56:47.918Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
 [2026-01-25T07:57:35.025Z] [INFO] [request] GET /api/dramacool/info?id=the-tale-of-lady-ok-2024 from eff8e7ca
 [2026-01-25T07:57:36.475Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/1 from eff8e7ca
+[2026-01-25T08:12:33.408Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T08:12:47.047Z] [INFO] [request] GET /api/dramacool/info?id=the-tale-of-lady-ok-2024 from eff8e7ca
+[2026-01-25T08:12:48.446Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/1 from eff8e7ca
+[2026-01-25T08:13:20.410Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/16 from eff8e7ca
+[2026-01-25T08:13:39.828Z] [INFO] [request] GET /api/dramacool/browse/streams/the-tale-of-lady-ok-2024/15 from eff8e7ca
+[2026-01-25T08:16:11.499Z] [INFO] [request] GET /pl/H4sIAAAAAAAAAw3Oy3aCMBQAwF8KRazpTtpcLBQogdxAdoSQIg.h6hHr19fF7MfW241uNdWWusSzdmtbp6GE2sZa80pe3hCqR.5yT7sQxGTwuFSrEUkUE6wU2TmtvCbqlKz8gJ_6Y._Uw7IIkoSIMLUy_CtgHE3P7xEJVT1BJsFcOVsYL.GSo5oNM7nqTRTnu3sunbWA_S0nXlG58U3Kjpnyx00PiEVAj3GA6ilEsbnpMTnnjB5aAWld.t_I4nsmrkE2LRwZxi1CmUIiaxauDfqXahoXTbyuFoMnwH_nwRg1jv8rArqkz0smL.dKLse6nL1mSGaFY18Vg_v1gG3Rj89bN.uyIwhwEpjdhcOPWUHoP4bcH75BAQAA/ceb64c203f772a72ce6f369846db72cf/index.m3u8 from 12ca17b4
+[2026-01-25T08:16:11.558Z] [INFO] [request] GET /pl/H4sIAAAAAAAAAw3Oy3aCMBQAwF8KRazpTtpcLBQogdxAdoSQIg.h6hHr19fF7MfW241uNdWWusSzdmtbp6GE2sZa80pe3hCqR.5yT7sQxGTwuFSrEUkUE6wU2TmtvCbqlKz8gJ_6Y._Uw7IIkoSIMLUy_CtgHE3P7xEJVT1BJsFcOVsYL.GSo5oNM7nqTRTnu3sunbWA_S0nXlG58U3Kjpnyx00PiEVAj3GA6ilEsbnpMTnnjB5aAWld.t_I4nsmrkE2LRwZxi1CmUIiaxauDfqXahoXTbyuFoMnwH_nwRg1jv8rArqkz0smL.dKLse6nL1mSGaFY18Vg_v1gG3Rj89bN.uyIwhwEpjdhcOPWUHoP4bcH75BAQAA/ceb64c203f772a72ce6f369846db72cf/index.m3u8 from 12ca17b4
+[2026-01-25T08:16:58.705Z] [INFO] [request] GET /api/kdrama/list from 12ca17b4
+[2026-01-25T08:16:58.706Z] [INFO] [request] GET /api/kdrama/popular from 12ca17b4
+[2026-01-25T08:16:58.707Z] [INFO] [request] GET /api/kdrama/latest from 12ca17b4
+[2026-01-25T08:16:58.708Z] [INFO] [request] GET /api/kdrama/upcoming from 12ca17b4
+[2026-01-25T08:16:58.708Z] [INFO] [request] GET /api/dramacool/popular from 12ca17b4
+[2026-01-25T08:16:58.727Z] [INFO] [request] GET /api/dramacool/latest from 12ca17b4
+[2026-01-25T08:16:58.728Z] [INFO] [request] GET /api/dramacool/ongoing from 12ca17b4
+[2026-01-25T08:16:58.728Z] [INFO] [request] GET /api/dramacool/upcoming from 12ca17b4
+[2026-01-25T08:17:01.026Z] [INFO] [request] GET /api/kdrama/detail/12186 from eff8e7ca
+[2026-01-25T08:17:01.916Z] [INFO] [request] GET /api/kdrama/streams/12186/9 from eff8e7ca
+[2026-01-25T08:17:08.204Z] [INFO] [request] GET /api/kdrama/search?q=golden-scenery-of-tomorrow-2025 from eff8e7ca
+[2026-01-25T08:17:08.245Z] [INFO] [request] GET /api/dramacool/search?q=golden-scenery-of-tomorrow-2025 from eff8e7ca
+[2026-01-25T08:17:13.822Z] [INFO] [request] GET /api/kdrama/detail/11630 from eff8e7ca
+[2026-01-25T08:17:14.871Z] [INFO] [request] GET /api/kdrama/streams/11630/16 from eff8e7ca
+[2026-01-25T08:17:44.904Z] [INFO] [request] GET /api/kdrama/streams/11630/1 from eff8e7ca
+[2026-01-25T08:22:07.672Z] [INFO] [request] GET /api/kdrama/search?q=the+judge+ from eff8e7ca
+[2026-01-25T08:22:07.703Z] [INFO] [request] GET /api/dramacool/search?q=the+judge+ from eff8e7ca
+[2026-01-25T08:22:09.571Z] [INFO] [request] GET /api/kdrama/search?q=the+judge+from+hell from eff8e7ca
+[2026-01-25T08:22:09.592Z] [INFO] [request] GET /api/dramacool/search?q=the+judge+from+hell from eff8e7ca
+[2026-01-25T08:22:18.074Z] [INFO] [request] GET /api/dramacool/search?q=the+judge+from+hell from eff8e7ca
+[2026-01-25T08:22:22.409Z] [INFO] [request] GET /api/dramacool/info?id=the-judge-from-hell-2024 from eff8e7ca
+[2026-01-25T08:22:23.883Z] [INFO] [request] GET /api/dramacool/browse/streams/the-judge-from-hell-2024/1 from eff8e7ca
+[2026-01-25T09:12:15.369Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T09:14:44.477Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T09:16:55.638Z] [INFO] [request] GET /api/health from 12ca17b4
+[2026-01-25T09:17:43.108Z] [INFO] [request] GET /api/kdrama/streams/9441/1 from 12ca17b4
+[2026-01-25T09:20:10.710Z] [INFO] [request] GET /api/health from 12ca17b4
+[2026-01-25T09:20:32.354Z] [INFO] [request] GET /api/kdrama/streams/9441/1 from 12ca17b4
+[2026-01-25T09:23:10.712Z] [INFO] [request] GET /api/health from 12ca17b4
+[2026-01-25T09:24:19.884Z] [INFO] [request] GET /api/kdrama/streams/9441/1 from 12ca17b4
+[2026-01-25T09:44:36.841Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T09:46:49.676Z] [INFO] [request] GET /api/streams/movie/330331 from 12ca17b4
+[2026-01-25T09:46:49.681Z] [INFO] [api] fetching streams for tmdbId=330331 (Smart Wait: 15s)
+[2026-01-25T09:47:05.673Z] [INFO] [api] deadline reached, returning partial results for 330331
+[2026-01-25T09:47:21.445Z] [INFO] [request] GET /api/streams/movie/1084242 from 12ca17b4
+[2026-01-25T09:47:21.447Z] [INFO] [api] fetching streams for tmdbId=1084242 (Smart Wait: 15s)
+[2026-01-25T09:47:32.174Z] [INFO] [api] all providers completed within deadline for 1084242
+[2026-01-25T09:51:03.557Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T09:52:32.664Z] [INFO] [request] GET /api/streams/series/1434?season=1&episode=1 from 12ca17b4
+[2026-01-25T09:52:32.673Z] [INFO] [api] fetching streams for tmdbId=1434 (Smart Wait: 15s)
+[2026-01-25T09:52:47.936Z] [INFO] [api] deadline reached, returning partial results for 1434
+[2026-01-25T09:53:32.928Z] [ERROR] [api] provider Nova failed or timed out: Provider timeout
+[2026-01-25T09:54:31.149Z] [INFO] [request] GET /api/kdrama/streams/944/1 from 12ca17b4
+[2026-01-25T09:56:14.360Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T09:56:31.106Z] [INFO] [request] GET /api/kdrama/streams/944/1 from 12ca17b4

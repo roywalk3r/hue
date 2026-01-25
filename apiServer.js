@@ -455,7 +455,29 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
 
     // Map each provider to a promise that includes its own 60s safety timeout
     const providerPromises = selectedProviders.map(async name => {
-// ... (omitted)
+      const prov = getProvider(name);
+      if (!prov || !prov.enabled) return [];
+      
+      const isFast = prov.realName === 'vixsrc' || prov.realName === 'aura';
+      metrics.providerCalls[name] = (metrics.providerCalls[name]||0)+1;
+      try {
+        const t0 = Date.now();
+        // Add a safety timeout per provider
+        const r = await Promise.race([
+            prov.fetch({ tmdbId, type, season, episode, imdbId, filters:{ } }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Provider timeout')), isFast ? 15000 : 60000))
+        ]);
+        providerTimings[name] = Date.now()-t0;
+        const results = Array.isArray(r) ? r : [];
+        
+        if (results.length > 0) {
+            addCachedStreams(type, tmdbId, season, episode, results);
+        }
+        return results;
+      } catch (e) {
+        logger.error(`[api] provider ${name} failed or timed out:`, e.message);
+        return [];
+      }
     });
 
     // Create a "deadline" promise that resolves after 15 seconds
@@ -469,18 +491,29 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
 
     if (resultsOrDeadline === 'DEADLINE') {
         logger.info(`[api] deadline reached, returning partial results for ${tmdbId}`);
-        // We don't need to do anything else; the providerPromises are already running
-        // and will update the cache incrementally as they finish.
-    } else {
+    } else if (Array.isArray(resultsOrDeadline)) {
         logger.info(`[api] all providers completed within deadline for ${tmdbId}`);
-        resultsOrDeadline.forEach(r => streamsResults.push(...r));
+        resultsOrDeadline.forEach((r, idx) => {
+            if (r && Array.isArray(r)) {
+                streamsResults.push(...r);
+            } else {
+                const name = selectedProviders[idx] || 'unknown';
+                logger.warn(`[api] provider ${name} (index ${idx}) returned non-array result:`, r);
+            }
+        });
     }
 
     // Always check the cache for the final response to include anything that finished just now
-    const finalStreams = getCachedStreams(type, tmdbId, season, episode) || streamsResults;
+    const cachedAtEnd = getCachedStreams(type, tmdbId, season, episode);
+    const finalStreams = (cachedAtEnd && cachedAtEnd.length > 0) ? cachedAtEnd : streamsResults;
     const totalDuration = Date.now() - tStart;
 
     let streams = finalStreams;
+    if (!Array.isArray(streams)) {
+        logger.error(`[api] finalStreams is not an array for ${tmdbId}:`, streams);
+        streams = [];
+    }
+    
     streams = applyFilters(streams, 'aggregate', config.minQualities, config.excludeCodecs);
     metrics.streamsReturned += streams.length;
     
@@ -830,7 +863,7 @@ if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   const PORT = config.port;
   const HOST = process.env.BIND_HOST || '0.0.0.0';
   const server = app.listen(PORT, HOST, () => {
-    console.log(`TMDB Embed REST API listening on http://${HOST}:${PORT}`);
+    console.log(`TMDB Embed REST API v1.1.0-robust listening on http://${HOST}:${PORT}`);
     if (HOST !== 'localhost') {
       console.log(`Local access (if running on your machine): http://localhost:${PORT}`);
     }

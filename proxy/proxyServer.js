@@ -44,8 +44,9 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
             throw new Error(`Blocked internal/local URL: ${url}`);
         }
         
-        // Add browser-like headers for redirectors and CDNs
-        if (host.includes('redirector') || host.includes('cdnsync') || host.includes('quibble') || host.includes('lightning')) {
+        // Add browser-like headers for common CDNs and redirectors
+        const highReputationDomains = ['redirector', 'cdnsync', 'quibble', 'lightning', 'cdnvideo', 'embedload', 'bunny', 'hakunaymatata', 'vidhide', 'stream', 'load'];
+        if (highReputationDomains.some(d => host.includes(d))) {
             if (!options.headers) options.headers = {};
             options.headers['Cache-Control'] = 'no-cache';
             options.headers['Sec-Fetch-Mode'] = 'cors';
@@ -62,7 +63,6 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
 
     const fetchOptions = {
         ...options,
-        agent: options.agent || ((parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgent : httpsAgent)),
         compress: true 
     };
     
@@ -71,15 +71,16 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
         try {
             const t0 = Date.now();
             
-            // On second attempt for redirectors/CDNs, switch to IPv4 and rotate UA
-            if (attempt > 1) {
-                if (!fetchOptions.headers) fetchOptions.headers = {};
-                fetchOptions.headers['User-Agent'] = attempt % 2 === 0 ? FALLBACK_UA : DEFAULT_UA;
-                
-                if (host.includes('redirector') || host.includes('cdnsync') || host.includes('quibble') || host.includes('lightning')) {
-                    fetchOptions.agent = (parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgentV4 : httpsAgentV4);
-                }
-            }
+            // Force User-Agent rotation
+            if (!fetchOptions.headers) fetchOptions.headers = {};
+            fetchOptions.headers['User-Agent'] = attempt % 2 === 0 ? FALLBACK_UA : DEFAULT_UA;
+
+            // STRATEGY:
+            // 1st attempt: Try default (usually IPv6 preferred if available)
+            // 2nd+ attempt: Force IPv4 to bypass VPS routing hangups
+            fetchOptions.agent = (attempt > 1) 
+                ? ((parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgentV4 : httpsAgentV4))
+                : ((parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgent : httpsAgent));
             
             const res = await fetch(url, { ...fetchOptions, timeout: baseTimeout });
             const duration = Date.now() - t0;
@@ -559,7 +560,7 @@ function createProxyRoutes(app) {
                 response = await fetchWithRetry(currentUrl, { 
                     headers: mergedHeaders, 
                     redirect: 'manual',
-                    timeout: 30000 // Higher timeout for redirect chains
+                    timeout: 15000 // Higher timeout for redirect chains
                 });
 
                 if (response.status >= 300 && response.status < 400) {
@@ -866,7 +867,7 @@ function createProxyRoutes(app) {
             while (redirectCount <= maxRedirects) {
                 resp = await fetchWithRetry(currentUrl, { 
                     ...upstreamOptions, 
-                    timeout: 30000 
+                    timeout: 15000 
                 });
 
                 if (resp.status >= 300 && resp.status < 400) {
@@ -963,9 +964,16 @@ function createProxyRoutes(app) {
         try {
             const resp = await fetchWithRetry(targetUrl, { headers: mergedHeaders, redirect: 'follow' });
             if (!resp.ok) return res.status(resp.status).json({ error: `subtitle fetch failed: ${resp.status}` });
+            
+            let ct = resp.headers.get('content-type');
+            if (!ct || ct.includes('octet-stream') || ct.includes('text/plain')) {
+                if (targetUrl.includes('.vtt')) ct = 'text/vtt';
+                else if (targetUrl.includes('.srt')) ct = 'text/plain'; // browser treats srt as text
+            }
+
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Cache-Control', 'public, max-age=3600');
-            res.setHeader('Content-Type', resp.headers.get('content-type') || 'text/vtt');
+            res.setHeader('Content-Type', ct || 'text/vtt');
             resp.body.pipe(res);
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
@@ -1013,6 +1021,19 @@ function processStreamsForProxy(streams, serverUrl) {
         }
 
         const hParam = Object.keys(headers).length ? `&headers=${encodeURIComponent(JSON.stringify(headers))}` : '';
+
+        // Proxy subtitles if present
+        if (Array.isArray(s.subtitles)) {
+            s.subtitles = s.subtitles.map(sub => {
+                if (!sub || !sub.url || sub.url.includes('/sub-proxy')) return sub;
+                const subOriginal = extractOriginalUrl(sub.url);
+                return {
+                    ...sub,
+                    url: `${serverUrl}/sub-proxy?url=${encodeURIComponent(subOriginal)}${hParam}`
+                };
+            });
+        }
+
         let host = '';
         try {
             host = new URL(original).hostname.toLowerCase();
