@@ -18,15 +18,14 @@ const httpAgent = new http.Agent({
 });
 const httpsAgent = new https.Agent({ 
     keepAlive: true, 
-    maxSockets: 150, 
+    maxSockets: 100, 
     timeout: 60000,
-    freeSocketTimeout: 30000,
-    minVersion: 'TLSv1.2'
+    freeSocketTimeout: 30000
 });
 
 // IPv4 Forced Agents for bypassing VPS routing issues
 const httpAgentV4 = new http.Agent({ family: 4, keepAlive: true, maxSockets: 100 });
-const httpsAgentV4 = new https.Agent({ family: 4, keepAlive: true, maxSockets: 100, minVersion: 'TLSv1.2' });
+const httpsAgentV4 = new https.Agent({ family: 4, keepAlive: true, maxSockets: 100 });
 
 // Retry configuration for fetch operations
 const MAX_RETRIES = 2;
@@ -91,19 +90,21 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
     };
     
     let lastError;
+    let useIPv4Forced = forceIPv4;
+
     for (let attempt = 1; attempt <= actualRetries; attempt++) {
         try {
             const t0 = Date.now();
             
-            // On retry attempts, rotate User-Agent (IPv4 already forced for CDNs on first attempt)
+            // On retry attempts, rotate User-Agent and potentially force IPv4
             if (attempt > 1) {
                 if (!fetchOptions.headers) fetchOptions.headers = {};
                 fetchOptions.headers['User-Agent'] = attempt % 2 === 0 ? FALLBACK_UA : DEFAULT_UA;
-                
-                // If not forced initially but failed, force IPv4 on retry for everyone else
-                if (!forceIPv4) {
-                    fetchOptions.agent = (parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgentV4 : httpsAgentV4);
-                }
+                useIPv4Forced = true; // Force IPv4 on ANY retry
+            }
+
+            if (useIPv4Forced) {
+                fetchOptions.agent = (parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgentV4 : httpsAgentV4);
             }
             
             const res = await fetch(url, { ...fetchOptions, timeout: finalTimeout });
@@ -116,10 +117,19 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
             return res;
         } catch (error) {
             lastError = error;
+            const isNetworkError = error.code === 'ECONNRESET' || error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT';
+            
             if (error.name === 'AbortError' || error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
                 console.warn(`[fetch] Timeout on ${url} (Attempt ${attempt}/${actualRetries}, timeout: ${finalTimeout}ms)`);
+            } else {
+                console.warn(`[fetch] Network error ${error.code || error.name} on ${url} (Attempt ${attempt}/${actualRetries})`);
             }
+
             if (attempt >= actualRetries) throw error;
+            
+            // If it was a network reset/refusal, force IPv4 for the next attempt immediately
+            if (isNetworkError) useIPv4Forced = true;
+
             await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt));
         }
     }
@@ -587,9 +597,14 @@ function createProxyRoutes(app) {
             }
         });
 
-        // Ensure we don't send Sec- headers unless we are sure (better to omit for server-side fetch)
-        // If the upstream needs cookies, they should be in the headers object
-
+        // Forced Header Tuning for hostile CDNs
+        const hostileHosts = ['hakunaymatata', 'quibble', 'vidhide', 'cdnvideo', 'stream'];
+        const isHostile = hostileHosts.some(h => targetUrl.includes(h));
+        if (isHostile) {
+            mergedHeaders['Connection'] = 'close'; // Don't use persistent sockets
+        } else {
+            mergedHeaders['Connection'] = 'keep-alive';
+        }
 
         const hasUA = Object.keys(mergedHeaders).some(k => k.toLowerCase() === 'user-agent');
         if (!hasUA) {
@@ -935,6 +950,14 @@ function createProxyRoutes(app) {
             // If client supplied a suffix range like bytes=0- we pass it; force200 strips Range
             if (force200 && headers.Range) delete headers.Range;
             
+            // Forced Header Tuning for hostile CDNs in segments
+            const hostileHosts = ['hakunaymatata', 'quibble', 'vidhide', 'cdnvideo', 'stream'];
+            if (hostileHosts.some(h => targetUrl.includes(h))) {
+                upstreamOptions.headers['Connection'] = 'close';
+            } else {
+                upstreamOptions.headers['Connection'] = 'keep-alive';
+            }
+
             let resp = null;
             let currentUrl = targetUrl;
             let redirectCount = 0;
