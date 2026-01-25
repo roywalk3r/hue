@@ -165,4 +165,12 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     }
 }
 
-module.exports = { getStreams };
+async function getStreamsByUrl(url) {
+    console.log(`[Dramacool] Fetching streams for URL: ${url}`);
+    return await extractFromUrlWithPlaywright(url);
+}
+
+module.exports = { 
+    getStreams,
+    getStreamsByUrl
+};
