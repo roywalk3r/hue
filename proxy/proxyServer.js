@@ -10,15 +10,15 @@ const { encryptUrl } = require('../utils/security');
 let cryptoJs;
 
 // Shared agents with optimized TLS and keepAlive settings
-const httpAgent = new http.Agent({ 
+const httpAgent = new http.Agent({
     keepAlive: true, 
     maxSockets: 150, 
     timeout: 60000,
     freeSocketTimeout: 30000 
 });
-const httpsAgent = new https.Agent({ 
+const httpsAgent = new https.Agent({
     keepAlive: true, 
-    maxSockets: 100, 
+    maxSockets: 150, 
     timeout: 60000,
     freeSocketTimeout: 30000
 });
@@ -26,6 +26,9 @@ const httpsAgent = new https.Agent({
 // IPv4 Forced Agents for bypassing VPS routing issues
 const httpAgentV4 = new http.Agent({ family: 4, keepAlive: true, maxSockets: 100 });
 const httpsAgentV4 = new https.Agent({ family: 4, keepAlive: true, maxSockets: 100 });
+
+const DEFAULT_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+const FALLBACK_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 
 // Retry configuration for fetch operations
 const MAX_RETRIES = 2;
@@ -47,45 +50,29 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
         if (e.message.includes('Blocked')) throw e;
     }
 
-    // Calculate dynamic timeout based on domain and type
-    const slowDomains = ['redirector', 'cdnsync', 'quibble', 'lightning', 'cdnvideo', 'embedload', 'bunny', 'hakunaymatata', 'vidhide', 'stream', 'load', 'vidbox', 'lightningbolt', 'vixsrc'];
-    const isSlowDomain = slowDomains.some(d => host.includes(d));
+    const hostileHosts = ['hakunaymatata', 'quibble', 'vidhide', 'cdnvideo', 'stream', 'vixsrc', 'wyzie', 'rabbitstream', 'vidbox', 'lightningbolt'];
+    const isHostile = hostileHosts.some(h => host.includes(h));
     
     let baseTimeout = FETCH_TIMEOUT_MS;
     if (isSegment) baseTimeout = 120000;
-    else if (isSlowDomain) baseTimeout = 60000;
+    else if (isHostile) baseTimeout = 60000;
 
-    // Use the larger of the calculated timeout and the requested timeout
     const finalTimeout = Math.max(baseTimeout, options.timeout || 0);
     
-    // Auto-headers for streaming
-    try {
-        if (isSlowDomain && !url.includes('/api/')) {
-            if (!options.headers) options.headers = {};
-            options.headers['Cache-Control'] = 'no-cache';
-            options.headers['Connection'] = 'keep-alive';
-        }
-    } catch (e) {}
+    const mergedHeaders = { ...(options.headers || {}) };
+    if (isHostile) {
+        mergedHeaders['Connection'] = 'close';
+    }
 
     const actualRetries = isSegment ? 1 : maxRetries;
-
-    // Force IPv4 for known problematic CDNs on first attempt
-    const forceIPv4 = host.includes('redirector') || 
-                      host.includes('cdnsync') || 
-                      host.includes('quibble') || 
-                      host.includes('lightning') ||
-                      host.includes('videodelivery') ||
-                      host.includes('cdnvideo') ||
-                      host.includes('hakunaymatata') ||
-                      host.includes('rabbitstream') ||
-                      host.includes('vidbox') ||
-                      host.includes('lightningbolt');
+    const forceIPv4 = isHostile || host.includes('redirector') || host.includes('cdnsync');
 
     const fetchOptions = {
         ...options,
-        agent: options.agent || (forceIPv4 
+        headers: mergedHeaders,
+        agent: options.agent || (isHostile ? false : (forceIPv4 
             ? ((parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgentV4 : httpsAgentV4))
-            : ((parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgent : httpsAgent))),
+            : ((parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgent : httpsAgent)))),
         compress: true 
     };
     
@@ -104,7 +91,7 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
             }
 
             if (useIPv4Forced) {
-                fetchOptions.agent = (parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgentV4 : httpsAgentV4);
+                fetchOptions.agent = isHostile ? false : ((parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgentV4 : httpsAgentV4));
             }
             
             const res = await fetch(url, { ...fetchOptions, timeout: finalTimeout });
@@ -204,9 +191,6 @@ async function prefetchSegment(url, headers) {
     } catch (_e) { /* ignore */ }
 }
 
-const DEFAULT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
-const FALLBACK_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
-
 function inferContentType(upstreamCT, targetUrl) {
     const bad = !upstreamCT || /application\/octet-stream/i.test(upstreamCT) || /application\/(x-)?zip/i.test(upstreamCT) || /image\//i.test(upstreamCT);
     if (!bad) return upstreamCT;
@@ -271,122 +255,40 @@ function decodeVidzeeToken(token) {
                 try {
                     // Fall back to binary encoding if UTF-8 fails
                     raw = buffer.toString('binary');
-                    console.log('[VidZee] Fallback to binary encoding for token');
+                    if (debug) console.log('[VidZee] Binary decode used as fallback');
                 } catch (e2) {
-                    try {
-                        // Last resort: latin1 (handles all byte values)
-                        raw = buffer.toString('latin1');
-                        console.log('[VidZee] Fallback to latin1 encoding for token');
-                    } catch (e3) {
-                        // Only log if debug enabled
-                        if (process.env.VIDZEE_DEBUG === '1') {
-                            console.error('[VidZee] Decode error: Failed with all encodings');
-                        }
-                        return null;
-                    }
+                    throw new Error('All string decoding attempts failed');
                 }
             }
         } catch (e) {
-            // Only log if debug enabled
-            if (process.env.VIDZEE_DEBUG === '1') {
-                console.error('[VidZee] Decode error: Failed to decode base64:', e.message);
-            }
+            if (debug) console.log('[VidZee] Base64 decode failed:', e.message);
             return null;
         }
-        
-        // Extra validation and sanitization
-        if (!raw) {
-            if (debug) console.log('[VidZee] No raw data after decode');
-            return null;
-        }
-        
+
+        if (!raw) return null;
+
+        // Clean raw string from unprintable chars that might break URL parsing
+        raw = raw.replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim();
+
         if (debug) {
-            console.log('[VidZee] Raw before sanitization:', raw.substring(0, 100));
-            console.log('[VidZee] Raw contains colon:', raw.includes(':'));
+            console.log('[VidZee] Decoded raw string (first 100):', raw.substring(0, 100));
         }
+
+        // Strategy 1: Look for URL inside JSON-like or quoted structure
+        const urlRegex = /(https?:\/\/[^\s"'\\\}{\}\]\[<>]+)/i;
+        const match = raw.match(urlRegex);
         
-        // Aggressive sanitization of non-printable and control characters
-        raw = raw.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
-        
-        // Make sure we still have a valid structure after sanitization
-        if (!raw.includes(':')) {
-            if (debug) console.log('[VidZee] No colon after sanitization');
-            return null;
+        if (match) {
+            let finalUrl = match[1];
+            // Remove any trailing garbage like \ or " or )
+            finalUrl = finalUrl.split(/[\\"'<>{}()\[\]]/)[0];
+            if (debug) console.log('[VidZee] Found URL in token:', finalUrl);
+            return finalUrl;
         }
-        const [ivB64, cipherB64] = raw.split(':');
-        if (!ivB64 || !cipherB64) {
-            if (debug) console.log('[VidZee] Missing IV or cipher after split');
-            return null;
-        }
-        
-        if (debug) {
-            console.log('[VidZee] IV length:', ivB64.length);
-            console.log('[VidZee] Cipher length:', cipherB64.length);
-        }
-        
-        // Normalize inner base64 strings
-        const normalizeInner = (s) => {
-            let n = s.replace(/-/g, '+').replace(/_/g, '/').replace(/[^A-Za-z0-9+/=]/g, '');
-            const p = n.length % 4;
-            return p ? n + '='.repeat(4 - p) : n;
-        };
-        
-        const fixedIv = normalizeInner(ivB64);
-        const fixedCipher = normalizeInner(cipherB64);
-        
-        if (!cryptoJs) cryptoJs = require('crypto-js');
-        const iv = cryptoJs.enc.Base64.parse(fixedIv.trim());
-        const keyStr = 'qrincywincyspider';
-        const keyUtf8 = cryptoJs.enc.Utf8.parse(keyStr.padEnd(32, '\0'));
-        
-        // Decrypt with proper error handling for crypto-js malformed UTF-8 errors
-        let decrypted;
-        try {
-            const decryptedWords = cryptoJs.AES.decrypt(fixedCipher.trim(), keyUtf8, {
-                iv,
-                mode: cryptoJs.mode.CBC,
-                padding: cryptoJs.pad.Pkcs7
-            });
-            
-            if (debug) {
-                console.log('[VidZee] CryptoJS decrypt completed');
-                console.log('[VidZee] Decrypted words length:', decryptedWords.sigBytes);
-            }
-            
-            // First try standard UTF-8 decoding
-            try {
-                decrypted = decryptedWords.toString(cryptoJs.enc.Utf8);
-                if (debug) console.log('[VidZee] UTF-8 toString success');
-            } catch (utf8Error) {
-                // Fall back to Latin1 if UTF-8 fails - silent fallback to reduce logs
-                decrypted = decryptedWords.toString(cryptoJs.enc.Latin1);
-                if (debug) console.log('[VidZee] Latin1 toString fallback');
-            }
-        } catch (cryptoError) {
-            if (debug) console.log('[VidZee] CryptoJS decrypt error:', cryptoError.message);
-            // Silent failure to reduce logs
-            return null;
-        }
-        
-        if (!decrypted) {
-            if (debug) console.log('[VidZee] No decrypted result');
-            return null;
-        }
-        
-        if (!/^https?:\/\//i.test(decrypted)) {
-            if (debug) console.log('[VidZee] Decrypted result is not a URL');
-            // Silent failure
-            return null;
-        }
-        
-        if (debug) console.log('[VidZee] Successfully decoded URL');
-        return decrypted.trim();
-    } catch (_e) {
-        // Silently handle decode errors to reduce log spam
-        // Only log detailed errors if debug is enabled
-        if (process.env.VIDZEE_DEBUG === '1') {
-            console.error('[VidZee] Decode error:', _e.message);
-        }
+
+        return null;
+    } catch (e) {
+        if (debug) console.error('[VidZee] Token decode exception:', e.message);
         return null;
     }
 }
@@ -460,7 +362,7 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
     for (const line of lines) {
         if (line.startsWith('#')) {
             if (line.startsWith('#EXT-X-KEY:')) {
-                const uriMatch = line.match(/URI="([^"]+)"/);
+                const uriMatch = line.match(/URI=\"([^\"]+)\"/);
                 if (uriMatch) {
                     try {
                         const absKey = new URL(uriMatch[1], targetUrl).href;
@@ -473,7 +375,7 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
                     }
                 } else out.push(line);
             } else if (line.startsWith('#EXT-X-MEDIA:') || line.startsWith('#EXT-X-I-FRAME-STREAM-INF:')) {
-                const uriMatch = line.match(/URI="([^"]+)"/);
+                const uriMatch = line.match(/URI=\"([^\"]+)\"/);
                 if (uriMatch) {
                     try {
                         const mediaUrl = new URL(uriMatch[1], targetUrl).href;
@@ -483,7 +385,7 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
                     } catch { out.push(line); }
                 } else out.push(line);
             } else if (line.startsWith('#EXT-X-MAP:')) {
-                const uriMatch = line.match(/URI="([^"]+)"/);
+                const uriMatch = line.match(/URI=\"([^\"]+)\"/);
                 if (uriMatch) {
                     try {
                         const mapUrl = new URL(uriMatch[1], targetUrl).href;
@@ -581,7 +483,7 @@ function createProxyRoutes(app) {
              return res.status(403).json({ error: 'Access denied: Token required' });
         }
 
-        if (debug) console.log('[m3u8-proxy] Received URL:', targetUrl);
+        if (debug) console.log('[m3u8-proxy] Received URL:', targetUrl); 
         
         let headers = decryptedHeaders || {};
         // Merge query headers if present (fallback)
@@ -611,15 +513,6 @@ function createProxyRoutes(app) {
                 mergedHeaders[k] = headers[k];
             }
         });
-
-        // Forced Header Tuning for hostile CDNs
-        const hostileHosts = ['hakunaymatata', 'quibble', 'vidhide', 'cdnvideo', 'stream'];
-        const isHostile = hostileHosts.some(h => targetUrl.includes(h));
-        if (isHostile) {
-            mergedHeaders['Connection'] = 'close'; // Don't use persistent sockets
-        } else {
-            mergedHeaders['Connection'] = 'keep-alive';
-        }
 
         const hasUA = Object.keys(mergedHeaders).some(k => k.toLowerCase() === 'user-agent');
         if (!hasUA) {
@@ -715,7 +608,6 @@ function createProxyRoutes(app) {
             console.error('[m3u8-proxy] error', e);
             console.error('[m3u8-proxy] stack', e.stack);
             console.error('[m3u8-proxy] targetUrl', targetUrl);
-            console.error('[m3u8-proxy] headers', headers);
             res.status(500).json({ error: e.message, details: e.stack });
         }
     });
@@ -905,63 +797,6 @@ function createProxyRoutes(app) {
                     }
                 } catch (_e) { if (debug) console.log('[ts-proxy] probe failed'); }
             }
-            if (debug && contentLength) console.log('[ts-proxy] size determined', contentLength);
-
-            // Initiate tail prefetch asynchronously (once) when size known and feature enabled
-            if (tailPrefetchEnabled && contentLength && !tailPrefetchMap.has(targetUrl)) {
-                const total = parseInt(contentLength, 10);
-                if (!isNaN(total) && total > 0) {
-                    const tailBytes = Math.min(tailPrefetchKB * 1024, total);
-                    const start = Math.max(0, total - tailBytes);
-                    const tailRange = `bytes=${start}-`;
-                    (async () => {
-                        try {
-                            if (debug) console.log('[ts-proxy] tail prefetch start', { tailRange });
-                            const tr = await fetchWithRetry(targetUrl, { headers: { 'User-Agent': DEFAULT_UA, ...headers, Range: tailRange } });
-                            if (tr.status === 206) {
-                                const buf = Buffer.from(await tr.arrayBuffer());
-                                const cr = tr.headers.get('content-range');
-                                if (cr) {
-                                    const mm = cr.match(/bytes\s+(\d+)-(\d+)\/(\d+)/i);
-                                    if (mm) {
-                                        const s = parseInt(mm[1], 10); const e = parseInt(mm[2], 10); const sz = parseInt(mm[3], 10);
-                                        if (!isNaN(s) && !isNaN(e) && !isNaN(sz)) {
-                                            tailPrefetchMap.set(targetUrl, { data: buf, start: s, end: e, size: sz, ts: Date.now() });
-                                            if (debug) console.log('[ts-proxy] tail prefetch success', { start: s, end: e, bytes: buf.length });
-                                        }
-                                    }
-                                }
-                            } else if (debug) {
-                                console.log('[ts-proxy] tail prefetch status', tr.status);
-                            }
-                        } catch (e) { if (debug) console.log('[ts-proxy] tail prefetch error', e.message); }
-                    })();
-                }
-            }
-
-            // If no range requested but we now know size (HEAD or probe), synthesize an initial small range fetch to accelerate playback.
-            if (!force200 && !effectiveRange && contentLength && !noSynth && req.query.progressiveOpen === '0') {
-                const total = parseInt(contentLength, 10);
-                const desired = initChunkKB * 1024;
-                const chunkSize = Math.min(desired, Math.max(0, total - 1));
-                const syntheticRange = `bytes=0-${chunkSize}`;
-                const resp = await fetchWithRetry(targetUrl, { headers: { 'User-Agent': DEFAULT_UA, ...headers, 'Range': syntheticRange } });
-                if (resp.status === 206) {
-                    if (debug) console.log('[ts-proxy] synthetic 206', syntheticRange);
-                    const upstreamCT = inferContentType(resp.headers.get('content-type'), targetUrl);
-                    res.status(206);
-                    res.setHeader('Content-Type', upstreamCT);
-                    res.setHeader('Accept-Ranges', upstreamAcceptRanges || 'bytes');
-                    const contentRange = resp.headers.get('content-range');
-                    if (contentRange) res.setHeader('Content-Range', contentRange);
-                    const cl = resp.headers.get('content-length'); if (cl) res.setHeader('Content-Length', cl);
-                    res.setHeader('Cache-Control', 'public, max-age=3600');
-                    res.setHeader('Access-Control-Allow-Origin', '*');
-                    // Pipe first chunk then leave connection open? Simpler: end after chunk; player will request next range.
-                    return resp.body.pipe(res);
-                }
-                // If server ignored range (e.g., returned 200), fall through to normal logic below.
-            }
 
             const upstreamOptions = { headers: { 'User-Agent': DEFAULT_UA, ...headers }, redirect: 'manual' };
             // If client supplied a suffix range like bytes=0- we pass it; force200 strips Range
@@ -1009,58 +844,27 @@ function createProxyRoutes(app) {
 
             if (!resp.ok && resp.status !== 206) {
                 if (debug) console.log('[ts-proxy] upstream error', resp.status);
-                // Retry once without Range if upstream rejects range / partial
-                if (headers.Range) {
-                    const { Range, ...rest } = headers;
-                    const retryOpts = { headers: { 'User-Agent': DEFAULT_UA, ...rest } };
-                    try {
-                        const retry = await fetchWithRetry(targetUrl, retryOpts);
-                        if (retry.ok || retry.status === 206) {
-                            resp = retry;
-                        } else {
-                            return res.status(retry.status).json({ error: `TS fetch failed: ${retry.status}` });
-                        }
-                    } catch (retryErr) {
-                        if (debug) console.log('[ts-proxy] retry failed', retryErr.message);
-                        return res.status(resp.status).json({ error: `TS fetch failed: ${resp.status}` });
-                    }
-                } else {
-                    return res.status(resp.status).json({ error: `TS fetch failed: ${resp.status}` });
-                }
+                return res.status(resp.status).json({ error: `upstream returned ${resp.status}`, target: currentUrl });
             }
-            // Forward partial content status when range used
-            if (effectiveRange && resp.status === 206 && !force200) { res.status(206); if (debug) console.log('[ts-proxy] forwarding 206', { appliedClamp }); }
-            if (force200 && resp.status === 206) {
-                // Some origins still return 206 even without Range; normalize to 200 for players expecting full stream
-                if (debug) console.log('[ts-proxy] normalizing 206 -> 200 due to force200');
-            }
-            // Copy key streaming headers
-            const upstreamCT = inferContentType(resp.headers.get('content-type'), targetUrl);
-            res.setHeader('Content-Type', upstreamCT);
-            let cl = resp.headers.get('content-length');
-            const crHeader = resp.headers.get('content-range');
-            if (!cl && crHeader) {
-                // Try to derive length from range span
-                const m = crHeader.match(/bytes\s+(\d+)-(\d+)\/(\d+|\*)/i);
-                if (m) {
-                    const start = parseInt(m[1], 10); const end = parseInt(m[2], 10);
-                    if (!isNaN(start) && !isNaN(end)) cl = (end - start + 1).toString();
-                }
-            }
-            if (cl) res.setHeader('Content-Length', cl);
-            const acceptRanges = resp.headers.get('accept-ranges');
-            if (acceptRanges) res.setHeader('Accept-Ranges', acceptRanges); else res.setHeader('Accept-Ranges', 'bytes');
-            const contentRange = resp.headers.get('content-range'); if (contentRange && !force200) res.setHeader('Content-Range', contentRange);
+
+            // Copy crucial headers
+            const upstreamCT = resp.headers.get('content-type');
+            const ct = inferContentType(upstreamCT, currentUrl);
+            res.setHeader('Content-Type', ct);
+            const upstreamAcceptRanges = resp.headers.get('accept-ranges');
+            res.setHeader('Accept-Ranges', upstreamAcceptRanges || 'bytes');
+            const contentRange = resp.headers.get('content-range');
+            if (contentRange) res.setHeader('Content-Range', contentRange);
+            const cl = resp.headers.get('content-length'); if (cl) res.setHeader('Content-Length', cl);
             res.setHeader('Cache-Control', 'public, max-age=3600');
             res.setHeader('Access-Control-Allow-Origin', '*');
-            if (debug) console.log('[ts-proxy] streaming body', { status: resp.status, ct: upstreamCT, cl, contentRange: force200 ? undefined : contentRange });
-            resp.body.pipe(res);
-        } catch (e) { 
-            if (debug) console.log('[ts-proxy] exception', e.message, e.stack); 
+            // Pipe first chunk then leave connection open? Simpler: end after chunk; player will request next range.
+            return resp.body.pipe(res);
+        } catch (e) {
             console.error('[ts-proxy] error', e);
             console.error('[ts-proxy] stack', e.stack);
             console.error('[ts-proxy] targetUrl', targetUrl);
-            res.status(500).json({ error: e.message, details: e.stack }); 
+            res.status(500).json({ error: e.message, details: e.stack });
         }
     });
 
@@ -1160,8 +964,6 @@ function processStreamsForProxy(streams, serverUrl) {
                 if (hJson) headers = JSON.parse(hJson);
             } catch {}
         }
-
-        const hParam = Object.keys(headers).length ? `&headers=${encodeURIComponent(JSON.stringify(headers))}` : '';
 
         // Proxy subtitles if present
         if (Array.isArray(s.subtitles)) {
