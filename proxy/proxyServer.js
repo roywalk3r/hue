@@ -554,15 +554,18 @@ function createProxyRoutes(app) {
             try { headers.Origin = new URL(headers.Referer).origin; } catch (_e) { /* ignore */ }
         }
         
-        // Normalize headers to avoid duplicates and strip problematic ones
-        const mergedHeaders = {};
-        const skipHeaders = ['host', 'connection', 'content-length', 'content-type', 'accept-encoding', 'cookie', 'if-none-match', 'if-modified-since', 'range'];
+        // Headers to clean
+        const skipHeaders = ['host', 'connection', 'content-length', 'content-type', 'accept-encoding', 'cookie', 'if-none-match', 'if-modified-since', 'range', 'sec-fetch-mode', 'sec-fetch-site', 'sec-fetch-dest', 'sec-fetch-user'];
         
         Object.keys(headers).forEach(k => {
             if (!skipHeaders.includes(k.toLowerCase())) {
                 mergedHeaders[k] = headers[k];
             }
         });
+
+        // Ensure we don't send Sec- headers unless we are sure (better to omit for server-side fetch)
+        // If the upstream needs cookies, they should be in the headers object
+
 
         const hasUA = Object.keys(mergedHeaders).some(k => k.toLowerCase() === 'user-agent');
         if (!hasUA) {
