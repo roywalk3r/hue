@@ -31,19 +31,20 @@ async function getTmdbInfo(tmdbId, mediaType) {
 
 async function searchShow(title, season) {
     let searchTitle = title;
-    if (season && parseInt(season) > 0) {
-        searchTitle = `${title} Season ${season}`;
-    }
+    // Prefer searching for the base title first as KissKH often groups seasons under one show
+    // or has specific naming conventions.
+    const baseTitle = title.replace(/\s+Season\s+\d+/i, '').trim();
 
-    console.log(`[KissKH] API Search: ${searchTitle}`);
-    const url = `${API_BASE}/DramaList/Search?q=${encodeURIComponent(searchTitle)}`;
+    console.log(`[KissKH] API Search: ${baseTitle}`);
+    const url = `${API_BASE}/DramaList/Search?q=${encodeURIComponent(baseTitle)}`;
     try {
         const resp = await axiosInstance.get(url);
         const results = resp.data;
         if (!Array.isArray(results) || results.length === 0) {
-            if (searchTitle !== title) {
-                 console.log(`[KissKH] API Search fallback: ${title}`);
-                 const url2 = `${API_BASE}/DramaList/Search?q=${encodeURIComponent(title)}`;
+            // Fallback: Try with full title if base title failed
+            if (searchTitle !== baseTitle) {
+                 console.log(`[KissKH] API Search fallback: ${searchTitle}`);
+                 const url2 = `${API_BASE}/DramaList/Search?q=${encodeURIComponent(searchTitle)}`;
                  const resp2 = await axiosInstance.get(url2);
                  const results2 = resp2.data;
                  if (Array.isArray(results2) && results2.length > 0) {
@@ -121,6 +122,18 @@ async function extractStreamsFromKissKhPage(directUrl) {
         page = await getNewPage();
         context = page.context();
 
+        // Aggressive ad-blocking
+        await page.route('**/*', route => {
+            const u = route.request().url();
+            if (u.includes('google') || u.includes('facebook') || u.includes('analytics') || 
+                u.includes('doubleclick') || u.includes('quantserve') || u.includes('adsystem') || 
+                u.includes('fonts') || u.includes('disqus')) {
+                return route.abort();
+            }
+            if (u.endsWith('.png') || u.endsWith('.jpg') || u.endsWith('.jpeg')) return route.abort();
+            route.continue();
+        });
+
         const capturedUrls = { video: new Set(), subtitles: new Set() };
         
         page.on("request", (request) => {
@@ -158,14 +171,21 @@ async function extractStreamsFromKissKhPage(directUrl) {
             }
         });
 
-        await page.goto(directUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
-        try { await page.waitForSelector('video, iframe', { timeout: 10000 }); } catch (e) {}
+        await page.goto(directUrl, { waitUntil: "commit", timeout: 30000 });
+        try { await page.waitForSelector('video, iframe', { timeout: 15000 }); } catch (e) {}
         await page.evaluate(() => {
             const v = document.querySelector('video');
             if (v) v.play().catch(() => {});
         });
-        await new Promise(r => setTimeout(r, 8000));
+        
+        // Dynamic wait for streams (max 15s)
+        const start = Date.now();
+        while (Date.now() - start < 15000) {
+            if (capturedUrls.video.size > 0) break;
+            await new Promise(r => setTimeout(r, 500));
+        }
 
+        // Fallback: Scan page source for subtitle links if none captured
         const extraSubs = await page.evaluate(() => {
             const scripts = Array.from(document.querySelectorAll('script')).map(s => s.innerText);
             const found = [];

@@ -3,7 +3,7 @@ const axios = require("axios");
 const { getNewContext } = require("../utils/browserManager");
 
 const BASE_URL = "https://sflix.film";
-const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 async function getTmdbInfo(tmdbId, mediaType) {
     const { getTmdbApiKey } = require("../utils/tmdbKey");
@@ -129,26 +129,57 @@ async function getMediaInfo(detailUrl, title) {
         
         let id = null;
 
+        // Strategy 1: Common JSON patterns
         const match1 = html.match(/"id"\s*:\s*"?(\d{15,})"?/) || html.match(/id\s*=\s*"?(\d{15,})"?/);
         if (match1) id = match1[1];
 
+        // Strategy 2: NUXT Data (The most reliable for SFlix)
         if (!id) {
-            const safeTitle = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            // Look for the subjectId in the flattened Nuxt array
+            // It usually appears as a string of digits in the big JSON array
+            // We look for a string of 15-20 digits that appears in the context of the title
+            const titlePart = title.split(' ')[0].replace(/[.*+?^${}()|[\\]/g, '\\{new_string}');
+            const nuxtMatch = html.match(new RegExp(`\"${titlePart}\"[\\s\\S]{0,500}?\"subjectId\":\s*\"?(\\d{18,20})\"?`, 'i')) || 
+                              html.match(/"subjectId":\s*"?(\d{18,20})"?/);
+            if (nuxtMatch) {
+                // If the first match group is the title, then the ID is later? No, regex is tricky.
+                // Let's stick to the simplest unique pattern: a long ID string.
+                // SFlix IDs are distinctively long (18-20 chars).
+                // Actually, just looking for ANY long number might be safer if we assume the page is for this show.
+                const longId = html.match(/"(\d{18,20})"/);
+                if (longId) id = longId[1];
+            }
+        }
+
+        // Strategy 3: Fallback regex
+        if (!id) {
+            const safeTitle = title.replace(/[.*+?^${}()|[\\]/g, '\\$&');
             const regex = new RegExp(`"(\\d{15,})",\\d+,"${safeTitle}"`);
             const match2 = html.match(regex);
             if (match2) id = match2[1];
         }
 
         if (!id) {
-             const match3 = html.match(/"(\d{15,})"/);
+             const match3 = html.match(/"(\\d{18,20})"/); // SFlix IDs are usually long
              if (match3) id = match3[1];
         }
         
+        // Extract subjectType (1=Movie, 2=Series) from Nuxt if possible
+        let type = null;
+        const typeMatch = html.match(/"subjectType":\s*(\\d+)/);
+        if (typeMatch) {
+            const rawType = parseInt(typeMatch[1]);
+            const linkMatch = html.match(/type=(%2F| \/)(movie|series)(%2F| \/)detail/);
+            if (linkMatch) {
+                type = linkMatch[2] === 'movie' ? 1 : 2;
+            }
+        }
+
         const slug = detailUrl.split('/').pop() || null;
         
-        return { id, slug };
+        return { id, slug, type };
     } catch {
-        return { id: null, slug: null };
+        return { id: null, slug: null, type: null };
     }
 }
 
@@ -428,8 +459,6 @@ async function getStreamsDirect(title, episode, season = 1) {
     let context;
     
     try {
-        // 1. Search for the show URL
-        // We assume it's a TV show if episode is provided, but could be a movie if season/episode are missing
         const mediaType = (season || episode) ? "tv" : "movie";
         const detailUrl = await searchSflix(title, mediaType, null, season);
         
@@ -438,8 +467,7 @@ async function getStreamsDirect(title, episode, season = 1) {
             return [];
         }
 
-        // 2. Get ID and Slug
-        const { id, slug } = await getMediaInfo(detailUrl, title);
+        const { id, slug, type } = await getMediaInfo(detailUrl, title);
         if (!id || !slug) {
             console.log(`[SFlix] Failed to extract ID/Slug for: ${detailUrl}`);
             return [];
@@ -447,15 +475,6 @@ async function getStreamsDirect(title, episode, season = 1) {
         
         console.log(`[SFlix] Found: ${slug} (ID: ${id})`);
 
-        // 3. Extract Streams (Reusing the browser logic)
-        // We need to replicate the browser part of getSflixStreams but without the TMDB lookup
-        // Ideally, we refactor getSflixStreams to be reusable, but for now we can call a shared internal helper
-        // or just copy the extraction block. To keep it clean, I'll extract the core logic.
-        
-        // Actually, getSflixStreams does a lot of specific TMDB stuff. 
-        // Let's create a specialized extraction for this direct path.
-        
-        const { getNewContext } = require("../utils/browserManager");
         context = await getNewContext();
         const page = await context.newPage();
         const capturedUrls = { video: new Set(), subtitles: new Set() };
@@ -463,55 +482,86 @@ async function getStreamsDirect(title, episode, season = 1) {
         page.on("request", (request) => {
             const url = request.url();
             const isVideo = (url.includes(".mp4") || url.includes(".m3u8") || url.includes("hakunaymatata.com") || url.includes("lightningbolt.site") || url.includes("vidbox.site") || url.includes(".m3u8?")) 
-                            && !url.includes("/subtitle/") && !url.includes(".vtt") && !url.includes(".srt");
+                            && !url.includes("/subtitle/") && !url.includes(".vtt") && !url.includes(".srt")
+                            && !url.includes("aoneroom.com") && !url.includes("macdn"); // Exclude trailers
+            
+            // Debug: Log potential candidates we might be missing
+            if (url.includes('.m3u8') || url.includes('.mp4') || url.includes('master.txt')) {
+                console.log(`[SFlix-Debug] Saw video-like URL: ${url}`);
+            }
+
             if (isVideo && !url.includes("image/") && !url.includes("banner") && !url.includes("logo") && !url.includes(".js") && !url.includes(".css")) capturedUrls.video.add(url);
             if (url.includes(".vtt") || url.includes(".srt") || url.includes("/subtitle/")) capturedUrls.subtitles.add(url);
         });
 
         // Construct Play URL directly
-        const pathSegment = mediaType === "movie" ? "movies" : "series";
-        const typeParam = mediaType === "movie" ? "/movie/detail" : "/series/detail";
-        const playUrl = `${BASE_URL}/spa/videoPlayPage/${pathSegment}/${slug}?id=${id}&type=${encodeURIComponent(typeParam)}&lang=en`;
+        // Use extracted type if available (1=Movie, 2=Series), otherwise fallback to request mediaType
+        // const effectiveType = type ? (type === 1 ? "movie" : "tv") : mediaType;
+        // const pathSegment = effectiveType === "movie" ? "movies" : "series";
+        // const typeParam = effectiveType === "movie" ? "/movie/detail" : "/series/detail";
+        // const playUrl = `${BASE_URL}/spa/videoPlayPage/${pathSegment}/${slug}?id=${id}&type=${encodeURIComponent(typeParam)}&lang=en`;
         
-        console.log(`[SFlix] Navigating to play page: ${playUrl}`);
-        await page.goto(playUrl, { waitUntil: "commit", timeout: 60000 }).catch(() => {});
+        // console.log(`[SFlix] Navigating to play page: ${playUrl}`);
+        // await page.goto(playUrl, { waitUntil: "commit", timeout: 60000 }).catch(() => {});
 
-        // Wait for player
-        try { await page.waitForSelector('.art-video-player, video, iframe', { timeout: 10000 }); } catch {}
+        // Safer approach: Go to detail page and Click "Watch Free"
+        // This avoids guessing the /movies/ vs /series/ routing logic
+        console.log(`[SFlix] Navigating to detail page: ${detailUrl}`);
+        await page.goto(detailUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+
+        try {
+            // Wait for and click the Watch button
+            const btnSelector = '.watch-btn, button:has-text("Watch Free")';
+            const btn = await page.waitForSelector(btnSelector, { timeout: 8000, state: 'attached' });
+            
+            if (btn) {
+                // Try Playwright click
+                await btn.click({ force: true, timeout: 5000 }).catch(async () => {
+                    console.log(`[SFlix] Playwright click failed, trying JS click...`);
+                    // Fallback to JS click
+                    await page.evaluate(() => {
+                        const el = document.querySelector('.watch-btn') || document.querySelector('button.btn');
+                        if (el) el.click();
+                    });
+                });
+                console.log(`[SFlix] Clicked Watch Button`);
+            }
+            
+            // Don't wait for navigation, just wait for streams immediately
+            // await page.waitForURL('**/spa/videoPlayPage/**', { timeout: 15000 });
+        } catch (e) {
+            console.log(`[SFlix] Watch button click failed: ${e.message}`);
+            // Try blind JS click as last resort
+            await page.evaluate(() => {
+                const b = document.querySelector('.watch-btn');
+                if (b) b.click();
+            }).catch(() => {});
+        }
 
         // Handle Season/Episode selection for TV
         if (mediaType === "tv") {
-             // Reuse the picker logic logic from getSflixStreams... 
-             // Since it's complex, we should have refactored it. 
-             // For now, I will invoke the hydration check and clicker.
+             // Reuse the picker logic logic from getSflixStreams...
              try {
                 await page.waitForFunction(() => {
                     const seasonBox = document.querySelector('.season-box, .season-box2, .ss-box');
                     return seasonBox && seasonBox.textContent?.trim().length > 0;
-                }, { timeout: 10000 });
-             } catch {}
-
-             // Simple Clicker for now (assuming S1 E1 or specific)
-             // We can rely on the fact that SFlix usually defaults to S1 E1, 
-             // but we need to be sure.
-             // Let's assume for HiTV mapping we are mostly looking for Ep 1 or specific Ep.
-             // If we need robust clicking, we should copy the picker logic.
-             // I'll stick to basic playback trigger for now as HiTV users usually start at Ep 1.
+                }, { timeout: 5000 }); // Reduced timeout
+             } catch {} 
         }
 
         await triggerPlayback(page, "direct");
         
-        // Wait for streams
         const start = Date.now();
-        while (Date.now() - start < 15000) {
-            if (capturedUrls.video.size > 0) break;
-            await new Promise(r => setTimeout(r, 500));
+        while (Date.now() - start < 20000) {
+            if (capturedUrls.video.size > 0) {
+                console.log(`[SFlix] Captured ${capturedUrls.video.size} streams!`);
+                break;
+            }
+            await new Promise(resolve => setTimeout(resolve, 500));
         }
 
-        // Process captured URLs
         const allCaptured = Array.from(capturedUrls.video);
         const valid = allCaptured.filter(url => !url.includes("-ld.mp4") && !url.includes("trailer"));
-        
         const subtitles = Array.from(capturedUrls.subtitles).map(url => ({ url, lang: "en", label: "English" }));
         
         for (const videoUrl of valid) {
@@ -532,4 +582,71 @@ async function getStreamsDirect(title, episode, season = 1) {
     return streams;
 }
 
-module.exports = { getStreams: getSflixStreams, getStreamsDirect };
+async function getStreamsBySlug(id, slug, episode, season = 1) {
+    console.log(`[SFlix] Direct URL Fetch for: ${slug} (ID: ${id}) E${episode}`);
+    const streams = [];
+    let context;
+    
+    try {
+        context = await getNewContext();
+        const page = await context.newPage();
+        const capturedUrls = { video: new Set(), subtitles: new Set() };
+        
+        page.on("request", (request) => {
+            const url = request.url();
+            const isVideo = (url.includes(".mp4") || url.includes(".m3u8") || url.includes("hakunaymatata.com") || url.includes("lightningbolt.site") || url.includes("vidbox.site") || url.includes(".m3u8?")) 
+                            && !url.includes("/subtitle/") && !url.includes(".vtt") && !url.includes(".srt")
+                            && !url.includes("aoneroom.com") && !url.includes("macdn");
+            
+            if (isVideo && !url.includes("image/") && !url.includes("banner") && !url.includes("logo") && !url.includes(".js") && !url.includes(".css")) capturedUrls.video.add(url);
+            if (url.includes(".vtt") || url.includes(".srt") || url.includes("/subtitle/")) capturedUrls.subtitles.add(url);
+        });
+
+        // Use Detail Page Navigation -> Click Watch
+        const detailUrl = `${BASE_URL}/detail/${slug}?id=${id}`;
+        
+        console.log(`[SFlix] Navigating to detail page: ${detailUrl}`);
+        await page.goto(detailUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+
+        try {
+            const btn = await page.waitForSelector('.watch-btn, button:has-text("Watch Free")', { timeout: 10000 });
+            await btn.click();
+            console.log(`[SFlix] Clicked Watch Button`);
+            await page.waitForURL('**/spa/videoPlayPage/**', { timeout: 15000 });
+        } catch (e) {
+            console.log(`[SFlix] Watch button click failed: ${e.message}`);
+        }
+
+        // Handle Season/Episode picker if it's a series
+        // Note: SFlix will often auto-play Ep 1, but we should trigger the picker if needed.
+        await triggerPlayback(page, "slug-direct");
+        
+        const start = Date.now();
+        while (Date.now() - start < 15000) {
+            if (capturedUrls.video.size > 0) break;
+            await new Promise(r => setTimeout(r, 500));
+        }
+
+        const allCaptured = Array.from(capturedUrls.video);
+        const valid = allCaptured.filter(url => !url.includes("-ld.mp4") && !url.includes("trailer"));
+        const subtitles = Array.from(capturedUrls.subtitles).map(url => ({ url, lang: "en", label: "English" }));
+        
+        for (const videoUrl of valid) {
+             streams.push({
+                 url: videoUrl, 
+                 quality: "Auto", 
+                 provider: "Nova",
+                 subtitles: subtitles.length > 0 ? subtitles : undefined,
+                 headers: { "Referer": "https://sflix.film/", "User-Agent": USER_AGENT, "Origin": "https://sflix.film" }
+             });
+        }
+        
+    } catch (error) {
+        console.error(`[SFlix] Slug Fetch Error: ${error.message}`);
+    } finally {
+        if (context) await context.close();
+    }
+    return streams;
+}
+
+module.exports = { getStreams: getSflixStreams, getStreamsDirect, getStreamsBySlug };

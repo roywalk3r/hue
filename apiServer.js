@@ -49,7 +49,7 @@ app.get('/api/docs', (req, res) => {
         <script
           id="api-reference"
           data-url="/api/docs/swagger.json"
-          data-configuration='{"theme": "deepSpace"}'></script>
+          data-configuration='{"theme": "elysiajs"}'></script>
         <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
       </body>
     </html>
@@ -462,7 +462,11 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
         return res.json({ success: true, tmdbId, imdbId, count: streams.length, streams, fromCache: true });
     }
     
-    const selectedProviders = (config.defaultProviders.length ? config.defaultProviders : listProviders().map(p=>p.name));
+    // EXCLUDE specialized Asian drama providers from general aggregation
+    const dramaProviders = ['kisskh', 'dramacool'];
+    const selectedProviders = (config.defaultProviders.length ? config.defaultProviders : listProviders().map(p=>p.name))
+        .filter(name => !dramaProviders.includes(name));
+
     const providerTimings = {};
     const streamsResults = [];
     

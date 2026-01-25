@@ -95,6 +95,7 @@ async function getHiTvDetail(id) {
                 title: d.title,
                 description: d.description,
                 cover: d.cover ? d.cover.url : null,
+                detailPath: d.detailPath, // Added slug
                 episodes: (d.seasonList || []).flatMap(s => s.episodeList || []).map(e => ({
                     number: e.episodeName || e.episode,
                     title: e.title || `Episode ${e.episode}`,
@@ -109,10 +110,36 @@ async function getHiTvDetail(id) {
     }
 }
 
-async function searchHiTv(query) {
-    // Implementing search if needed later, but focusing on browse for now based on payload
-    // HiTV search endpoint is usually /search/search
-    return { items: [] };
+async function searchHiTv(query, type = 2) {
+    const url = `${BASE_URL}/subject/search`;
+    const payload = {
+        keyword: query,
+        page: 1,
+        perPage: 24,
+        subjectType: type // 1 for Movies, 2 for Series
+    };
+
+    try {
+        const response = await axios.post(url, payload, { headers: DEFAULT_HEADERS });
+        if (response.data && response.data.code === 0 && response.data.data) {
+             const list = response.data.data.items || [];
+             return {
+                items: list.map(item => ({
+                    id: item.subjectId,
+                    title: item.title,
+                    cover: item.cover ? item.cover.url : null,
+                    rating: item.imdbRatingValue,
+                    releaseDate: item.releaseDate,
+                    genre: item.genre,
+                    type: item.subjectType === 1 ? "movie" : "tv"
+                }))
+            };
+        }
+        return { items: [] };
+    } catch (error) {
+        console.error('[HiTV] Search error:', error.message);
+        return { items: [] };
+    }
 }
 
 module.exports = { browseHiTv, searchHiTv, getHiTvDetail, getHiTvCountries, getHiTvCategories, getHiTvGenres, getHiTvSorts };

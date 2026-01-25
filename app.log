@@ -262,3 +262,223 @@
 [2026-01-25T09:54:31.149Z] [INFO] [request] GET /api/kdrama/streams/944/1 from 12ca17b4
 [2026-01-25T09:56:14.360Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
 [2026-01-25T09:56:31.106Z] [INFO] [request] GET /api/kdrama/streams/944/1 from 12ca17b4
+[2026-01-25T10:09:47.679Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T10:09:49.457Z] [INFO] [request] GET /api/hitv/browse?page=1 from 12ca17b4
+[2026-01-25T10:17:42.562Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T10:18:31.880Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from 12ca17b4
+[2026-01-25T10:18:44.719Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1 from 12ca17b4
+[2026-01-25T10:25:48.837Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T10:32:41.358Z] [INFO] [request] GET /api/hitv/categories from 12ca17b4
+[2026-01-25T10:32:48.230Z] [INFO] [request] GET /api/hitv/categories from 12ca17b4
+[2026-01-25T10:32:54.064Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T10:33:12.323Z] [INFO] [request] GET /api/hitv/categories from 12ca17b4
+[2026-01-25T10:33:17.925Z] [INFO] [request] GET /api/hitv/categories from 12ca17b4
+[2026-01-25T10:33:23.899Z] [INFO] [request] GET /api/hitv/countries from 12ca17b4
+[2026-01-25T10:38:56.190Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T10:39:00.954Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-25T10:39:07.761Z] [INFO] [request] GET /api/hitv/browse?genre=Romance&page=1 from 12ca17b4
+[2026-01-25T10:43:54.260Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T10:45:22.453Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-25T10:45:46.611Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-25T10:45:59.726Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-25T10:47:18.935Z] [INFO] [request] GET /api/hitv/browse?page=1&perPage=1 from 12ca17b4
+[2026-01-25T10:47:27.414Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from 12ca17b4
+[2026-01-25T10:47:29.457Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1 from 12ca17b4
+[2026-01-25T10:47:53.367Z] [INFO] [request] GET /api/hitv/categories from 12ca17b4
+[2026-01-25T10:48:01.247Z] [INFO] [request] GET /api/hitv/countries from 12ca17b4
+[2026-01-25T10:48:08.933Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-25T10:48:17.923Z] [INFO] [request] GET /api/hitv/sorts from 12ca17b4
+[2026-01-25T10:56:47.309Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T10:56:49.785Z] [INFO] [request] GET /api/streams/series/1434?season=1&episode=2 from 12ca17b4
+[2026-01-25T10:56:49.792Z] [INFO] [api] fetching streams for tmdbId=1434 (Smart Wait: 15s)
+[2026-01-25T10:56:49.974Z] [INFO] [request] GET /api/streams/series/1434?season=1&episode=1 from 12ca17b4
+[2026-01-25T10:56:49.977Z] [INFO] [api] fetching streams for tmdbId=1434 (Smart Wait: 15s)
+[2026-01-25T10:57:04.944Z] [INFO] [api] deadline reached, returning partial results for 1434
+[2026-01-25T10:57:04.984Z] [INFO] [api] deadline reached, returning partial results for 1434
+[2026-01-25T10:57:49.941Z] [ERROR] [api] provider Nova failed or timed out: Provider timeout
+[2026-01-25T10:57:49.980Z] [ERROR] [api] provider Nova failed or timed out: Provider timeout
+[2026-01-25T10:59:58.490Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T11:00:25.601Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T11:00:36.643Z] [INFO] [request] GET /api/hitv/search?q=Mr.%20Sunshine from 12ca17b4
+[2026-01-25T11:11:06.644Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-25T11:11:06.665Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-25T11:11:06.666Z] [INFO] [request] GET /api/hitv/browse?perPage=16&sort=Hottest from 12ca17b4
+[2026-01-25T11:14:05.429Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from eff8e7ca
+[2026-01-25T11:14:06.189Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1 from eff8e7ca
+[2026-01-25T11:16:47.476Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T11:17:31.346Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-25T11:17:31.351Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-25T11:17:31.386Z] [INFO] [request] GET /api/hitv/browse?perPage=16&sort=Hottest from 12ca17b4
+[2026-01-25T11:17:39.885Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T11:17:43.518Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1 from 12ca17b4
+[2026-01-25T11:19:11.199Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1 from 12ca17b4
+[2026-01-25T11:25:15.837Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T11:25:20.797Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1 from 12ca17b4
+[2026-01-25T11:30:36.583Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T11:30:46.033Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1?title=Mr.%20Sunshine from 12ca17b4
+[2026-01-25T11:38:21.360Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1?title=Mr.%20Sunshine from 12ca17b4
+[2026-01-25T11:38:27.457Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T11:40:21.638Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1 from 12ca17b4
+[2026-01-25T11:40:43.439Z] [INFO] [request] GET /api/hitv/play/6982119488175365784?title=Sunshine from 12ca17b4
+[2026-01-25T11:44:09.700Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1?title=Mr.%20Sunshine from 12ca17b4
+[2026-01-25T11:45:02.622Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T11:45:07.078Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1?title=Mr.%20Sunshine from 12ca17b4
+[2026-01-25T11:51:22.606Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1?title=Mr.%20Sunshine from 12ca17b4
+[2026-01-25T11:51:32.923Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T12:02:13.802Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T12:02:30.137Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-25T12:33:59.137Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T12:34:00.879Z] [INFO] [request] GET /api/hitv/search?q=Judge&type=2 from 12ca17b4
+[2026-01-25T12:40:33.230Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T12:42:50.815Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T12:43:58.050Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T12:45:41.152Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T12:48:50.563Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T12:49:17.555Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-25T12:56:58.644Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T12:59:20.356Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T13:02:01.998Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T13:02:24.181Z] [INFO] [request] GET /api/health from 12ca17b4
+[2026-01-25T13:02:52.802Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-25T13:04:15.547Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-25T13:05:32.942Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-25T13:07:48.125Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T13:08:56.052Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-25T13:10:09.399Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T13:10:12.118Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-25T13:12:01.057Z] [INFO] [request] GET /api/ from 12ca17b4
+[2026-01-25T13:12:04.697Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-25T13:14:20.793Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T13:17:02.477Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T13:18:58.674Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T13:19:28.701Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-25T13:21:20.091Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-25T13:23:48.175Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T13:24:42.576Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T13:25:58.036Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-25T13:26:04.421Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T13:26:35.845Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-25T13:29:59.001Z] [INFO] [request] GET /api/hitv/play/9441/1 from 12ca17b4
+[2026-01-25T13:30:08.805Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T13:50:05.531Z] [INFO] [request] GET /api/hitv/play/9441/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-25T13:53:16.690Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-25T13:57:21.557Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-25T13:57:21.559Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-25T13:57:21.562Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-25T13:58:29.002Z] [INFO] [request] GET /api/hitv/search=fg from 12ca17b4
+[2026-01-25T13:59:15.295Z] [INFO] [request] GET /api/hitv/search?q=Judge from 12ca17b4
+[2026-01-25T14:00:08.720Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T14:00:14.161Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-25T14:00:19.264Z] [INFO] [request] GET /api/kdrama/search?q=secure from 12ca17b4
+[2026-01-25T14:00:24.334Z] [INFO] [request] GET /api/kdrama/search?q=Judge from 12ca17b4
+[2026-01-25T14:00:29.055Z] [INFO] [request] GET /api/dramacool/search?q=Judge from 12ca17b4
+[2026-01-25T14:00:35.250Z] [INFO] [request] GET /api/kdrama/search?q=Judge from 12ca17b4
+[2026-01-25T14:01:07.668Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-25T14:01:07.706Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-25T14:01:07.727Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-25T14:01:07.764Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-25T14:01:07.841Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-25T14:01:07.856Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-25T14:01:07.882Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-25T14:01:07.898Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-25T14:01:08.659Z] [INFO] [request] GET /api/hitv/browse?page=1&perPage=36&category=Drama&sort=Hottest from eff8e7ca
+[2026-01-25T14:02:20.239Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-25T14:02:20.240Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-25T14:02:20.241Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-25T14:02:21.976Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-25T14:02:22.001Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-25T14:02:22.010Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-25T14:02:22.026Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-25T14:02:22.274Z] [INFO] [request] GET /api/hitv/browse?page=1&perPage=36&category=Drama&sort=Hottest from eff8e7ca
+[2026-01-25T14:05:16.415Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T14:05:23.620Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-25T14:05:24.385Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-25T14:05:24.394Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-25T14:05:40.543Z] [INFO] [request] GET /api/kdrama/search?q=Judge from 12ca17b4
+[2026-01-25T14:06:56.655Z] [INFO] [request] GET /api/streams/movie/353486 from 12ca17b4
+[2026-01-25T14:06:56.660Z] [INFO] [api] fetching streams for tmdbId=353486 (Smart Wait: 15s)
+[2026-01-25T14:07:11.997Z] [INFO] [api] deadline reached, returning partial results for 353486
+[2026-01-25T14:08:23.259Z] [INFO] [request] GET /api/streams/movie/353486 from 12ca17b4
+[2026-01-25T14:08:23.263Z] [INFO] [api] returning 4 streams from cache for 353486
+[2026-01-25T14:11:04.999Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-25T14:11:05.000Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-25T14:11:05.001Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-25T14:11:05.002Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-25T14:11:06.534Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-25T14:11:06.541Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-25T14:11:06.545Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-25T14:11:06.564Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-25T14:11:06.613Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-25T14:11:06.617Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-25T14:11:06.621Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-25T14:11:06.635Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-25T14:11:07.039Z] [INFO] [request] GET /api/hitv/browse?page=1&perPage=36&category=Drama&sort=Hottest from eff8e7ca
+[2026-01-25T14:11:47.465Z] [INFO] [request] GET /api/hitv/search?q=Ju from eff8e7ca
+[2026-01-25T14:11:48.129Z] [INFO] [request] GET /api/hitv/search?q=Jug from eff8e7ca
+[2026-01-25T14:11:49.502Z] [INFO] [request] GET /api/hitv/search?q=Juge from eff8e7ca
+[2026-01-25T14:11:51.768Z] [INFO] [request] GET /api/hitv/search?q=Ju from eff8e7ca
+[2026-01-25T14:11:52.308Z] [INFO] [request] GET /api/hitv/search?q=Jud from eff8e7ca
+[2026-01-25T14:11:53.248Z] [INFO] [request] GET /api/hitv/search?q=Judge from eff8e7ca
+[2026-01-25T14:16:37.764Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T14:16:43.064Z] [INFO] [request] GET /api/streams/movie/353486 from 12ca17b4
+[2026-01-25T14:16:43.064Z] [INFO] [api] returning 4 streams from cache for 353486
+[2026-01-25T14:16:52.685Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T14:16:57.454Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-25T14:16:57.454Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-25T14:16:57.461Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-25T14:16:57.685Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-25T14:16:58.837Z] [INFO] [request] GET /api/hitv/browse?page=1&perPage=36&category=Drama&sort=Hottest from eff8e7ca
+[2026-01-25T14:16:59.099Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-25T14:16:59.104Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-25T14:16:59.110Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-25T14:16:59.150Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-25T14:16:59.158Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-25T14:16:59.794Z] [INFO] [request] GET /api/hitv/browse?page=1&perPage=36&category=Drama&sort=Hottest from eff8e7ca
+[2026-01-25T14:17:02.700Z] [INFO] [request] GET /api/hitv/info/107038863566194000 from eff8e7ca
+[2026-01-25T14:17:03.029Z] [INFO] [request] GET /api/hitv/play/107038863566194000/1 from eff8e7ca
+[2026-01-25T14:17:21.406Z] [INFO] [request] GET /api/streams/movie/353486 from 12ca17b4
+[2026-01-25T14:17:21.407Z] [INFO] [api] returning 4 streams from cache for 353486
+[2026-01-25T14:17:21.621Z] [INFO] [request] GET /api/hitv/info/107038863566194000 from eff8e7ca
+[2026-01-25T14:17:22.333Z] [INFO] [request] GET /api/hitv/play/107038863566194000/1 from eff8e7ca
+[2026-01-25T14:22:41.089Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-25T14:22:41.090Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-25T14:22:41.091Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-25T14:22:41.092Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-25T14:22:42.369Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-25T14:22:42.372Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-25T14:22:42.377Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-25T14:22:42.387Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-25T14:22:42.457Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-25T14:22:42.462Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-25T14:22:42.466Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-25T14:22:42.472Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-25T14:22:42.762Z] [INFO] [request] GET /api/hitv/browse?page=1&perPage=36&category=Drama&sort=Hottest from eff8e7ca
+[2026-01-25T14:23:25.558Z] [INFO] [request] GET /api/hitv/search?q=Judge from eff8e7ca
+[2026-01-25T14:23:29.857Z] [INFO] [request] GET /api/hitv/search?q=Judge+from+he from eff8e7ca
+[2026-01-25T14:23:30.360Z] [INFO] [request] GET /api/hitv/search?q=Judge+from+hell from eff8e7ca
+[2026-01-25T14:26:42.825Z] [INFO] [request] GET /api/hitv/browse?page=1&perPage=36&category=Drama&sort=Hottest from eff8e7ca
+[2026-01-25T14:27:52.411Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from eff8e7ca
+[2026-01-25T14:28:02.742Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1 from eff8e7ca
+[2026-01-25T14:28:12.769Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1 from eff8e7ca
+[2026-01-25T14:28:54.417Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-25T14:28:54.420Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-25T14:28:54.430Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-25T14:28:54.434Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-25T14:28:58.833Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-25T14:28:58.861Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-25T14:28:58.887Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-25T14:28:58.903Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-25T14:28:59.033Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-25T14:28:59.052Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-25T14:28:59.069Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-25T14:28:59.073Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-25T14:28:59.150Z] [INFO] [request] GET /api/hitv/browse?page=1&perPage=36&category=Drama&sort=Hottest from eff8e7ca
+[2026-01-25T14:29:29.543Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-25T14:29:29.544Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-25T14:29:29.544Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-25T14:29:29.549Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-25T14:29:32.970Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-25T14:29:32.972Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-25T14:29:32.972Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-25T14:29:32.972Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-25T14:29:33.368Z] [INFO] [request] GET /api/hitv/browse?page=1&perPage=36&category=Drama&sort=Hottest from eff8e7ca
