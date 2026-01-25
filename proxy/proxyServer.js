@@ -6,6 +6,7 @@ const cors = require('cors');
 const fetch = require('node-fetch');
 const http = require('http');
 const https = require('https');
+const { encryptUrl } = require('../utils/security');
 let cryptoJs;
 
 // Shared agents with optimized TLS and keepAlive settings
@@ -490,12 +491,14 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
 
                 if (/\.(ts|mp4|png|jpg|jpeg|bmp)(\?|$)/i.test(abs)) {
                     segmentUrls.push(abs);
+                    const token = encryptUrl(abs);
                     // Removed force200=1 for segments to allow Range requests if needed
-                    out.push(`${baseProxyUrl}/ts-proxy?url=${encodeURIComponent(abs)}&headers=${encodeURIComponent(JSON.stringify(headers))}&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0`);
+                    out.push(`${baseProxyUrl}/ts-proxy?token=${token}&headers=${encodeURIComponent(JSON.stringify(headers))}&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0`);
                 } else {
                     // Default: proxy any HTTP/S child URL through m3u8-proxy so nested playlists (even without .m3u8 extension) get rewritten.
-                    const proxyUrl = `${baseProxyUrl}/m3u8-proxy?url=${encodeURIComponent(abs)}&headers=${encodeURIComponent(JSON.stringify(headers))}`;
-                    out.push(nextLineIsStreamUrl ? proxyUrl : `${baseProxyUrl}/m3u8-proxy?url=${encodeURIComponent(abs)}&headers=${encodeURIComponent(JSON.stringify(headers))}`);
+                    const token = encryptUrl(abs);
+                    const proxyUrl = `${baseProxyUrl}/m3u8-proxy?token=${token}&headers=${encodeURIComponent(JSON.stringify(headers))}`;
+                    out.push(nextLineIsStreamUrl ? proxyUrl : `${baseProxyUrl}/m3u8-proxy?token=${token}&headers=${encodeURIComponent(JSON.stringify(headers))}`);
                     nextLineIsStreamUrl = false;
                 }
             } catch { out.push(line); }
@@ -514,8 +517,26 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
 function createProxyRoutes(app) {
     // m3u8 playlist proxy
     app.get('/m3u8-proxy', cors(), async (req, res) => {
-        let targetUrl = req.query.url; if (!targetUrl) return res.status(400).json({ error: 'URL parameter required' });
+        let targetUrl = req.query.url; 
+        const token = req.query.token;
         const debug = process.env.VIDZEE_DEBUG === '1';
+
+        // Security: Decrypt token if provided
+        if (token) {
+            const { decryptUrl } = require('../utils/security');
+            const decrypted = decryptUrl(token, req.ip);
+            if (!decrypted) return res.status(403).json({ error: 'Invalid or expired token' });
+            targetUrl = decrypted;
+        } else if (!targetUrl) {
+            return res.status(400).json({ error: 'Token or URL parameter required' });
+        }
+
+        // Strict Mode: Block raw URL usage from external IPs to prevent open relay abuse
+        const isLocal = req.ip === '127.0.0.1' || req.ip === '::1';
+        if (!token && !isLocal && process.env.STRICT_SECURITY === 'true') {
+             return res.status(403).json({ error: 'Access denied: Token required' });
+        }
+
         if (debug) console.log('[m3u8-proxy] Received URL:', targetUrl);
         
         let headers = {};
@@ -644,7 +665,25 @@ function createProxyRoutes(app) {
 
     // ts / key segment proxy
     app.get('/ts-proxy', cors(), async (req, res) => {
-        let targetUrl = req.query.url; if (!targetUrl) return res.status(400).json({ error: 'URL parameter required' });
+        let targetUrl = req.query.url; 
+        const token = req.query.token;
+
+        // Security: Decrypt token if provided
+        if (token) {
+            const { decryptUrl } = require('../utils/security');
+            const decrypted = decryptUrl(token, req.ip);
+            if (!decrypted) return res.status(403).json({ error: 'Invalid or expired token' });
+            targetUrl = decrypted;
+        } else if (!targetUrl) {
+            return res.status(400).json({ error: 'Token or URL parameter required' });
+        }
+
+        // Strict Mode: Block raw URL usage from external IPs
+        const isLocal = req.ip === '127.0.0.1' || req.ip === '::1';
+        if (!token && !isLocal && process.env.STRICT_SECURITY === 'true') {
+             return res.status(403).json({ error: 'Access denied: Token required' });
+        }
+
         if (!/^https?:\/\//i.test(targetUrl)) {
             return res.status(400).json({ error: 'Invalid target URL', target: targetUrl });
         }
@@ -960,7 +999,25 @@ function createProxyRoutes(app) {
 
     // subtitle proxy
     app.get('/sub-proxy', cors(), async (req, res) => {
-        const targetUrl = req.query.url; if (!targetUrl) return res.status(400).json({ error: 'url parameter required' });
+        let targetUrl = req.query.url; 
+        const token = req.query.token;
+
+        // Security: Decrypt token if provided
+        if (token) {
+            const { decryptUrl } = require('../utils/security');
+            const decrypted = decryptUrl(token, req.ip);
+            if (!decrypted) return res.status(403).json({ error: 'Invalid or expired token' });
+            targetUrl = decrypted;
+        } else if (!targetUrl) {
+            return res.status(400).json({ error: 'Token or URL parameter required' });
+        }
+
+        // Strict Mode: Block raw URL usage from external IPs
+        const isLocal = req.ip === '127.0.0.1' || req.ip === '::1';
+        if (!token && !isLocal && process.env.STRICT_SECURITY === 'true') {
+             return res.status(403).json({ error: 'Access denied: Token required' });
+        }
+
         let headers = {}; try { headers = JSON.parse(req.query.headers || '{}'); } catch {
             // Ignore URL parsing errors
         }
@@ -1038,9 +1095,10 @@ function processStreamsForProxy(streams, serverUrl) {
             s.subtitles = s.subtitles.map(sub => {
                 if (!sub || !sub.url || sub.url.includes('/sub-proxy')) return sub;
                 const subOriginal = extractOriginalUrl(sub.url);
+                const subToken = encryptUrl(subOriginal);
                 return {
                     ...sub,
-                    url: `${serverUrl}/sub-proxy?url=${encodeURIComponent(subOriginal)}${hParam}`
+                    url: `${serverUrl}/sub-proxy?token=${subToken}${hParam}`
                 };
             });
         }
@@ -1051,14 +1109,16 @@ function processStreamsForProxy(streams, serverUrl) {
         } catch {
             // Ignore errors
         }
+        
+        const token = encryptUrl(original);
         // Force specific hosts through ts-proxy (direct file style) even without extension
         if (host.includes('pixeldrain.') || host === 'video-downloads.googleusercontent.com') {
-            return { ...s, url: `${serverUrl}/ts-proxy?url=${encodeURIComponent(original)}${hParam}` };
+            return { ...s, url: `${serverUrl}/ts-proxy?token=${token}${hParam}` };
         }
         if (/\.(mp4|mkv)(\?|$)/i.test(original)) {
-            return { ...s, url: `${serverUrl}/ts-proxy?url=${encodeURIComponent(original)}${hParam}` };
+            return { ...s, url: `${serverUrl}/ts-proxy?token=${token}${hParam}` };
         }
-        return { ...s, url: `${serverUrl}/m3u8-proxy?url=${encodeURIComponent(original)}${hParam}` };
+        return { ...s, url: `${serverUrl}/m3u8-proxy?token=${token}${hParam}` };
     });
 }
 

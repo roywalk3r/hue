@@ -1,4 +1,8 @@
 require('dotenv').config();
+// Auto-generate key if missing
+if (!process.env.APP_SECRET) {
+  try { require('./scripts/generate-key'); } catch(e) {}
+}
 // Polyfill File for environments/libraries that expect it
 if (typeof File === 'undefined') {
   global.File = class { constructor() { throw new Error("File polyfill: not implemented"); } };
@@ -8,6 +12,26 @@ const cors = require('cors');
 const os = require('os');
 const { config, saveConfigPatch, OVERRIDE_PATH } = require('./utils/config');
 const { authenticate, issueSession, requireAuth, getSession, updatePassword } = require('./utils/auth');
+
+// CORS Configuration
+const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()) : [];
+const corsOptions = {
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    }
+};
+
+const app = express();
+app.use(cors(corsOptions));
+// Also apply CORS explicitly to options preflight
+app.options('*', cors(corsOptions));
+
 const path = require('path');
 const { listProviders, getProvider, getCookieStats } = require('./providers/registry');
 const { createProxyRoutes, processStreamsForProxy } = require('./proxy/proxyServer');

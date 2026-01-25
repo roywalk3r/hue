@@ -7,7 +7,8 @@
     "start": "node setup-browser.js && node apiServer.js",
     "start:dev": "node setup-browser.js && nodemon --watch restart.trigger --ignore providers/.cache --ignore **/cache apiServer.js",
     "lint": "eslint . --ext .js",
-    "setup-browser": "node setup-browser.js"
+    "setup-browser": "node setup-browser.js",
+    "key:generate": "node scripts/generate-key.js"
   },
   "dependencies": {
     "@definisi/vidsrc-scraper": "^1.0.3",
