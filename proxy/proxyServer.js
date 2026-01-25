@@ -377,21 +377,32 @@ function extractOriginalUrl(proxyUrl) {
         let candidate = proxyUrl;
         // Recursively unwrap proxy URLs
         let depth = 0;
-        while (depth < 5 && (candidate.includes('/m3u8-proxy') || candidate.includes('/ts-proxy') || candidate.includes('url='))) {
+        const { decryptUrl } = require('../utils/security');
+
+        while (depth < 10 && (candidate.includes('/m3u8-proxy') || candidate.includes('/ts-proxy') || candidate.includes('url=') || candidate.includes('token='))) {
             let next = null;
             try {
-                // Try parsing as a full URL first
                 const urlObj = new URL(candidate.startsWith('http') ? candidate : 'http://localhost' + (candidate.startsWith('/') ? '' : '/') + candidate);
-                if (urlObj.searchParams.has('url')) {
+                
+                // Handle tokenized URLs (New)
+                if (urlObj.searchParams.has('token')) {
+                    next = decryptUrl(urlObj.searchParams.get('token'));
+                } 
+                // Handle raw URLs
+                else if (urlObj.searchParams.has('url')) {
                     next = urlObj.searchParams.get('url');
-                } else if (urlObj.pathname.includes('/proxy/')) {
+                } 
+                else if (urlObj.pathname.includes('/proxy/')) {
                     const m = urlObj.pathname.match(/\/proxy\/(.+)$/);
                     if (m) next = decodeURIComponent(m[1]);
                 }
             } catch {
                 // regex fallback for mangled URLs
-                const m = candidate.match(/url=([^&]+)/);
-                if (m) next = decodeURIComponent(m[1]);
+                const m = candidate.match(/(url|token)=([^&]+)/);
+                if (m) {
+                    const val = decodeURIComponent(m[2]);
+                    next = m[1] === 'token' ? decryptUrl(val) : val;
+                }
             }
             
             if (next && next !== candidate && next !== 'undefined') {
