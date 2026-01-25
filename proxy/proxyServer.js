@@ -407,7 +407,8 @@ function extractOriginalUrl(proxyUrl) {
                 
                 // Handle tokenized URLs (New)
                 if (urlObj.searchParams.has('token')) {
-                    next = decryptUrl(urlObj.searchParams.get('token'));
+                    const decrypted = decryptUrl(urlObj.searchParams.get('token'));
+                    next = decrypted ? decrypted.url : null;
                 } 
                 // Handle raw URLs
                 else if (urlObj.searchParams.has('url')) {
@@ -422,7 +423,12 @@ function extractOriginalUrl(proxyUrl) {
                 const m = candidate.match(/(url|token)=([^&]+)/);
                 if (m) {
                     const val = decodeURIComponent(m[2]);
-                    next = m[1] === 'token' ? decryptUrl(val) : val;
+                    if (m[1] === 'token') {
+                        const decrypted = decryptUrl(val);
+                        next = decrypted ? decrypted.url : null;
+                    } else {
+                        next = val;
+                    }
                 }
             }
             
@@ -458,7 +464,8 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
                 if (uriMatch) {
                     try {
                         const absKey = new URL(uriMatch[1], targetUrl).href;
-                        const proxyUrl = `${baseProxyUrl}/ts-proxy?url=${encodeURIComponent(absKey)}&headers=${encodeURIComponent(JSON.stringify(headers))}&clampOpen=0&progressiveOpen=0&noSynth=1&force200=1&tailPrefetch=0`;
+                        const token = encryptUrl(absKey, null, headers);
+                        const proxyUrl = `${baseProxyUrl}/ts-proxy?token=${token}&clampOpen=0&progressiveOpen=0&noSynth=1&force200=1&tailPrefetch=0`;
                         out.push(line.replace(uriMatch[1], proxyUrl));
                         if (!isCacheDisabled()) prefetchSegment(absKey, headers);
                     } catch (_e) {
@@ -470,7 +477,8 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
                 if (uriMatch) {
                     try {
                         const mediaUrl = new URL(uriMatch[1], targetUrl).href;
-                        const proxyUrl = `${baseProxyUrl}/m3u8-proxy?url=${encodeURIComponent(mediaUrl)}&headers=${encodeURIComponent(JSON.stringify(headers))}`;
+                        const token = encryptUrl(mediaUrl, null, headers);
+                        const proxyUrl = `${baseProxyUrl}/m3u8-proxy?token=${token}`;
                         out.push(line.replace(uriMatch[1], proxyUrl));
                     } catch { out.push(line); }
                 } else out.push(line);
@@ -479,7 +487,8 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
                 if (uriMatch) {
                     try {
                         const mapUrl = new URL(uriMatch[1], targetUrl).href;
-                        const proxyUrl = `${baseProxyUrl}/ts-proxy?url=${encodeURIComponent(mapUrl)}&headers=${encodeURIComponent(JSON.stringify(headers))}&clampOpen=0&progressiveOpen=0&noSynth=1&force200=1&tailPrefetch=0`;
+                        const token = encryptUrl(mapUrl, null, headers);
+                        const proxyUrl = `${baseProxyUrl}/ts-proxy?token=${token}&clampOpen=0&progressiveOpen=0&noSynth=1&force200=1&tailPrefetch=0`;
                         out.push(line.replace(uriMatch[1], proxyUrl));
                         if (!isCacheDisabled()) prefetchSegment(mapUrl, headers);
                     } catch (_e) { out.push(line); }
@@ -522,16 +531,16 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
                     }
                 }
 
-                if (/\.(ts|mp4|png|jpg|jpeg|bmp)(\?|$)/i.test(abs)) {
+                if (/\.(ts|m4s|mp4|png|jpg|jpeg|bmp)(\?|$)/i.test(abs)) {
                     segmentUrls.push(abs);
-                    const token = encryptUrl(abs);
+                    const token = encryptUrl(abs, null, headers);
                     // Removed force200=1 for segments to allow Range requests if needed
-                    out.push(`${baseProxyUrl}/ts-proxy?token=${token}&headers=${encodeURIComponent(JSON.stringify(headers))}&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0`);
+                    out.push(`${baseProxyUrl}/ts-proxy?token=${token}&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0`);
                 } else {
                     // Default: proxy any HTTP/S child URL through m3u8-proxy so nested playlists (even without .m3u8 extension) get rewritten.
-                    const token = encryptUrl(abs);
-                    const proxyUrl = `${baseProxyUrl}/m3u8-proxy?token=${token}&headers=${encodeURIComponent(JSON.stringify(headers))}`;
-                    out.push(nextLineIsStreamUrl ? proxyUrl : `${baseProxyUrl}/m3u8-proxy?token=${token}&headers=${encodeURIComponent(JSON.stringify(headers))}`);
+                    const token = encryptUrl(abs, null, headers);
+                    const proxyUrl = `${baseProxyUrl}/m3u8-proxy?token=${token}`;
+                    out.push(nextLineIsStreamUrl ? proxyUrl : proxyUrl);
                     nextLineIsStreamUrl = false;
                 }
             } catch { out.push(line); }
@@ -553,13 +562,15 @@ function createProxyRoutes(app) {
         let targetUrl = req.query.url; 
         const token = req.query.token;
         const debug = process.env.VIDZEE_DEBUG === '1';
+        let decryptedHeaders = null;
 
         // Security: Decrypt token if provided
         if (token) {
             const { decryptUrl } = require('../utils/security');
             const decrypted = decryptUrl(token, req.ip);
             if (!decrypted) return res.status(403).json({ error: 'Invalid or expired token' });
-            targetUrl = decrypted;
+            targetUrl = decrypted.url;
+            decryptedHeaders = decrypted.headers;
         } else if (!targetUrl) {
             return res.status(400).json({ error: 'Token or URL parameter required' });
         }
@@ -572,8 +583,12 @@ function createProxyRoutes(app) {
 
         if (debug) console.log('[m3u8-proxy] Received URL:', targetUrl);
         
-        let headers = {};
-        try { headers = JSON.parse(req.query.headers || '{}'); } catch {
+        let headers = decryptedHeaders || {};
+        // Merge query headers if present (fallback)
+        try { 
+            const queryHeaders = JSON.parse(req.query.headers || '{}'); 
+            headers = { ...headers, ...queryHeaders };
+        } catch {
             // Ignore URL parsing errors
         }
         const decoded = decodeVidzeeToken(targetUrl);
@@ -709,13 +724,15 @@ function createProxyRoutes(app) {
     app.get('/ts-proxy', cors(), async (req, res) => {
         let targetUrl = req.query.url; 
         const token = req.query.token;
+        let decryptedHeaders = null;
 
         // Security: Decrypt token if provided
         if (token) {
             const { decryptUrl } = require('../utils/security');
             const decrypted = decryptUrl(token, req.ip);
             if (!decrypted) return res.status(403).json({ error: 'Invalid or expired token' });
-            targetUrl = decrypted;
+            targetUrl = decrypted.url;
+            decryptedHeaders = decrypted.headers;
         } else if (!targetUrl) {
             return res.status(400).json({ error: 'Token or URL parameter required' });
         }
@@ -729,22 +746,14 @@ function createProxyRoutes(app) {
         if (!/^https?:\/\//i.test(targetUrl)) {
             return res.status(400).json({ error: 'Invalid target URL', target: targetUrl });
         }
+
         const debug = req.query.debug === '1';
-        const noSynth = req.query.noSynth === '1';
         const force200 = req.query.force200 === '1';
-        const clampOpen = req.query.clampOpen === '1'; // default off to avoid upstream rejections
-        const progressiveOpen = req.query.progressiveOpen === '1';
-        const tailPrefetchEnabled = req.query.tailPrefetch !== '0';
-        let tailPrefetchKB = parseInt(req.query.tailPrefetchKB || '256', 10);
-        if (isNaN(tailPrefetchKB) || tailPrefetchKB < 64) tailPrefetchKB = 256;
-        if (tailPrefetchKB > 2048) tailPrefetchKB = 2048; // max 2MB tail window
-        let openChunkKB = parseInt(req.query.openChunkKB || '4096', 10);
-        if (isNaN(openChunkKB) || openChunkKB < 64) openChunkKB = 4096;
-        if (openChunkKB > 16384) openChunkKB = 16384; // cap at 16MB
-        let initChunkKB = parseInt(req.query.initChunkKB || '512', 10);
-        if (isNaN(initChunkKB) || initChunkKB < 64) initChunkKB = 512;
-        if (initChunkKB > 2048) initChunkKB = 2048; // hard cap 2MB
-        let headers = {}; try { headers = JSON.parse(req.query.headers || '{}'); } catch {
+        let headers = decryptedHeaders || {};
+        try { 
+            const queryHeaders = JSON.parse(req.query.headers || '{}'); 
+            headers = { ...headers, ...queryHeaders };
+        } catch {
             // Ignore URL parsing errors
         }
         if (headers.Referer && !headers.Origin) {
@@ -1051,13 +1060,15 @@ function createProxyRoutes(app) {
     app.get('/sub-proxy', cors(), async (req, res) => {
         let targetUrl = req.query.url; 
         const token = req.query.token;
+        let decryptedHeaders = null;
 
         // Security: Decrypt token if provided
         if (token) {
             const { decryptUrl } = require('../utils/security');
             const decrypted = decryptUrl(token, req.ip);
             if (!decrypted) return res.status(403).json({ error: 'Invalid or expired token' });
-            targetUrl = decrypted;
+            targetUrl = decrypted.url;
+            decryptedHeaders = decrypted.headers;
         } else if (!targetUrl) {
             return res.status(400).json({ error: 'Token or URL parameter required' });
         }
@@ -1068,7 +1079,11 @@ function createProxyRoutes(app) {
              return res.status(403).json({ error: 'Access denied: Token required' });
         }
 
-        let headers = {}; try { headers = JSON.parse(req.query.headers || '{}'); } catch {
+        let headers = decryptedHeaders || {};
+        try { 
+            const queryHeaders = JSON.parse(req.query.headers || '{}'); 
+            headers = { ...headers, ...queryHeaders };
+        } catch {
             // Ignore URL parsing errors
         }
         
@@ -1145,10 +1160,10 @@ function processStreamsForProxy(streams, serverUrl) {
             s.subtitles = s.subtitles.map(sub => {
                 if (!sub || !sub.url || sub.url.includes('/sub-proxy')) return sub;
                 const subOriginal = extractOriginalUrl(sub.url);
-                const subToken = encryptUrl(subOriginal);
+                const subToken = encryptUrl(subOriginal, null, headers);
                 return {
                     ...sub,
-                    url: `${serverUrl}/sub-proxy?token=${subToken}${hParam}`
+                    url: `${serverUrl}/sub-proxy?token=${subToken}`
                 };
             });
         }
@@ -1160,15 +1175,15 @@ function processStreamsForProxy(streams, serverUrl) {
             // Ignore errors
         }
         
-        const token = encryptUrl(original);
+        const token = encryptUrl(original, null, headers);
         // Force specific hosts through ts-proxy (direct file style) even without extension
         if (host.includes('pixeldrain.') || host === 'video-downloads.googleusercontent.com') {
-            return { ...s, url: `${serverUrl}/ts-proxy?token=${token}${hParam}` };
+            return { ...s, url: `${serverUrl}/ts-proxy?token=${token}` };
         }
         if (/\.(mp4|mkv)(\?|$)/i.test(original)) {
-            return { ...s, url: `${serverUrl}/ts-proxy?token=${token}${hParam}` };
+            return { ...s, url: `${serverUrl}/ts-proxy?token=${token}` };
         }
-        return { ...s, url: `${serverUrl}/m3u8-proxy?token=${token}${hParam}` };
+        return { ...s, url: `${serverUrl}/m3u8-proxy?token=${token}` };
     });
 }
 

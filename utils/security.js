@@ -4,10 +4,10 @@ const crypto = require('crypto');
 const SECRET = process.env.APP_SECRET || 'super-secret-hue-key-change-me';
 
 // 1. Generate a Signed URL Token
-// Contains: Original URL, Expiry, IP (optional)
-function encryptUrl(url, ip = null) {
+// Contains: Original URL, Expiry, IP (optional), Headers (optional)
+function encryptUrl(url, ip = null, headers = null) {
     const expires = Date.now() + (4 * 60 * 60 * 1000); // 4 Hour Expiry
-    const payload = JSON.stringify({ u: url, e: expires, i: ip });
+    const payload = JSON.stringify({ u: url, e: expires, i: ip, h: headers });
     
     const iv = crypto.randomBytes(16);
     const cipher = crypto.createCipheriv('aes-256-cbc', crypto.scryptSync(SECRET, 'salt', 32), iv);
@@ -42,7 +42,8 @@ function decryptUrl(token, reqIp = null) {
         // Check IP (Optional - prevents sharing links)
         // if (reqIp && data.i && data.i !== reqIp) return null;
 
-        return data.u; // Return original URL
+        // Return object with url and headers
+        return { url: data.u, headers: data.h };
     } catch (e) {
         console.error('[Security] Decrypt failed:', e.message);
         return null;
