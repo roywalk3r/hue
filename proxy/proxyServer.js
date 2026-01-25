@@ -59,7 +59,7 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
         if (e.message.includes('Blocked')) throw e;
     }
 
-    const baseTimeout = isSegment ? 25000 : (host.includes('redirector') || host.includes('cdnsync') || host.includes('cdnvideo') ? 30000 : (options.timeout || FETCH_TIMEOUT_MS));
+    const baseTimeout = isSegment ? 60000 : (host.includes('redirector') || host.includes('cdnsync') || host.includes('cdnvideo') || host.includes('hakunaymatata') ? 40000 : (options.timeout || FETCH_TIMEOUT_MS));
     const actualRetries = isSegment ? 1 : maxRetries;
 
     // Force IPv4 for known problematic CDNs on first attempt (IPv6 often unreachable)
@@ -68,7 +68,9 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
                       host.includes('quibble') || 
                       host.includes('lightning') ||
                       host.includes('videodelivery') ||
-                      host.includes('cdnvideo');
+                      host.includes('cdnvideo') ||
+                      host.includes('hakunaymatata') ||
+                      host.includes('rabbitstream');
 
     const fetchOptions = {
         ...options,
