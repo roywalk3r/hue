@@ -53,8 +53,6 @@ const swaggerUi = require('swagger-ui-express');
 const redoc = require('redoc-express');
 const swaggerDef = require('./utils/swagger-def');
 
-const app = express();
-
 // Serve the raw OpenAPI spec for Redoc to consume
 app.get('/api/docs/swagger.json', (req, res) => res.json(swaggerDef));
 
