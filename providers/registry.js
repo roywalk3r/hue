@@ -227,8 +227,15 @@ const providerFiles = getProviderFiles();
 const providers = [];
 
 for (const providerInfo of providerFiles) {
-  const enableFlag = `enable${providerInfo.name.split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join('')}Provider`;
-  const enabled = config[enableFlag] !== false;
+  // Unify flag naming: enableVidsrcxyzProvider
+  const safeName = providerInfo.name.replace(/[^a-z0-9]/gi, '');
+  const enableFlag = `enable${safeName.charAt(0).toUpperCase() + safeName.slice(1)}Provider`;
+  
+  // Hard-disable unstable providers for now
+  let enabled = config[enableFlag] !== false;
+  if (providerInfo.name === 'vidsrc-xyz' || providerInfo.name === 'vidsrc-icu') {
+      enabled = false;
+  }
 
   if (enabled) {
     const publicName = getPublicName(providerInfo.name);

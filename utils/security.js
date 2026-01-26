@@ -21,12 +21,22 @@ function encryptUrl(url, ip = null, headers = null) {
 // 2. Decrypt and Verify
 function decryptUrl(token, reqIp = null) {
     try {
+        if (!token) return null;
         const parts = token.split(':');
-        if (parts.length !== 2) return null;
+        if (parts.length !== 2) {
+            console.error('[Security] Invalid token format (missing colon)');
+            return null;
+        }
         
         const iv = Buffer.from(parts[0], 'hex');
         const encryptedText = Buffer.from(parts[1], 'hex');
         
+        // Block size check to avoid "wrong final block length"
+        if (encryptedText.length % 16 !== 0) {
+            console.error(`[Security] Decrypt failed: Token data length (${encryptedText.length}) is not a multiple of block size. Likely truncated.`);
+            return null;
+        }
+
         const decipher = crypto.createDecipheriv('aes-256-cbc', crypto.scryptSync(SECRET, 'salt', 32), iv);
         let decrypted = decipher.update(encryptedText);
         decrypted = Buffer.concat([decrypted, decipher.final()]);
@@ -39,13 +49,14 @@ function decryptUrl(token, reqIp = null) {
             return null;
         }
 
-        // Check IP (Optional - prevents sharing links)
-        // if (reqIp && data.i && data.i !== reqIp) return null;
-
         // Return object with url and headers
         return { url: data.u, headers: data.h };
     } catch (e) {
-        console.error('[Security] Decrypt failed:', e.message);
+        if (e.message.includes('wrong final block length') || e.message.includes('bad decrypt')) {
+            console.error('[Security] Decrypt failed: Secret mismatch or malformed data. Refresh the stream URL.');
+        } else {
+            console.error('[Security] Decrypt failed:', e.message);
+        }
         return null;
     }
 }
