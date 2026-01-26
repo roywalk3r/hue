@@ -1,6 +1,6 @@
 const cheerio = require("cheerio");
 const axios = require("axios");
-const { getNewPage, getNewContext } = require("../utils/browserManager");
+const { getNewContext } = require("../utils/browserManager");
 
 const BASE_URL = "https://sflix.film";
 const API_BASE = "https://h5-api.aoneroom.com/wefeed-h5api-bff";
@@ -12,11 +12,13 @@ const axiosInstance = axios.create({
 });
 
 async function getTmdbInfo(tmdbId, mediaType) {
+    if (!tmdbId) return { title: null, year: null };
     const { getTmdbApiKey } = require("../utils/tmdbKey");
     const TMDB_API_KEY = getTmdbApiKey();
     if (!TMDB_API_KEY) return { title: null, year: null };
 
-    const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}`;
+    const type = mediaType === 'tv' ? 'tv' : 'movie';
+    const url = `https://api.themoviedb.org/3/${type}/${tmdbId}?api_key=${TMDB_API_KEY}`;
     try {
         const response = await axiosInstance.get(url);
         const data = response.data;
@@ -25,39 +27,34 @@ async function getTmdbInfo(tmdbId, mediaType) {
         const title = data.title || data.name;
         return { title, year: isNaN(year) ? null : year };
     } catch (e) {
-        console.error(`[SFlix] TMDB lookup failed for ${tmdbId}: ${e.message}`);
         return { title: null, year: null };
     }
 }
 
-async function searchSflixViaApi(keyword, type) {
+async function searchSflixViaApi(keyword) {
     try {
         const url = `${API_BASE}/subject/search`;
         const payload = {
             keyword: keyword,
             page: "1",
             perPage: 24,
-            subjectType: 0 // 0 for All
+            subjectType: 0
         };
-        console.log(`[SFlix API] Searching: ${keyword}`);
         const response = await axiosInstance.post(url, payload);
         return response.data?.data?.items || [];
     } catch (e) {
-        console.warn(`[SFlix API] Search failed: ${e.message}`);
         return [];
     }
 }
 
 async function searchSflix(title, mediaType, year, season) {
     let keyword = title;
-    // For movies, adding the year helps narrow down the API results
     if (mediaType === "movie" && year) {
         keyword = `${title} ${year}`;
     }
     
     try {
-        // 1. Try API Search First
-        const items = await searchSflixViaApi(keyword, mediaType);
+        const items = await searchSflixViaApi(keyword);
         const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, "");
         const target = normalize(title);
         const targetSeason = season ? parseInt(season) : null;
@@ -77,13 +74,12 @@ async function searchSflix(title, mediaType, year, season) {
             else if (normClean.includes(target)) currentScore += 50;
 
             if (mediaType === "tv" && targetSeason) {
-                const specificSeasonRegex = new RegExp(`S(eason)?\\s*${targetSeason}\\b`, 'i');
+                const specificSeasonRegex = new RegExp(`S(eason)?\\s*${targetSeason}\b`, 'i');
                 if (specificSeasonRegex.test(text)) currentScore += 100;
             }
 
             if (year && (text.includes(year.toString()) || itemYear === year.toString())) currentScore += 30;
 
-            // subjectType: 1 for Movie, 2 for Series
             if (mediaType === "tv") currentScore += (item.subjectType === 2) ? 50 : -100;
             else currentScore += (item.subjectType === 1) ? 50 : -100;
 
@@ -91,44 +87,16 @@ async function searchSflix(title, mediaType, year, season) {
         });
 
         if (bestMatch.item) {
-            console.log(`[SFlix API] Found best match: ${bestMatch.item.title} (Slug: ${bestMatch.item.detailPath})`);
-            return `${BASE_URL}/detail/${bestMatch.item.detailPath}`;
+            console.log(`[SFlix API] Found match: ${bestMatch.item.title} (ID: ${bestMatch.item.subjectId})`);
+            return { 
+                slug: bestMatch.item.detailPath, 
+                subjectId: bestMatch.item.subjectId,
+                detailUrl: `${BASE_URL}/detail/${bestMatch.item.detailPath}`
+            };
         }
 
-        // 2. Fallback to HTML Search if API returned nothing
-        console.log(`[SFlix API] No match found. Falling back to HTML search...`);
-        const searchUrl = `${BASE_URL}/search-result?keyword=${encodeURIComponent(keyword)}`;
-        const response = await axiosInstance.get(searchUrl);
-        const $ = cheerio.load(response.data);
-        
-        const htmlItems = $(".subject-card");
-        let htmlBestMatch = { href: null, score: -1 };
-
-        htmlItems.each((i, el) => {
-            const item = $(el);
-            const titleEl = item.find(".subject-card-bottom .line-1").length ? item.find(".subject-card-bottom .line-1") : item.find("h2.line-1");
-            const href = item.attr("href");
-            const metaEl = item.find(".subject-card-bottom .line-2");
-            const metaText = metaEl.text().trim().toLowerCase();
-            
-            if (titleEl.length && href) {
-                const text = titleEl.text().trim();
-                const normClean = normalize(text.replace(/S\d+(-S\d+)?|Season \d+|\(\d{4}\)/gi, "").trim());
-                
-                let currentScore = 0;
-                if (normClean === target) currentScore += 1000;
-                else if (normClean.includes(target)) currentScore += 50;
-
-                if (mediaType === "tv") currentScore += (metaText.includes("series") || text.match(/S\d+/i)) ? 50 : -50;
-                else currentScore += (metaText.includes("series") || text.match(/S\d+/i)) ? -100 : 20;
-
-                if (currentScore > htmlBestMatch.score) htmlBestMatch = { href, score: currentScore };
-            }
-        });
-
-        return htmlBestMatch.href ? (htmlBestMatch.href.startsWith("http") ? htmlBestMatch.href : `${BASE_URL}${htmlBestMatch.href}`) : null;
+        return null;
     } catch (e) {
-        console.error(`[SFlix] Search error: ${e.message}`);
         return null;
     }
 }
@@ -136,7 +104,6 @@ async function searchSflix(title, mediaType, year, season) {
 async function getCaptionsViaApi(subjectId, streamId, detailPath) {
     try {
         const url = `${API_BASE}/subject/caption?format=MP4&id=${streamId}&subjectId=${subjectId}&detailPath=${detailPath}`;
-        // console.log(`[SFlix API] Fetching captions: ${url}`);
         const response = await axiosInstance.get(url);
         const captions = response.data?.data?.captions;
         if (!Array.isArray(captions)) return [];
@@ -151,48 +118,27 @@ async function getCaptionsViaApi(subjectId, streamId, detailPath) {
     }
 }
 
-async function getStreamsViaApi(slug, season, episode) {
+async function getStreamsViaApi(slug, subjectId, season, episode) {
     try {
-        // Detail API call
-        const detailUrl = `${API_BASE}/detail?detailPath=${slug}`;
-        console.log(`[SFlix API] Calling Detail: ${detailUrl}`);
-        const detailResp = await axiosInstance.get(detailUrl);
-        const subjectId = detailResp.data?.data?.subject?.subjectId;
-        if (!subjectId) {
-            console.warn('[SFlix API] Subject ID not found in detail response.');
-            return null;
-        }
-        
         const se = season || 1;
         const ep = episode || 1;
-        
-        // Play API call
         const playUrl = `${BASE_URL}/wefeed-h5api-bff/subject/play?subjectId=${subjectId}&se=${se}&ep=${ep}&detailPath=${slug}`;
-        console.log(`[SFlix API] Calling Play: ${playUrl}`);
         
         const playResp = await axiosInstance.get(playUrl, {
             headers: {
-                "Referer": `${BASE_URL}/detail/${slug}`, 
-                "User-Agent": USER_AGENT 
+                "Referer": `${BASE_URL}/detail/${slug}`,
+                "User-Agent": USER_AGENT,
+                "Accept": "application/json"
             }
         });
         
         const data = playResp.data?.data;
-        if (!data || (!data.streams?.length && !data.hls?.length)) {
-            console.warn('[SFlix API] Play response has no streams.');
-            return null;
-        }
+        if (!data || (!data.streams?.length && !data.hls?.length)) return null;
 
         const streams = [];
         
-        // Process MP4 streams
-        if (Array.isArray(data.streams)) {
-            // Fetch captions for the first valid stream (captions are usually the same for all qualities)
-            let captions = [];
-            if (data.streams.length > 0) {
-                captions = await getCaptionsViaApi(subjectId, data.streams[0].id, slug);
-            }
-
+        if (Array.isArray(data.streams) && data.streams.length > 0) {
+            const captions = await getCaptionsViaApi(subjectId, data.streams[0].id, slug);
             data.streams.forEach(s => {
                 streams.push({
                     title: `Nova - ${s.resolutions}p (MP4)`,
@@ -206,7 +152,6 @@ async function getStreamsViaApi(slug, season, episode) {
             });
         }
         
-        // Process HLS streams if any
         if (Array.isArray(data.hls)) {
             data.hls.forEach(s => {
                 streams.push({
@@ -221,20 +166,8 @@ async function getStreamsViaApi(slug, season, episode) {
         }
         return streams.length > 0 ? streams : null;
     } catch (e) {
-        console.warn(`[SFlix API] Path failed: ${e.message}`);
         return null;
     }
-}
-
-async function getMediaInfo(detailUrl, title) {
-    try {
-        const response = await axiosInstance.get(detailUrl);
-        const html = response.data;
-        const idMatch = html.match(/"id"\s*:\s*"?(\d{15,})"?/) || html.match(/"subjectId":\s*"?(\d{18,20})"?/);
-        const id = idMatch ? idMatch[1] : null;
-        const slug = detailUrl.split('/').pop() || null;
-        return { id, slug };
-    } catch { return { id: null, slug: null }; }
 }
 
 async function triggerPlayback(page, label) {
@@ -248,29 +181,32 @@ async function triggerPlayback(page, label) {
                 if (el) el.click();
             });
         }).catch(() => {});
-        console.log(`[SFlix] Triggered playback (${label})`);
     } catch (err) {}
 }
 
-async function getSflixStreams(tmdbId, mediaType, season, episode) {
-    console.log(`[SFlix] Fetching streams for TMDB ID: ${tmdbId} (${mediaType})`);
+async function getSflixStreams(tmdbId, mediaType, season, episode, directTitle = null) {
+    console.log(`[SFlix] Processing TMDB:${tmdbId || 'N/A'} Title:${directTitle || 'N/A'} (${mediaType})`);
     try {
-        const { title, year } = await getTmdbInfo(tmdbId, mediaType);
-        if (!title) return [];
+        let title = directTitle;
+        let year = null;
 
-        const detailUrl = await searchSflix(title, mediaType, year, season);
-        if (!detailUrl) return [];
-        const slug = detailUrl.split('/').pop();
-
-        // 1. Try FAST PATH (API)
-        const apiStreams = await getStreamsViaApi(slug, season, episode);
-        if (apiStreams) {
-            console.log(`[SFlix] API Path Success! Found ${apiStreams.length} streams.`);
-            return apiStreams;
+        if (tmdbId) {
+            const info = await getTmdbInfo(tmdbId, mediaType);
+            title = info.title;
+            year = info.year;
         }
 
-        // 2. Fallback to SLOW PATH (Browser)
-        console.log(`[SFlix] API Path failed or returned no streams. Falling back to Browser...`);
+        if (!title) return [];
+
+        const match = await searchSflix(title, mediaType, year, season);
+        if (!match) return [];
+
+        // 1. FAST PATH (API)
+        const apiStreams = await getStreamsViaApi(match.slug, match.subjectId, season, episode);
+        if (apiStreams) return apiStreams;
+
+        // 2. SLOW PATH (Browser Fallback)
+        console.log(`[SFlix] API failed, using browser fallback for ${match.slug}`);
         let context;
         let page;
         try {
@@ -286,8 +222,7 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
                 if (url.includes(".vtt") || url.includes(".srt") || url.includes("/subtitle/")) capturedUrls.subtitles.add(url);
             });
 
-            console.log(`[SFlix] Navigating to detail page: ${detailUrl}`);
-            await page.goto(detailUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+            await page.goto(match.detailUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
             await page.evaluate(() => document.querySelector('.watch-btn')?.click());
             
             if (mediaType === "tv") {
@@ -320,7 +255,7 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
             Array.from(capturedUrls.video).forEach(url => {
                 const isHls = url.includes('.m3u8');
                 streams.push({
-                    url, 
+                    url,
                     title: `Nova - ${isHls ? 'HLS' : 'MP4'} (Fallback)`,
                     quality: "Auto", 
                     provider: "Nova",
