@@ -90,11 +90,13 @@ async function getStreams(tmdbId, mediaType, season, episode) {
                     return;
                 }
 
+                const isHls = source.url.includes('m3u8');
                 streams.push({
-                    title: `VidRock - ${source.language || 'Unknown'} - ${source.url.includes('m3u8') ? 'HLS' : 'MP4'}`,
+                    title: `VidRock - ${source.language || 'Unknown'} - ${isHls ? 'HLS' : 'MP4'}`,
                     url: source.url,
                     quality: 'Auto',
                     provider: 'VidRock',
+                    format: isHls ? 'hls' : 'mp4', // Explicit format hint
                     headers: {
                         'Referer': refererUrl,
                         'Origin': DOMAIN,
