@@ -19,6 +19,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         context = page.context();
         
         let hlsUrl = null;
+        let hlsReferer = null;
         const subtitles = [];
 
         page.on('request', req => {
@@ -26,6 +27,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
             if (u.includes('.m3u8') && !u.includes('{v')) {
                 if(!hlsUrl) {
                     hlsUrl = u;
+                    hlsReferer = req.frame().url(); // Capture the correct frame URL
                     console.log(`[VidsrcICU] Captured HLS: ${u.substring(0, 60)}...`);
                 }
             }
@@ -63,9 +65,9 @@ async function getStreams(tmdbId, mediaType, season, episode) {
                 provider: "VidsrcICU",
                 subtitles: subtitles.length > 0 ? subtitles : undefined,
                 headers: {
-                    "Referer": "https://vidsrcme.vidsrc.icu/",
+                    "Referer": hlsReferer,
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-                    "Origin": "https://vidsrcme.vidsrc.icu"
+                    "Origin": new URL(hlsReferer).origin
                 }
             });
         }

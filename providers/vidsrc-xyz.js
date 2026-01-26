@@ -23,12 +23,14 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         context = page.context();
         
         let hlsUrl = null;
+        let hlsReferer = null;
         const subtitles = [];
 
         page.on('response', response => {
             const u = response.url();
             if (u.includes('.m3u8') && !u.includes('{v') && !u.includes('{s') && !hlsUrl) {
                 hlsUrl = u;
+                hlsReferer = response.request().frame().url(); // Capture the correct frame URL
                 console.log(`[VidsrcXYZ] Captured HLS: ${u.substring(0, 60)}...`);
             }
             if ((u.includes('.vtt') || u.includes('.srt')) && !subtitles.some(s => s.url === u)) {
@@ -74,9 +76,9 @@ async function getStreams(tmdbId, mediaType, season, episode) {
                 provider: "VidsrcXYZ",
                 subtitles: subtitles.length > 0 ? subtitles : undefined,
                 headers: {
-                    "Referer": "https://vidsrc.xyz/",
+                    "Referer": hlsReferer, // Use the dynamically captured referer
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-                    "Origin": "https://vidsrc.xyz"
+                    "Origin": new URL(hlsReferer).origin // Set origin based on the correct referer
                 }
             });
         }
