@@ -1,4 +1,14 @@
+/**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
 require('dotenv').config();
+const express = require('express');
 // Auto-generate key if missing
 if (!process.env.APP_SECRET) {
   try { require('./scripts/generate-key'); } catch(e) {}

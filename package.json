@@ -1,8 +1,14 @@
 {
   "name": "tmdb-embed-api",
   "version": "1.0.9",
-  "description": "Standalone streaming embed source aggregation API (TMDB ID in, streams out)",
+  "description": "Professional Streaming Aggregator API",
   "main": "apiServer.js",
+  "author": "roywalk3r <roywalker440@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/roywalk3r/hue.git"
+  },
   "scripts": {
     "start": "node setup-browser.js && node apiServer.js",
     "start:dev": "node setup-browser.js && nodemon --watch restart.trigger --ignore providers/.cache --ignore **/cache apiServer.js",
