@@ -572,3 +572,5 @@
 [2026-01-26T09:24:08.107Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
 [2026-01-26T09:24:08.112Z] [INFO] [api] fetching streams for tmdbId=1242898 (Smart Wait: 15s)
 [2026-01-26T09:24:14.546Z] [INFO] [api] all providers completed within deadline for 1242898
+[2026-01-26T09:35:44.992Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-26T09:36:21.219Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
