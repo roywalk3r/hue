@@ -204,10 +204,12 @@ async function extractStreamsFromKissKhPage(directUrl) {
         for (const url of capturedUrls.video) {
             if (url.endsWith(".ts") && Array.from(capturedUrls.video).some(u => u.includes(".m3u8"))) continue;
             const isThirdParty = url.includes("sbplay") || url.includes("ok.ru") || url.includes("vidoza");
+            const isHls = url.includes('.m3u8');
             streams.push({
                 url,
                 quality: isThirdParty ? "ThirdParty" : "Auto",
                 provider: "Zenith",
+                format: isHls ? 'hls' : 'mp4',
                 subtitles: subtitles.length > 0 ? subtitles : undefined,
                 headers: { "Referer": BASE_URL, "User-Agent": USER_AGENT }
             });

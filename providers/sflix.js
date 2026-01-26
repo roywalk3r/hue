@@ -418,10 +418,12 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
         if (movieStreams.length > 0) {
              const subtitles = Array.from(capturedUrls.subtitles).map(url => ({ url, lang: "en", label: "English" }));
              for (const videoUrl of movieStreams) {
+                 const isHls = videoUrl.includes('.m3u8');
                  streams.push({
                      url: videoUrl, 
                      quality: "Auto", 
                      provider: "Nova",
+                     format: isHls ? 'hls' : 'mp4',
                      subtitles: subtitles.length > 0 ? subtitles : undefined,
                      headers: { "Referer": "https://sflix.film/", "User-Agent": USER_AGENT }
                  });
@@ -437,10 +439,12 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
             });
             const valid = domStreams.filter(url => !url.includes("-ld.mp4") && !url.includes("trailer"));
             for (const videoUrl of valid) {
+                const isHls = videoUrl.includes('.m3u8');
                 streams.push({
                     url: videoUrl, 
                     quality: "Auto", 
                     provider: "Nova",
+                    format: isHls ? 'hls' : 'mp4',
                     headers: { "Referer": "https://sflix.film/", "User-Agent": USER_AGENT }
                 });
             }
@@ -560,10 +564,12 @@ async function getStreamsDirect(title, episode, season = 1) {
         const subtitles = Array.from(capturedUrls.subtitles).map(url => ({ url, lang: "en", label: "English" }));
         
         for (const videoUrl of valid) {
+             const isHls = videoUrl.includes('.m3u8');
              streams.push({
                  url: videoUrl, 
                  quality: "Auto", 
                  provider: "Nova",
+                 format: isHls ? 'hls' : 'mp4',
                  subtitles: subtitles.length > 0 ? subtitles : undefined,
                  headers: { "Referer": "https://sflix.film/", "User-Agent": USER_AGENT }
              });
@@ -621,10 +627,12 @@ async function getStreamsBySlug(id, slug, episode, season = 1) {
         const subtitles = Array.from(capturedUrls.subtitles).map(url => ({ url, lang: "en", label: "English" }));
         
         for (const videoUrl of valid) {
+             const isHls = videoUrl.includes('.m3u8');
              streams.push({
                  url: videoUrl, 
                  quality: "Auto", 
                  provider: "Nova",
+                 format: isHls ? 'hls' : 'mp4',
                  subtitles: subtitles.length > 0 ? subtitles : undefined,
                  headers: { "Referer": "https://sflix.film/", "User-Agent": USER_AGENT }
              });
