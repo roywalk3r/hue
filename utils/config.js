@@ -104,7 +104,14 @@ function normalizeConfig(base) {
   // Set defaults for provider enable flags
   providerNames.forEach(name => {
     const flag = `enable${name.charAt(0).toUpperCase() + name.slice(1)}Provider`;
-    if (cfg[flag] === undefined) cfg[flag] = true; // Default to enabled
+    if (cfg[flag] === undefined) {
+        // Disable unstable providers by default
+        if (name === 'vidsrc-xyz' || name === 'vidsrc-icu') {
+            cfg[flag] = false;
+        } else {
+            cfg[flag] = true; // Default others to enabled
+        }
+    }
   });
   
   // Default values for other flags

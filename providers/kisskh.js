@@ -209,7 +209,7 @@ async function extractStreamsFromKissKhPage(directUrl) {
                 quality: isThirdParty ? "ThirdParty" : "Auto",
                 provider: "Zenith",
                 subtitles: subtitles.length > 0 ? subtitles : undefined,
-                headers: { "Referer": BASE_URL, "Origin": BASE_URL, "User-Agent": USER_AGENT }
+                headers: { "Referer": BASE_URL, "User-Agent": USER_AGENT }
             });
         }
     } catch (error) {

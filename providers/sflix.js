@@ -421,9 +421,9 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
                  streams.push({
                      url: videoUrl, 
                      quality: "Auto", 
-                     provider: "SFlix",
+                     provider: "Nova",
                      subtitles: subtitles.length > 0 ? subtitles : undefined,
-                     headers: { "Referer": "https://sflix.film/", "User-Agent": USER_AGENT, "Origin": "https://sflix.film" }
+                     headers: { "Referer": "https://sflix.film/", "User-Agent": USER_AGENT }
                  });
              }
         } else {
@@ -440,8 +440,8 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
                 streams.push({
                     url: videoUrl, 
                     quality: "Auto", 
-                    provider: "SFlix",
-                    headers: { "Referer": "https://sflix.film/", "User-Agent": USER_AGENT, "Origin": "https://sflix.film" }
+                    provider: "Nova",
+                    headers: { "Referer": "https://sflix.film/", "User-Agent": USER_AGENT }
                 });
             }
         }
@@ -565,7 +565,7 @@ async function getStreamsDirect(title, episode, season = 1) {
                  quality: "Auto", 
                  provider: "Nova",
                  subtitles: subtitles.length > 0 ? subtitles : undefined,
-                 headers: { "Referer": "https://sflix.film/", "User-Agent": USER_AGENT, "Origin": "https://sflix.film" }
+                 headers: { "Referer": "https://sflix.film/", "User-Agent": USER_AGENT }
              });
         }
         
@@ -626,7 +626,7 @@ async function getStreamsBySlug(id, slug, episode, season = 1) {
                  quality: "Auto", 
                  provider: "Nova",
                  subtitles: subtitles.length > 0 ? subtitles : undefined,
-                 headers: { "Referer": "https://sflix.film/", "User-Agent": USER_AGENT, "Origin": "https://sflix.film" }
+                 headers: { "Referer": "https://sflix.film/", "User-Agent": USER_AGENT }
              });
         }
         
