@@ -344,46 +344,52 @@ function createProxyRoutes(app) {
             if (!decrypted) return res.status(403).json({ error: 'Invalid or expired token' });
             targetUrl = decrypted.url;
             decryptedHeaders = decrypted.headers;
-        } else if (!targetUrl) return res.status(400).json({ error: 'Token or URL required' });
+        } else if (!targetUrl) {
+            return res.status(400).json({ error: 'Token or URL parameter is required' });
+        }
 
-        const debug = req.query.debug === '1';
-        const force200 = req.query.force200 === '1';
-        let headers = decryptedHeaders || {};
-        try { const qh = JSON.parse(req.query.headers || '{}'); headers = { ...headers, ...qh }; } catch {}
-        
-        const mergedHeaders = {};
-        const skip = ['host', 'connection', 'content-length', 'content-type', 'accept-encoding', 'cookie', 'range'];
-        Object.keys(headers).forEach(k => { if (!skip.includes(k.toLowerCase())) mergedHeaders[k] = headers[k]; });
-        if (!mergedHeaders['User-Agent']) mergedHeaders['User-Agent'] = DEFAULT_UA;
+        const headers = { ...(decryptedHeaders || {}) };
+        const clientRange = req.headers.range;
 
-        if (req.headers.range && !force200) mergedHeaders['Range'] = req.headers.range;
+        // Clean headers and prepare for upstream request
+        const upstreamHeaders = {};
+        const skipHeaders = ['host', 'connection', 'content-length', 'content-type', 'accept-encoding', 'cookie'];
+        Object.keys(headers).forEach(k => {
+            if (!skipHeaders.includes(k.toLowerCase())) {
+                upstreamHeaders[k] = headers[k];
+            }
+        });
+        if (!upstreamHeaders['User-Agent']) {
+            upstreamHeaders['User-Agent'] = DEFAULT_UA;
+        }
+        if (clientRange) {
+            upstreamHeaders.range = clientRange;
+        }
 
         try {
-            const isSegment = /\.(ts|m4s|mp4|mkv|m4v|m4a|fmp4)(\?|$)/i.test(targetUrl) || targetUrl.includes('/resource/') || targetUrl.includes('/bt/');
-            let currentUrl = targetUrl;
-            let resp = null;
-            let redCount = 0;
-            while (redCount <= 3) {
-                resp = await fetchWithRetry(currentUrl, { headers: mergedHeaders, redirect: 'manual', timeout: isSegment ? 120000 : 45000 });
-                if (resp.status >= 300 && resp.status < 400) {
-                    const loc = resp.headers.get('location');
-                    if (!loc) break;
-                    currentUrl = new URL(loc, currentUrl).href;
-                    redCount++;
-                    continue;
+            const upstreamRes = await fetchWithRetry(targetUrl, { headers: upstreamHeaders });
+
+            // Send upstream status code to client
+            res.status(upstreamRes.status);
+
+            // Copy all relevant headers from the upstream response to our client response
+            ['content-type', 'content-length', 'content-range', 'accept-ranges', 'last-modified', 'etag', 'cache-control'].forEach(headerName => {
+                const headerValue = upstreamRes.headers.get(headerName);
+                if (headerValue) {
+                    res.setHeader(headerName, headerValue);
                 }
-                break;
-            }
-
-            if (!resp.ok && resp.status !== 206) return res.status(resp.status).json({ error: `Upstream error ${resp.status}`, target: currentUrl });
-
-            const upstreamCT = resp.headers.get('content-type');
-            res.setHeader('Content-Type', inferContentType(upstreamCT, currentUrl));
-            ['content-range', 'accept-ranges', 'content-length'].forEach(h => { if(resp.headers.get(h)) res.setHeader(h, resp.headers.get(h)); });
-            res.setHeader('Cache-Control', 'public, max-age=3600');
+            });
             res.setHeader('Access-Control-Allow-Origin', '*');
-            resp.body.pipe(res);
-        } catch (e) { res.status(500).json({ error: e.message }); }
+
+            // Pipe the body directly. This handles all cases (200 OK, 206 Partial Content, etc.)
+            upstreamRes.body.pipe(res);
+
+        } catch (error) {
+            console.error(`[ts-proxy] Failed to fetch target: ${targetUrl}`, error);
+            if (!res.headersSent) {
+                res.status(502).json({ error: 'Bad Gateway', message: error.message });
+            }
+        }
     });
 
     app.get('/sub-proxy', cors(), async (req, res) => {

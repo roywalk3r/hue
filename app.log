@@ -562,3 +562,13 @@
 [2026-01-25T22:11:54.049Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
 [2026-01-25T22:11:54.051Z] [INFO] [api] returning 5 streams from cache for 1242898
 [2026-01-25T22:15:22.758Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T22:17:35.141Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T22:17:37.910Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-25T22:19:49.211Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
+[2026-01-25T22:19:49.222Z] [INFO] [api] fetching streams for tmdbId=1242898 (Smart Wait: 15s)
+[2026-01-25T22:19:52.458Z] [INFO] [api] all providers completed within deadline for 1242898
+[2026-01-25T22:28:09.296Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-26T09:22:08.346Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-26T09:24:08.107Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
+[2026-01-26T09:24:08.112Z] [INFO] [api] fetching streams for tmdbId=1242898 (Smart Wait: 15s)
+[2026-01-26T09:24:14.546Z] [INFO] [api] all providers completed within deadline for 1242898
