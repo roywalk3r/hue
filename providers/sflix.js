@@ -295,9 +295,6 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
                     if (!el) return;
                     el.scrollIntoView({ block: 'center' });
                     el.click();
-                    el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-                    el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-                    el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
                 };
 
                 const findByText = (text, selector = 'div, span, button, h4') => {
@@ -307,76 +304,46 @@ async function getSflixStreams(tmdbId, mediaType, season, episode) {
                     });
                 };
 
-                let seasonBox = null;
-                for (let i = 0; i < 25; i++) {
-                    const boxes = Array.from(document.querySelectorAll('.season-box, .season-box2, .ss-box, .choice-header .season-box'));
-                    seasonBox = boxes.find(el => {
-                        const t = el.textContent?.trim() || "";
-                        return t.toLowerCase().includes('season') || /\d+/.test(t);
-                    }) || findByText('Season');
-                    
-                    if (seasonBox && seasonBox.textContent?.trim()) break;
-                    await sleep(1000);
-                }
-                
-                const currentSeasonText = (seasonBox?.innerText || seasonBox?.textContent || "").trim();
-                const normS = s ? s.toString().padStart(2, '0') : "";
-                
-                const isCorrectSeason = currentSeasonText.includes(normS) || 
-                                      currentSeasonText.includes(`Season ${s}`) ||
-                                      currentSeasonText.includes(`Season ${normS}`);
+                // Faster Season Selection
+                let seasonBox = document.querySelector('.season-box, .season-box2, .ss-box');
+                if (!seasonBox) await sleep(1000);
+                seasonBox = document.querySelector('.season-box, .season-box2, .ss-box');
 
-                if (seasonBox && s && !isCorrectSeason) {
-                    clickSafe(seasonBox);
-                    await sleep(2500);
-                    let items = Array.from(document.querySelectorAll('.choice-season, .season-item, .ss-item, [data-season], .ss-dropdown-item, .se-item, .choice-seasons div'));
-                    if (items.length === 0) {
+                if (seasonBox) {
+                    const currentText = (seasonBox.textContent || "").trim();
+                    const targetS = `Season ${s}`;
+                    if (!currentText.includes(targetS) && !currentText.includes(s.toString().padStart(2, '0'))) {
                         clickSafe(seasonBox);
-                        await sleep(2000);
-                        items = Array.from(document.querySelectorAll('.choice-season, .season-item, .ss-item, [data-season], .ss-dropdown-item, .se-item, .choice-seasons div'));
-                    }
-                    const target = items.find(i => {
-                        const t = (i.textContent || i.innerText || "").trim();
-                        return t.includes(`Season ${normS}`) || t.includes(`Season ${s}`) || t === s.toString() || t === normS;
-                    }) || findByText(`Season ${normS}`) || findByText(`Season ${s}`);
-                    if (target) {
-                        clickSafe(target);
-                        hasChanged = true;
-                        await sleep(5000);
+                        await sleep(1000); // reduced wait
+                        const items = Array.from(document.querySelectorAll('.choice-season, .season-item, .ss-item, [data-season], .ss-dropdown-item'));
+                        const target = items.find(i => {
+                            const t = (i.textContent || "").trim();
+                            return t === targetS || t.includes(targetS);
+                        });
+                        if (target) {
+                            clickSafe(target);
+                            hasChanged = true;
+                            await sleep(2000); // reduced wait
+                        }
                     }
                 }
                 
-                const normE = e ? e.toString().padStart(2, '0') : "";
-                const eStr = e ? e.toString() : "";
-                let epItems = [];
-                for (let i = 0; i < 20; i++) {
-                    if (i === 5 && epItems.length === 0 && hasChanged) {
-                         const active = document.querySelector('.se-item-active, .active-season, .choice-season.se-item-active');
-                         if (active) clickSafe(active);
-                    }
-                    epItems = Array.from(document.querySelectorAll('.ep-item, .eps-item, [data-episode]'));
-                    if (epItems.length > 0 && epItems.some(item => (item.innerText || item.textContent || "").trim())) break;
-                    await sleep(1000);
-                }
-                
-                const targetEp = epItems.find(i => {
-                    const t = (i.innerText || i.textContent || "").trim();
-                    const dataEp = i.getAttribute('data-episode');
-                    return e && (t === normE || t === eStr || t.includes(`Episode ${e}`) || dataEp === eStr || dataEp === normE);
-                }) || epItems.find(i => {
-                    const span = i.querySelector('span');
-                    const st = span?.textContent?.trim() || "";
-                    return st === normE || st === eStr;
-                });
-                
-                if (targetEp) {
-                    const isActive = targetEp.classList.contains('ep-item-active') || targetEp.classList.contains('active');
-                    if (!isActive || hasChanged) {
+                // Faster Episode Selection
+                if (e) {
+                    const epItems = Array.from(document.querySelectorAll('.ep-item, .eps-item, [data-episode]'));
+                    const targetEp = epItems.find(i => {
+                        const t = (i.innerText || "").trim();
+                        const de = i.getAttribute('data-episode');
+                        return t === e.toString() || t === e.toString().padStart(2, '0') || de === e.toString();
+                    });
+                    
+                    if (targetEp && !targetEp.classList.contains('active')) {
                         clickSafe(targetEp);
                         hasChanged = true;
-                        await sleep(3000);
+                        await sleep(1500);
                     }
                 }
+                
                 return hasChanged;
             }, { s: season, e: episode }).catch(err => {
                 console.log(`[SFlix] Picker error: ${err.message}`);
