@@ -691,3 +691,4 @@
 [2026-01-26T15:08:14.769Z] [INFO] [api] deadline reached, returning partial results for 60735
 [2026-01-26T15:08:59.751Z] [ERROR] [api] provider Nova failed or timed out: Provider timeout
 [2026-01-26T15:17:16.481Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-26T15:30:10.438Z] [INFO] [startup] enableProxy flag active: mounting proxy routes

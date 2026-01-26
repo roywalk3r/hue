@@ -30,71 +30,124 @@ async function getTmdbInfo(tmdbId, mediaType) {
     }
 }
 
+async function searchSflixViaApi(keyword, type) {
+    try {
+        const url = `${API_BASE}/subject/search`;
+        const payload = {
+            keyword: keyword,
+            page: "1",
+            perPage: 24,
+            subjectType: 0 // 0 for All
+        };
+        console.log(`[SFlix API] Searching: ${keyword}`);
+        const response = await axiosInstance.post(url, payload);
+        return response.data?.data?.items || [];
+    } catch (e) {
+        console.warn(`[SFlix API] Search failed: ${e.message}`);
+        return [];
+    }
+}
+
 async function searchSflix(title, mediaType, year, season) {
     let keyword = title;
+    // For movies, adding the year helps narrow down the API results
     if (mediaType === "movie" && year) {
         keyword = `${title} ${year}`;
     }
     
-    const searchUrl = `${BASE_URL}/search-result?keyword=${encodeURIComponent(keyword)}`;
-    console.log(`[SFlix] Searching (${mediaType}) with keyword "${keyword}": ${searchUrl}`);
-    
     try {
-        const response = await axiosInstance.get(searchUrl);
-        const $ = cheerio.load(response.data);
-
+        // 1. Try API Search First
+        const items = await searchSflixViaApi(keyword, mediaType);
         const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, "");
         const target = normalize(title);
         const targetSeason = season ? parseInt(season) : null;
         
-        const items = $(".subject-card");
-        let bestMatch = { href: null, score: -1 };
+        let bestMatch = { item: null, score: -1 };
 
-        items.each((i, el) => {
+        items.forEach(item => {
+            const text = item.title || "";
+            const itemYearMatch = item.releaseDate ? item.releaseDate.match(/\d{4}/) : null;
+            const itemYear = itemYearMatch ? itemYearMatch[0] : null;
+            
+            const cleanText = text.replace(/S\d+(-S\d+)?|Season \d+|\(\d{4}\)/gi, "").trim();
+            const normClean = normalize(cleanText);
+            
+            let currentScore = 0;
+            if (normClean === target) currentScore += 1000;
+            else if (normClean.includes(target)) currentScore += 50;
+
+            if (mediaType === "tv" && targetSeason) {
+                const specificSeasonRegex = new RegExp(`S(eason)?\\s*${targetSeason}\\b`, 'i');
+                if (specificSeasonRegex.test(text)) currentScore += 100;
+            }
+
+            if (year && (text.includes(year.toString()) || itemYear === year.toString())) currentScore += 30;
+
+            // subjectType: 1 for Movie, 2 for Series
+            if (mediaType === "tv") currentScore += (item.subjectType === 2) ? 50 : -100;
+            else currentScore += (item.subjectType === 1) ? 50 : -100;
+
+            if (currentScore > bestMatch.score) bestMatch = { item, score: currentScore };
+        });
+
+        if (bestMatch.item) {
+            console.log(`[SFlix API] Found best match: ${bestMatch.item.title} (Slug: ${bestMatch.item.detailPath})`);
+            return `${BASE_URL}/detail/${bestMatch.item.detailPath}`;
+        }
+
+        // 2. Fallback to HTML Search if API returned nothing
+        console.log(`[SFlix API] No match found. Falling back to HTML search...`);
+        const searchUrl = `${BASE_URL}/search-result?keyword=${encodeURIComponent(keyword)}`;
+        const response = await axiosInstance.get(searchUrl);
+        const $ = cheerio.load(response.data);
+        
+        const htmlItems = $(".subject-card");
+        let htmlBestMatch = { href: null, score: -1 };
+
+        htmlItems.each((i, el) => {
             const item = $(el);
             const titleEl = item.find(".subject-card-bottom .line-1").length ? item.find(".subject-card-bottom .line-1") : item.find("h2.line-1");
             const href = item.attr("href");
             const metaEl = item.find(".subject-card-bottom .line-2");
             const metaText = metaEl.text().trim().toLowerCase();
-            const itemYearMatch = metaText.match(/\d{4}/);
-            const itemYear = itemYearMatch ? itemYearMatch[0] : null;
             
             if (titleEl.length && href) {
                 const text = titleEl.text().trim();
-                const cleanText = text.replace(/S\d+(-S\d+)?|Season \d+|\(\d{4}\)/gi, "").trim();
-                const normClean = normalize(cleanText);
+                const normClean = normalize(text.replace(/S\d+(-S\d+)?|Season \d+|\(\d{4}\)/gi, "").trim());
                 
                 let currentScore = 0;
                 if (normClean === target) currentScore += 1000;
                 else if (normClean.includes(target)) currentScore += 50;
 
-                if (mediaType === "tv" && targetSeason) {
-                    const specificSeasonRegex = new RegExp(`S(eason)?\\s*${targetSeason}\b`, 'i');
-                    if (specificSeasonRegex.test(text)) currentScore += 100;
-                    else {
-                        const rangeMatch = text.match(/S(\d+)-S(\d+)/i);
-                        if (rangeMatch) {
-                            const start = parseInt(rangeMatch[1]);
-                            const end = parseInt(rangeMatch[2]);
-                            if (targetSeason >= start && targetSeason <= end) currentScore += 80;
-                        }
-                    }
-                }
+                if (mediaType === "tv") currentScore += (metaText.includes("series") || text.match(/S\d+/i)) ? 50 : -50;
+                else currentScore += (metaText.includes("series") || text.match(/S\d+/i)) ? -100 : 20;
 
-                if (year && (text.includes(year.toString()) || itemYear === year.toString())) currentScore += 30;
-
-                const isTVResult = metaText.includes("series") || metaText.includes("season") || metaText.includes("ss") || text.match(/S\d+/i);
-                if (mediaType === "tv") currentScore += isTVResult ? 50 : -50;
-                else currentScore += isTVResult ? -100 : 20;
-
-                if (currentScore > bestMatch.score) bestMatch = { href, score: currentScore };
+                if (currentScore > htmlBestMatch.score) htmlBestMatch = { href, score: currentScore };
             }
         });
 
-        return bestMatch.href ? (bestMatch.href.startsWith("http") ? bestMatch.href : `${BASE_URL}${bestMatch.href}`) : null;
+        return htmlBestMatch.href ? (htmlBestMatch.href.startsWith("http") ? htmlBestMatch.href : `${BASE_URL}${htmlBestMatch.href}`) : null;
     } catch (e) {
         console.error(`[SFlix] Search error: ${e.message}`);
         return null;
+    }
+}
+
+async function getCaptionsViaApi(subjectId, streamId, detailPath) {
+    try {
+        const url = `${API_BASE}/subject/caption?format=MP4&id=${streamId}&subjectId=${subjectId}&detailPath=${detailPath}`;
+        // console.log(`[SFlix API] Fetching captions: ${url}`);
+        const response = await axiosInstance.get(url);
+        const captions = response.data?.data?.captions;
+        if (!Array.isArray(captions)) return [];
+        
+        return captions.map(c => ({
+            url: c.url,
+            lang: c.lan || 'en',
+            label: c.lanName || 'English'
+        }));
+    } catch (e) {
+        return [];
     }
 }
 
@@ -131,8 +184,15 @@ async function getStreamsViaApi(slug, season, episode) {
         }
 
         const streams = [];
+        
         // Process MP4 streams
         if (Array.isArray(data.streams)) {
+            // Fetch captions for the first valid stream (captions are usually the same for all qualities)
+            let captions = [];
+            if (data.streams.length > 0) {
+                captions = await getCaptionsViaApi(subjectId, data.streams[0].id, slug);
+            }
+
             data.streams.forEach(s => {
                 streams.push({
                     title: `Nova - ${s.resolutions}p (MP4)`,
@@ -140,10 +200,12 @@ async function getStreamsViaApi(slug, season, episode) {
                     quality: `${s.resolutions}p`,
                     format: 'mp4',
                     provider: 'Nova',
+                    subtitles: captions.length > 0 ? captions : undefined,
                     headers: { "Referer": `${BASE_URL}/`, "User-Agent": USER_AGENT }
                 });
             });
         }
+        
         // Process HLS streams if any
         if (Array.isArray(data.hls)) {
             data.hls.forEach(s => {
