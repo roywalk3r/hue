@@ -17,7 +17,6 @@ if (!process.env.APP_SECRET) {
 if (typeof File === 'undefined') {
   global.File = class { constructor() { throw new Error("File polyfill: not implemented"); } };
 }
-const express = require('express');
 const cors = require('cors');
 const os = require('os');
 const { config, saveConfigPatch, OVERRIDE_PATH } = require('./utils/config');
