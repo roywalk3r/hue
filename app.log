@@ -31,3 +31,21 @@
 [2026-01-27T09:34:38.470Z] [INFO] [api] deadline reached, returning partial results for 1084242
 [2026-01-27T09:35:33.769Z] [ERROR] [api] provider Luna failed or timed out: Provider timeout
 [2026-01-27T09:35:33.770Z] [ERROR] [api] provider Nebula failed or timed out: Provider timeout
+[2026-01-27T09:36:05.664Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T09:36:11.194Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T09:37:06.667Z] [INFO] [request] GET /api/streams/movie/1084242 from 12ca17b4
+[2026-01-27T09:37:06.669Z] [INFO] [api] fetching streams for tmdbId=1084242 (Smart Wait: 15s)
+[2026-01-27T09:37:35.332Z] [INFO] [api] deadline reached, returning partial results for 1084242
+[2026-01-27T09:38:28.968Z] [ERROR] [api] provider Luna failed or timed out: Provider timeout
+[2026-01-27T09:38:28.968Z] [ERROR] [api] provider Nebula failed or timed out: Provider timeout
+[2026-01-27T09:38:51.262Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T09:39:10.386Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T09:39:11.093Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-27T09:39:11.100Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
+[2026-01-27T09:39:39.401Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T09:39:41.363Z] [INFO] [api] deadline reached, returning partial results for 310131
+[2026-01-27T09:40:15.893Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T09:44:12.808Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T09:44:34.315Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-27T09:44:34.326Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
+[2026-01-27T09:44:49.473Z] [INFO] [api] deadline reached, returning partial results for 310131
