@@ -174,6 +174,8 @@ function loadConfig() {
     tmdbApiKey: process.env.TMDB_API_KEY || null,
   tmdbApiKeys: parseJsonMaybe(process.env.TMDB_API_KEYS) || null,
     febboxCookies: parseCookies(process.env.FEBBOX_COOKIES),
+    sflixCookie: process.env.SFLIX_COOKIE || null,
+    sflixUserAgent: process.env.SFLIX_USER_AGENT || null,
     // Extended advanced config (may not exist in env)
     disableCache: process.env.DISABLE_CACHE,
     enablePStreamApi: process.env.ENABLE_PSTREAM_API,

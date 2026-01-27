@@ -12,9 +12,12 @@ const axiosInstance = axios.create({
 const TMDB_API_KEY = "68e094699525b18a70bab2f86b1fa706";
 const BASE_URL = 'https://vixsrc.to';
 
+// UNIFIED UA for Proxy Consistency
+const UNIFIED_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
 async function makeRequest(url, options = {}) {
     const defaultHeaders = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': UNIFIED_UA,
         'Accept': 'application/json,*/*',
         'Accept-Language': 'en-US,en;q=0.5',
         'Connection': 'keep-alive',
@@ -54,7 +57,6 @@ async function extractStreamFromPage(contentType, contentId, seasonNum, episodeN
         headers: { 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' }
     });
     const html = response.data;
-    console.log(`[Vixsrc] HTML length: ${html.length} characters`);
 
     let masterPlaylistUrl = null;
 
@@ -81,7 +83,7 @@ async function extractStreamFromPage(contentType, contentId, seasonNum, episodeN
 
 async function getSubtitles(subtitleApiUrl) {
     try {
-        const response = await makeRequest(subtitleApiUrl);
+        const response = await makeRequest(subtitleApiUrl, { timeout: 5000 });
         const subtitleData = response.data;
         const subtitleTrack = subtitleData.find(track =>
             track.display.includes('English') && (track.encoding === 'ASCII' || track.encoding === 'UTF-8')
@@ -91,7 +93,7 @@ async function getSubtitles(subtitleApiUrl) {
         console.log(subtitles ? `[Vixsrc] Found subtitles: ${subtitles}` : '[Vixsrc] No English subtitles found');
         return subtitles;
     } catch (error) {
-        console.log('[Vixsrc] Subtitle fetch failed:', error.message);
+        // console.log('[Vixsrc] Subtitle fetch failed:', error.message);
         return '';
     }
 }
@@ -112,10 +114,12 @@ async function getVixsrcStreams(tmdbId, mediaType = 'movie', seasonNum = null, e
             url: masterPlaylistUrl,
             quality: '1080p',
             provider: 'Vidsrc',
+            format: 'hls',
             subtitles: subtitles ? [{ url: subtitles, lang: 'en', label: 'English' }] : undefined,
             headers: {
-                'Referer': vixsrcUrl,
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+                'Referer': 'https://vixsrc.to/',
+                'Origin': 'https://vixsrc.to',
+                'User-Agent': UNIFIED_UA
             }
         }];
     } catch (error) {

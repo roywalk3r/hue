@@ -1093,6 +1093,18 @@ module.exports = app;
 
 // For local development: start server if not in Vercel environment
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  const { refreshSflixCookie } = require('./utils/refreshSflixCookie');
+
+  // Schedule SFlix Cookie Refresh (every 24h)
+  setInterval(() => {
+      refreshSflixCookie().catch(err => console.error('[Cron] Cookie refresh failed:', err));
+  }, 24 * 60 * 60 * 1000);
+
+  // Initial refresh on start (delay 30s to let server settle)
+  setTimeout(() => {
+      refreshSflixCookie().catch(err => console.error('[Startup] Cookie refresh failed:', err));
+  }, 30000);
+
   const PORT = config.port;
   const HOST = process.env.BIND_HOST || '0.0.0.0';
   const server = app.listen(PORT, HOST, () => {
