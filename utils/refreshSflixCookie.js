@@ -1,7 +1,7 @@
 const { getNewContext } = require('./browserManager');
 const { saveConfigPatch } = require('./config');
 
-const SFLIX_URL = 'https://sflix.film/home';
+const SFLIX_URL = 'https://sflix.film';
 
 async function refreshSflixCookie() {
     console.log('[SFlix Refresh] Starting cookie refresh sequence...');

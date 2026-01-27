@@ -23,6 +23,12 @@ const axiosInstance = axios.create({
     httpsAgent: new https.Agent({ family: 4, keepAlive: false })
 });
 
+const tmdbAxios = axios.create({
+    timeout: 10000,
+    httpAgent: new http.Agent({ family: 4, keepAlive: true }),
+    httpsAgent: new https.Agent({ family: 4, keepAlive: true })
+});
+
 async function getTmdbInfo(tmdbId, mediaType) {
     if (!tmdbId) return { title: null, year: null };
     const { getTmdbApiKey } = require("../utils/tmdbKey");
@@ -32,7 +38,7 @@ async function getTmdbInfo(tmdbId, mediaType) {
     const type = mediaType === 'tv' ? 'tv' : 'movie';
     const url = `https://api.themoviedb.org/3/${type}/${tmdbId}?api_key=${TMDB_API_KEY}`;
     try {
-        const response = await axiosInstance.get(url);
+        const response = await tmdbAxios.get(url);
         const data = response.data;
         const releaseDate = data.release_date || data.first_air_date;
         const year = releaseDate ? parseInt(releaseDate.split("-")[0], 10) : null;
