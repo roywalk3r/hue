@@ -2,7 +2,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Node](https://img.shields.io/badge/node-v18%2B-green.svg) ![Status](https://img.shields.io/badge/status-stable-success.svg)
 
-> **The Ultimate Streaming Aggregator** for Movies, TV Shows, and KDramas.
+> **The Ultimate Streaming Aggregator** for Movies, TV Shows, KDramas, and Live Sports.
 > Built for performance, stability, and ease of use.
 
 ---
@@ -11,7 +11,7 @@
 
 **Hue Stream** is a unified backend that turns disparate streaming sources into a single, polished API. It combines the speed of HTTP-based providers with the resilience of headless browser automation to deliver content reliably.
 
-Whether you are building a **Netflix clone**, a **KDrama hub**, or a personal media center, Hue provides the streams, metadata, and subtitles you need—securely and instantly.
+Whether you are building a **Netflix clone**, a **KDrama hub**, a **sports streaming platform**, or a personal media center, Hue provides the streams, metadata, and subtitles you need—securely and instantly.
 
 ---
 
@@ -21,6 +21,7 @@ Whether you are building a **Netflix clone**, a **KDrama hub**, or a personal me
 Fetch streams from multiple high-quality providers simultaneously. The system automatically races them and returns the best results first.
 *   **Western Content:** `vixsrc`, `vidrock`, `sflix`
 *   **Asian Drama:** `kisskh` (Zenith), `dramacool` (Orient)
+*   **Live Sports:** `livetv` (Arena), `livesport` (Stadium)
 
 ### 🌏 **HiTV Discovery Engine**
 A dedicated subsystem for Asian content discovery.
@@ -114,7 +115,20 @@ The magic endpoint that plays HiTV content.
 GET /api/hitv/play/{id}/{episode}?title=Show Name
 ```
 
-### 4. Direct Provider Access
+### 4. Live Sports Streaming
+Watch live sports from multiple sources.
+```http
+# LiveTV.sx (Arena)
+GET /api/livetv/sports              # Get sports categories
+GET /api/livetv/matches?sportId=    # Get matches by sport
+GET /api/livetv/match?url=          # Get stream variants
+GET /livetv/{matchName}             # Direct match access
+
+# Livesport.su (Stadium)
+GET /sports-stream/{matchName}      # Direct match access
+```
+
+### 5. Direct Provider Access
 Target specific providers for granular control.
 ```http
 GET /api/kdrama/search?q=...

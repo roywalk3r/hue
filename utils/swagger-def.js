@@ -288,9 +288,55 @@ Currently public. Future versions may implement API Key protection.
     '/sports-stream/{matchName}': {
         get: {
             tags: ['Sports'],
-            summary: 'Extract Sports Stream',
+            summary: 'Extract Sports Stream from Livesport.su',
             parameters: [{ name: 'matchName', in: 'path', required: true, description: 'Match slug/path' }],
             responses: { 200: { description: 'Live streams' } }
+        }
+    },
+    '/livetv/{matchName}': {
+        get: {
+            tags: ['Sports'],
+            summary: 'Extract Sports Stream from LiveTV.sx',
+            parameters: [{ name: 'matchName', in: 'path', required: true, description: 'Match slug/path' }],
+            responses: { 200: { description: 'Live streams' } }
+        }
+    },
+    '/livetv': {
+        get: {
+            tags: ['Sports'],
+            summary: 'Get LiveTV Sports and Matches',
+            parameters: [
+                { name: 'sportId', in: 'query', schema: { type: 'string' }, description: 'Filter by sport ID' }
+            ],
+            responses: { 200: { description: 'List of sports and matches' } }
+        }
+    },
+    '/livetv/sports': {
+        get: {
+            tags: ['Sports'],
+            summary: 'Get Available Sports Categories',
+            responses: { 200: { description: 'List of sports' } }
+        }
+    },
+    '/livetv/matches': {
+        get: {
+            tags: ['Sports'],
+            summary: 'Get LiveTV Matches',
+            parameters: [
+                { name: 'sportId', in: 'query', schema: { type: 'string' }, description: 'Filter by sport ID' }
+            ],
+            responses: { 200: { description: 'List of matches' } }
+        }
+    },
+    '/livetv/match': {
+        get: {
+            tags: ['Sports'],
+            summary: 'Get Stream Variants for a Match',
+            parameters: [
+                { name: 'url', in: 'query', required: true, description: 'Match URL from LiveTV' },
+                { name: 'resolve', in: 'query', schema: { type: 'boolean', default: false }, description: 'Resolve to direct stream URLs' }
+            ],
+            responses: { 200: { description: 'Stream variants' } }
         }
     },
     '/status': {

@@ -59,6 +59,8 @@ const kisskhApi = require('./utils/kisskh-api');
 const kisskhProvider = require('./providers/kisskh');
 const dramacoolApi = require('./utils/dramacool-api');
 const dramacoolProvider = require('./providers/dramacool');
+const livetvRoutes = require('./routes/livetv');
+const proxyRoutes = require('./routes/proxy');
 const logger = require('./utils/logger');
 const stealth = require('./utils/stealth');
 
@@ -118,6 +120,12 @@ if (config.enableProxy) {
 } else {
   logger.info('[startup] enableProxy flag disabled: proxy routes not mounted');
 }
+
+// Mount Proxy Route (M3U8 Rewriter)
+app.use('/api/proxy', proxyRoutes);
+
+// Mount LiveTV routes
+app.use('/api/livetv', livetvRoutes);
 
 // --- Simple In-Memory Rate Limiting for /auth/login ---
 const loginAttempts = new Map(); // key: ip, value: { count, first, last, lockedUntil }
@@ -640,6 +648,48 @@ app.get('/sports-stream/:matchName*', async (req, res) => {
   }
 });
 
+// LiveTV sports streams endpoint
+app.get('/livetv/:matchName*', async (req, res) => {
+  const matchName = req.params.matchName + (req.params[0] || '');
+  if (!matchName) {
+    return res.status(400).json({ success: false, error: 'Match name required' });
+  }
+
+  const prov = getProvider('livetv');
+  if (!prov) return res.status(404).json({ success: false, error: 'LiveTV provider not found' });
+  if (!prov.enabled) return res.status(503).json({ success: false, error: 'LiveTV provider disabled' });
+
+  try {
+    metrics.streamRequests++;
+    metrics.providerCalls[prov.name] = (metrics.providerCalls[prov.name] || 0) + 1;
+    
+    const t0 = Date.now();
+    // Pass the request object so the provider can extract the match info
+    let streams = await prov.fetch({ req, type: 'sports', matchName, filters: {} });
+    const providerTimings = { [prov.name]: Date.now() - t0 };
+    
+    streams = applyFilters(streams, prov.name, config.minQualities, config.excludeCodecs);
+    metrics.streamsReturned += streams.length;
+    
+    if (config.enableProxy) {
+      const serverUrl = resolveServerUrl(req);
+      streams = processStreamsForProxy(streams, serverUrl);
+    }
+    
+    res.json({ 
+      success: true, 
+      provider: prov.name, 
+      matchName, 
+      count: streams.length, 
+      providerTimings, 
+      streams 
+    });
+  } catch (e) {
+    metrics.lastError = e.message;
+    res.status(500).json({ success: false, error: 'INTERNAL_ERROR', message: e.message });
+  }
+});
+
 // Provider-specific streams
 app.get('/api/streams/:provider/:type/:tmdbId', async (req,res) => {
   const { provider, type, tmdbId } = req.params;
@@ -1096,6 +1146,7 @@ if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   const { refreshSflixCookie } = require('./utils/refreshSflixCookie');
 
   // Schedule SFlix Cookie Refresh (every 24h)
+  /*
   setInterval(() => {
       refreshSflixCookie().catch(err => console.error('[Cron] Cookie refresh failed:', err));
   }, 24 * 60 * 60 * 1000);
@@ -1104,6 +1155,7 @@ if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   setTimeout(() => {
       refreshSflixCookie().catch(err => console.error('[Startup] Cookie refresh failed:', err));
   }, 30000);
+  */
 
   const PORT = config.port;
   const HOST = process.env.BIND_HOST || '0.0.0.0';

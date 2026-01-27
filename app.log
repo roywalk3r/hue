@@ -49,3 +49,41 @@
 [2026-01-27T09:44:34.315Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
 [2026-01-27T09:44:34.326Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
 [2026-01-27T09:44:49.473Z] [INFO] [api] deadline reached, returning partial results for 310131
+[2026-01-27T11:44:39.691Z] [INFO] [request] GET /api/livetv from 12ca17b4
+[2026-01-27T11:44:46.337Z] [INFO] [request] GET /api/livetv from 12ca17b4
+[2026-01-27T11:44:51.948Z] [INFO] [request] GET /api/livetv/sports from 12ca17b4
+[2026-01-27T11:45:09.664Z] [INFO] [request] GET /api/livetv from 12ca17b4
+[2026-01-27T11:46:03.416Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-27T11:46:03.570Z] [INFO] [request] GET /api/livetv/sports from 12ca17b4
+[2026-01-27T11:46:05.401Z] [INFO] [request] GET /api/livetv/matches from 12ca17b4
+[2026-01-27T11:46:08.940Z] [INFO] [request] GET /api/livetv/matches from 12ca17b4
+[2026-01-27T11:46:52.203Z] [INFO] [request] GET /api/livetv/sports from 12ca17b4
+[2026-01-27T12:04:53.572Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T12:04:58.846Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-27T12:04:59.220Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-27T12:04:59.230Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-27T12:10:23.363Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T12:44:27.061Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-27T12:44:27.365Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-27T12:44:27.379Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-27T13:19:36.128Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T13:19:42.694Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-27T13:19:42.931Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-27T13:19:42.956Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-27T13:27:44.032Z] [INFO] [request] GET /api/chunklist__audio0.m3u8 from 12ca17b4
+[2026-01-27T13:32:36.653Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-27T13:32:36.813Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-27T13:32:36.816Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-27T13:36:47.336Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T13:36:53.298Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-27T13:36:53.414Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-27T13:36:53.493Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-27T13:37:11.853Z] [INFO] [request] GET /api/streams/series/603?season=1&episode=1 from 12ca17b4
+[2026-01-27T13:37:11.855Z] [INFO] [api] fetching streams for tmdbId=603 (Smart Wait: 15s)
+[2026-01-27T13:37:17.818Z] [INFO] [api] all providers completed within deadline for 603
+[2026-01-27T13:37:31.705Z] [INFO] [request] GET /api/streams/series/603?season=1&episode=1 from 12ca17b4
+[2026-01-27T13:37:31.706Z] [INFO] [api] fetching streams for tmdbId=603 (Smart Wait: 15s)
+[2026-01-27T13:37:36.024Z] [INFO] [api] all providers completed within deadline for 603
+[2026-01-27T13:39:10.813Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-27T13:39:10.984Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-27T13:39:10.988Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
