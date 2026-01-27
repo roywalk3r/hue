@@ -173,3 +173,10 @@
 [2026-01-27T11:56:35.762Z] [INFO] [request] GET /favicon.ico from 12ca17b4
 [2026-01-27T11:56:37.493Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
 [2026-01-27T11:56:37.496Z] [INFO] [api] returning 9 streams from cache for 310131
+[2026-01-27T12:12:20.303Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T12:13:58.466Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T12:15:49.486Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T12:16:45.983Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T12:17:00.430Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-27T12:17:00.438Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
+[2026-01-27T12:17:09.314Z] [INFO] [api] all providers completed within deadline for 310131
