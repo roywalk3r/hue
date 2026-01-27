@@ -49,3 +49,127 @@
 [2026-01-27T09:44:34.315Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
 [2026-01-27T09:44:34.326Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
 [2026-01-27T09:44:49.473Z] [INFO] [api] deadline reached, returning partial results for 310131
+[2026-01-27T09:56:30.106Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T09:57:13.159Z] [INFO] [request] GET /api/streams/movie/310131?season=1&episode=1 from 12ca17b4
+[2026-01-27T09:57:13.169Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
+[2026-01-27T09:57:28.317Z] [INFO] [api] deadline reached, returning partial results for 310131
+[2026-01-27T10:02:38.206Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T10:02:43.653Z] [INFO] [request] GET /api/streams/movie/310131?season=1&episode=1 from 12ca17b4
+[2026-01-27T10:02:43.664Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
+[2026-01-27T10:02:58.834Z] [INFO] [api] deadline reached, returning partial results for 310131
+[2026-01-27T10:03:00.610Z] [INFO] [request] GET /api/streams/movie/310131?season=1&episode=1 from 12ca17b4
+[2026-01-27T10:03:00.611Z] [INFO] [api] returning 8 streams from cache for 310131
+[2026-01-27T10:07:35.200Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T10:07:40.207Z] [INFO] [request] GET /api/streams/movie/310131?season=1&episode=1 from 12ca17b4
+[2026-01-27T10:07:40.217Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
+[2026-01-27T10:07:55.384Z] [INFO] [api] deadline reached, returning partial results for 310131
+[2026-01-27T10:11:06.505Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-27T10:11:06.508Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
+[2026-01-27T10:11:21.519Z] [INFO] [api] deadline reached, returning partial results for 310131
+[2026-01-27T10:11:30.370Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-27T10:11:30.371Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
+[2026-01-27T10:11:45.380Z] [INFO] [api] deadline reached, returning partial results for 310131
+[2026-01-27T10:11:57.602Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-27T10:11:57.603Z] [INFO] [api] returning 2 streams from cache for 310131
+[2026-01-27T10:15:06.327Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T11:05:38.567Z] [INFO] [request] GET /player.html from 12ca17b4
+[2026-01-27T11:05:38.653Z] [INFO] [request] GET /player.css from 12ca17b4
+[2026-01-27T11:05:39.439Z] [INFO] [request] GET /player.js from 12ca17b4
+[2026-01-27T11:05:39.490Z] [INFO] [request] GET /api/config from 12ca17b4
+[2026-01-27T11:05:42.326Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-27T11:05:42.330Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
+[2026-01-27T11:05:47.771Z] [INFO] [api] all providers completed within deadline for 310131
+[2026-01-27T11:05:52.373Z] [INFO] [request] GET /favicon.ico from 12ca17b4
+[2026-01-27T11:09:36.060Z] [INFO] [request] GET /api/streams/movie/1084242 from 12ca17b4
+[2026-01-27T11:09:36.062Z] [INFO] [api] fetching streams for tmdbId=1084242 (Smart Wait: 15s)
+[2026-01-27T11:09:41.141Z] [INFO] [api] all providers completed within deadline for 1084242
+[2026-01-27T11:31:23.907Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-27T11:31:23.908Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-27T11:31:23.910Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-27T11:31:23.912Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-27T11:31:25.694Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-27T11:31:25.713Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-27T11:31:25.722Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-27T11:31:25.740Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-27T11:31:25.936Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-27T11:31:25.948Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-27T11:31:25.973Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-27T11:31:25.977Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-27T11:31:26.199Z] [INFO] [request] GET /api/hitv/browse?page=1&perPage=36&category=Drama&sort=Hottest from eff8e7ca
+[2026-01-27T11:31:40.221Z] [INFO] [request] GET /api/hitv/info/1132387607414981456 from eff8e7ca
+[2026-01-27T11:31:40.808Z] [INFO] [request] GET /api/hitv/play/1132387607414981456/1?title=The+Great+Queen+Seondeok from eff8e7ca
+[2026-01-27T11:33:18.056Z] [INFO] [request] GET /api/hitv/info/1132387607414981456 from eff8e7ca
+[2026-01-27T11:33:19.396Z] [INFO] [request] GET /api/hitv/play/1132387607414981456/1?title=The+Great+Queen+Seondeok from eff8e7ca
+[2026-01-27T11:35:54.666Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-27T11:35:55.371Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-27T11:35:55.372Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-27T11:36:07.653Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-27T11:36:07.654Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-27T11:36:07.655Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-27T11:36:07.656Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-27T11:36:07.850Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-27T11:36:07.850Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-27T11:36:07.851Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-27T11:36:07.852Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-27T11:36:10.310Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-27T11:36:10.314Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-27T11:36:10.320Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-27T11:36:10.341Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-27T11:36:10.366Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-27T11:36:10.370Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-27T11:36:10.372Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-27T11:36:10.388Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-27T11:36:10.784Z] [INFO] [request] GET /api/hitv/browse?page=1&perPage=36&category=Drama&sort=Hottest from eff8e7ca
+[2026-01-27T11:36:16.119Z] [INFO] [request] GET /api/hitv/info/588607364346068944 from eff8e7ca
+[2026-01-27T11:36:16.461Z] [INFO] [request] GET /api/hitv/play/588607364346068944/1?title=Immortal+Classic from eff8e7ca
+[2026-01-27T11:36:20.609Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-27T11:36:20.610Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-27T11:36:20.611Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-27T11:36:20.614Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-27T11:36:20.709Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-27T11:36:20.716Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-27T11:36:20.724Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-27T11:36:20.732Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-27T11:36:20.981Z] [INFO] [request] GET /api/hitv/browse?page=1&perPage=36&category=Drama&sort=Hottest from eff8e7ca
+[2026-01-27T11:36:26.093Z] [INFO] [request] GET /api/hitv/search?q=lm from eff8e7ca
+[2026-01-27T11:36:26.136Z] [INFO] [request] GET /api/hitv/search?q=lm from eff8e7ca
+[2026-01-27T11:36:27.861Z] [INFO] [request] GET /api/hitv/search?q=tan from eff8e7ca
+[2026-01-27T11:36:27.870Z] [INFO] [request] GET /api/hitv/search?q=tan from eff8e7ca
+[2026-01-27T11:36:29.398Z] [INFO] [request] GET /api/hitv/search?q=tanga from eff8e7ca
+[2026-01-27T11:36:29.407Z] [INFO] [request] GET /api/hitv/search?q=tanga from eff8e7ca
+[2026-01-27T11:36:30.141Z] [INFO] [request] GET /api/hitv/search?q=tangar from eff8e7ca
+[2026-01-27T11:36:30.148Z] [INFO] [request] GET /api/hitv/search?q=tangar from eff8e7ca
+[2026-01-27T11:36:46.117Z] [INFO] [request] GET /api/hitv/browse?page=1&perPage=36&category=Drama&sort=Hottest from eff8e7ca
+[2026-01-27T11:36:52.728Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from eff8e7ca
+[2026-01-27T11:36:54.477Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1?title=Mr.+Sunshine from eff8e7ca
+[2026-01-27T11:37:47.359Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1?title=Mr.%20Sunshine from 12ca17b4
+[2026-01-27T11:48:25.305Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-27T11:48:25.306Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-27T11:48:25.307Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-27T11:48:25.309Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-27T11:48:29.937Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-27T11:48:29.948Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-27T11:48:29.956Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-27T11:48:29.970Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-27T11:48:30.018Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-27T11:48:30.031Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-27T11:48:30.046Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-27T11:48:30.055Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-27T11:48:30.486Z] [INFO] [request] GET /api/hitv/browse?page=1&perPage=36&category=Drama&sort=Hottest from eff8e7ca
+[2026-01-27T11:51:32.887Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from eff8e7ca
+[2026-01-27T11:51:33.987Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1?title=Mr.+Sunshine from eff8e7ca
+[2026-01-27T11:52:45.796Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from eff8e7ca
+[2026-01-27T11:52:46.472Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1?title=Mr.+Sunshine from eff8e7ca
+[2026-01-27T11:52:57.001Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from eff8e7ca
+[2026-01-27T11:52:57.654Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1?title=Mr.+Sunshine from eff8e7ca
+[2026-01-27T11:54:42.119Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from eff8e7ca
+[2026-01-27T11:54:43.001Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1?title=Mr.+Sunshine from eff8e7ca
+[2026-01-27T11:56:29.770Z] [INFO] [request] GET /player.html from 12ca17b4
+[2026-01-27T11:56:29.968Z] [INFO] [request] GET /player.css from 12ca17b4
+[2026-01-27T11:56:30.225Z] [INFO] [request] GET /player.js from 12ca17b4
+[2026-01-27T11:56:30.531Z] [INFO] [request] GET /api/config from 12ca17b4
+[2026-01-27T11:56:33.211Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-27T11:56:33.214Z] [INFO] [api] returning 9 streams from cache for 310131
+[2026-01-27T11:56:35.762Z] [INFO] [request] GET /favicon.ico from 12ca17b4
+[2026-01-27T11:56:37.493Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-27T11:56:37.496Z] [INFO] [api] returning 9 streams from cache for 310131

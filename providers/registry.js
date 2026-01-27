@@ -233,7 +233,7 @@ for (const providerInfo of providerFiles) {
   
   // Hard-disable unstable providers for now
   let enabled = config[enableFlag] !== false;
-  if (providerInfo.name === 'vidsrc-xyz' || providerInfo.name === 'vidsrc-icu' || providerInfo.name === 'vidsrccc-playwright' || providerInfo.name === 'vixsrc') {
+  if (providerInfo.name === 'vidsrc-xyz' || providerInfo.name === 'vidsrc-icu' || providerInfo.name === 'vidsrccc-playwright') {
       enabled = false;
   }
 
