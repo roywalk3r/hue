@@ -2143,3 +2143,21 @@
 [2026-01-27T19:59:16.744Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
 [2026-01-27T19:59:16.746Z] [INFO] [api] returning 5 streams from cache for 310131
 [2026-01-27T20:03:52.856Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T20:05:30.578Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-27T20:05:31.511Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-27T20:05:31.517Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-27T20:05:37.015Z] [INFO] [request] GET /api/hitv/play/6982119488175365784/1?title=Mr.%20Sunshine from 12ca17b4
+[2026-01-27T20:06:36.453Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T20:06:47.936Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-27T20:06:47.939Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
+[2026-01-27T20:07:03.012Z] [ERROR] [api] provider Aura failed or timed out: Provider timeout
+[2026-01-27T20:07:03.012Z] [INFO] [api] all providers completed within deadline for 310131
+[2026-01-27T20:07:32.231Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-27T20:07:32.232Z] [INFO] [api] returning 4 streams from cache for 310131
+[2026-01-27T20:08:17.156Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T20:08:22.787Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-27T20:08:22.795Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
+[2026-01-27T20:08:25.424Z] [INFO] [api] all providers completed within deadline for 310131
+[2026-01-27T20:11:38.487Z] [INFO] [request] GET /api/streams/movie/1084242 from 12ca17b4
+[2026-01-27T20:11:38.490Z] [INFO] [api] fetching streams for tmdbId=1084242 (Smart Wait: 15s)
+[2026-01-27T20:11:40.616Z] [INFO] [api] all providers completed within deadline for 1084242
