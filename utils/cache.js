@@ -36,5 +36,6 @@ function addCachedStreams(type, tmdbId, season, episode, newStreams) {
 module.exports = {
     getCachedStreams,
     setCachedStreams,
-    addCachedStreams
+    addCachedStreams,
+    clearCache: () => cache.flush()
 };

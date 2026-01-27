@@ -54,7 +54,7 @@ const { listProviders, getProvider, getCookieStats } = require('./providers/regi
 const { createProxyRoutes, processStreamsForProxy } = require('./proxy/proxyServer');
 const { resolveImdbId } = require('./utils/tmdb');
 const { applyFilters } = require('./utils/streamFilters');
-const { getCachedStreams, setCachedStreams, addCachedStreams } = require('./utils/cache');
+const { getCachedStreams, setCachedStreams, addCachedStreams, clearCache } = require('./utils/cache');
 const kisskhApi = require('./utils/kisskh-api');
 const kisskhProvider = require('./providers/kisskh');
 const dramacoolApi = require('./utils/dramacool-api');
@@ -405,6 +405,19 @@ app.get('/api/status', (req,res) => {
 app.get('/api/providers', (req,res) => {
   res.json({ success: true, providers: listProviders() });
 });
+
+// Clear in-memory stream cache
+function handleCacheClear(req, res) {
+  try {
+    clearCache();
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false, error: 'CACHE_CLEAR_FAILED', message: e.message });
+  }
+}
+
+app.post('/api/cache/clear', handleCacheClear);
+app.get('/api/cache/clear', handleCacheClear);
 
 // Debug environment/config endpoint (do not expose publicly in production)
 app.get('/api/debug/env', (req,res) => {

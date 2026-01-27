@@ -12,7 +12,7 @@
   "enableMoviesmodProvider": false,
   "enableMp4hydraProvider": false,
   "enableVidzeeProvider": false,
-  "enableVixsrcProvider": false,
+  "enableVixsrcProvider": true,
   "enableProxy": true,
   "disableCache": false,
   "enablePStreamApi": true,
@@ -26,11 +26,11 @@
   "enableLivesportProvider": false,
   "enableUhdmoviesProvider": false,
   "enableShowboxPlaywrightProvider": false,
-  "enableVidrockProvider": true,
+  "enableVidrockProvider": false,
   "enableVidsrcEmbedProvider": false,
   "enableSflixProvider": true,
   "enableKisskhProvider": true,
   "enableDramacoolProvider": true,
-  "sflixCookie": "sflix_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjE3MTQ5NTIzMzYxMDU2NjYwOCwiYXRwIjozLCJleHQiOiIxNzY5NTA3MDg1IiwiZXhwIjoxNzc3MjgzMDg1LCJpYXQiOjE3Njk1MDY3ODV9.z0ltrXALDtwvm7OKn4npm5vR3yCRubkH4hJW4gcUqk8%22; sflix_i18n_lang=en",
+  "sflixCookie": "sflix_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjM4MDgwMTY2OTI3ODIwMjI3MDQsImF0cCI6MywiZXh0IjoiMTc2OTU0Mzk3NSIsImV4cCI6MTc3NzMxOTk3NSwiaWF0IjoxNzY5NTQzNjc1fQ.UC5x9-fh_kCKV5JnKOA_UzR5zyPUh1rJJ9FY4vx_Lao%22; sflix_i18n_lang=en",
   "sflixUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.6 Safari/537.36"
 }

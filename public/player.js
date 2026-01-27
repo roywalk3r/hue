@@ -332,11 +332,15 @@
     
     console.log('[Player] Loading stream:', { url, isHls, isDash, isDirect });
     
+    const provider = (stream && (stream.provider || stream.name) || '').toLowerCase();
+    const isSlowStart = isHls && (url.includes('m3u8-proxy') || provider.includes('aura') || provider.includes('vixsrc'));
+    const watchdogMs = isSlowStart ? 45000 : 15000;
+
     // Start watchdog for initial load
     state.watchdog = setTimeout(() => {
       console.warn('[Player] Watchdog triggered: stream took too long to start');
-      handleStreamError('Watchdog', { message: 'Stream load timeout (15s)' }, stream);
-    }, 15000);
+      handleStreamError('Watchdog', { message: `Stream load timeout (${Math.round(watchdogMs / 1000)}s)` }, stream);
+    }, watchdogMs);
     
     if (isHls && window.Hls && window.Hls.isSupported()) {
       loadHlsStream(url, stream);
