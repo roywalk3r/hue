@@ -180,3 +180,7 @@
 [2026-01-27T12:17:00.430Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
 [2026-01-27T12:17:00.438Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
 [2026-01-27T12:17:09.314Z] [INFO] [api] all providers completed within deadline for 310131
+[2026-01-27T12:17:46.848Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T12:18:27.080Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T12:22:27.109Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T12:24:09.960Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
