@@ -12,7 +12,7 @@
   "enableMoviesmodProvider": false,
   "enableMp4hydraProvider": false,
   "enableVidzeeProvider": false,
-  "enableVixsrcProvider": false,
+  "enableVixsrcProvider": true,
   "enableProxy": true,
   "disableCache": false,
   "enablePStreamApi": true,
@@ -31,6 +31,10 @@
   "enableSflixProvider": true,
   "enableKisskhProvider": true,
   "enableDramacoolProvider": true,
+<<<<<<< HEAD
   "sflixCookie": "sflix_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjg2NTU3OTY0NDQ5OTUyMzk5ODQsImF0cCI6MywiZXh0IjoiMTc2OTUyMDAxMCIsImV4cCI6MTc3NzI5NjAxMCwiaWF0IjoxNzY5NTE5NzEwfQ.3vvJb5ggkxWcJ9KHKr1fbLVJrQdjqT3kw0HEXjfRGe8%22; sflix_i18n_lang=en",
+=======
+  "sflixCookie": "sflix_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjY5ODQ2NTg2MTc1NDQyMDA4MjQsImF0cCI6MywiZXh0IjoiMTc2OTUxNjI0MCIsImV4cCI6MTc3NzI5MjI0MCwiaWF0IjoxNzY5NTE1OTQwfQ.DKcB-eRIcCNkxGXUNvI0Zlz8eVtAg1kTAXnx8LcIm38%22; sflix_i18n_lang=en",
+>>>>>>> cc754f12d41bac8396ad691b8c129703410cea0c
   "sflixUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.6 Safari/537.36"
 }
