@@ -748,6 +748,18 @@ app.get('/api/hitv/sorts', (req, res) => {
     res.json(hitvApi.getHiTvSorts());
 });
 
+app.get('/api/hitv/search', async (req, res) => {
+    const { q, type } = req.query;
+    if (!q) return res.status(400).json({ success: false, error: 'Query required' });
+    try {
+        // type: 1=movie, 2=tv (default)
+        const data = await hitvApi.searchHiTv(q, parseInt(type) || 2);
+        res.json(data);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 app.get('/api/hitv/info/:id', async (req, res) => {
     try {
         const data = await hitvApi.getHiTvDetail(req.params.id);

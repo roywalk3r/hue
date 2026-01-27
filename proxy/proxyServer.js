@@ -519,6 +519,10 @@ function createProxyRoutes(app) {
         const decoded = decodeVidzeeToken(targetUrl);
         if (debug) console.log('[m3u8-proxy] After decodeVidzeeToken:', decoded || 'null');
         if (decoded) targetUrl = decoded;
+        if (targetUrl.includes('/m3u8-proxy') || targetUrl.includes('/ts-proxy') || targetUrl.includes('h_token=')) {
+            const unwrapped = extractOriginalUrl(targetUrl);
+            if (unwrapped && unwrapped !== targetUrl) targetUrl = unwrapped;
+        }
         if (!/^https?:\/\//i.test(targetUrl)) {
             if (debug) console.log('[m3u8-proxy] Invalid URL check failed, targetUrl:', targetUrl);
             return res.status(400).json({ error: 'Invalid target URL', target: targetUrl });
@@ -569,7 +573,6 @@ function createProxyRoutes(app) {
                         console.error(`[m3u8-proxy] Blocked redirect to localhost: ${location} from ${targetUrl}`);
                         return res.status(403).json({ error: 'Blocked redirect to internal network', origin: targetUrl });
                     }
-                    // For safe external redirects, we could follow them, but for now just return the 302 or fail
                     if (debug) console.log('[m3u8-proxy] Manual redirect required to:', location);
                 }
             }
@@ -577,36 +580,39 @@ function createProxyRoutes(app) {
             if (!response.ok && response.status !== 206) return res.status(response.status).json({ error: `M3U8 fetch failed: ${response.status}`, target: targetUrl });
             
             const contentType = response.headers.get('content-type') || '';
-            const isVideo = contentType.includes('video/') || /\.(mp4|mkv|mov|avi|ts)$/i.test(targetUrl.split('?')[0]);
+            let isHls = contentType.includes('mpegURL') || contentType.includes('x-mpegURL') || targetUrl.includes('.m3u8');
             
-            if (isVideo || response.status === 206) {
-                if (debug) console.log('[m3u8-proxy] Detected video or 206 response, piping raw', { contentType, status: response.status, targetUrl });
+            // Buffer body to check signature if content-type is ambiguous
+            let body = await response.text();
+            if (!isHls && body.trim().startsWith('#EXTM3U')) {
+                if (debug) console.log('[m3u8-proxy] Detected HLS content via signature');
+                isHls = true;
+            }
+
+            if (isHls) {
+                const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+                const baseProxyUrl = `${protocol}://${req.get('host')}`;
+                
+                // Prevent recursive rewriting base
+                let rewriteBase = response.url;
+                if (rewriteBase.includes('localhost') || rewriteBase.includes('127.0.0.1')) {
+                    rewriteBase = targetUrl;
+                }
+
+                const rewritten = rewriteM3u8(body, rewriteBase, baseProxyUrl, mergedHeaders);
+                res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.send(rewritten);
+            } else {
+                // Not HLS, send raw body
+                if (debug) console.log('[m3u8-proxy] Sending raw body (not HLS)', { contentType });
                 res.status(response.status);
-                res.setHeader('Content-Type', contentType || 'video/mp4');
-                if (response.headers.get('content-range')) res.setHeader('Content-Range', response.headers.get('content-range'));
-                if (response.headers.get('accept-ranges')) res.setHeader('Accept-Ranges', response.headers.get('accept-ranges'));
-                if (response.headers.get('content-length')) res.setHeader('Content-Length', response.headers.get('content-length'));
+                ['content-type', 'content-length', 'accept-ranges', 'content-range'].forEach(h => {
+                    if (response.headers.has(h)) res.setHeader(h, response.headers.get(h));
+                });
                 res.setHeader('Access-Control-Allow-Origin', '*');
-                return response.body.pipe(res);
+                res.send(body);
             }
-
-            const text = await response.text();
-            
-            // Basic validation: if it doesn't look like HLS and isn't a known extension, don't rewrite
-            if (!text.trim().startsWith('#EXTM3U') && !targetUrl.includes('.m3u8')) {
-                if (debug) console.log('[m3u8-proxy] Content does not start with #EXTM3U and no .m3u8 ext, sending raw');
-                res.setHeader('Content-Type', contentType || 'text/plain');
-                res.setHeader('Access-Control-Allow-Origin', '*');
-                return res.send(text);
-            }
-
-            const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-            const baseProxyUrl = `${protocol}://${req.get('host')}`;
-            const rewritten = rewriteM3u8(text, targetUrl, baseProxyUrl, headers);
-            res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-            res.setHeader('Access-Control-Allow-Origin', '*');
-            res.send(rewritten);
         } catch (e) {
             console.error('[m3u8-proxy] error', e);
             console.error('[m3u8-proxy] stack', e.stack);
@@ -650,6 +656,10 @@ function createProxyRoutes(app) {
             // Ignore URL parsing errors
         }
         if (decryptedHeaders) headers = { ...decryptedHeaders, ...headers };
+        if (targetUrl.includes('/m3u8-proxy') || targetUrl.includes('/ts-proxy') || targetUrl.includes('h_token=')) {
+            const unwrapped = extractOriginalUrl(targetUrl);
+            if (unwrapped && unwrapped !== targetUrl) targetUrl = unwrapped;
+        }
         if (headers.Referer && !headers.Origin) {
             try { headers.Origin = new URL(headers.Referer).origin; } catch (_e) { /* ignore */ }
         }

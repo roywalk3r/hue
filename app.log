@@ -2161,3 +2161,88 @@
 [2026-01-27T20:11:38.487Z] [INFO] [request] GET /api/streams/movie/1084242 from 12ca17b4
 [2026-01-27T20:11:38.490Z] [INFO] [api] fetching streams for tmdbId=1084242 (Smart Wait: 15s)
 [2026-01-27T20:11:40.616Z] [INFO] [api] all providers completed within deadline for 1084242
+[2026-01-27T20:45:41.701Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T20:48:37.631Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T20:48:57.638Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T20:49:09.216Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-27T20:49:09.222Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
+[2026-01-27T20:49:16.969Z] [INFO] [api] all providers completed within deadline for 310131
+[2026-01-27T20:49:30.553Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-27T20:49:30.557Z] [INFO] [api] returning 6 streams from cache for 310131
+[2026-01-27T20:53:59.286Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T21:04:38.875Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-27T21:04:38.882Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-27T21:04:38.884Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-27T21:04:38.888Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-27T21:05:14.926Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-27T21:05:14.928Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-27T21:05:14.929Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-27T21:05:14.934Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-27T21:05:15.001Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-27T21:05:15.006Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-27T21:05:15.011Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-27T21:05:15.026Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-27T21:05:15.389Z] [INFO] [request] GET /api/hitv/browse?page=1&perPage=36&category=Drama&sort=Hottest from eff8e7ca
+[2026-01-27T21:06:26.023Z] [INFO] [request] GET /api/hitv/search?q=Mr%20sunshine&type=2 from 12ca17b4
+[2026-01-27T21:06:28.066Z] [INFO] [request] GET /api/hitv/search?q=Mr%20sunshine&type=2 from 12ca17b4
+[2026-01-27T21:07:05.940Z] [INFO] [request] GET /api/hitv/search?q=Mr%20sunshine& from 12ca17b4
+[2026-01-27T21:07:14.076Z] [INFO] [request] GET /api/hitv/search?q=Mr%20sunshine from 12ca17b4
+[2026-01-27T21:09:15.696Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T21:09:49.309Z] [INFO] [request] GET /api/hitv/search?q=Mr%20sunshine&type=2 from 12ca17b4
+[2026-01-27T21:10:12.276Z] [INFO] [request] GET /api/hitv/search?q=Mr from eff8e7ca
+[2026-01-27T21:10:13.812Z] [INFO] [request] GET /api/hitv/search?q=Mr+s from eff8e7ca
+[2026-01-27T21:10:15.496Z] [INFO] [request] GET /api/hitv/search?q=Mr+sunshine from eff8e7ca
+[2026-01-27T21:12:43.081Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-27T21:12:43.085Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
+[2026-01-27T21:12:50.258Z] [INFO] [api] all providers completed within deadline for 310131
+[2026-01-27T21:12:58.130Z] [INFO] [request] GET /api/streams/movie/1084242 from 12ca17b4
+[2026-01-27T21:12:58.132Z] [INFO] [api] fetching streams for tmdbId=1084242 (Smart Wait: 15s)
+[2026-01-27T21:13:03.302Z] [INFO] [api] all providers completed within deadline for 1084242
+[2026-01-27T21:31:33.080Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-27T21:31:33.081Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-27T21:31:33.081Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-27T21:31:33.082Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-27T21:37:16.248Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-27T21:37:16.249Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-27T21:37:16.249Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-27T21:37:16.252Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-27T21:37:48.074Z] [INFO] [request] GET /api/hitv/countries from eff8e7ca
+[2026-01-27T21:37:48.075Z] [INFO] [request] GET /api/hitv/genres from eff8e7ca
+[2026-01-27T21:37:48.075Z] [INFO] [request] GET /api/hitv/sorts from eff8e7ca
+[2026-01-27T21:37:48.079Z] [INFO] [request] GET /api/hitv/categories from eff8e7ca
+[2026-01-27T21:37:48.775Z] [INFO] [request] GET /api/hitv/browse?page=1&perPage=36&category=Drama&sort=Hottest from eff8e7ca
+[2026-01-27T21:42:26.901Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
+[2026-01-27T21:42:26.903Z] [INFO] [api] fetching streams for tmdbId=1242898 (Smart Wait: 15s)
+[2026-01-27T21:42:34.493Z] [INFO] [api] all providers completed within deadline for 1242898
+[2026-01-27T21:42:35.709Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
+[2026-01-27T21:42:35.709Z] [INFO] [api] returning 5 streams from cache for 1242898
+[2026-01-27T22:11:32.604Z] [INFO] [request] GET /api/streams/movie/1084242 from 12ca17b4
+[2026-01-27T22:11:32.879Z] [INFO] [api] returning 5 streams from cache for 1084242
+[2026-01-27T22:16:12.318Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T22:16:20.726Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T22:17:24.769Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T22:17:31.350Z] [INFO] [request] GET /api/streams/movie/1084242 from 12ca17b4
+[2026-01-27T22:17:31.353Z] [INFO] [api] fetching streams for tmdbId=1084242 (Smart Wait: 15s)
+[2026-01-27T22:17:34.641Z] [INFO] [api] all providers completed within deadline for 1084242
+[2026-01-27T23:29:07.397Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-27T23:29:48.078Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-27T23:29:48.137Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-27T23:29:48.143Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-27T23:29:48.146Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-27T23:31:53.977Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-27T23:31:53.980Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-27T23:31:53.983Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-27T23:31:54.005Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-27T23:33:39.413Z] [INFO] [request] GET /player.html from 12ca17b4
+[2026-01-27T23:33:39.627Z] [INFO] [request] GET /player.css from 12ca17b4
+[2026-01-27T23:33:40.066Z] [INFO] [request] GET /player.js from 12ca17b4
+[2026-01-27T23:33:40.181Z] [INFO] [request] GET /api/config from 12ca17b4
+[2026-01-27T23:34:04.856Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-27T23:34:04.859Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
+[2026-01-27T23:34:12.555Z] [INFO] [api] all providers completed within deadline for 310131
+[2026-01-27T23:34:17.172Z] [INFO] [request] GET /favicon.ico from 12ca17b4
+[2026-01-27T23:44:02.742Z] [INFO] [request] GET /player.css from 12ca17b4
+[2026-01-27T23:44:03.095Z] [INFO] [request] GET /.well-known/appspecific/com.chrome.devtools.json from 12ca17b4
+[2026-01-27T23:48:30.296Z] [INFO] [request] GET /api/streams/movie/1084242 from 12ca17b4
+[2026-01-27T23:48:30.298Z] [INFO] [api] fetching streams for tmdbId=1084242 (Smart Wait: 15s)
+[2026-01-27T23:48:39.371Z] [INFO] [api] all providers completed within deadline for 1084242
