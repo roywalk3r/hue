@@ -45,7 +45,9 @@ class LivesportProvider {
             );
 
             if (match) {
-                return `https://streamed.pk/watch/${match.id}/echo/1`;
+                // Pick the first available source
+                const source = match.sources && match.sources.length > 0 ? match.sources[0].source : 'echo';
+                return `https://streamed.pk/watch/${match.id}/${source}/1`;
             }
         } catch (e) {
             console.log('[Livesport] API search failed, trying direct URL');

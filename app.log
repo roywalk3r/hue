@@ -2977,3 +2977,9 @@
 [2026-01-28T16:07:39.498Z] [INFO] [request] GET /.well-known/appspecific/com.chrome.devtools.json from 12ca17b4
 [2026-01-28T16:07:55.162Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
 [2026-01-28T16:08:19.832Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-28T17:33:51.160Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T17:34:32.265Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T17:34:46.375Z] [INFO] [request] GET /sports-stream/neptunas-vs-hapoel-jerusalem from 12ca17b4
+[2026-01-28T17:34:58.340Z] [INFO] [request] GET /sports-stream/neptunas-vs-hapoel-jerusalem from 12ca17b4
+[2026-01-28T17:35:29.952Z] [INFO] [request] GET /sports-stream/neptunas-vs-hapoel-jerusalem from 12ca17b4
+[2026-01-28T17:36:27.548Z] [INFO] [request] GET /sports-stream/german-masters from 12ca17b4
