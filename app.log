@@ -2697,3 +2697,29 @@
 [2026-01-28T12:17:55.541Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from 12ca17b4
 [2026-01-28T12:18:20.342Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=Sunshine from 12ca17b4
 [2026-01-28T12:18:40.541Z] [INFO] [request] GET /api/hitv/info/4180063205928174912 from 12ca17b4
+[2026-01-28T12:47:42.656Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T12:48:06.705Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-28T12:48:07.113Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T12:48:07.129Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-28T12:50:35.642Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T12:53:17.414Z] [INFO] [request] GET / from f538950d
+[2026-01-28T12:53:17.914Z] [INFO] [request] GET /api/hitv/genres from f538950d
+[2026-01-28T12:53:17.917Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from f538950d
+[2026-01-28T12:53:18.015Z] [INFO] [request] GET /favicon.ico from f538950d
+[2026-01-28T14:27:40.879Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-28T14:27:41.214Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T14:27:41.234Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-28T14:28:38.983Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T14:31:11.750Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-28T14:31:11.903Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T14:31:11.910Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-28T15:16:21.012Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T15:17:04.059Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-28T15:17:04.236Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T15:17:04.242Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-28T15:20:36.530Z] [INFO] [request] GET /favicon.ico from 12ca17b4
+[2026-01-28T15:44:22.110Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-28T15:44:22.323Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T15:44:22.325Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-28T15:46:36.480Z] [INFO] [request] GET /favicon.ico from 12ca17b4
+[2026-01-28T18:12:31.738Z] [INFO] [startup] enableProxy flag active: mounting proxy routes

@@ -73,9 +73,12 @@ async function getMatches(sportId = null) {
 
             // Try to find status/time
             const parentTable = $(el).closest('table');
-            const dateSpan = parentTable.find('.date');
-            const timeText = dateSpan.text().trim(); // e.g. "Today, 21:00"
-
+            const evDesc = parentTable.find('.evdesc').text().trim();
+            
+            // Extract time from evDesc (e.g. "20:45 (Champions League)")
+            // or "Today, 21:00" if it was in the older format, but evdesc seems consistent now
+            let timeText = evDesc;
+            
             const isLive = parentTable.find('img[src*="live.gif"]').length > 0;
 
             matches.push({
@@ -139,9 +142,50 @@ async function getStreamVariants(matchUrl) {
  */
 async function resolveStream(playerUrl) {
     try {
-        // Many webplayers on livetv.sx are iframes or have challenges.
-        // We'll use Playwright if it's a webplayer link.
         console.log(`Resolving LiveTV stream: ${playerUrl}`);
+
+        // OPTIMIZATION: Try to extract iframe source directly via HTTP first
+        try {
+            const { data } = await axiosInstance.get(playerUrl);
+            const $ = cheerio.load(data);
+            const iframeSrc = $('iframe').attr('src');
+            
+            if (iframeSrc) {
+                console.log(`  Found iframe source: ${iframeSrc}`);
+                
+                // If it's a direct m3u8, return immediately
+                if (iframeSrc.includes('.m3u8')) {
+                    return {
+                        streams: [{
+                            url: iframeSrc.startsWith('//') ? `https:${iframeSrc}` : iframeSrc,
+                            headers: { Referer: playerUrl },
+                            quality: 'Auto'
+                        }]
+                    };
+                }
+                
+                // If we found a deeper link, use that for Playwright instead of the wrapper
+                // This saves one navigation step
+                if (iframeSrc.startsWith('http')) {
+                    // Use the original playerUrl (webplayer.php) as the referer for the iframe
+                    const originalReferer = playerUrl;
+                    playerUrl = iframeSrc;
+                    
+                    // Call resolver with NEW target but OLD referer
+                    const result = await resolveWithPlaywright(playerUrl, originalReferer);
+                    
+                    if (result.type === 'stream_list') {
+                        return { streams: result.streams };
+                    } else if (result.type === 'stream') {
+                        return { streams: [{ url: result.url, headers: result.headers, quality: 'Auto' }] };
+                    }
+                    // If Playwright failed on the direct link, fall through to retry original (unlikely to help but safe)
+                }
+            }
+        } catch (err) {
+            console.warn(`  Direct extraction failed, falling back to full surf: ${err.message}`);
+        }
+
         const result = await resolveWithPlaywright(playerUrl, playerUrl);
 
         if (result.type === 'stream_list') {

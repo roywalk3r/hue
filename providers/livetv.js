@@ -41,12 +41,21 @@ async function getLivetvStreams(ctx) {
         for (const variant of toResolve) {
             const resolved = await scraper.resolveStream(variant.url);
             
-            if (resolved && resolved.url) {
-                // If we need to proxy, the main API will handle it if we return the URL
-                // But if headers are required, we might need the proxy to handle them.
-                // The main API's proxyServer.js usually handles generic m3u8 proxying 
-                // via /proxy?url=... if enabled.
-                
+            if (resolved && resolved.streams) {
+                // New format: list of streams
+                resolved.streams.forEach(s => {
+                    streams.push({
+                        title: `[LiveTV] ${bestMatch.title} - ${variant.language} (${s.quality || 'Auto'})`,
+                        url: s.url,
+                        headers: s.headers,
+                        quality: s.quality || variant.quality || 'Auto',
+                        isLive: true,
+                        provider: 'livetv',
+                        source: 'livetv.sx'
+                    });
+                });
+            } else if (resolved && resolved.url) {
+                // Legacy format
                 streams.push({
                     title: `[LiveTV] ${bestMatch.title} - ${variant.language}`,
                     url: resolved.url,
