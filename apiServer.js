@@ -52,6 +52,7 @@ app.options('*', cors(corsOptions));
 const path = require('path');
 const { listProviders, getProvider, getCookieStats } = require('./providers/registry');
 const { createProxyRoutes, processStreamsForProxy } = require('./proxy/proxyServer');
+const { getAnimeStream, getServers: getAnimeServers } = require('./services/hianime');
 const { resolveImdbId } = require('./utils/tmdb');
 const { applyFilters } = require('./utils/streamFilters');
 const { getCachedStreams, setCachedStreams, addCachedStreams, clearCache } = require('./utils/cache');
@@ -499,6 +500,36 @@ app.get('/api/drama/:type/:tmdbId', async (req,res) => {
   }
 });
 
+// HiAnime streams (anime)
+app.get('/api/streams/anime/:id', async (req, res) => {
+  const { id } = req.params;
+  const server = req.query.server;
+  const type = (req.query.type || 'sub').toString();
+  try {
+    if (!server) {
+      const servers = await getAnimeServers(id);
+      return res.json({ success: true, id, servers });
+    }
+    const result = await getAnimeStream({ id, server, type });
+    if (result.error) {
+      return res
+        .status(404)
+        .json({ success: false, error: result.error, id, servers: result.servers });
+    }
+    return res.json({
+      success: true,
+      id,
+      server,
+      type,
+      servers: result.servers,
+      stream: result.stream,
+    });
+  } catch (e) {
+    metrics.lastError = e.message;
+    return res.status(500).json({ success: false, error: 'INTERNAL_ERROR', message: e.message });
+  }
+});
+
 // Aggregate streams across all enabled providers
 app.get('/api/streams/:type/:tmdbId', async (req,res) => {
   const { type, tmdbId } = req.params;
@@ -799,11 +830,11 @@ app.get('/api/hitv/sorts', (req, res) => {
 });
 
 app.get('/api/hitv/search', async (req, res) => {
-    const { q, type } = req.query;
+    const { q, type, page } = req.query;
     if (!q) return res.status(400).json({ success: false, error: 'Query required' });
     try {
         // type: 1=movie, 2=tv (default)
-        const data = await hitvApi.searchHiTv(q, parseInt(type) || 2);
+        const data = await hitvApi.searchHiTv(q, parseInt(type) || 2, parseInt(page) || 1);
         res.json(data);
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
@@ -1193,6 +1224,7 @@ if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
     console.log('  GET  /api/health');
     console.log('  GET  /api/metrics');
     console.log('  GET  /api/providers');
+    console.log('  GET  /api/streams/anime/:id');
     console.log('  GET  /api/streams/:type/:id');
     console.log('  POST /api/streams/:type/:id');
     if (!config.febboxCookies || config.febboxCookies.length === 0) {

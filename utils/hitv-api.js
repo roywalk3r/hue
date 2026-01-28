@@ -110,11 +110,11 @@ async function getHiTvDetail(id) {
     }
 }
 
-async function searchHiTv(query, type = 2) {
+async function searchHiTv(query, type = 2, page = 1) {
     const url = `${BASE_URL}/subject/search`;
     const payload = {
         keyword: query,
-        page: 1,
+        page: parseInt(page),
         perPage: 24,
         subjectType: type // 1 for Movies, 2 for Series
     };
@@ -124,6 +124,8 @@ async function searchHiTv(query, type = 2) {
         if (response.data && response.data.code === 0 && response.data.data) {
              const list = response.data.data.items || [];
              return {
+                page: response.data.data.pager ? response.data.data.pager.page : page,
+                hasNext: response.data.data.pager ? response.data.data.pager.hasMore : false,
                 items: list.map(item => ({
                     id: item.subjectId,
                     title: item.title,
@@ -135,10 +137,10 @@ async function searchHiTv(query, type = 2) {
                 }))
             };
         }
-        return { items: [] };
+        return { items: [], page, hasNext: false };
     } catch (error) {
         console.error('[HiTV] Search error:', error.message);
-        return { items: [] };
+        return { items: [], page, hasNext: false };
     }
 }
 

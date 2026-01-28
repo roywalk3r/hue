@@ -234,8 +234,8 @@ for (const providerInfo of providerFiles) {
   const safeName = providerInfo.name.replace(/[^a-z0-9]/gi, '');
   const enableFlag = `enable${safeName.charAt(0).toUpperCase() + safeName.slice(1)}Provider`;
   
-  // Hard-disable unstable providers for now
-  let enabled = config[enableFlag] !== false;
+  // Only enable when explicitly allowed in config
+  let enabled = config[enableFlag] === true;
   if (providerInfo.name === 'vidsrc-xyz' || providerInfo.name === 'vidsrc-icu' || providerInfo.name === 'vidsrccc-playwright') {
       enabled = false;
   }

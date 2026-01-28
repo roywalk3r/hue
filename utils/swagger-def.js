@@ -2,11 +2,11 @@ const swaggerDef = {
   openapi: '3.0.0',
   info: {
     title: 'Hue Stream API',
-    version: '2.1.0',
+    version: '2.2.0',
     description: `
 # Unified Streaming API
 
-The **Hue Stream API** is a high-performance aggregator for Movies, TV Shows, and KDramas. It optimizes for low-resource environments by managing browser instances globally and caching results.
+The **Hue Stream API** is a high-performance aggregator for Movies, TV Shows, KDramas, and Anime. It optimizes for low-resource environments by managing browser instances globally and caching results.
 
 ## 🚀 Key Features
 - **Smart Aggregation**: Fetch from multiple sources with one ID.
@@ -16,6 +16,7 @@ The **Hue Stream API** is a high-performance aggregator for Movies, TV Shows, an
 - **KDrama Hub**: Full browsing capabilities (Search, Popular, Upcoming) for KissKH and Dramacool.
 - **HiTV Discovery**: New robust discovery system for Asian Dramas with rich metadata and filtering.
 - **Smart Mapping**: Automatically maps HiTV discovery items to Zenith (KissKH) and Nova (SFlix) streams.
+- **Anime Streams**: HiAnime server discovery + stream extraction via a single endpoint.
 - **Proxy**: Built-in m3u8 proxy for bypassing CORS with IPv4 failover.
 
 ## 🔒 Authentication
@@ -34,6 +35,7 @@ Currently public. Future versions may implement API Key protection.
   ],
   tags: [
     { name: 'Aggregate', description: 'Unified stream extraction using TMDB IDs.' },
+    { name: 'Anime', description: 'HiAnime server discovery and stream extraction.' },
     { name: 'HiTV (Discovery)', description: 'Discovery, Browse, and Smart Play for Asian content.' },
     { name: 'Drama', description: 'Specialized endpoint for KDrama/Asian content.' },
     { name: 'Direct Provider', description: 'Extract streams from a specific provider.' },
@@ -112,6 +114,19 @@ Currently public. Future versions may implement API Key protection.
           { name: 'episode', in: 'query', schema: { type: 'integer' } }
         ],
         responses: { 200: { description: 'List of streams' } }
+      }
+    },
+    '/streams/anime/{id}': {
+      get: {
+        tags: ['Anime'],
+        summary: 'HiAnime Streams (Servers or Playable Stream)',
+        description: 'Returns server list when no server is provided; returns playable stream when server is provided.',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'HiAnime anime ID, e.g. hells-paradise-season-2-20405::ep=163701' },
+          { name: 'server', in: 'query', schema: { type: 'string', enum: ['hd-1', 'hd-2', 'megaplay', 'vidwish'] }, description: 'Stream server name from the servers list' },
+          { name: 'type', in: 'query', schema: { type: 'string', enum: ['sub', 'dub'], default: 'sub' } }
+        ],
+        responses: { 200: { description: 'Servers list or playable stream' } }
       }
     },
     '/drama/{type}/{tmdbId}': {

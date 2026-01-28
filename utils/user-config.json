@@ -23,7 +23,7 @@
   "port": 24608,
   "enableVidsrcccProvider": false,
   "enableVidsrcccPlaywrightProvider": false,
-  "enableLivesportProvider": false,
+  "enableLivesportProvider": true,
   "enableUhdmoviesProvider": false,
   "enableShowboxPlaywrightProvider": false,
   "enableVidrockProvider": false,
