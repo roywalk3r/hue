@@ -2687,3 +2687,8 @@
 [2026-01-28T11:59:39.151Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Japan&sort=Hottest from 12ca17b4
 [2026-01-28T11:59:39.151Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=China&sort=Hottest from 12ca17b4
 [2026-01-28T11:59:39.154Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Thailand&sort=Hottest from 12ca17b4
+[2026-01-28T12:01:34.030Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T12:01:58.846Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T12:02:01.116Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from 12ca17b4
+[2026-01-28T12:02:06.274Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from 12ca17b4
+[2026-01-28T12:11:29.044Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from 12ca17b4

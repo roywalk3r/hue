@@ -79,28 +79,32 @@ function getHiTvSorts() {
 }
 
 async function getHiTvDetail(id) {
-    // Guessing the endpoint based on standard HiTV/Aoneroom patterns
-    // Usually it's POST /subject/detail or GET /subject/{id}
-    const url = `${BASE_URL}/subject/detail`;
-    const payload = {
-        subjectId: id
-    };
+    // Updated to use the working GET endpoint
+    const url = `${BASE_URL}/detail?id=${id}`;
 
     try {
-        const response = await axios.post(url, payload, { headers: DEFAULT_HEADERS });
-        if (response.data && response.data.code === 0 && response.data.data) {
-            const d = response.data.data;
+        const response = await axios.get(url, { headers: DEFAULT_HEADERS });
+        if (response.data && response.data.code === 0 && response.data.data && response.data.data.subject) {
+            const d = response.data.data.subject;
             return {
                 id: d.subjectId,
                 title: d.title,
                 description: d.description,
                 cover: d.cover ? d.cover.url : null,
-                detailPath: d.detailPath, // Added slug
-                episodes: (d.seasonList || []).flatMap(s => s.episodeList || []).map(e => ({
-                    number: e.episodeName || e.episode,
-                    title: e.title || `Episode ${e.episode}`,
-                    id: e.id
-                }))
+                detailPath: d.detailPath,
+                episodes: (response.data.data.resource?.seasons || []).flatMap(s => {
+                    // Generate episodes based on maxEp if specific list is missing
+                    const eps = [];
+                    const max = s.maxEp || 0;
+                    for (let i = 1; i <= max; i++) {
+                        eps.push({
+                            number: i,
+                            title: `Episode ${i}`,
+                            id: `${d.subjectId}-${i}` // Dummy ID as HiTV doesn't expose unique EP IDs in this view usually
+                        });
+                    }
+                    return eps;
+                })
             };
         }
         return null;
@@ -109,7 +113,6 @@ async function getHiTvDetail(id) {
         if (error.response) {
              console.error(`[HiTV] Detail Response: ${error.response.status}`, JSON.stringify(error.response.data));
         }
-        // Fallback: If detail fails, return basic info so we can still try to search
         return { id, title: "Unknown", episodes: [] };
     }
 }
