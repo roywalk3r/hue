@@ -106,9 +106,35 @@ Discover servers and fetch streams for anime episodes.
 ```http
 GET /api/streams/anime/{id}
 GET /api/streams/anime/{id}?server=hd-1&type=sub
+GET /api/streams/anime/{id}?serversOnly=true
 ```
 
-### 3. KDrama Discovery (HiTV)
+### 3. HiAnime Catalog (v1)
+Full HiAnime catalog and metadata endpoints.
+```http
+GET /api/v1/home
+GET /api/v1/spotlight
+GET /api/v1/topten
+GET /api/v1/anime/{id}
+GET /api/v1/anime/random
+GET /api/v1/search?keyword=one+piece&page=1
+GET /api/v1/suggestion?keyword=one+piece
+GET /api/v1/episodes/{id}
+GET /api/v1/servers/{id}
+GET /api/v1/stream?id={episodeId}&server=hd-1&type=sub
+GET /api/v1/genre/{genre}?page=1
+GET /api/v1/az-list/{letter}?page=1
+GET /api/v1/producer/{id}?page=1
+GET /api/v1/filter?type=tv&status=finished_airing&page=1
+GET /api/v1/schedule?date=21
+GET /api/v1/schedule/next/{id}
+GET /api/v1/meta
+GET /api/v1/{query}?page=1
+```
+Alias: all `/api/v1/*` endpoints are also available under `/api/anime/*`.
+OpenAPI: `GET /api/v1/openapi.json`
+
+### 4. KDrama Discovery (HiTV)
 Browse and search the Asian content library.
 ```http
 GET /api/hitv/browse?sort=Hottest&genre=Romance
@@ -116,13 +142,13 @@ GET /api/hitv/search?q=Squid Game
 GET /api/hitv/info/{id}
 ```
 
-### 4. Smart Play (KDrama)
+### 5. Smart Play (KDrama)
 The magic endpoint that plays HiTV content.
 ```http
 GET /api/hitv/play/{id}/{episode}?title=Show Name
 ```
 
-### 5. Live Sports Streaming
+### 6. Live Sports Streaming
 Watch live sports from multiple sources.
 ```http
 # LiveTV.sx (Arena)
@@ -135,7 +161,7 @@ GET /livetv/{matchName}             # Direct match access
 GET /sports-stream/{matchName}      # Direct match access
 ```
 
-### 6. Direct Provider Access
+### 7. Direct Provider Access
 Target specific providers for granular control.
 ```http
 GET /api/kdrama/search?q=...

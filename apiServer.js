@@ -53,9 +53,11 @@ const path = require('path');
 const { listProviders, getProvider, getCookieStats } = require('./providers/registry');
 const { createProxyRoutes, processStreamsForProxy } = require('./proxy/proxyServer');
 const { getAnimeStream, getServers: getAnimeServers } = require('./services/hianime');
+const { getHianimeApp } = require('./services/hianimeApp');
 const { resolveImdbId } = require('./utils/tmdb');
 const { applyFilters } = require('./utils/streamFilters');
 const { getCachedStreams, setCachedStreams, addCachedStreams, clearCache } = require('./utils/cache');
+const TTLCache = require('ttl-cache');
 const kisskhApi = require('./utils/kisskh-api');
 const kisskhProvider = require('./providers/kisskh');
 const dramacoolApi = require('./utils/dramacool-api');
@@ -201,6 +203,138 @@ app.use((req, res, next) => {
     logger.info(`[request] ${req.method} ${req.url} from ${stealth.anonymize(ip)}`);
     next();
 });
+
+const hianimeCache = new TTLCache({
+  ttl: 10 * 60 * 1000,
+  max: 500,
+});
+const HIANIME_RATE_WINDOW_MS = 60 * 1000;
+const HIANIME_RATE_LIMIT = 60;
+const hianimeRate = new Map();
+
+function shouldCacheHianimePath(pathname) {
+  return !pathname.startsWith('/api/v1/stream');
+}
+
+function mapToHianimeUrl(originalUrl) {
+  if (originalUrl.startsWith('/api/anime')) {
+    return originalUrl.replace(/^\/api\/anime/, '/api/v1');
+  }
+  return originalUrl;
+}
+
+function rateLimitHianime(req, res, next) {
+  const ip = getClientIp(req) || 'unknown';
+  const now = Date.now();
+  const entry = hianimeRate.get(ip);
+  if (!entry || now - entry.start > HIANIME_RATE_WINDOW_MS) {
+    hianimeRate.set(ip, { start: now, count: 1 });
+    return next();
+  }
+  entry.count += 1;
+  if (entry.count > HIANIME_RATE_LIMIT) {
+    const retryAfter = Math.ceil((HIANIME_RATE_WINDOW_MS - (now - entry.start)) / 1000);
+    res.setHeader('Retry-After', String(retryAfter));
+    return res.status(429).json({
+      success: false,
+      error: 'RATE_LIMITED',
+      message: 'Too many requests to HiAnime',
+      retryAfter,
+    });
+  }
+  return next();
+}
+
+async function proxyHianimeRequest(req, res, next) {
+  try {
+    const hianimeApp = await getHianimeApp();
+    const targetUrl = mapToHianimeUrl(req.originalUrl);
+    const url = `${req.protocol}://${req.get('host')}${targetUrl}`;
+    const headers = { ...req.headers };
+    const method = req.method.toUpperCase();
+    const cacheKey = `${method} ${targetUrl}`;
+    const shouldCache = method === 'GET' && shouldCacheHianimePath(targetUrl);
+
+    if (shouldCache) {
+      const cached = hianimeCache.get(cacheKey);
+      if (cached) {
+        logger.info(`[hianime][cache] ${method} ${targetUrl} -> ${cached.status}`);
+        res.status(cached.status);
+        Object.entries(cached.headers).forEach(([key, value]) => {
+          res.setHeader(key, value);
+        });
+        return res.send(cached.body);
+      }
+    }
+
+    const body =
+      method === 'GET' || method === 'HEAD'
+        ? undefined
+        : await new Promise((resolve, reject) => {
+            const chunks = [];
+            req.on('data', (chunk) => chunks.push(chunk));
+            req.on('end', () => resolve(Buffer.concat(chunks)));
+            req.on('error', reject);
+          });
+
+    const t0 = Date.now();
+    const honoResponse = await hianimeApp.fetch(
+      new Request(url, { method, headers, body })
+    );
+    const elapsed = Date.now() - t0;
+    const contentType = honoResponse.headers.get('content-type') || '';
+    const buffer = Buffer.from(await honoResponse.arrayBuffer());
+
+    let parsedJson = null;
+    if (contentType.includes('application/json')) {
+      try {
+        parsedJson = JSON.parse(buffer.toString('utf8'));
+      } catch (e) {
+        parsedJson = null;
+      }
+    }
+
+    const hasErrorPayload = parsedJson && parsedJson.success === false;
+    const status = hasErrorPayload && honoResponse.status < 400 ? 400 : honoResponse.status;
+    logger.info(`[hianime] ${method} ${targetUrl} -> ${status} (${elapsed}ms)`);
+
+    if (status >= 400 || hasErrorPayload) {
+      const message =
+        (parsedJson && parsedJson.message) ||
+        (parsedJson && parsedJson.error) ||
+        buffer.toString('utf8') ||
+        'Upstream error';
+      const details = parsedJson && parsedJson.details ? parsedJson.details : null;
+      return res.status(status).json({
+        success: false,
+        error: 'HIANIME_ERROR',
+        message,
+        details,
+      });
+    }
+
+    const responseHeaders = {};
+    honoResponse.headers.forEach((value, key) => {
+      if (key.toLowerCase() === 'transfer-encoding') return;
+      responseHeaders[key] = value;
+      res.setHeader(key, value);
+    });
+    if (shouldCache) {
+      hianimeCache.set(cacheKey, {
+        status,
+        headers: responseHeaders,
+        body: buffer,
+      });
+    }
+    res.status(status).send(buffer);
+  } catch (error) {
+    next(error);
+  }
+}
+
+// HiAnime API (full v1 catalog)
+app.use('/api/v1', rateLimitHianime, proxyHianimeRequest);
+app.use('/api/anime', rateLimitHianime, proxyHianimeRequest);
 
 // --- Auth Routes (login before static serving) ---
 app.post('/auth/login', (req,res) => {
@@ -505,8 +639,9 @@ app.get('/api/streams/anime/:id', async (req, res) => {
   const { id } = req.params;
   const server = req.query.server;
   const type = (req.query.type || 'sub').toString();
+  const serversOnly = ['1', 'true', 'yes'].includes(String(req.query.serversOnly || ''));
   try {
-    if (!server) {
+    if (serversOnly) {
       const servers = await getAnimeServers(id);
       return res.json({ success: true, id, servers });
     }

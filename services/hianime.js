@@ -330,11 +330,34 @@ async function streamExtract({ selectedServer, id }) {
 async function getAnimeStream({ id, server, type }) {
   const servers = await getServers(id);
   const serverList = servers?.[type] || [];
-  const selectedServer = serverList.find((el) => el.name === server);
+  const defaultServerName = 'hd-1';
+  const fallbackServerName = 'hd-2';
+  const resolvedServer =
+    server ||
+    serverList.find((el) => el.name === defaultServerName)?.name ||
+    serverList[0]?.name;
+  const selectedServer = serverList.find((el) => el.name === resolvedServer);
   if (!selectedServer) {
     return { servers, stream: null, error: 'SERVER_NOT_FOUND' };
   }
-  const stream = await streamExtract({ selectedServer, id });
+  const isValidStream = (candidate) =>
+    !!candidate && (candidate.streamingLink || candidate?.link?.file);
+
+  let stream = await streamExtract({ selectedServer, id });
+  if (
+    !isValidStream(stream) &&
+    !server &&
+    resolvedServer === defaultServerName
+  ) {
+    const fallbackServer = serverList.find((el) => el.name === fallbackServerName);
+    if (fallbackServer) {
+      const fallbackStream = await streamExtract({ selectedServer: fallbackServer, id });
+      if (isValidStream(fallbackStream)) {
+        stream = fallbackStream;
+      }
+    }
+  }
+
   return { servers, stream };
 }
 

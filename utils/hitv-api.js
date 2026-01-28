@@ -105,6 +105,10 @@ async function getHiTvDetail(id) {
         }
         return null;
     } catch (error) {
+        console.error(`[HiTV] Detail error for ${id}:`, error.message);
+        if (error.response) {
+             console.error(`[HiTV] Detail Response: ${error.response.status}`, JSON.stringify(error.response.data));
+        }
         // Fallback: If detail fails, return basic info so we can still try to search
         return { id, title: "Unknown", episodes: [] };
     }
