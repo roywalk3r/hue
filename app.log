@@ -2259,3 +2259,4 @@
 [2026-01-27T23:53:40.946Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
 [2026-01-27T23:53:40.958Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
 [2026-01-27T23:53:40.967Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-28T00:10:43.332Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
