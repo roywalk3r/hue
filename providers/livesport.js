@@ -26,15 +26,16 @@ class LivesportProvider {
     async getWatchUrl(matchName) {
         // Try different URL patterns
         const patterns = [
-            `https://livesport.su/watch/${matchName}`,
-            `https://livesport.su/watch/${matchName}/admin/1`,
-            `https://livesport.su/watch/${matchName}/1`
+            `https://streamed.pk/watch/${matchName}/echo/1`,
+            `https://streamed.pk/watch/${matchName}/alpha/1`,
+            `https://streamed.pk/watch/${matchName}/bravo/1`
         ];
 
         // First try to get live matches to find the match
         try {
             const LivesportAPIScraper = require('../livesport-api-scraper');
             const api = new LivesportAPIScraper();
+            // Note: api.getLiveMatches might still be using livesport.su, might need update later
             const liveMatches = await api.getLiveMatches();
             
             // Find matching match by name
@@ -44,7 +45,7 @@ class LivesportProvider {
             );
 
             if (match) {
-                return `https://livesport.su/watch/${match.id}`;
+                return `https://streamed.pk/watch/${match.id}/echo/1`;
             }
         } catch (e) {
             console.log('[Livesport] API search failed, trying direct URL');
@@ -88,19 +89,21 @@ class LivesportProvider {
 
             // Convert to standard stream format
             const streams = result.streams.map((stream, index) => {
-                // Use the sports proxy server
                 const m3u8Url = stream.m3u8Url || stream.url;
-                const proxyUrl = m3u8Url ? `http://localhost:6001/sports-proxy?url=${encodeURIComponent(m3u8Url)}` : stream.url;
                 
                 return {
                     title: stream.title,
-                    url: proxyUrl,
+                    url: m3u8Url,
                     quality: stream.quality,
                     language: stream.language,
                     source: stream.category,
                     provider: 'livesport',
-                    // No headers needed - proxy handles them
-                    headers: undefined,
+                    // Headers for the proxy
+                    headers: {
+                        'Referer': 'https://embedsports.top/',
+                        'Origin': 'https://embedsports.top',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    },
                     subtitles: [],
                     isLive: true,
                     viewers: stream.viewers,
@@ -108,7 +111,6 @@ class LivesportProvider {
                     id: `${stream.category}-${index}`,
                     // Use the actual stream URL as watchUrl for reference
                     watchUrl: stream.url,
-                    // Store original M3U8 URL for reference
                     originalUrl: m3u8Url
                 };
             });
