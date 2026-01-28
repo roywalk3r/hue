@@ -13,3 +13,14 @@
 [registry] vidsrc-xyz disabled via config
 [registry] vidsrccc-playwright disabled via config
 [registry] vixsrc provider enabled as "Aura"
+[32m[2026-01-28T13:05:39.251Z] [INFO] [startup] enableProxy flag active: mounting proxy routes[0m
+TMDB Embed REST API v1.1.0-robust listening on http://0.0.0.0:24608
+Local access (if running on your machine): http://localhost:24608
+Endpoints:
+  GET  /api/health
+  GET  /api/metrics
+  GET  /api/providers
+  GET  /api/streams/anime/:id
+  GET  /api/streams/:type/:id
+  POST /api/streams/:type/:id
+[diagnostic] post-start setImmediate fired

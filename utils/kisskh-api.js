@@ -68,6 +68,35 @@ async function getUpcoming() {
     return data || [];
 }
 
+async function getShowList() {
+    const data = await fetchWithAxios(`/DramaList/Show`);
+    return data || [];
+}
+
+async function getLastUpdate({ ispc = false } = {}) {
+    const params = new URLSearchParams({ ispc: String(ispc) });
+    const data = await fetchWithAxios(`/DramaList/LastUpdate?${params.toString()}`);
+    return data || [];
+}
+
+async function getMostView({ ispc = false, c = 1 } = {}) {
+    const params = new URLSearchParams({ ispc: String(ispc), c: String(c) });
+    const data = await fetchWithAxios(`/DramaList/MostView?${params.toString()}`);
+    return data || [];
+}
+
+async function getTopRating({ ispc = false } = {}) {
+    const params = new URLSearchParams({ ispc: String(ispc) });
+    const data = await fetchWithAxios(`/DramaList/TopRating?${params.toString()}`);
+    return data || [];
+}
+
+async function getAnimate({ ispc = false } = {}) {
+    const params = new URLSearchParams({ ispc: String(ispc) });
+    const data = await fetchWithAxios(`/DramaList/Animate?${params.toString()}`);
+    return data || [];
+}
+
 async function getEpisodeIds(id) {
     const data = await getDetail(id);
     if (!data || !data.episodes) return [];
@@ -79,6 +108,11 @@ module.exports = {
     getList,
     getDetail,
     getUpcoming,
+    getShowList,
+    getLastUpdate,
+    getMostView,
+    getTopRating,
+    getAnimate,
     getEpisodeIds,
     COUNTRY_MAP,
     ORDER_MAP,

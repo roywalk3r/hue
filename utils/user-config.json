@@ -31,6 +31,6 @@
   "enableSflixProvider": true,
   "enableKisskhProvider": true,
   "enableDramacoolProvider": true,
-  "sflixCookie": "sflix_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjQxNTk1MzA1NjAxODI1MzQxOTIsImF0cCI6MywiZXh0IjoiMTc2OTU1NjU5NCIsImV4cCI6MTc3NzMzMjU5NCwiaWF0IjoxNzY5NTU2Mjk0fQ.3tGqi6qbbIFyH1OMJ9IBZfyo4B2oz0rifogT7LSwSBs%22; sflix_i18n_lang=en",
+  "sflixCookie": "sflix_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjY0MTcyNzA0ODU0MzY3NjE2NjQsImF0cCI6MywiZXh0IjoiMTc2OTYxMDI3NiIsImV4cCI6MTc3NzM4NjI3NiwiaWF0IjoxNzY5NjA5OTc2fQ.J9NZ5lxZXc8IcQiZWYI0VDAUk-nJWDpGppMFg51lUbw%22; sflix_i18n_lang=en",
   "sflixUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.6 Safari/537.36"
 }
