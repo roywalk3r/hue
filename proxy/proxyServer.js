@@ -10,13 +10,13 @@ const { encryptUrl, decryptUrl } = require('../utils/security');
 let cryptoJs;
 
 // Force persistent connections for proxy requests to avoid latency
-const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 100, timeout: 15000 });
-const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 100, timeout: 15000 });
+const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 100, timeout: 60000, family: 4 });
+const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 100, timeout: 60000, family: 4 });
 
 // Retry configuration for fetch operations
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 500;
-const FETCH_TIMEOUT_MS = 15000; // Reduced global timeout for faster failover
+const FETCH_TIMEOUT_MS = 60000; // Increased to 60s for slow streams
 
 // Helper function to fetch with retry logic
 async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
@@ -32,7 +32,7 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
     }
 
     const isSegment = /\.(ts|m4s|mp4|mkv)$/i.test(url.split('?')[0]);
-    const timeout = isSegment ? 8000 : (options.timeout || FETCH_TIMEOUT_MS);
+    const timeout = options.timeout || FETCH_TIMEOUT_MS;
     const actualRetries = isSegment ? 1 : maxRetries;
 
     const fetchOptions = {

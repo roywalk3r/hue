@@ -2697,3 +2697,43 @@
 [2026-01-28T12:17:55.541Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from 12ca17b4
 [2026-01-28T12:18:20.342Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=Sunshine from 12ca17b4
 [2026-01-28T12:18:40.541Z] [INFO] [request] GET /api/hitv/info/4180063205928174912 from 12ca17b4
+[2026-01-28T12:21:50.146Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T12:21:58.461Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T12:22:00.219Z] [INFO] [request] GET /api/hitv/info/4180063205928174912 from 12ca17b4
+[2026-01-28T12:22:23.734Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-28T12:22:23.735Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-28T12:22:23.735Z] [INFO] [request] GET /api/hitv/countries from 12ca17b4
+[2026-01-28T12:22:23.735Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T12:22:23.741Z] [INFO] [request] GET /api/hitv/sorts from 12ca17b4
+[2026-01-28T12:22:23.742Z] [INFO] [request] GET /api/hitv/categories from 12ca17b4
+[2026-01-28T12:22:24.816Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-28T12:22:24.819Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-28T12:22:24.833Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Comedy&sort=Recommend from 12ca17b4
+[2026-01-28T12:22:24.842Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=History&sort=Recommend from 12ca17b4
+[2026-01-28T12:22:24.843Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Fantasy&sort=Recommend from 12ca17b4
+[2026-01-28T12:22:24.860Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Japan&sort=Hottest from 12ca17b4
+[2026-01-28T12:22:24.870Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=China&sort=Hottest from 12ca17b4
+[2026-01-28T12:22:24.879Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Thailand&sort=Hottest from 12ca17b4
+[2026-01-28T12:22:25.281Z] [INFO] [request] GET /api/hitv/browse?perPage=32&sort=Recommend from 12ca17b4
+[2026-01-28T12:23:50.277Z] [INFO] [request] GET /api/hitv/search?q=Ju from 12ca17b4
+[2026-01-28T12:23:51.146Z] [INFO] [request] GET /api/hitv/search?q=Judge+from+hell from 12ca17b4
+[2026-01-28T12:23:51.501Z] [INFO] [request] GET /api/hitv/search?q=Jud from 12ca17b4
+[2026-01-28T12:23:52.394Z] [INFO] [request] GET /api/hitv/search?q=Judge+from+hell from 12ca17b4
+[2026-01-28T12:23:53.025Z] [INFO] [request] GET /api/hitv/search?q=Judge+fr from 12ca17b4
+[2026-01-28T12:23:56.672Z] [INFO] [request] GET /api/hitv/search?q=Judg from 12ca17b4
+[2026-01-28T12:23:56.676Z] [INFO] [request] GET /api/hitv/search?q=Judge from 12ca17b4
+[2026-01-28T12:23:57.153Z] [INFO] [request] GET /api/hitv/info/4180063205928174912 from eff8e7ca
+[2026-01-28T12:23:57.358Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The+Judge+from+Hell from eff8e7ca
+[2026-01-28T12:24:50.410Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hel from 12ca17b4
+[2026-01-28T12:30:08.486Z] [INFO] [request] GET /api/hitv/search?q=The%20judge from 12ca17b4
+[2026-01-28T12:30:13.398Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-28T12:31:47.783Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T12:32:00.276Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hel from 12ca17b4
+[2026-01-28T12:32:27.353Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-28T12:32:40.055Z] [INFO] [request] GET /api/hitv/info/4180063205928174912 from eff8e7ca
+[2026-01-28T12:32:41.564Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The+Judge+from+Hell from eff8e7ca
+[2026-01-28T12:46:32.499Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-28T13:02:48.789Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=Sunshine from 12ca17b4
+[2026-01-28T13:03:04.049Z] [INFO] [request] GET /api/hitv/info/4180063205928174912 from 12ca17b4
+[2026-01-28T13:05:03.515Z] [INFO] [request] GET /api/livetv/337989306_thailand_masters from 12ca17b4
+[2026-01-28T13:05:12.928Z] [INFO] [request] GET /api/livetv/1 from 12ca17b4

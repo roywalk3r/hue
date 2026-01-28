@@ -340,4 +340,14 @@ async function getStreamsDirect(title, episode, season = 1) {
     return await getSflixStreams(null, mediaType, season, episode, title);
 }
 
-module.exports = { getStreams: getSflixStreams, getStreamsDirect };
+// Add getStreamsBySlug alias to use the API path directly if we have the slug
+async function getStreamsBySlug(id, slug, episode) {
+    // SFlix/HiTV share IDs and slugs. If we have the slug, we can use the API path.
+    // However, getStreamsViaApi expects (slug, subjectId, season, episode).
+    // HiTV "id" IS the "subjectId".
+    // HiTV shows are usually Season 1 unless specified otherwise in title, but API takes 'se'.
+    // We'll assume Season 1 for now or parse it if passed.
+    return await getStreamsViaApi(slug, id, 1, episode);
+}
+
+module.exports = { getStreams: getSflixStreams, getStreamsDirect, getStreamsBySlug };
