@@ -2692,3 +2692,8 @@
 [2026-01-28T12:02:01.116Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from 12ca17b4
 [2026-01-28T12:02:06.274Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from 12ca17b4
 [2026-01-28T12:11:29.044Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from 12ca17b4
+[2026-01-28T12:14:05.743Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T12:16:46.226Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T12:17:55.541Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from 12ca17b4
+[2026-01-28T12:18:20.342Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=Sunshine from 12ca17b4
+[2026-01-28T12:18:40.541Z] [INFO] [request] GET /api/hitv/info/4180063205928174912 from 12ca17b4

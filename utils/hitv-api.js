@@ -79,8 +79,8 @@ function getHiTvSorts() {
 }
 
 async function getHiTvDetail(id) {
-    // Updated to use the working GET endpoint
-    const url = `${BASE_URL}/detail?id=${id}`;
+    // Explicitly use subjectId as required by the API error message
+    const url = `${BASE_URL}/detail?subjectId=${id}&lang=en`;
 
     try {
         const response = await axios.get(url, { headers: DEFAULT_HEADERS });
