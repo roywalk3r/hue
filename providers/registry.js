@@ -20,6 +20,7 @@ const PROVIDER_RENAME_MAP = {
   'showbox': 'Echo',
   'showbox-playwright': 'Echo Pro',
   'livesport': 'Stadium',
+  'livetv': 'Arena',
   'vidsrccc-playwright': 'Vertex'
 };
 
@@ -35,7 +36,8 @@ const SANITIZE_KEYWORDS = {
   '4khdhub': 'Prime',
   'mp4hydra': 'Hydra',
   'showbox': 'Echo',
-  'livesport': 'Stadium'
+  'livesport': 'Stadium',
+  'livetv': 'Arena'
 };
 
 function getPublicName(realName) {
@@ -72,6 +74,7 @@ const providerFunctionMap = {
   'uhdmovies.js': 'getUHDMoviesStreams',
   'vidsrccc-playwright.js': 'getVidsrcStreams',
   'livesport.js': 'getLivesportStreams',
+  'livetv.js': 'getLivetvStreams',
   'sflix.js': 'getStreams',
   'kisskh.js': 'getStreams',
   'vidrock.js': 'getStreams',
@@ -125,8 +128,8 @@ function createFetchFunction(providerInfo) {
   return async function(ctx) {
     const mediaType = ctx.type === 'movie' ? 'movie' : 'tv';
     
-    // Check cache first (skip for complex providers like livesport that rely on 'req')
-    if (providerInfo.name !== 'livesport') {
+    // Check cache first (skip for complex providers like livesport/livetv that rely on 'req')
+    if (providerInfo.name !== 'livesport' && providerInfo.name !== 'livetv') {
         const cacheKeyType = `${providerInfo.name}:${mediaType}`;
         const cached = getCachedStreams(cacheKeyType, ctx.tmdbId, ctx.season, ctx.episode);
         if (cached) {
@@ -180,8 +183,8 @@ function createFetchFunction(providerInfo) {
         if (providerInfo.name === 'vidsrccc-playwright') {
           // VidsrcCC needs IMDB ID for TV series
           result = await module[funcName](ctx.tmdbId, mediaType, ctx.season || null, ctx.episode || null, ctx.imdbId || null);
-        } else if (providerInfo.name === 'livesport') {
-          // Livesport needs the request object to extract the match name
+        } else if (providerInfo.name === 'livesport' || providerInfo.name === 'livetv') {
+          // Livesport/LiveTV needs the request object to extract the match name
           result = await module[funcName]({ ...ctx, req: ctx.req });
         } else {
           result = await module[funcName](ctx.tmdbId, mediaType, ctx.season || null, ctx.episode || null);
@@ -207,8 +210,8 @@ function createFetchFunction(providerInfo) {
           };
       });
       
-      // Cache success result (skip livesport)
-      if (providerInfo.realName !== 'livesport' && finalResult.length > 0) {
+      // Cache success result (skip livesport/livetv)
+      if (providerInfo.realName !== 'livesport' && providerInfo.realName !== 'livetv' && finalResult.length > 0) {
           const cacheKeyType = `${providerInfo.realName}:${mediaType}`;
           setCachedStreams(cacheKeyType, ctx.tmdbId, ctx.season, ctx.episode, finalResult);
       }
