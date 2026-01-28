@@ -2246,3 +2246,16 @@
 [2026-01-27T23:48:30.296Z] [INFO] [request] GET /api/streams/movie/1084242 from 12ca17b4
 [2026-01-27T23:48:30.298Z] [INFO] [api] fetching streams for tmdbId=1084242 (Smart Wait: 15s)
 [2026-01-27T23:48:39.371Z] [INFO] [api] all providers completed within deadline for 1084242
+[2026-01-27T23:50:03.137Z] [INFO] [request] GET /api/hitv/play/3812691640129573368/1?title=The%20Killer%20Next%20Door from 12ca17b4
+[2026-01-27T23:50:54.081Z] [INFO] [request] GET /api/hitv/play/3437904403662094480/1?title=Queen%20Mantis from 12ca17b4
+[2026-01-27T23:52:27.483Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-27T23:52:27.498Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-27T23:52:27.499Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-27T23:52:27.505Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-27T23:53:19.508Z] [INFO] [request] GET /api/hitv/info/8879793253067931848 from eff8e7ca
+[2026-01-27T23:53:20.032Z] [INFO] [request] GET /api/hitv/play/8879793253067931848/1 from eff8e7ca
+[2026-01-27T23:53:20.360Z] [INFO] [request] GET /api/hitv/play/8879793253067931848/1 from eff8e7ca
+[2026-01-27T23:53:40.944Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-27T23:53:40.946Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-27T23:53:40.958Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-27T23:53:40.967Z] [INFO] [request] GET /api/hitv/browse?perPage=16&genre=Action&sort=Recommend from 12ca17b4
