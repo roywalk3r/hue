@@ -116,6 +116,39 @@ async function extractStreamsFromKissKhPage(directUrl) {
     const streams = [];
     let context;
     let page;
+    let episodeApiUrl = null;
+
+    // KissKH episode API can return JSON or base64-encoded JSON.
+    function parseEpisodePayload(payload) {
+        if (!payload) return null;
+        if (typeof payload === "object") return payload;
+        if (typeof payload !== "string") return null;
+
+        try {
+            return JSON.parse(payload);
+        } catch (_) {
+            try {
+                const decoded = Buffer.from(payload, "base64").toString("utf8");
+                return JSON.parse(decoded);
+            } catch (err) {
+                return null;
+            }
+        }
+    }
+
+    function addSubtitleEntries(subtitles, capturedUrls) {
+        if (!Array.isArray(subtitles)) return;
+        subtitles.forEach((sub) => {
+            if (!sub || !sub.src) return;
+            const label = sub.label || sub.lang || sub.land || "Subtitle";
+            const lang = (sub.lang || sub.land || label || "en").toLowerCase().substring(0, 2);
+            capturedUrls.subtitles.add(JSON.stringify({
+                url: sub.src,
+                label,
+                lang
+            }));
+        });
+    }
 
     try {
         const { getNewPage } = require("../utils/browserManager");
@@ -130,7 +163,10 @@ async function extractStreamsFromKissKhPage(directUrl) {
                 u.includes('fonts') || u.includes('disqus')) {
                 return route.abort();
             }
-            if (u.endsWith('.png') || u.endsWith('.jpg') || u.endsWith('.jpeg')) return route.abort();
+            if ((u.endsWith('.png') || u.endsWith('.jpg') || u.endsWith('.jpeg')) &&
+                !u.includes("/api/DramaList/Episode/")) {
+                return route.abort();
+            }
             route.continue();
         });
 
@@ -151,23 +187,29 @@ async function extractStreamsFromKissKhPage(directUrl) {
 
         page.on("response", async (response) => {
             const url = response.url();
-            if (url.includes("/api/DramaList/Episode/") && url.includes(".png")) {
+            if (url.includes("/api/DramaList/Episode/")) {
+                episodeApiUrl = url;
                 try {
-                    const data = await response.json();
-                    if (data && data.Video) capturedUrls.video.add(data.Video);
-                    if (data && data.ThirdParty) capturedUrls.video.add(data.ThirdParty);
-                    if (data && Array.isArray(data.Subtitles)) {
-                        data.Subtitles.forEach(sub => {
-                            if (sub.src) {
-                                capturedUrls.subtitles.add(JSON.stringify({
-                                    url: sub.src,
-                                    label: sub.label || 'English',
-                                    lang: (sub.label || 'en').toLowerCase().substring(0, 2)
-                                }));
-                            }
-                        });
+                    const text = await response.text();
+                    const data = parseEpisodePayload(text);
+                    if (!data) return;
+                    if (data.Video) capturedUrls.video.add(data.Video);
+                    if (data.ThirdParty) capturedUrls.video.add(data.ThirdParty);
+                    if (Array.isArray(data.Subtitles)) {
+                        addSubtitleEntries(data.Subtitles, capturedUrls);
                     }
-                } catch (e) {}
+                } catch (e) {
+                    console.warn(`[KissKH] Episode API parse failed: ${e.message}`);
+                }
+            }
+            if (url.includes("/api/Sub/")) {
+                try {
+                    const text = await response.text();
+                    const data = parseEpisodePayload(text);
+                    addSubtitleEntries(data, capturedUrls);
+                } catch (e) {
+                    console.warn(`[KissKH] Subtitle API parse failed: ${e.message}`);
+                }
             }
         });
 
@@ -185,6 +227,51 @@ async function extractStreamsFromKissKhPage(directUrl) {
             await new Promise(r => setTimeout(r, 500));
         }
 
+        if (capturedUrls.video.size === 0 && episodeApiUrl) {
+            try {
+                const apiResp = await axiosInstance.get(episodeApiUrl, {
+                    headers: {
+                        "Referer": directUrl,
+                        "User-Agent": USER_AGENT,
+                        "Accept": "application/json"
+                    }
+                });
+                const data = parseEpisodePayload(apiResp.data);
+                if (data && data.Video) capturedUrls.video.add(data.Video);
+                if (data && data.ThirdParty) capturedUrls.video.add(data.ThirdParty);
+                if (data && Array.isArray(data.Subtitles)) {
+                    addSubtitleEntries(data.Subtitles, capturedUrls);
+                }
+            } catch (error) {
+                console.warn(`[KissKH] Episode API retry failed: ${error.message}`);
+            }
+        }
+
+        if (capturedUrls.subtitles.size === 0 && episodeApiUrl) {
+            try {
+                const episodeUrl = new URL(directUrl);
+                const episodeId = episodeUrl.searchParams.get("ep");
+                const apiUrl = new URL(episodeApiUrl);
+                const kkey = apiUrl.searchParams.get("kkey");
+                if (episodeId && kkey) {
+                    const subUrl = `${API_BASE}/Sub/${episodeId}?kkey=${kkey}`;
+                    const subResp = await axiosInstance.get(subUrl, {
+                        headers: {
+                            "Referer": directUrl,
+                            "User-Agent": USER_AGENT,
+                            "Accept": "application/json"
+                        }
+                    });
+                    const data = parseEpisodePayload(subResp.data);
+                    addSubtitleEntries(data, capturedUrls);
+                }
+            } catch (error) {
+                if (capturedUrls.subtitles.size === 0) {
+                    console.warn(`[KissKH] Subtitle API retry failed: ${error.message}`);
+                }
+            }
+        }
+
         // Fallback: Scan page source for subtitle links if none captured
         const extraSubs = await page.evaluate(() => {
             const scripts = Array.from(document.querySelectorAll('script')).map(s => s.innerText);
@@ -197,9 +284,15 @@ async function extractStreamsFromKissKhPage(directUrl) {
         });
         extraSubs.forEach(s => capturedUrls.subtitles.add(s));
 
-        const subtitles = Array.from(capturedUrls.subtitles).map(s => {
-            try { return JSON.parse(s); } catch { return { url: s, lang: 'en', label: 'English' }; }
+        const subtitleMap = new Map();
+        Array.from(capturedUrls.subtitles).forEach((s) => {
+            let entry;
+            try { entry = JSON.parse(s); } catch { entry = { url: s, lang: 'en', label: 'English' }; }
+            if (entry && entry.url && !subtitleMap.has(entry.url)) {
+                subtitleMap.set(entry.url, entry);
+            }
         });
+        const subtitles = Array.from(subtitleMap.values());
 
         for (const url of capturedUrls.video) {
             if (url.endsWith(".ts") && Array.from(capturedUrls.video).some(u => u.includes(".m3u8"))) continue;
@@ -211,6 +304,8 @@ async function extractStreamsFromKissKhPage(directUrl) {
                 provider: "Zenith",
                 format: isHls ? 'hls' : 'mp4',
                 subtitles: subtitles.length > 0 ? subtitles : undefined,
+                // Use proxy URL mode (no tokenization) to preserve headers for browser playback.
+                proxyMode: "url",
                 headers: { "Referer": BASE_URL, "User-Agent": USER_AGENT }
             });
         }

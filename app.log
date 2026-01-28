@@ -2697,6 +2697,7 @@
 [2026-01-28T12:17:55.541Z] [INFO] [request] GET /api/hitv/info/6982119488175365784 from 12ca17b4
 [2026-01-28T12:18:20.342Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=Sunshine from 12ca17b4
 [2026-01-28T12:18:40.541Z] [INFO] [request] GET /api/hitv/info/4180063205928174912 from 12ca17b4
+<<<<<<< HEAD
 [2026-01-28T12:47:42.656Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
 [2026-01-28T12:48:06.705Z] [INFO] [request] GET / from 12ca17b4
 [2026-01-28T12:48:07.113Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
@@ -2723,3 +2724,291 @@
 [2026-01-28T15:44:22.325Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
 [2026-01-28T15:46:36.480Z] [INFO] [request] GET /favicon.ico from 12ca17b4
 [2026-01-28T18:12:31.738Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+=======
+[2026-01-28T12:21:50.146Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T12:21:58.461Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T12:22:00.219Z] [INFO] [request] GET /api/hitv/info/4180063205928174912 from 12ca17b4
+[2026-01-28T12:22:23.734Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-28T12:22:23.735Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-28T12:22:23.735Z] [INFO] [request] GET /api/hitv/countries from 12ca17b4
+[2026-01-28T12:22:23.735Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T12:22:23.741Z] [INFO] [request] GET /api/hitv/sorts from 12ca17b4
+[2026-01-28T12:22:23.742Z] [INFO] [request] GET /api/hitv/categories from 12ca17b4
+[2026-01-28T12:22:24.816Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-28T12:22:24.819Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-28T12:22:24.833Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Comedy&sort=Recommend from 12ca17b4
+[2026-01-28T12:22:24.842Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=History&sort=Recommend from 12ca17b4
+[2026-01-28T12:22:24.843Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Fantasy&sort=Recommend from 12ca17b4
+[2026-01-28T12:22:24.860Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Japan&sort=Hottest from 12ca17b4
+[2026-01-28T12:22:24.870Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=China&sort=Hottest from 12ca17b4
+[2026-01-28T12:22:24.879Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Thailand&sort=Hottest from 12ca17b4
+[2026-01-28T12:22:25.281Z] [INFO] [request] GET /api/hitv/browse?perPage=32&sort=Recommend from 12ca17b4
+[2026-01-28T12:23:50.277Z] [INFO] [request] GET /api/hitv/search?q=Ju from 12ca17b4
+[2026-01-28T12:23:51.146Z] [INFO] [request] GET /api/hitv/search?q=Judge+from+hell from 12ca17b4
+[2026-01-28T12:23:51.501Z] [INFO] [request] GET /api/hitv/search?q=Jud from 12ca17b4
+[2026-01-28T12:23:52.394Z] [INFO] [request] GET /api/hitv/search?q=Judge+from+hell from 12ca17b4
+[2026-01-28T12:23:53.025Z] [INFO] [request] GET /api/hitv/search?q=Judge+fr from 12ca17b4
+[2026-01-28T12:23:56.672Z] [INFO] [request] GET /api/hitv/search?q=Judg from 12ca17b4
+[2026-01-28T12:23:56.676Z] [INFO] [request] GET /api/hitv/search?q=Judge from 12ca17b4
+[2026-01-28T12:23:57.153Z] [INFO] [request] GET /api/hitv/info/4180063205928174912 from eff8e7ca
+[2026-01-28T12:23:57.358Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The+Judge+from+Hell from eff8e7ca
+[2026-01-28T12:24:50.410Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hel from 12ca17b4
+[2026-01-28T12:30:08.486Z] [INFO] [request] GET /api/hitv/search?q=The%20judge from 12ca17b4
+[2026-01-28T12:30:13.398Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-28T12:31:47.783Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T12:32:00.276Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hel from 12ca17b4
+[2026-01-28T12:32:27.353Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-28T12:32:40.055Z] [INFO] [request] GET /api/hitv/info/4180063205928174912 from eff8e7ca
+[2026-01-28T12:32:41.564Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The+Judge+from+Hell from eff8e7ca
+[2026-01-28T12:46:32.499Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The%20Judge%20from%20Hell from 12ca17b4
+[2026-01-28T13:02:48.789Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=Sunshine from 12ca17b4
+[2026-01-28T13:03:04.049Z] [INFO] [request] GET /api/hitv/info/4180063205928174912 from 12ca17b4
+[2026-01-28T13:05:03.515Z] [INFO] [request] GET /api/livetv/337989306_thailand_masters from 12ca17b4
+[2026-01-28T13:05:12.928Z] [INFO] [request] GET /api/livetv/1 from 12ca17b4
+[2026-01-28T13:05:39.251Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T13:05:43.965Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T13:05:53.819Z] [INFO] [request] GET /api/streams/movie/1242898 from 12ca17b4
+[2026-01-28T13:05:53.823Z] [INFO] [api] fetching streams for tmdbId=1242898 (Smart Wait: 15s)
+[2026-01-28T13:05:56.256Z] [INFO] [api] all providers completed within deadline for 1242898
+[2026-01-28T13:37:07.304Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T13:37:18.374Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-28T13:37:19.327Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T13:37:19.344Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-28T13:37:28.383Z] [INFO] [request] GET /api/hitv/play/8078942313952729504/1?title=Kiss%20Sixth%20Sense from 12ca17b4
+[2026-01-28T13:42:51.402Z] [INFO] [request] GET /api/hitv/play/8078942313952729504/2?title=Kiss%20Sixth%20Sense from 12ca17b4
+[2026-01-28T13:43:11.875Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T13:43:16.539Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-28T13:43:17.270Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T13:43:17.272Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-28T13:43:25.647Z] [INFO] [request] GET /api/hitv/play/8078942313952729504/1?title=Kiss%20Sixth%20Sense from 12ca17b4
+[2026-01-28T13:44:46.298Z] [INFO] [request] GET /player.html from 12ca17b4
+[2026-01-28T13:44:50.700Z] [INFO] [request] GET /player.css from 12ca17b4
+[2026-01-28T13:44:50.903Z] [INFO] [request] GET /player.js from 12ca17b4
+[2026-01-28T13:44:51.024Z] [INFO] [request] GET /api/config from 12ca17b4
+[2026-01-28T13:49:50.839Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T13:49:56.579Z] [INFO] [request] GET /api/hitv/play/8078942313952729504/1?title=Kiss%20Sixth%20Sense from 12ca17b4
+[2026-01-28T13:50:53.609Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-28T13:50:53.611Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
+[2026-01-28T13:51:14.404Z] [ERROR] [api] provider Aura failed or timed out: Provider timeout
+[2026-01-28T13:51:14.404Z] [INFO] [api] all providers completed within deadline for 310131
+[2026-01-28T13:51:36.233Z] [INFO] [request] GET /api/streams/movie/310131 from 12ca17b4
+[2026-01-28T13:51:36.235Z] [INFO] [api] fetching streams for tmdbId=310131 (Smart Wait: 15s)
+[2026-01-28T13:51:39.318Z] [INFO] [api] all providers completed within deadline for 310131
+[2026-01-28T13:54:09.804Z] [INFO] [request] GET / from 12ca17b4
+[2026-01-28T13:54:10.595Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T13:54:10.596Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-28T13:56:33.973Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-28T13:57:27.824Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T13:57:33.568Z] [INFO] [request] GET /api/hitv/play/8078942313952729504/1?title=Kiss%20Sixth%20Sense from 12ca17b4
+[2026-01-28T14:01:04.049Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-28T14:01:04.053Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-28T14:01:04.055Z] [INFO] [request] GET /api/hitv/countries from 12ca17b4
+[2026-01-28T14:01:04.056Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T14:01:04.084Z] [INFO] [request] GET /api/hitv/sorts from 12ca17b4
+[2026-01-28T14:01:04.086Z] [INFO] [request] GET /api/hitv/categories from 12ca17b4
+[2026-01-28T14:01:04.911Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-28T14:01:04.916Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-28T14:01:04.922Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Comedy&sort=Recommend from 12ca17b4
+[2026-01-28T14:01:04.930Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=History&sort=Recommend from 12ca17b4
+[2026-01-28T14:01:04.937Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Fantasy&sort=Recommend from 12ca17b4
+[2026-01-28T14:01:04.961Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Japan&sort=Hottest from 12ca17b4
+[2026-01-28T14:01:04.963Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=China&sort=Hottest from 12ca17b4
+[2026-01-28T14:01:04.964Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Thailand&sort=Hottest from 12ca17b4
+[2026-01-28T14:01:05.383Z] [INFO] [request] GET /api/hitv/browse?perPage=32&sort=Recommend from 12ca17b4
+[2026-01-28T14:01:38.634Z] [INFO] [request] GET /api/hitv/info/2654077338908086032 from eff8e7ca
+[2026-01-28T14:01:39.375Z] [INFO] [request] GET /api/hitv/play/2654077338908086032/1?title=Miss+Independent+Ji+Eun from eff8e7ca
+[2026-01-28T14:10:19.408Z] [INFO] [request] GET /api/hitv/info/2654077338908086032 from eff8e7ca
+[2026-01-28T14:10:20.657Z] [INFO] [request] GET /api/hitv/play/2654077338908086032/1?title=Miss+Independent+Ji+Eun from eff8e7ca
+[2026-01-28T14:12:24.839Z] [INFO] [request] GET /api/hitv/info/2654077338908086032 from eff8e7ca
+[2026-01-28T14:12:25.818Z] [INFO] [request] GET /api/hitv/play/2654077338908086032/1?title=Miss+Independent+Ji+Eun from eff8e7ca
+[2026-01-28T14:13:58.068Z] [INFO] [request] GET /api/hitv/info/2654077338908086032 from eff8e7ca
+[2026-01-28T14:13:59.067Z] [INFO] [request] GET /api/hitv/play/2654077338908086032/1?title=Miss+Independent+Ji+Eun from eff8e7ca
+[2026-01-28T14:15:17.980Z] [INFO] [request] GET /api/hitv/info/2654077338908086032 from eff8e7ca
+[2026-01-28T14:15:19.321Z] [INFO] [request] GET /api/hitv/play/2654077338908086032/1?title=Miss+Independent+Ji+Eun from eff8e7ca
+[2026-01-28T14:15:56.283Z] [INFO] [request] GET /api/hitv/play/2654077338908086032/1?title=Miss+Independent+Ji+Eun from eff8e7ca
+[2026-01-28T14:17:17.275Z] [INFO] [request] GET /api/hitv/play/2654077338908086032/2?title=Miss+Independent+Ji+Eun from eff8e7ca
+[2026-01-28T14:19:10.357Z] [INFO] [request] GET /api/hitv/play/8078942313952729504/1?title=Kiss%20Sixth%20Sense from 12ca17b4
+[2026-01-28T14:21:28.870Z] [INFO] [request] GET /api/hitv/search?q=Miss+Independent+Ji+Eun from 12ca17b4
+[2026-01-28T14:21:44.613Z] [INFO] [request] GET /api/hitv/play/2654077338908086032/1?title=Sunshine from 12ca17b4
+[2026-01-28T14:24:01.820Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T14:24:07.189Z] [INFO] [request] GET /api/hitv/play/2654077338908086032/1?title=Sunshine from 12ca17b4
+[2026-01-28T14:27:25.458Z] [INFO] [request] GET /api/hitv/play/8078942313952729504/1?title=Kiss%20Sixth%20Sense from 12ca17b4
+[2026-01-28T14:28:15.391Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-28T14:28:15.392Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-28T14:28:15.393Z] [INFO] [request] GET /api/hitv/countries from 12ca17b4
+[2026-01-28T14:28:15.393Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T14:28:15.394Z] [INFO] [request] GET /api/hitv/sorts from 12ca17b4
+[2026-01-28T14:28:15.403Z] [INFO] [request] GET /api/hitv/categories from 12ca17b4
+[2026-01-28T14:28:16.767Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-28T14:28:16.773Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-28T14:28:16.777Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Comedy&sort=Recommend from 12ca17b4
+[2026-01-28T14:28:16.793Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=History&sort=Recommend from 12ca17b4
+[2026-01-28T14:28:16.794Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Fantasy&sort=Recommend from 12ca17b4
+[2026-01-28T14:28:16.820Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Japan&sort=Hottest from 12ca17b4
+[2026-01-28T14:28:16.826Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=China&sort=Hottest from 12ca17b4
+[2026-01-28T14:28:16.836Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Thailand&sort=Hottest from 12ca17b4
+[2026-01-28T14:28:17.331Z] [INFO] [request] GET /api/hitv/browse?perPage=32&sort=Recommend from 12ca17b4
+[2026-01-28T14:28:26.652Z] [INFO] [request] GET /api/hitv/info/1989484134179161168 from eff8e7ca
+[2026-01-28T14:28:27.871Z] [INFO] [request] GET /api/hitv/play/1989484134179161168/1?title=Infinite+Challenge from eff8e7ca
+[2026-01-28T14:28:29.128Z] [INFO] [request] GET /api/hitv/play/1989484134179161168/1?title=Infinite+Challenge from eff8e7ca
+[2026-01-28T14:29:31.803Z] [INFO] [request] GET /api/hitv/info/6158795942822036560 from eff8e7ca
+[2026-01-28T14:29:32.953Z] [INFO] [request] GET /api/hitv/play/6158795942822036560/1?title=Powerful+Opponents from eff8e7ca
+[2026-01-28T14:30:04.258Z] [INFO] [request] GET /api/hitv/search?q=judge+from+hell from 12ca17b4
+[2026-01-28T14:30:08.171Z] [INFO] [request] GET /api/hitv/info/4180063205928174912 from eff8e7ca
+[2026-01-28T14:30:08.471Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The+Judge+from+Hell from eff8e7ca
+[2026-01-28T14:32:38.930Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-28T14:32:38.932Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-28T14:32:38.949Z] [INFO] [request] GET /api/hitv/countries from 12ca17b4
+[2026-01-28T14:32:38.952Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T14:32:38.960Z] [INFO] [request] GET /api/hitv/sorts from 12ca17b4
+[2026-01-28T14:32:38.961Z] [INFO] [request] GET /api/hitv/categories from 12ca17b4
+[2026-01-28T14:32:40.153Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-28T14:32:40.164Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-28T14:32:40.176Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Comedy&sort=Recommend from 12ca17b4
+[2026-01-28T14:32:40.186Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=History&sort=Recommend from 12ca17b4
+[2026-01-28T14:32:40.187Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Fantasy&sort=Recommend from 12ca17b4
+[2026-01-28T14:32:40.215Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Japan&sort=Hottest from 12ca17b4
+[2026-01-28T14:32:40.216Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=China&sort=Hottest from 12ca17b4
+[2026-01-28T14:32:40.217Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Thailand&sort=Hottest from 12ca17b4
+[2026-01-28T14:32:40.753Z] [INFO] [request] GET /api/hitv/browse?perPage=32&sort=Recommend from 12ca17b4
+[2026-01-28T14:34:06.842Z] [INFO] [request] GET /api/streams/movie/1198994 from 12ca17b4
+[2026-01-28T14:34:06.845Z] [INFO] [api] fetching streams for tmdbId=1198994 (Smart Wait: 15s)
+[2026-01-28T14:34:09.223Z] [INFO] [api] all providers completed within deadline for 1198994
+[2026-01-28T14:40:17.451Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-28T14:40:17.452Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-28T14:40:17.452Z] [INFO] [request] GET /api/hitv/countries from 12ca17b4
+[2026-01-28T14:40:17.453Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T14:40:17.453Z] [INFO] [request] GET /api/hitv/sorts from 12ca17b4
+[2026-01-28T14:40:17.460Z] [INFO] [request] GET /api/hitv/categories from 12ca17b4
+[2026-01-28T14:40:18.725Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-28T14:40:18.729Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-28T14:40:18.733Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Comedy&sort=Recommend from 12ca17b4
+[2026-01-28T14:40:18.740Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=History&sort=Recommend from 12ca17b4
+[2026-01-28T14:40:18.745Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Fantasy&sort=Recommend from 12ca17b4
+[2026-01-28T14:40:18.769Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Japan&sort=Hottest from 12ca17b4
+[2026-01-28T14:40:18.770Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=China&sort=Hottest from 12ca17b4
+[2026-01-28T14:40:18.771Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Thailand&sort=Hottest from 12ca17b4
+[2026-01-28T14:40:19.434Z] [INFO] [request] GET /api/hitv/browse?perPage=32&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:21.344Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-28T14:41:21.344Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-28T14:41:21.345Z] [INFO] [request] GET /api/hitv/countries from 12ca17b4
+[2026-01-28T14:41:21.350Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T14:41:21.350Z] [INFO] [request] GET /api/hitv/sorts from 12ca17b4
+[2026-01-28T14:41:21.351Z] [INFO] [request] GET /api/hitv/categories from 12ca17b4
+[2026-01-28T14:41:22.765Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:22.771Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:22.776Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Comedy&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:22.784Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=History&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:22.790Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Fantasy&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:22.825Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Japan&sort=Hottest from 12ca17b4
+[2026-01-28T14:41:22.826Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=China&sort=Hottest from 12ca17b4
+[2026-01-28T14:41:22.835Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Thailand&sort=Hottest from 12ca17b4
+[2026-01-28T14:41:23.462Z] [INFO] [request] GET /api/hitv/browse?perPage=32&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:25.928Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-28T14:41:25.929Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-28T14:41:25.930Z] [INFO] [request] GET /api/hitv/countries from 12ca17b4
+[2026-01-28T14:41:25.931Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T14:41:25.932Z] [INFO] [request] GET /api/hitv/sorts from 12ca17b4
+[2026-01-28T14:41:25.933Z] [INFO] [request] GET /api/hitv/categories from 12ca17b4
+[2026-01-28T14:41:26.136Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:26.138Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:26.139Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Comedy&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:26.140Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=History&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:26.141Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Fantasy&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:26.142Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Japan&sort=Hottest from 12ca17b4
+[2026-01-28T14:41:26.143Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=China&sort=Hottest from 12ca17b4
+[2026-01-28T14:41:26.144Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Thailand&sort=Hottest from 12ca17b4
+[2026-01-28T14:41:26.325Z] [INFO] [request] GET /api/hitv/browse?perPage=32&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:26.657Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-28T14:41:26.659Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-28T14:41:26.660Z] [INFO] [request] GET /api/hitv/countries from 12ca17b4
+[2026-01-28T14:41:26.662Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T14:41:26.663Z] [INFO] [request] GET /api/hitv/sorts from 12ca17b4
+[2026-01-28T14:41:26.665Z] [INFO] [request] GET /api/hitv/categories from 12ca17b4
+[2026-01-28T14:41:26.963Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:26.968Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:26.973Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Comedy&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:26.977Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=History&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:26.982Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Fantasy&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:26.986Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Japan&sort=Hottest from 12ca17b4
+[2026-01-28T14:41:26.990Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=China&sort=Hottest from 12ca17b4
+[2026-01-28T14:41:26.995Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Thailand&sort=Hottest from 12ca17b4
+[2026-01-28T14:41:27.203Z] [INFO] [request] GET /api/hitv/browse?perPage=32&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:27.753Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-28T14:41:27.757Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-28T14:41:27.761Z] [INFO] [request] GET /api/hitv/countries from 12ca17b4
+[2026-01-28T14:41:27.766Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T14:41:27.770Z] [INFO] [request] GET /api/hitv/sorts from 12ca17b4
+[2026-01-28T14:41:27.775Z] [INFO] [request] GET /api/hitv/categories from 12ca17b4
+[2026-01-28T14:41:28.015Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:28.020Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:28.025Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Comedy&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:28.030Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=History&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:28.036Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Fantasy&sort=Recommend from 12ca17b4
+[2026-01-28T14:41:28.040Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Japan&sort=Hottest from 12ca17b4
+[2026-01-28T14:41:28.052Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=China&sort=Hottest from 12ca17b4
+[2026-01-28T14:41:28.054Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Thailand&sort=Hottest from 12ca17b4
+[2026-01-28T14:41:28.251Z] [INFO] [request] GET /api/hitv/browse?perPage=32&sort=Recommend from 12ca17b4
+[2026-01-28T15:16:59.619Z] [INFO] [request] GET /api/streams/movie/840464 from 12ca17b4
+[2026-01-28T15:16:59.620Z] [INFO] [api] fetching streams for tmdbId=840464 (Smart Wait: 15s)
+[2026-01-28T15:17:02.025Z] [INFO] [api] all providers completed within deadline for 840464
+[2026-01-28T15:45:52.449Z] [INFO] [request] GET /api/streams/series/wonder-man-198178?season=1&episode=1 from 12ca17b4
+[2026-01-28T15:45:52.450Z] [INFO] [api] fetching streams for tmdbId=wonder-man-198178 (Smart Wait: 15s)
+[2026-01-28T15:45:53.177Z] [INFO] [api] all providers completed within deadline for wonder-man-198178
+[2026-01-28T15:46:00.544Z] [INFO] [request] GET /api/streams/series/wonder-man-198178?season=1&episode=1 from 12ca17b4
+[2026-01-28T15:46:00.545Z] [INFO] [api] fetching streams for tmdbId=wonder-man-198178 (Smart Wait: 15s)
+[2026-01-28T15:46:01.359Z] [INFO] [api] all providers completed within deadline for wonder-man-198178
+[2026-01-28T15:46:02.690Z] [INFO] [request] GET /api/streams/series/wonder-man-198178?season=1&episode=1 from 12ca17b4
+[2026-01-28T15:46:02.691Z] [INFO] [api] fetching streams for tmdbId=wonder-man-198178 (Smart Wait: 15s)
+[2026-01-28T15:46:02.897Z] [INFO] [api] all providers completed within deadline for wonder-man-198178
+[2026-01-28T15:46:03.103Z] [INFO] [request] GET /api/streams/series/wonder-man-198178?season=1&episode=1 from 12ca17b4
+[2026-01-28T15:46:03.104Z] [INFO] [api] fetching streams for tmdbId=wonder-man-198178 (Smart Wait: 15s)
+[2026-01-28T15:46:03.237Z] [INFO] [api] all providers completed within deadline for wonder-man-198178
+[2026-01-28T15:46:06.379Z] [INFO] [request] GET /api/streams/series/wonder-man-198178?season=1&episode=1 from 12ca17b4
+[2026-01-28T15:46:06.381Z] [INFO] [api] fetching streams for tmdbId=wonder-man-198178 (Smart Wait: 15s)
+[2026-01-28T15:46:06.604Z] [INFO] [api] all providers completed within deadline for wonder-man-198178
+[2026-01-28T15:46:06.803Z] [INFO] [request] GET /api/streams/series/wonder-man-198178?season=1&episode=1 from 12ca17b4
+[2026-01-28T15:46:06.804Z] [INFO] [api] fetching streams for tmdbId=wonder-man-198178 (Smart Wait: 15s)
+[2026-01-28T15:46:06.936Z] [INFO] [api] all providers completed within deadline for wonder-man-198178
+[2026-01-28T15:47:28.524Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-28T15:47:28.525Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-28T15:47:28.525Z] [INFO] [request] GET /api/hitv/countries from 12ca17b4
+[2026-01-28T15:47:28.525Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T15:47:28.529Z] [INFO] [request] GET /api/hitv/sorts from 12ca17b4
+[2026-01-28T15:47:28.529Z] [INFO] [request] GET /api/hitv/categories from 12ca17b4
+[2026-01-28T15:47:29.639Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-28T15:47:29.640Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-28T15:47:29.642Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Comedy&sort=Recommend from 12ca17b4
+[2026-01-28T15:47:29.645Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=History&sort=Recommend from 12ca17b4
+[2026-01-28T15:47:29.646Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Fantasy&sort=Recommend from 12ca17b4
+[2026-01-28T15:47:29.652Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Japan&sort=Hottest from 12ca17b4
+[2026-01-28T15:47:29.653Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=China&sort=Hottest from 12ca17b4
+[2026-01-28T15:47:29.653Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Thailand&sort=Hottest from 12ca17b4
+[2026-01-28T15:47:30.323Z] [INFO] [request] GET /api/hitv/browse?perPage=32&sort=Recommend from 12ca17b4
+[2026-01-28T15:47:43.520Z] [INFO] [request] GET /api/hitv/info/7725650558262412616 from eff8e7ca
+[2026-01-28T15:47:44.279Z] [INFO] [request] GET /api/hitv/play/7725650558262412616/1?title=Dongjae%2C+the+Good+or+the+Bastard from eff8e7ca
+[2026-01-28T15:56:03.131Z] [INFO] [request] GET /api/hitv/trending from 12ca17b4
+[2026-01-28T15:56:03.136Z] [INFO] [request] GET /api/hitv/latest from 12ca17b4
+[2026-01-28T15:56:03.137Z] [INFO] [request] GET /api/hitv/countries from 12ca17b4
+[2026-01-28T15:56:03.138Z] [INFO] [request] GET /api/hitv/genres from 12ca17b4
+[2026-01-28T15:56:03.156Z] [INFO] [request] GET /api/hitv/sorts from 12ca17b4
+[2026-01-28T15:56:03.158Z] [INFO] [request] GET /api/hitv/categories from 12ca17b4
+[2026-01-28T15:56:04.087Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Romance&sort=Recommend from 12ca17b4
+[2026-01-28T15:56:04.087Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Action&sort=Recommend from 12ca17b4
+[2026-01-28T15:56:04.088Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Comedy&sort=Recommend from 12ca17b4
+[2026-01-28T15:56:04.088Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=History&sort=Recommend from 12ca17b4
+[2026-01-28T15:56:04.091Z] [INFO] [request] GET /api/hitv/browse?perPage=32&genre=Fantasy&sort=Recommend from 12ca17b4
+[2026-01-28T15:56:04.101Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Japan&sort=Hottest from 12ca17b4
+[2026-01-28T15:56:04.102Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=China&sort=Hottest from 12ca17b4
+[2026-01-28T15:56:04.104Z] [INFO] [request] GET /api/hitv/browse?perPage=32&country=Thailand&sort=Hottest from 12ca17b4
+[2026-01-28T15:56:04.659Z] [INFO] [request] GET /api/hitv/browse?perPage=32&sort=Recommend from 12ca17b4
+[2026-01-28T16:07:39.498Z] [INFO] [request] GET /.well-known/appspecific/com.chrome.devtools.json from 12ca17b4
+[2026-01-28T16:07:55.162Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-28T16:08:19.832Z] [INFO] [request] GET /api/hitv/browse?genre=All&sort=Hottest&pageSize=28 from 12ca17b4
+[2026-01-28T17:33:51.160Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T17:34:32.265Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-01-28T17:34:46.375Z] [INFO] [request] GET /sports-stream/neptunas-vs-hapoel-jerusalem from 12ca17b4
+[2026-01-28T17:34:58.340Z] [INFO] [request] GET /sports-stream/neptunas-vs-hapoel-jerusalem from 12ca17b4
+[2026-01-28T17:35:29.952Z] [INFO] [request] GET /sports-stream/neptunas-vs-hapoel-jerusalem from 12ca17b4
+[2026-01-28T17:36:27.548Z] [INFO] [request] GET /sports-stream/german-masters from 12ca17b4
+>>>>>>> 18a54f827a3fc29cc14f432ed18e73d89b5449d8

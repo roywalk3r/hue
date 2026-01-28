@@ -372,7 +372,7 @@ Currently public. Future versions may implement API Key protection.
       get: {
         tags: ['Direct Provider'],
         summary: 'Get Provider Streams',
-        description: 'Extract streams from a specific provider (e.g., hianime, vixsrc, sflix).',
+        description: 'Extract streams from a specific provider (e.g., hianime, vixsrc, sflix). KissKH captures an episode token and uses proxy URL mode (no h_token).',
         parameters: [
           { name: 'provider', in: 'path', required: true, schema: { type: 'string', enum: ['hianime', 'vixsrc', 'sflix', 'kisskh'] } },
           { name: 'type', in: 'path', required: true, schema: { type: 'string', enum: ['movie', 'series'] } },
@@ -431,6 +431,49 @@ Currently public. Future versions may implement API Key protection.
             responses: { 200: { description: 'List of upcoming dramas' } }
         }
     },
+    '/kdrama/show': {
+        get: {
+            tags: ['KDrama (KissKH)'],
+            summary: 'Show Library',
+            description: 'KissKH show library list.',
+            responses: { 200: { description: 'Show list' } }
+        }
+    },
+    '/kdrama/last-update': {
+        get: {
+            tags: ['KDrama (KissKH)'],
+            summary: 'Last Update',
+            parameters: [{ name: 'ispc', in: 'query', schema: { type: 'boolean', default: false } }],
+            responses: { 200: { description: 'Latest updated items' } }
+        }
+    },
+    '/kdrama/most-view': {
+        get: {
+            tags: ['KDrama (KissKH)'],
+            summary: 'Most Viewed',
+            parameters: [
+                { name: 'ispc', in: 'query', schema: { type: 'boolean', default: false } },
+                { name: 'c', in: 'query', schema: { type: 'integer', default: 1, description: 'Category (1=drama, 2=movie)' } }
+            ],
+            responses: { 200: { description: 'Most viewed list' } }
+        }
+    },
+    '/kdrama/top-rating': {
+        get: {
+            tags: ['KDrama (KissKH)'],
+            summary: 'Top Rating',
+            parameters: [{ name: 'ispc', in: 'query', schema: { type: 'boolean', default: false } }],
+            responses: { 200: { description: 'Top rated list' } }
+        }
+    },
+    '/kdrama/animate': {
+        get: {
+            tags: ['KDrama (KissKH)'],
+            summary: 'Animate',
+            parameters: [{ name: 'ispc', in: 'query', schema: { type: 'boolean', default: false } }],
+            responses: { 200: { description: 'Animated list' } }
+        }
+    },
     '/kdrama/detail/{id}': {
         get: {
             tags: ['KDrama (KissKH)'],
@@ -443,11 +486,12 @@ Currently public. Future versions may implement API Key protection.
         get: {
             tags: ['KDrama (KissKH)'],
             summary: 'Extract Stream (KissKH)',
+            description: 'Captures an episode token, then fetches the stream and subtitles via proxy URL mode (no h_token).',
             parameters: [
                 { name: 'id', in: 'path', required: true, description: 'KissKH ID' },
                 { name: 'episode', in: 'path', required: true, description: 'Episode number' }
             ],
-            responses: { 200: { description: 'Playable streams' } }
+            responses: { 200: { description: 'Playable streams (with subtitles when available)' } }
         }
     },
     '/dramacool/search': {

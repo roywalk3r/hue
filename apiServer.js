@@ -689,7 +689,7 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
     }
     
     // EXCLUDE specialized Asian drama providers from general aggregation
-    const dramaProviders = ['kisskh', 'dramacool', 'zenith', 'orient'];
+    const dramaProviders = ['dramacool', 'orient'];
     const selectedProviders = (config.defaultProviders.length ? config.defaultProviders : listProviders().map(p=>p.name))
         .filter(name => !dramaProviders.includes(name.toLowerCase()));
 
@@ -1148,6 +1148,56 @@ app.get('/api/kdrama/upcoming', async (req, res) => {
     }
 });
 
+app.get('/api/kdrama/show', async (req, res) => {
+    try {
+        const data = await kisskhApi.getShowList();
+        res.json({ success: true, results: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/kdrama/last-update', async (req, res) => {
+    try {
+        const ispc = req.query.ispc === 'true';
+        const data = await kisskhApi.getLastUpdate({ ispc });
+        res.json({ success: true, results: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/kdrama/most-view', async (req, res) => {
+    try {
+        const ispc = req.query.ispc === 'true';
+        const c = req.query.c ? Number(req.query.c) : 1;
+        const data = await kisskhApi.getMostView({ ispc, c });
+        res.json({ success: true, results: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/kdrama/top-rating', async (req, res) => {
+    try {
+        const ispc = req.query.ispc === 'true';
+        const data = await kisskhApi.getTopRating({ ispc });
+        res.json({ success: true, results: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/kdrama/animate', async (req, res) => {
+    try {
+        const ispc = req.query.ispc === 'true';
+        const data = await kisskhApi.getAnimate({ ispc });
+        res.json({ success: true, results: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 app.get('/api/kdrama/detail/:id', async (req, res) => {
     try {
         const data = await kisskhApi.getDetail(req.params.id);
@@ -1337,7 +1387,6 @@ if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   const { refreshSflixCookie } = require('./utils/refreshSflixCookie');
 
   // Schedule SFlix Cookie Refresh (every 24h)
-  /*
   setInterval(() => {
       refreshSflixCookie().catch(err => console.error('[Cron] Cookie refresh failed:', err));
   }, 24 * 60 * 60 * 1000);
@@ -1346,7 +1395,6 @@ if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   setTimeout(() => {
       refreshSflixCookie().catch(err => console.error('[Startup] Cookie refresh failed:', err));
   }, 30000);
-  */
 
   const PORT = config.port;
   const HOST = process.env.BIND_HOST || '0.0.0.0';

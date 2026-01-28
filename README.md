@@ -27,6 +27,8 @@ Fetch streams from multiple high-quality providers simultaneously. The system au
 A dedicated subsystem for Asian content discovery.
 *   **Browse:** Explore thousands of KDramas, CDramas, and Movies by Genre, Country, and Popularity.
 *   **Smart Play:** Automatically maps a HiTV ID to a playable stream from Zenith or Nova.
+*   **KissKH Streams:** Uses a lightweight Playwright capture to obtain the episode token, then fetches the stream via proxy URL mode (no tokenization, no h_token).
+*   **KissKH Subtitles:** Captures subtitle tracks when available.
 *   **Metadata:** Rich details including ratings, cast, and release dates.
 
 ### 🛡️ **Fortress Security**
@@ -165,6 +167,17 @@ GET /sports-stream/{matchName}      # Direct match access
 Target specific providers for granular control.
 ```http
 GET /api/kdrama/search?q=...
+GET /api/kdrama/list?page=1&type=0&order=latest
+GET /api/kdrama/latest?page=1
+GET /api/kdrama/popular?page=1
+GET /api/kdrama/upcoming
+GET /api/kdrama/show
+GET /api/kdrama/last-update?ispc=false
+GET /api/kdrama/most-view?ispc=false&c=1
+GET /api/kdrama/top-rating?ispc=false
+GET /api/kdrama/animate?ispc=false
+GET /api/kdrama/detail/{id}
+GET /api/kdrama/streams/{id}/{episode}
 GET /api/dramacool/search?q=...
 GET /api/streams/sflix/movie/{id}
 ```

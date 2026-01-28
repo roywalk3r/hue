@@ -10,13 +10,13 @@ const { encryptUrl, decryptUrl } = require('../utils/security');
 let cryptoJs;
 
 // Force persistent connections for proxy requests to avoid latency
-const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 100, timeout: 15000 });
-const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 100, timeout: 15000 });
+const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 100, timeout: 60000, family: 4 });
+const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 100, timeout: 60000, family: 4 });
 
 // Retry configuration for fetch operations
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 500;
-const FETCH_TIMEOUT_MS = 15000; // Reduced global timeout for faster failover
+const FETCH_TIMEOUT_MS = 60000; // Increased to 60s for slow streams
 
 // Helper function to fetch with retry logic
 async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
@@ -32,7 +32,7 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
     }
 
     const isSegment = /\.(ts|m4s|mp4|mkv)$/i.test(url.split('?')[0]);
-    const timeout = isSegment ? 8000 : (options.timeout || FETCH_TIMEOUT_MS);
+    const timeout = options.timeout || FETCH_TIMEOUT_MS;
     const actualRetries = isSegment ? 1 : maxRetries;
 
     const fetchOptions = {
@@ -125,6 +125,12 @@ async function prefetchSegment(url, headers) {
 }
 
 const DEFAULT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+function normalizeTargetUrl(url) {
+    if (typeof url !== 'string') return url;
+    if (url.startsWith('//')) return `https:${url}`;
+    return url;
+}
 
 function inferContentType(upstreamCT, targetUrl) {
     const bad = !upstreamCT || /application\/octet-stream/i.test(upstreamCT) || /application\/(x-)?zip/i.test(upstreamCT) || /image\//i.test(upstreamCT);
@@ -382,12 +388,14 @@ function isVixsrcTarget(targetUrl, headers) {
     return typeof referer === 'string' && referer.includes('vixsrc.to');
 }
 
-function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
+function rewriteM3u8(content, targetUrl, baseProxyUrl, headers, options = {}) {
     const lines = content.split('\n');
     const out = []; const segmentUrls = [];
     let nextLineIsStreamUrl = false;
     const vixsrcMode = isVixsrcTarget(targetUrl, headers);
-    const headerPart = vixsrcMode ? buildHeaderQuery(headers) : '';
+    const urlMode = options.urlMode === true;
+    const useUrlMode = vixsrcMode || urlMode;
+    const headerPart = useUrlMode ? buildHeaderQuery(headers) : '';
     
     for (const line of lines) {
         if (line.startsWith('#')) {
@@ -396,7 +404,7 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
                 if (uriMatch) {
                     try {
                         const absKey = new URL(uriMatch[1], targetUrl).href;
-                        const proxyUrl = vixsrcMode
+                        const proxyUrl = useUrlMode
                             ? `${baseProxyUrl}/ts-proxy?url=${encodeURIComponent(absKey)}${headerPart}&clampOpen=0&progressiveOpen=0&noSynth=1&force200=1&tailPrefetch=0`
                             : `${baseProxyUrl}/ts-proxy?h_token=${encodeURIComponent(encryptUrl(absKey, null, headers))}`;
                         out.push(line.replace(uriMatch[1], proxyUrl));
@@ -410,7 +418,7 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
                 if (uriMatch) {
                     try {
                         const mediaUrl = new URL(uriMatch[1], targetUrl).href;
-                        const proxyUrl = vixsrcMode
+                        const proxyUrl = useUrlMode
                             ? `${baseProxyUrl}/m3u8-proxy?url=${encodeURIComponent(mediaUrl)}${headerPart}`
                             : `${baseProxyUrl}/m3u8-proxy?h_token=${encodeURIComponent(encryptUrl(mediaUrl, null, headers))}`;
                         out.push(line.replace(uriMatch[1], proxyUrl));
@@ -421,7 +429,7 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
                 if (uriMatch) {
                     try {
                         const mapUrl = new URL(uriMatch[1], targetUrl).href;
-                        const proxyUrl = vixsrcMode
+                        const proxyUrl = useUrlMode
                             ? `${baseProxyUrl}/ts-proxy?url=${encodeURIComponent(mapUrl)}${headerPart}&clampOpen=0&progressiveOpen=0&noSynth=1&force200=1&tailPrefetch=0`
                             : `${baseProxyUrl}/ts-proxy?h_token=${encodeURIComponent(encryptUrl(mapUrl, null, headers))}`;
                         out.push(line.replace(uriMatch[1], proxyUrl));
@@ -470,13 +478,13 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers) {
                     segmentUrls.push(abs);
                     // Removed force200=1 for segments to allow Range requests if needed
                     out.push(
-                        vixsrcMode
+                        useUrlMode
                             ? `${baseProxyUrl}/ts-proxy?url=${encodeURIComponent(abs)}${headerPart}&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0`
                             : `${baseProxyUrl}/ts-proxy?h_token=${encodeURIComponent(encryptUrl(abs, null, headers))}`
                     );
                 } else {
                     // Default: proxy any HTTP/S child URL through m3u8-proxy so nested playlists (even without .m3u8 extension) get rewritten.
-                    const proxyUrl = vixsrcMode
+                    const proxyUrl = useUrlMode
                         ? `${baseProxyUrl}/m3u8-proxy?url=${encodeURIComponent(abs)}${headerPart}`
                         : `${baseProxyUrl}/m3u8-proxy?h_token=${encodeURIComponent(encryptUrl(abs, null, headers))}`;
                     out.push(nextLineIsStreamUrl ? proxyUrl : proxyUrl);
@@ -523,6 +531,7 @@ function createProxyRoutes(app) {
             const unwrapped = extractOriginalUrl(targetUrl);
             if (unwrapped && unwrapped !== targetUrl) targetUrl = unwrapped;
         }
+        targetUrl = normalizeTargetUrl(targetUrl);
         if (!/^https?:\/\//i.test(targetUrl)) {
             if (debug) console.log('[m3u8-proxy] Invalid URL check failed, targetUrl:', targetUrl);
             return res.status(400).json({ error: 'Invalid target URL', target: targetUrl });
@@ -599,7 +608,8 @@ function createProxyRoutes(app) {
                     rewriteBase = targetUrl;
                 }
 
-                const rewritten = rewriteM3u8(body, rewriteBase, baseProxyUrl, mergedHeaders);
+                const urlMode = req.query.mode === 'url';
+                const rewritten = rewriteM3u8(body, rewriteBase, baseProxyUrl, mergedHeaders, { urlMode });
                 res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
                 res.setHeader('Access-Control-Allow-Origin', '*');
                 res.send(rewritten);
@@ -634,6 +644,7 @@ function createProxyRoutes(app) {
             decryptedHeaders = decrypted.headers;
         }
         if (!targetUrl) return res.status(400).json({ error: 'URL parameter required' });
+        targetUrl = normalizeTargetUrl(targetUrl);
         if (!/^https?:\/\//i.test(targetUrl)) {
             return res.status(400).json({ error: 'Invalid target URL', target: targetUrl });
         }
@@ -999,6 +1010,7 @@ function processStreamsForProxy(streams, serverUrl) {
         }
 
         const hParam = Object.keys(headers).length ? `&headers=${encodeURIComponent(JSON.stringify(headers))}` : '';
+        const modeParam = s.proxyMode === 'url' ? '&mode=url' : '';
         let host = '';
         try {
             host = new URL(original).hostname.toLowerCase();
@@ -1014,6 +1026,13 @@ function processStreamsForProxy(streams, serverUrl) {
         if (/\.(mp4|mkv)(\?|$)/i.test(original)) {
             const token = encodeURIComponent(encryptUrl(original, null, headers));
             return { ...s, url: `${serverUrl}/ts-proxy?h_token=${token}` };
+        }
+        if (s.proxyMode === 'url') {
+            const forceTsProxy = s.format === 'mp4' || s.format === 'video';
+            if (forceTsProxy || /\.(mp4|mkv)(\?|$)/i.test(original)) {
+                return { ...s, url: `${serverUrl}/ts-proxy?url=${encodeURIComponent(original)}${hParam}${modeParam}` };
+            }
+            return { ...s, url: `${serverUrl}/m3u8-proxy?url=${encodeURIComponent(original)}${hParam}${modeParam}` };
         }
         if (isVixsrc) {
             return { ...s, url: `${serverUrl}/m3u8-proxy?url=${encodeURIComponent(original)}${hParam}` };
