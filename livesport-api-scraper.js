@@ -63,7 +63,11 @@ class LivesportAPIScraper {
             console.log(`[API] Fetching live matches from: ${url}`);
             const response = await this.client.get(url);
             
-            // API returns { data: [...], success: true }
+            // Handle direct array response (streamed.pk) or wrapped (old livesport)
+            if (Array.isArray(response.data)) {
+                return response.data;
+            }
+            
             if (response.data && response.data.data && Array.isArray(response.data.data)) {
                 return response.data.data;
             }

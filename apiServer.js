@@ -918,8 +918,13 @@ app.get('/api/hitv/browse', async (req, res) => {
 
 app.get('/api/hitv/latest', async (req, res) => {
     try {
-        const page = req.query.page || 1;
-        const data = await hitvApi.browseHiTv(page, 20, "Korea", "Drama", "All", "Newest");
+        const params = {
+            page: req.query.page || 1,
+            country: req.query.country || "Korea",
+            genre: req.query.genre || "All",
+            sort: "Newest"
+        };
+        const data = await hitvApi.browseDrama(params);
         res.json({ success: true, ...data });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
@@ -928,8 +933,93 @@ app.get('/api/hitv/latest', async (req, res) => {
 
 app.get('/api/hitv/trending', async (req, res) => {
     try {
+        const params = {
+            page: req.query.page || 1,
+            country: req.query.country || "Korea",
+            genre: req.query.genre || "All",
+            sort: "Recommend"
+        };
+        const data = await hitvApi.browseDrama(params);
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// SFlix Aliases (Mapping HiTV API data which SFlix also uses)
+app.get('/api/sflix/drama', async (req, res) => {
+    try {
+        const params = {
+            page: req.query.page || 1,
+            country: req.query.country || "All",
+            genre: req.query.genre || "All",
+            sort: req.query.sort || "Hottest",
+            year: req.query.year || null
+        };
+        const data = await hitvApi.browseDrama(params);
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/sflix/latest', async (req, res) => {
+    try {
+        const params = {
+            page: req.query.page || 1,
+            country: req.query.country || "All",
+            genre: req.query.genre || "All",
+            sort: "Newest"
+        };
+        const data = await hitvApi.browseDrama(params);
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/sflix/trending', async (req, res) => {
+    try {
+        const params = {
+            page: req.query.page || 1,
+            country: req.query.country || "All",
+            genre: req.query.genre || "All",
+            sort: "Recommend"
+        };
+        const data = await hitvApi.browseDrama(params);
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// MASSIVE DYNAMIC DISCOVERY ENDPOINT
+// Patterns: 
+// /api/sflix/Korea/Hottest
+// /api/sflix/China/Newest/Action
+app.get('/api/sflix/:country/:sort?/:genre?', async (req, res) => {
+    try {
+        const { country, sort, genre } = req.params;
         const page = req.query.page || 1;
-        const data = await hitvApi.browseHiTv(page, 20, "Korea", "Drama", "All", "Recommend");
+        
+        // Map common aliases
+        const sortMap = {
+            'latest': 'Newest',
+            'hottest': 'Hottest',
+            'foryou': 'ForYou',
+            'trending': 'Recommend',
+            'popular': 'Hottest'
+        };
+
+        const params = {
+            page: page,
+            country: country || "All",
+            sort: sortMap[sort?.toLowerCase()] || sort || "ForYou",
+            genre: genre || "All",
+            year: req.query.year || null
+        };
+
+        const data = await hitvApi.browseDrama(params);
         res.json({ success: true, ...data });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
@@ -971,6 +1061,48 @@ app.get('/api/hitv/search', async (req, res) => {
         // type: 1=movie, 2=tv (default)
         const data = await hitvApi.searchHiTv(q, parseInt(type) || 2, parseInt(page) || 1);
         res.json(data);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/hitv/library', async (req, res) => {
+    try {
+        const dramas = await hitvApi.getLibrary();
+        res.json({
+            success: true,
+            count: dramas.length,
+            items: dramas
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, error: 'Failed to load library data' });
+    }
+});
+
+app.get('/api/hitv/hero', async (req, res) => {
+    try {
+        const dramas = await hitvApi.getHero();
+        res.json({
+            success: true,
+            count: dramas.length,
+            items: dramas
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, error: 'Failed to load hero data' });
+    }
+});
+
+app.get('/api/hitv/drama', async (req, res) => {
+    try {
+        const params = {
+            page: req.query.page || 1,
+            country: req.query.country || "Korea",
+            genre: req.query.genre || "All",
+            sort: req.query.sort || "Hottest",
+            year: req.query.year || null
+        };
+        const data = await hitvApi.browseDrama(params);
+        res.json({ success: true, ...data });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }

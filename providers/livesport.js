@@ -25,7 +25,9 @@ class LivesportProvider {
      */
     async getWatchUrl(matchName) {
         // Try different URL patterns
+        // Admin channel often hosts main events
         const patterns = [
+            `https://streamed.pk/watch/${matchName}/admin/1`,
             `https://streamed.pk/watch/${matchName}/echo/1`,
             `https://streamed.pk/watch/${matchName}/alpha/1`,
             `https://streamed.pk/watch/${matchName}/bravo/1`
@@ -38,11 +40,24 @@ class LivesportProvider {
             // Note: api.getLiveMatches might still be using livesport.su, might need update later
             const liveMatches = await api.getLiveMatches();
             
-            // Find matching match by name
-            const match = liveMatches.find(m => 
-                m.id.toLowerCase().includes(matchName.toLowerCase()) ||
-                m.title.toLowerCase().includes(matchName.replace(/-/g, ' ').toLowerCase())
-            );
+            // Normalize match name for searching
+            // Remove trailing numbers (e.g. -2328147) which might be old IDs
+            const cleanName = matchName.replace(/-\d+$/, '');
+            const cleanNameSpaces = cleanName.replace(/-/g, ' ').toLowerCase();
+
+            // Find matching match
+            const match = liveMatches.find(m => {
+                const id = m.id.toLowerCase();
+                const title = m.title.toLowerCase();
+                
+                // Check ID inclusion (both ways)
+                if (id.includes(cleanName) || cleanName.includes(id)) return true;
+                
+                // Check title inclusion
+                if (title.includes(cleanNameSpaces) || cleanNameSpaces.includes(title)) return true;
+                
+                return false;
+            });
 
             if (match) {
                 // Pick the first available source

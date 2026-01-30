@@ -220,9 +220,9 @@ async function getStreamsViaApi(slug, subjectId, season, episode) {
                 });
             });
         }
-        return streams.length > 0 ? streams : null;
+        return streams;
     } catch (e) {
-        return null;
+        return [];
     }
 }
 
@@ -264,7 +264,7 @@ async function getSflixStreams(tmdbId, mediaType, season, episode, directTitle =
 
         // 2. FAST PATH (API)
         const apiStreams = await getStreamsViaApi(match.slug, match.subjectId, effectiveSeason, effectiveEpisode);
-        if (apiStreams) return apiStreams;
+        if (apiStreams && apiStreams.length > 0) return apiStreams;
 
         // 3. SLOW PATH (Browser Fallback)
         console.log(`[SFlix] API failed, using browser fallback for ${match.slug}`);
@@ -347,7 +347,8 @@ async function getStreamsBySlug(id, slug, episode) {
     // HiTV "id" IS the "subjectId".
     // HiTV shows are usually Season 1 unless specified otherwise in title, but API takes 'se'.
     // We'll assume Season 1 for now or parse it if passed.
-    return await getStreamsViaApi(slug, id, 1, episode);
+    const streams = await getStreamsViaApi(slug, id, 1, episode);
+    return streams || [];
 }
 
 module.exports = { getStreams: getSflixStreams, getStreamsDirect, getStreamsBySlug };
