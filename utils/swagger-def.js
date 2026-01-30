@@ -2,30 +2,32 @@ const swaggerDef = {
   openapi: '3.0.0',
   info: {
     title: 'Hue Stream API',
-    version: '2.5.0',
+    version: '2.6.0',
     description: `
-# Unified Streaming API
+# 🎬 Hue Stream API: The Ultimate Streaming Engine
 
-The **Hue Stream API** is a high-performance aggregator for Movies, TV Shows, KDramas, and Anime. 
+The **Hue Stream API** is a high-performance, aggregator for Movies, TV Shows, KDramas, and Anime. 
 
-## 🚀 Key Features
-- **Smart Aggregation**: Fetch from multiple sources with one ID.
-- **Massive Discovery**: Powerful dynamic discovery for Asian content (HiTV/SFlix) with TMDB enrichment.
-- **Dedicated Drama Hub**: Specialized endpoints for KissKH, Dramacool, and HiTV.
-- **Smart Mapping**: Automatically maps discovery items to Zenith (KissKH) and Nova (SFlix) streams.
-- **Anime Catalog**: Full HiAnime v1 catalog integration.
-- **Proxy**: Built-in m3u8/ts proxy for bypassing CORS.
+### 🚀 Key Capabilities:
+- **Massive Discovery**: Dynamic endpoints for HiTV/SFlix with 30+ countries/genres and TMDB backdrop enrichment.
+- **Smart Mapping**: Automatically bridges discovery metadata to high-quality KissKH (Zenith) and SFlix (Nova) streams.
+- **Dedicated KDrama Hub**: Deep integration with KissKH and Dramacool databases.
+- **HiAnime Integration**: Full anime catalog and multi-server stream extraction.
+- **Unified Aggregation**: Single TMDB ID fetches from 10+ providers simultaneously.
+- **Live Sports**: Extraction for Livesport and LiveTV.sx.
     `,
     contact: { name: 'Developer Support', email: 'dev@example.com' }
   },
   servers: [{ url: '/api', description: 'Main API' }],
   tags: [
-    { name: 'HiTV & SFlix Discovery', description: 'Massive discovery powered by HiTV data with TMDB enrichment.' },
-    { name: 'Drama Search', description: 'Keyword search across different drama providers.' },
-    { name: 'KDrama (KissKH)', description: 'KissKH specialized browsing and extraction.' },
-    { name: 'KDrama (Dramacool)', description: 'Dramacool specialized browsing and extraction.' },
-    { name: 'Aggregate', description: 'Unified stream extraction using TMDB IDs.' },
-    { name: 'Anime', description: 'HiAnime catalog and streams.' }
+    { name: 'SFlix & HiTV Discovery', description: 'Massive, TMDB-enriched catalog for Asian content.' },
+    { name: 'Smart Mapping & Playback', description: 'Bridging metadata to playable streams.' },
+    { name: 'KDrama (KissKH)', description: 'Specialized KissKH browsing and extraction.' },
+    { name: 'KDrama (Dramacool)', description: 'Specialized Dramacool browsing and extraction.' },
+    { name: 'HiAnime (Catalog & Streams)', description: 'Full Anime ecosystem.' },
+    { name: 'Aggregate', description: 'Unified Movies/Series aggregation via TMDB ID.' },
+    { name: 'Sports', description: 'Live sports extraction.' },
+    { name: 'System & Admin', description: 'Metrics, Health, and Config.' }
   ],
   components: {
     schemas: {
@@ -36,114 +38,99 @@ The **Hue Stream API** is a high-performance aggregator for Movies, TV Shows, KD
           title: { type: 'string' },
           cover: { type: 'string' },
           rating: { type: 'string' },
-          releaseDate: { type: 'string', format: 'date' },
+          releaseDate: { type: 'string' },
           genre: { type: 'string' },
           backdrop: { type: 'string' },
-          tmdbId: { type: 'integer' },
           overview: { type: 'string' },
-          isBackdrop: { type: 'boolean' }
+          tmdbId: { type: 'integer' }
         }
       }
     }
   },
   paths: {
-    '/hitv/search': {
-        get: {
-            tags: ['Drama Search'],
-            summary: 'Search HiTV Catalog',
-            description: 'Search for series or movies in the HiTV database.',
-            parameters: [
-                { name: 'q', in: 'query', required: true, schema: { type: 'string' }, example: 'Lovely Runner' },
-                { name: 'type', in: 'query', schema: { type: 'integer', default: 2 }, description: '1=Movie, 2=Series' }
-            ],
-            responses: { 200: { description: 'Search results' } }
-        }
-    },
-    '/kdrama/search': {
-        get: {
-            tags: ['Drama Search'],
-            summary: 'Search KissKH Catalog',
-            parameters: [{ name: 'q', in: 'query', required: true, schema: { type: 'string' } }],
-            responses: { 200: { description: 'Results' } }
-        }
-    },
-    '/dramacool/search': {
-        get: {
-            tags: ['Drama Search'],
-            summary: 'Search Dramacool Catalog',
-            parameters: [{ name: 'q', in: 'query', required: true, schema: { type: 'string' } }],
-            responses: { 200: { description: 'Results' } }
-        }
-    },
+    /* HiTV & SFlix Discovery */
     '/sflix/{country}/{sort}/{genre}': {
-        get: {
-            tags: ['HiTV & SFlix Discovery'],
-            summary: 'Massive Dynamic Discovery',
-            parameters: [
-                { name: 'country', in: 'path', required: true, schema: { type: 'string', default: 'All' } },
-                { name: 'sort', in: 'path', schema: { type: 'string', enum: ['foryou', 'latest', 'hottest', 'trending', 'popular'], default: 'foryou' } },
-                { name: 'genre', in: 'path', schema: { type: 'string', default: 'All' } },
-                { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } }
-            ],
-            responses: { 200: { description: 'Enriched list' } }
-        }
+      get: {
+        tags: ['SFlix & HiTV Discovery'],
+        summary: 'Massive Dynamic SFlix Discovery',
+        parameters: [
+          { name: 'country', in: 'path', required: true, schema: { type: 'string', default: 'All' } },
+          { name: 'sort', in: 'path', schema: { type: 'string', enum: ['foryou', 'latest', 'hottest', 'trending', 'popular'] } },
+          { name: 'genre', in: 'path', schema: { type: 'string', default: 'All' } },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } }
+        ],
+        responses: { 200: { description: 'Enriched list' } }
+      }
     },
-    '/hitv/drama': {
-        get: {
-            tags: ['HiTV & SFlix Discovery'],
-            summary: 'Drama Discovery (TMDB Enriched)',
-            parameters: [
-                { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
-                { name: 'country', in: 'query', schema: { type: 'string', default: 'Korea' } },
-                { name: 'genre', in: 'query', schema: { type: 'string', default: 'All' } },
-                { name: 'sort', in: 'query', schema: { type: 'string', default: 'Hottest' } }
-            ],
-            responses: { 200: { description: 'Enriched list' } }
-        }
-    },
+    '/sflix/latest': { get: { tags: ['SFlix & HiTV Discovery'], summary: 'SFlix Latest Releases', responses: { 200: { description: 'List' } } } },
+    '/sflix/trending': { get: { tags: ['SFlix & HiTV Discovery'], summary: 'SFlix Trending', responses: { 200: { description: 'List' } } } },
+    '/hitv/drama': { get: { tags: ['SFlix & HiTV Discovery'], summary: 'HiTV Drama Filter', parameters: [{ name: 'country', in: 'query' }, { name: 'genre', in: 'query' }, { name: 'year', in: 'query' }], responses: { 200: { description: 'List' } } } },
+    '/hitv/latest': { get: { tags: ['SFlix & HiTV Discovery'], summary: 'HiTV Latest', responses: { 200: { description: 'List' } } } },
+    '/hitv/trending': { get: { tags: ['SFlix & HiTV Discovery'], summary: 'HiTV Trending', responses: { 200: { description: 'List' } } } },
+    '/hitv/hero': { get: { tags: ['SFlix & HiTV Discovery'], summary: 'Smart Hero Slate', responses: { 200: { description: 'Snapshot' } } } },
+    '/hitv/library': { get: { tags: ['SFlix & HiTV Discovery'], summary: 'Full Library Cache', responses: { 200: { description: '3,000+ items' } } } },
+    '/hitv/search': { get: { tags: ['SFlix & HiTV Discovery'], summary: 'Search HiTV', parameters: [{ name: 'q', in: 'query', required: true }], responses: { 200: { description: 'Results' } } } },
+    '/hitv/info/{id}': { get: { tags: ['SFlix & HiTV Discovery'], summary: 'Get Show Details', parameters: [{ name: 'id', in: 'path', required: true }], responses: { 200: { description: 'Metadata' } } } },
+    '/hitv/countries': { get: { tags: ['SFlix & HiTV Discovery'], summary: 'Get All Countries', responses: { 200: { description: 'List' } } } },
+    '/hitv/genres': { get: { tags: ['SFlix & HiTV Discovery'], summary: 'Get All Genres', responses: { 200: { description: 'List' } } } },
+
+    /* Smart Mapping & Playback */
     '/hitv/play/{id}/{episode}': {
-        get: {
-            tags: ['HiTV & SFlix Discovery'],
-            summary: 'Smart Play (HiTV -> Stream)',
-            parameters: [
-                { name: 'id', in: 'path', required: true },
-                { name: 'episode', in: 'path', required: true },
-                { name: 'title', in: 'query', required: true, schema: { type: 'string' } }
-            ],
-            responses: { 200: { description: 'Streams' } }
-        }
+      get: {
+        tags: ['Smart Mapping & Playback'],
+        summary: 'Smart Play (HiTV -> Stream)',
+        parameters: [
+          { name: 'id', in: 'path', required: true },
+          { name: 'episode', in: 'path', required: true },
+          { name: 'title', in: 'query', required: true, description: 'Exact title for accurate mapping' }
+        ],
+        responses: { 200: { description: 'Streams' } }
+      }
     },
-    '/hitv/hero': {
-      get: { tags: ['HiTV & SFlix Discovery'], summary: 'Hero Slate', responses: { 200: { description: 'Enriched Hero items' } } }
-    },
-    '/hitv/library': {
-      get: { tags: ['HiTV & SFlix Discovery'], summary: 'Massive Cached Library', responses: { 200: { description: 'Catalog' } } }
-    },
-    '/kdrama/list': {
-        get: {
-            tags: ['KDrama (KissKH)'],
-            summary: 'Browse KissKH Library',
-            parameters: [
-                { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
-                { name: 'type', in: 'query', schema: { type: 'string' }, description: '0=All, 1=Drama, 2=Movie' }
-            ],
-            responses: { 200: { description: 'List' } }
-        }
-    },
-    '/dramacool/latest': {
-        get: { tags: ['KDrama (Dramacool)'], summary: 'Latest Episodes (Dramacool)', responses: { 200: { description: 'List' } } }
-    },
+
+    /* KDrama (KissKH) */
+    '/kdrama/search': { get: { tags: ['KDrama (KissKH)'], summary: 'Search KissKH', parameters: [{ name: 'q', in: 'query' }], responses: { 200: { description: 'Results' } } } },
+    '/kdrama/list': { get: { tags: ['KDrama (KissKH)'], summary: 'Advanced Filter', parameters: [{ name: 'type', in: 'query' }, { name: 'country', in: 'query' }], responses: { 200: { description: 'List' } } } },
+    '/kdrama/latest': { get: { tags: ['KDrama (KissKH)'], summary: 'Latest Episodes', responses: { 200: { description: 'List' } } } },
+    '/kdrama/popular': { get: { tags: ['KDrama (KissKH)'], summary: 'Popular content', responses: { 200: { description: 'List' } } } },
+    '/kdrama/detail/{id}': { get: { tags: ['KDrama (KissKH)'], summary: 'Show Details', parameters: [{ name: 'id', in: 'path', required: true }], responses: { 200: { description: 'Metadata' } } } },
+    '/kdrama/streams/{id}/{episode}': { get: { tags: ['KDrama (KissKH)'], summary: 'Extract Streams', parameters: [{ name: 'id', in: 'path' }, { name: 'episode', in: 'path' }], responses: { 200: { description: 'Streams' } } } },
+
+    /* KDrama (Dramacool) */
+    '/dramacool/search': { get: { tags: ['KDrama (Dramacool)'], summary: 'Search Dramacool', parameters: [{ name: 'q', in: 'query' }], responses: { 200: { description: 'Results' } } } },
+    '/dramacool/latest': { get: { tags: ['KDrama (Dramacool)'], summary: 'Latest Episodes', responses: { 200: { description: 'List' } } } },
+    '/dramacool/home': { get: { tags: ['KDrama (Dramacool)'], summary: 'Home Page Data', responses: { 200: { description: 'Snapshot' } } } },
+    '/dramacool/info': { get: { tags: ['KDrama (Dramacool)'], summary: 'Details', parameters: [{ name: 'id', in: 'query' }], responses: { 200: { description: 'Metadata' } } } },
+    '/dramacool/browse/streams/{id}/{episode}': { get: { tags: ['KDrama (Dramacool)'], summary: 'Extract Streams', parameters: [{ name: 'id', in: 'path' }, { name: 'episode', in: 'path' }], responses: { 200: { description: 'Streams' } } } },
+
+    /* HiAnime */
+    '/v1/home': { get: { tags: ['HiAnime (Catalog & Streams)'], summary: 'HiAnime Homepage', responses: { 200: { description: 'Payload' } } } },
+    '/v1/search': { get: { tags: ['HiAnime (Catalog & Streams)'], summary: 'Search Anime', parameters: [{ name: 'keyword', in: 'query' }], responses: { 200: { description: 'Results' } } } },
+    '/v1/anime/{id}': { get: { tags: ['HiAnime (Catalog & Streams)'], summary: 'Anime Details', parameters: [{ name: 'id', in: 'path' }], responses: { 200: { description: 'Metadata' } } } },
+    '/v1/episodes/{id}': { get: { tags: ['HiAnime (Catalog & Streams)'], summary: 'Episode List', parameters: [{ name: 'id', in: 'path' }], responses: { 200: { description: 'Episodes' } } } },
+    '/v1/stream': { get: { tags: ['HiAnime (Catalog & Streams)'], summary: 'Extract Stream', parameters: [{ name: 'id', in: 'query' }, { name: 'server', in: 'query' }], responses: { 200: { description: 'Streams' } } } },
+    '/streams/anime/{id}': { get: { tags: ['HiAnime (Catalog & Streams)'], summary: 'Unified Anime Stream', parameters: [{ name: 'id', in: 'path' }], responses: { 200: { description: 'Streams' } } } },
+
+    /* Aggregate & Specialized */
     '/streams/{type}/{tmdbId}': {
       get: {
         tags: ['Aggregate'],
         summary: 'Unified Aggregator (Movies/Series)',
-        parameters: [
-          { name: 'type', in: 'path', required: true, schema: { type: 'string', enum: ['movie', 'series'] } },
-          { name: 'tmdbId', in: 'path', required: true, schema: { type: 'string' } }
-        ],
+        parameters: [{ name: 'type', in: 'path' }, { name: 'tmdbId', in: 'path' }, { name: 'season', in: 'query' }, { name: 'episode', in: 'query' }],
         responses: { 200: { description: 'Streams' } }
       }
-    }
+    },
+    '/drama/{type}/{tmdbId}': { get: { tags: ['Aggregate'], summary: 'Drama Exclusive Aggregator', responses: { 200: { description: 'Streams' } } } },
+    '/streams/{provider}/{type}/{tmdbId}': { get: { tags: ['Aggregate'], summary: 'Direct Provider Aggregator', responses: { 200: { description: 'Streams' } } } },
+
+    /* Sports */
+    '/sports-stream/{matchName}': { get: { tags: ['Sports'], summary: 'Livesport.su Stream', parameters: [{ name: 'matchName', in: 'path' }], responses: { 200: { description: 'Streams' } } } },
+    '/livetv/matches': { get: { tags: ['Sports'], summary: 'LiveTV.sx Matches', responses: { 200: { description: 'List' } } } },
+
+    /* System */
+    '/status': { get: { tags: ['System & Admin'], summary: 'Metrics & Status', responses: { 200: { description: 'Payload' } } } },
+    '/health': { get: { tags: ['System & Admin'], summary: 'Health Check', responses: { 200: { description: 'OK' } } } },
+    '/config': { get: { tags: ['System & Admin'], summary: 'Server Config (ReadOnly)', responses: { 200: { description: 'Config' } } } }
   }
 };
 
