@@ -2,7 +2,7 @@ const swaggerDef = {
   openapi: '3.0.0',
   info: {
     title: 'Hue Stream API',
-    version: '2.6.0',
+    version: '2.7.0',
     description: `
 # 🎬 Hue Stream API: The Ultimate Streaming Engine
 
@@ -14,7 +14,7 @@ The **Hue Stream API** is a high-performance, aggregator for Movies, TV Shows, K
 - **Dedicated KDrama Hub**: Deep integration with KissKH and Dramacool databases.
 - **HiAnime Integration**: Full anime catalog and multi-server stream extraction.
 - **Unified Aggregation**: Single TMDB ID fetches from 10+ providers simultaneously.
-- **Live Sports**: Extraction for Livesport and LiveTV.sx.
+- **Live Sports**: Extraction for AiSports, Livesport, LiveTV.sx, and PPV.to.
     `,
     contact: { name: 'Developer Support', email: 'dev@example.com' }
   },
@@ -26,7 +26,7 @@ The **Hue Stream API** is a high-performance, aggregator for Movies, TV Shows, K
     { name: 'KDrama (Dramacool)', description: 'Specialized Dramacool browsing and extraction.' },
     { name: 'HiAnime (Catalog & Streams)', description: 'Full Anime ecosystem.' },
     { name: 'Aggregate', description: 'Unified Movies/Series aggregation via TMDB ID.' },
-    { name: 'Sports', description: 'Live sports extraction.' },
+    { name: 'Sports', description: 'Live sports extraction and event flow.' },
     { name: 'System & Admin', description: 'Metrics, Health, and Config.' }
   ],
   components: {
@@ -124,8 +124,14 @@ The **Hue Stream API** is a high-performance, aggregator for Movies, TV Shows, K
     '/streams/{provider}/{type}/{tmdbId}': { get: { tags: ['Aggregate'], summary: 'Direct Provider Aggregator', responses: { 200: { description: 'Streams' } } } },
 
     /* Sports */
-    '/sports-stream/{matchName}': { get: { tags: ['Sports'], summary: 'Livesport.su Stream', parameters: [{ name: 'matchName', in: 'path' }], responses: { 200: { description: 'Streams' } } } },
-    '/livetv/matches': { get: { tags: ['Sports'], summary: 'LiveTV.sx Matches', responses: { 200: { description: 'List' } } } },
+    '/sports-stream/{matchName}': { get: { tags: ['Sports'], summary: 'Unified Sports Stream (Livesport, LiveTV, PPV)', parameters: [{ name: 'matchName', in: 'path' }], responses: { 200: { description: 'Streams' } } } },
+    '/livetv/{matchName}': { get: { tags: ['Sports'], summary: 'LiveTV Alias', parameters: [{ name: 'matchName', in: 'path' }], responses: { 200: { description: 'Streams' } } } },
+    '/ppv/streams/{matchName}': { get: { tags: ['Sports'], summary: 'PPV Alias', parameters: [{ name: 'matchName', in: 'path' }], responses: { 200: { description: 'Streams' } } } },
+    
+    '/aisports/leagues': { get: { tags: ['Sports'], summary: 'Get AiSports Leagues', responses: { 200: { description: 'List' } } } },
+    '/aisports/list/{leagueId}': { get: { tags: ['Sports'], summary: 'Get AiSports Matches', parameters: [{ name: 'leagueId', in: 'path' }, { name: 'status', in: 'query', description: '0=All, 1=Live, 2=Finished' }, { name: 'type', in: 'query', description: 'Sport type (e.g. football)' }], responses: { 200: { description: 'List' } } } },
+    '/aisports/play/{id}': { get: { tags: ['Sports'], summary: 'Get AiSports Streams', parameters: [{ name: 'id', in: 'path' }], responses: { 200: { description: 'Streams' } } } },
+    '/aisports/flow/{id}': { get: { tags: ['Sports'], summary: 'Get Match Flow/Commentary', parameters: [{ name: 'id', in: 'path' }, { name: 'pageSize', in: 'query' }], responses: { 200: { description: 'Flow Data' } } } },
 
     /* System */
     '/status': { get: { tags: ['System & Admin'], summary: 'Metrics & Status', responses: { 200: { description: 'Payload' } } } },

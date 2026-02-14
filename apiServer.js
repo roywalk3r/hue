@@ -785,27 +785,38 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
   }
 });
 
-// Livesport sports streams endpoint
-app.get('/sports-stream/:matchName*', async (req, res) => {
+// Shared Sports Aggregator Logic
+async function handleSportsRequest(req, res) {
   const matchName = req.params.matchName + (req.params[0] || '');
   if (!matchName) {
     return res.status(400).json({ success: false, error: 'Match name required' });
   }
 
-  const prov = getProvider('livesport');
-  if (!prov) return res.status(404).json({ success: false, error: 'Livesport provider not found' });
-  if (!prov.enabled) return res.status(503).json({ success: false, error: 'Livesport provider disabled' });
-
   try {
     metrics.streamRequests++;
-    metrics.providerCalls[prov.name] = (metrics.providerCalls[prov.name] || 0) + 1;
     
-    const t0 = Date.now();
-    // Pass the request object so the provider can extract the match name
-    let streams = await prov.fetch({ req, type: 'sports', matchName, filters: {} });
-    const providerTimings = { [prov.name]: Date.now() - t0 };
-    
-    streams = applyFilters(streams, prov.name, config.minQualities, config.excludeCodecs);
+    // Try sports providers in parallel (EXCLUDING aisports as it's separate now)
+    const sportsProviders = ['livesport', 'livetv', 'ppv'];
+    const streamsResults = [];
+    const providerTimings = {};
+
+    await Promise.all(sportsProviders.map(async name => {
+      const prov = getProvider(name);
+      if (!prov || !prov.enabled) return;
+      
+      metrics.providerCalls[prov.name] = (metrics.providerCalls[prov.name] || 0) + 1;
+      try {
+        const t0 = Date.now();
+        const r = await prov.fetch({ req, type: 'sports', matchName, filters: {} });
+        providerTimings[prov.name] = Date.now() - t0;
+        if (Array.isArray(r)) streamsResults.push(...r);
+      } catch (e) {
+        console.error(`[api] sports provider ${name} failed:`, e.message);
+      }
+    }));
+
+    let streams = streamsResults;
+    streams = applyFilters(streams, 'sports', config.minQualities, config.excludeCodecs);
     metrics.streamsReturned += streams.length;
     
     if (config.enableProxy) {
@@ -815,7 +826,6 @@ app.get('/sports-stream/:matchName*', async (req, res) => {
     
     res.json({ 
       success: true, 
-      provider: prov.name, 
       matchName, 
       count: streams.length, 
       providerTimings, 
@@ -825,48 +835,136 @@ app.get('/sports-stream/:matchName*', async (req, res) => {
     metrics.lastError = e.message;
     res.status(500).json({ success: false, error: 'INTERNAL_ERROR', message: e.message });
   }
+}
+
+// Mount Unified Sports Endpoints
+app.get('/sports-stream/:matchName*', handleSportsRequest);
+app.get('/livetv/:matchName*', handleSportsRequest);
+app.get('/api/ppv/streams/:matchName*', handleSportsRequest);
+
+// Dedicated AiSports discovery routes
+const aisportsApi = require('./utils/aisports-api');
+
+app.get('/api/aisports/leagues', async (req, res) => {
+    try {
+        const data = await aisportsApi.getLeagues();
+        res.json({ success: true, list: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
 });
 
-// LiveTV sports streams endpoint
-app.get('/livetv/:matchName*', async (req, res) => {
-  const matchName = req.params.matchName + (req.params[0] || '');
-  if (!matchName) {
-    return res.status(400).json({ success: false, error: 'Match name required' });
-  }
-
-  const prov = getProvider('livetv');
-  if (!prov) return res.status(404).json({ success: false, error: 'LiveTV provider not found' });
-  if (!prov.enabled) return res.status(503).json({ success: false, error: 'LiveTV provider disabled' });
-
-  try {
-    metrics.streamRequests++;
-    metrics.providerCalls[prov.name] = (metrics.providerCalls[prov.name] || 0) + 1;
-    
-    const t0 = Date.now();
-    // Pass the request object so the provider can extract the match info
-    let streams = await prov.fetch({ req, type: 'sports', matchName, filters: {} });
-    const providerTimings = { [prov.name]: Date.now() - t0 };
-    
-    streams = applyFilters(streams, prov.name, config.minQualities, config.excludeCodecs);
-    metrics.streamsReturned += streams.length;
-    
-    if (config.enableProxy) {
-      const serverUrl = resolveServerUrl(req);
-      streams = processStreamsForProxy(streams, serverUrl);
+app.get('/api/aisports/list/:leagueId?', async (req, res) => {
+    try {
+        const leagueId = req.params.leagueId || 0;
+        const { status, type } = req.query;
+        const data = await aisportsApi.getMatchList(leagueId, status, type);
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
     }
-    
-    res.json({ 
-      success: true, 
-      provider: prov.name, 
-      matchName, 
-      count: streams.length, 
-      providerTimings, 
-      streams 
-    });
-  } catch (e) {
-    metrics.lastError = e.message;
-    res.status(500).json({ success: false, error: 'INTERNAL_ERROR', message: e.message });
-  }
+});
+
+app.get('/api/aisports/flow/:id', async (req, res) => {
+    try {
+        const { pageSize, lastSort } = req.query;
+        const data = await aisportsApi.getMatchFlow(req.params.id, pageSize, lastSort);
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/aisports/play/:id', async (req, res) => {
+    try {
+        const matchId = req.params.id;
+        const detail = await aisportsApi.getMatchDetail(matchId);
+        if (!detail) return res.status(404).json({ success: false, error: 'Match not found' });
+
+        const prov = getProvider('aisports');
+        if (!prov) return res.status(404).json({ success: false, error: 'AiSports provider not found' });
+
+        // We use the same process logic as in providers/aisports.js but bypass name search
+        const streams = [];
+        const userAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1';
+        const proxyBase = 'https://sport-proxy.roywalk3r.deno.net';
+        const headers = {
+            'Referer': 'https://sportslivenow.top/',
+            'Origin': 'https://sportslivenow.top',
+            'User-Agent': userAgent
+        };
+
+        const processUrl = (url) => {
+            if (url && url.includes('.m3u8')) {
+                return `${proxyBase}/m3u8-proxy?url=${encodeURIComponent(url)}&headers=${encodeURIComponent(JSON.stringify(headers))}`;
+            }
+            return url;
+        };
+
+        if (detail.playPath) {
+            streams.push({
+                title: `${detail.team1?.name} vs ${detail.team2?.name} (Main)`,
+                url: processUrl(detail.playPath),
+                quality: 'Auto',
+                provider: 'Field',
+                source: 'aisports',
+                isLive: true,
+                isProxied: detail.playPath.includes('.m3u8'),
+                headers: headers,
+                originalUrl: detail.playPath
+            });
+        }
+
+        if (detail.playSource && Array.isArray(detail.playSource)) {
+            detail.playSource.forEach((source, index) => {
+                if (source.path) {
+                    streams.push({
+                        title: `${detail.team1?.name} vs ${detail.team2?.name} (${source.title || 'Channel ' + (index + 1)})`,
+                        url: processUrl(source.path),
+                        quality: 'Auto',
+                        provider: 'Field',
+                        source: 'aisports',
+                        isLive: true,
+                        isProxied: source.path.includes('.m3u8'),
+                        headers: headers,
+                        originalUrl: source.path
+                    });
+                }
+            });
+        }
+
+        if (detail.highlights && Array.isArray(detail.highlights)) {
+            detail.highlights.forEach(h => {
+                if (h.path) {
+                    streams.push({
+                        title: h.title || 'Highlight',
+                        url: h.path,
+                        quality: '720p',
+                        provider: 'Field',
+                        source: 'aisports-highlight',
+                        isLive: false,
+                        duration: h.duration
+                    });
+                }
+            });
+        }
+
+        let finalStreams = applyFilters(streams, 'aisports', config.minQualities, config.excludeCodecs);
+        if (config.enableProxy) {
+            const serverUrl = resolveServerUrl(req);
+            finalStreams = processStreamsForProxy(finalStreams, serverUrl);
+        }
+
+        res.json({
+            success: true,
+            id: matchId,
+            title: `${detail.team1?.name} vs ${detail.team2?.name}`,
+            streams: finalStreams
+        });
+
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
 });
 
 // Provider-specific streams

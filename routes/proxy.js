@@ -103,7 +103,27 @@ router.get('/', async (req, res) => {
             res.send(rewrittenData);
         } else {
             // Forward binary data (segments, keys, images)
-            res.send(Buffer.from(response.data));
+            let buffer = Buffer.from(response.data);
+            
+            // Special handling for segments that might be base64 encoded media
+            const isSegment = targetUrl.toLowerCase().includes('.jpeg') || targetUrl.toLowerCase().includes('.ts');
+            if (isSegment && !buffer.slice(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])) && !buffer.slice(0, 1).equals(Buffer.from([0x47]))) {
+                const text = buffer.toString('utf8').trim().replace(/[\r\n\s]/g, '');
+                // Check if it's base64 (contains no non-base64 chars and has significant length)
+                if (text.length > 100 && /^[A-Za-z0-9+/=]+$/.test(text)) {
+                    console.log(`[Proxy] Decoding Base64 media from segment: ${targetUrl.split('/').pop()}`);
+                    buffer = Buffer.from(text, 'base64');
+                }
+            }
+
+            // Set correct content type if it's actually MPEG-TS
+            if (buffer[0] === 0x47) {
+                res.setHeader('Content-Type', 'video/mp2t');
+            } else if (targetUrl.toLowerCase().includes('.m3u8')) {
+                res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+            }
+
+            res.send(buffer);
         }
 
     } catch (error) {

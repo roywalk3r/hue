@@ -9,12 +9,12 @@ const fs = require('fs').promises;
 
 class LivesportAPIScraper {
     constructor() {
-        this.baseURL = 'https://streamed.pk/api';
+        this.baseURL = 'https://livesport.su/api';
         this.client = axios.create({
             timeout: 10000,
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://streamed.pk/'
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1',
+                'Referer': 'https://livesport.su/'
             }
         });
         this.m3u8Extractor = new LivesportM3U8Extractor();
