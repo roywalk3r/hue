@@ -9722,3 +9722,126 @@
 [2026-02-13T23:01:36.011Z] [INFO] [request] GET /api/v1/most-popular?page=2 from 12ca17b4
 [2026-02-13T23:01:36.012Z] [INFO] [hianime][cache] GET /api/v1/most-popular?page=2 -> 200
 [2026-02-14T06:52:26.351Z] [INFO] [request] GET /favicon.ico from 12ca17b4
+[2026-02-15T07:51:48.759Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T07:54:55.455Z] [INFO] [request] GET /.well-known/appspecific/com.chrome.devtools.json from 12ca17b4
+[2026-02-15T07:54:58.690Z] [INFO] [request] GET /favicon.ico from 12ca17b4
+[2026-02-15T07:55:11.574Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T07:57:36.839Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T07:58:00.054Z] [INFO] [request] GET /api/moviebox/home from 12ca17b4
+[2026-02-15T07:59:14.230Z] [INFO] [request] GET /api/moviebox/filter from 12ca17b4
+[2026-02-15T07:59:30.013Z] [INFO] [request] GET /api/moviebox/filter?country=korea from 12ca17b4
+[2026-02-15T07:59:39.633Z] [INFO] [request] GET /api/moviebox/filter?channelId=2&country=korea from 12ca17b4
+[2026-02-15T07:59:44.418Z] [INFO] [request] GET /api/moviebox/filter?channelId=1&country=korea from 12ca17b4
+[2026-02-15T07:59:51.948Z] [INFO] [request] GET /api/moviebox/filter?channelId=3&country=korea from 12ca17b4
+[2026-02-15T07:59:56.925Z] [INFO] [request] GET /api/moviebox/filter?channelId=2&country=korea from 12ca17b4
+[2026-02-15T07:59:59.704Z] [INFO] [request] GET /api/moviebox/filter?channelId=2&country=korea from 12ca17b4
+[2026-02-15T08:00:38.077Z] [INFO] [request] GET /api/moviebox/filter?channelId=2&country=korea from 12ca17b4
+[2026-02-15T08:00:40.405Z] [INFO] [request] GET /api/moviebox/filter?channelId=2&country=korea from 12ca17b4
+[2026-02-15T08:00:53.019Z] [INFO] [request] GET /api/moviebox/filter?channelId=2&country=korea&year=2026 from 12ca17b4
+[2026-02-15T08:00:57.863Z] [INFO] [request] GET /api/moviebox/filter?channelId=2&country=korea&year=2026&page=1 from 12ca17b4
+[2026-02-15T08:01:46.043Z] [INFO] [request] GET /api/moviebox/filter?channelId=2&country=korea&year=2026&page=1&sort=rating from 12ca17b4
+[2026-02-15T08:02:02.580Z] [INFO] [request] GET /api/moviebox/filter?channelId=2&country=korea&year=2026&page=1&sort=for+you from 12ca17b4
+[2026-02-15T08:02:07.477Z] [INFO] [request] GET /api/moviebox/filter?channelId=2&country=korea&year=2026&page=1&sort=for+you from 12ca17b4
+[2026-02-15T08:02:50.663Z] [INFO] [request] GET /api/moviebox/filter?channelId=2&country=Korea&year=2026&page=1&sort=ForYou from 12ca17b4
+[2026-02-15T08:02:57.197Z] [INFO] [request] GET /api/moviebox/filter?channelId=2&country=Korea&year=2026&page=1&sort=ForYou from 12ca17b4
+[2026-02-15T08:03:30.848Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T08:05:40.577Z] [INFO] [request] GET /api/moviebox/home from 12ca17b4
+[2026-02-15T08:06:57.673Z] [INFO] [request] GET /api/moviebox/info?path=to-my-beloved-thief-Ii2h7wF4Cs1 from 12ca17b4
+[2026-02-15T08:24:28.802Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T08:24:35.335Z] [INFO] [request] GET /api/moviebox/info?path=to-my-beloved-thief-Ii2h7wF4Cs1 from 12ca17b4
+[2026-02-15T08:25:58.011Z] [INFO] [request] GET /api/moviebox/play/1422262729481536864/rangeen-kahaniyan-A8ruLVEY3H1 from 12ca17b4
+[2026-02-15T08:50:31.507Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T08:50:37.147Z] [INFO] [request] GET /api/moviebox/play/1422262729481536864/rangeen-kahaniyan-A8ruLVEY3H1 from 12ca17b4
+[2026-02-15T08:50:57.776Z] [INFO] [request] GET /api/moviebox/home from 12ca17b4
+[2026-02-15T08:51:19.524Z] [INFO] [request] GET /api/moviebox/home from 12ca17b4
+[2026-02-15T08:51:36.158Z] [INFO] [request] GET /api/moviebox/info?path=the-art-of-sarah-4szztRqtRE from 12ca17b4
+[2026-02-15T08:52:38.949Z] [INFO] [request] GET /api/moviebox/play/553159140068278384/the-art-of-sarah-4szztRqtRE from 12ca17b4
+[2026-02-15T08:53:16.599Z] [INFO] [request] GET /api/moviebox/play/553159140068278384/the-art-of-sarah-4szztRqtRE from 12ca17b4
+[2026-02-15T09:01:42.090Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T09:02:24.794Z] [INFO] [request] GET /api/moviebox/play/553159140068278384/the-art-of-sarah-4szztRqtRE from 12ca17b4
+[2026-02-15T09:02:51.576Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T09:02:53.991Z] [INFO] [request] GET /api/moviebox/play/553159140068278384/the-art-of-sarah-4szztRqtRE from 12ca17b4
+[2026-02-15T09:03:06.482Z] [INFO] [request] GET /api/moviebox/play/553159140068278384/the-art-of-sarah-4szztRqtRE?season=1&episode=1 from 12ca17b4
+[2026-02-15T09:04:23.266Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T09:04:28.681Z] [INFO] [request] GET /api/moviebox/play/553159140068278384/the-art-of-sarah-4szztRqtRE?season=1&episode=1 from 12ca17b4
+[2026-02-15T09:04:48.280Z] [INFO] [request] GET /api/moviebox/play/553159140068278384/the-art-of-sarah-4szztRqtRE?season=&episode= from 12ca17b4
+[2026-02-15T09:05:00.676Z] [INFO] [request] GET /api/moviebox/play/553159140068278384/the-art-of-sarah-4szztRqtRE from 12ca17b4
+[2026-02-15T09:05:19.000Z] [INFO] [request] GET /api/moviebox/play/553159140068278384/the-art-of-sarah-4szztRqtRE?season=1&episode=1 from 12ca17b4
+[2026-02-15T09:07:26.220Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T09:07:29.803Z] [INFO] [request] GET /api/moviebox/play/553159140068278384/the-art-of-sarah-4szztRqtRE?season=1&episode=1 from 12ca17b4
+[2026-02-15T09:10:12.474Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T09:10:27.650Z] [INFO] [request] GET /api/moviebox/play/553159140068278384/the-art-of-sarah-4szztRqtRE?season=1&episode=1 from 12ca17b4
+[2026-02-15T09:14:37.873Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T09:14:40.120Z] [INFO] [request] GET /api/moviebox/play/553159140068278384/the-art-of-sarah-4szztRqtRE?season=1&episode=1 from 12ca17b4
+[2026-02-15T09:14:45.500Z] [INFO] [request] GET /api/moviebox/play/553159140068278384/the-art-of-sarah-4szztRqtRE?season=1&episode=1 from 12ca17b4
+[2026-02-15T09:14:59.489Z] [INFO] [request] GET /.well-known/appspecific/com.chrome.devtools.json from 12ca17b4
+[2026-02-15T09:18:24.017Z] [INFO] [request] GET /api/moviebox/play/553159140068278384/the-art-of-sarah-4szztRqtRE from 12ca17b4
+[2026-02-15T09:23:10.873Z] [INFO] [request] GET /api/moviebox/play/553159140068278384/the-art-of-sarah-4szztRqtRE?season=1&episode=1 from 12ca17b4
+[2026-02-15T09:23:37.687Z] [INFO] [request] GET /api/moviebox/home from 12ca17b4
+[2026-02-15T09:24:15.174Z] [INFO] [request] GET /api/moviebox/info?path=tyler-perrys-joes-college-road-trip-gM6atH1y6T7 from 12ca17b4
+[2026-02-15T09:25:17.082Z] [INFO] [request] GET /api/moviebox/play/6621065193277867816/tyler-perrys-joes-college-road-trip-gM6atH1y6T7 from 12ca17b4
+[2026-02-15T09:25:38.428Z] [INFO] [request] GET /api/moviebox/play/6621065193277867816/tyler-perrys-joes-college-road-trip-gM6atH1y6T7 from 12ca17b4
+[2026-02-15T09:28:00.804Z] [INFO] [request] GET /api/moviebox/info?path=tyler-perrys-joes-college-road-trip-gM6atH1y6T7 from 12ca17b4
+[2026-02-15T09:46:15.071Z] [INFO] [request] GET /api/streams/movie/1317672 from 12ca17b4
+[2026-02-15T09:46:16.213Z] [INFO] [api] fetching streams for tmdbId=1317672 (Smart Wait: 15s)
+[2026-02-15T09:46:24.801Z] [INFO] [api] all providers completed within deadline for 1317672
+[2026-02-15T09:49:55.323Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T09:49:57.926Z] [INFO] [request] GET /api/streams/movie/1317672 from 12ca17b4
+[2026-02-15T09:49:58.925Z] [INFO] [api] fetching streams for tmdbId=1317672 (Smart Wait: 15s)
+[2026-02-15T09:50:06.011Z] [INFO] [api] all providers completed within deadline for 1317672
+[2026-02-15T09:52:25.993Z] [INFO] [request] GET /api/streams/movie/1317672 from 12ca17b4
+[2026-02-15T09:52:25.994Z] [INFO] [api] returning 5 streams from cache for 1317672
+[2026-02-15T09:52:36.984Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T09:52:46.716Z] [INFO] [request] GET /favicon.ico from 12ca17b4
+[2026-02-15T09:52:56.864Z] [INFO] [request] GET /api/streams/movie/1317672 from 12ca17b4
+[2026-02-15T09:52:58.072Z] [INFO] [api] fetching streams for tmdbId=1317672 (Smart Wait: 15s)
+[2026-02-15T09:53:06.526Z] [INFO] [api] all providers completed within deadline for 1317672
+[2026-02-15T09:55:54.390Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T09:55:59.943Z] [INFO] [request] GET /api/streams/movie/1317672 from 12ca17b4
+[2026-02-15T09:56:01.138Z] [INFO] [api] fetching streams for tmdbId=1317672 (Smart Wait: 15s)
+[2026-02-15T09:56:09.424Z] [INFO] [api] all providers completed within deadline for 1317672
+[2026-02-15T09:57:06.016Z] [INFO] [request] GET /api/streams/movie/1317672 from 12ca17b4
+[2026-02-15T09:57:06.501Z] [INFO] [api] returning 4 streams from cache for 1317672
+[2026-02-15T10:20:15.952Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T10:20:23.300Z] [INFO] [request] GET /api/streams/movie/1317672 from 12ca17b4
+[2026-02-15T10:20:23.303Z] [WARN] [api] Failed to pre-fetch TMDB details for 1317672: getDetails is not defined
+[2026-02-15T10:20:24.502Z] [INFO] [api] fetching streams for tmdbId=1317672 (Smart Wait: 15s)
+[2026-02-15T10:20:34.394Z] [INFO] [api] all providers completed within deadline for 1317672
+[2026-02-15T10:21:51.725Z] [INFO] [request] GET /api/streams/movie/1317672 from 12ca17b4
+[2026-02-15T10:21:51.725Z] [WARN] [api] Failed to pre-fetch TMDB details for 1317672: getDetails is not defined
+[2026-02-15T10:21:52.877Z] [INFO] [api] returning 4 streams from cache for 1317672
+[2026-02-15T10:42:06.018Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T10:42:17.385Z] [INFO] [request] GET /api/streams/movie/1317672 from 12ca17b4
+[2026-02-15T10:42:17.388Z] [WARN] [api] Failed to pre-fetch TMDB details for 1317672: getDetails is not defined
+[2026-02-15T10:42:18.238Z] [INFO] [api] fetching streams for tmdbId=1317672 (Smart Wait: 15s)
+[2026-02-15T10:42:26.140Z] [INFO] [api] all providers completed within deadline for 1317672
+[2026-02-15T10:42:53.237Z] [INFO] [request] GET /api/streams/movie/1317672 from 12ca17b4
+[2026-02-15T10:42:53.239Z] [WARN] [api] Failed to pre-fetch TMDB details for 1317672: getDetails is not defined
+[2026-02-15T10:42:53.239Z] [INFO] [api] returning 8 streams from cache for 1317672
+[2026-02-15T10:44:32.589Z] [INFO] [request] GET /api/api/moviebox/discover from 12ca17b4
+[2026-02-15T10:45:37.651Z] [INFO] [request] GET /api/api/moviebox/search?keyword=Sarah from 12ca17b4
+[2026-02-15T10:45:47.767Z] [INFO] [request] GET /api/api/moviebox/shorts from 12ca17b4
+[2026-02-15T10:46:16.269Z] [INFO] [request] GET /api/api/moviebox/discover from 12ca17b4
+[2026-02-15T10:47:31.770Z] [INFO] [request] GET /api/api/moviebox/info?path=love-me-love-me-02hM1Yh7M44 from 12ca17b4
+[2026-02-15T10:47:39.691Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T10:47:41.934Z] [INFO] [request] GET /api/api/moviebox/info?path=love-me-love-me-02hM1Yh7M44 from 12ca17b4
+[2026-02-15T10:50:00.738Z] [INFO] [request] GET /api/streams/movue/1317672 from 12ca17b4
+[2026-02-15T10:50:07.200Z] [INFO] [request] GET /api/streams/movie/1317672 from 12ca17b4
+[2026-02-15T10:50:08.364Z] [WARN] [api] Failed to pre-fetch TMDB details for 1317672: request to https://api.themoviedb.org/3/movie/1317672?api_key=***KEY***
+[2026-02-15T10:50:09.386Z] [INFO] [api] fetching streams for tmdbId=1317672 (Smart Wait: 15s)
+[2026-02-15T10:50:16.901Z] [INFO] [api] all providers completed within deadline for 1317672
+[2026-02-15T10:54:54.497Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T10:57:11.339Z] [INFO] [request] GET /api/streams/movie/1317672 from 12ca17b4
+[2026-02-15T10:57:12.156Z] [INFO] [api] fetching streams for tmdbId=1317672 (Smart Wait: 15s)
+[2026-02-15T10:57:19.542Z] [INFO] [api] all providers completed within deadline for 1317672
+[2026-02-15T10:59:14.050Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-02-15T10:59:30.217Z] [INFO] [request] GET /api/streams/movie/1317672 from 12ca17b4
+[2026-02-15T10:59:31.433Z] [WARN] [api] Failed to pre-fetch TMDB details for 1317672: request to https://api.themoviedb.org/3/movie/1317672?api_key=***KEY***
+[2026-02-15T10:59:32.476Z] [INFO] [api] fetching streams for tmdbId=1317672 (Smart Wait: 15s)
+[2026-02-15T10:59:39.703Z] [INFO] [api] all providers completed within deadline for 1317672
+[2026-02-15T11:00:11.624Z] [INFO] [request] GET /api/moviebox/home from 12ca17b4
+[2026-02-15T11:00:58.460Z] [INFO] [request] GET /api/moviebox/bollywood from 12ca17b4
+[2026-02-15T11:03:02.081Z] [INFO] [request] GET /api/moviebox/shorts from 12ca17b4
+[2026-02-15T11:03:19.445Z] [INFO] [request] GET /api/moviebox/info from 12ca17b4
+[2026-02-15T11:03:28.088Z] [INFO] [request] GET /api/moviebox/info?path=dhadkan-QySjO4wkvm1 from 12ca17b4
+[2026-02-15T11:04:26.192Z] [INFO] [request] GET /api/moviebox/play/1143956067467019088/dhadkan-QySjO4wkvm1 from 12ca17b4

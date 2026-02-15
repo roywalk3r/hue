@@ -542,7 +542,7 @@ function createProxyRoutes(app) {
         
         // Normalize headers to avoid duplicates and strip problematic ones
         const mergedHeaders = {};
-        const skipHeaders = ['host', 'connection', 'content-length', 'content-type', 'accept-encoding', 'cookie', 'if-none-match', 'if-modified-since', 'range'];
+        const skipHeaders = ['host', 'connection', 'content-length', 'content-type', 'accept-encoding', 'if-none-match', 'if-modified-since', 'range'];
         
         Object.keys(headers).forEach(k => {
             if (!skipHeaders.includes(k.toLowerCase())) {
@@ -570,23 +570,13 @@ function createProxyRoutes(app) {
             const response = await fetchWithRetry(targetUrl, { headers: mergedHeaders, redirect: 'manual' });
             const duration = Date.now() - t0;
             
-            if (duration > 5000 && debug) {
-                console.warn(`[m3u8-proxy] Slow upstream response (${duration}ms): ${targetUrl}`);
-            }
-
-            // Handle redirects manually to prevent redirection to localhost
-            if (response.status >= 300 && response.status < 400) {
-                const location = response.headers.get('location');
-                if (location) {
-                    if (location.includes('localhost') || location.includes('127.0.0.1')) {
-                        console.error(`[m3u8-proxy] Blocked redirect to localhost: ${location} from ${targetUrl}`);
-                        return res.status(403).json({ error: 'Blocked redirect to internal network', origin: targetUrl });
-                    }
-                    if (debug) console.log('[m3u8-proxy] Manual redirect required to:', location);
+            if (!response.ok && response.status !== 206) {
+                console.error(`[m3u8-proxy] Upstream returned ${response.status} for ${targetUrl}`);
+                if (response.status === 403) {
+                    console.error('[m3u8-proxy] 403 Headers:', JSON.stringify(Object.fromEntries(response.headers.entries())));
                 }
+                return res.status(response.status).json({ error: `M3U8 fetch failed: ${response.status}`, target: targetUrl });
             }
-
-            if (!response.ok && response.status !== 206) return res.status(response.status).json({ error: `M3U8 fetch failed: ${response.status}`, target: targetUrl });
             
             const contentType = response.headers.get('content-type') || '';
             let isHls = contentType.includes('mpegURL') || contentType.includes('x-mpegURL') || targetUrl.includes('.m3u8');
@@ -676,7 +666,7 @@ function createProxyRoutes(app) {
         }
 
         // Normalize headers to avoid duplicates and strip problematic ones
-        const skipHeaders = ['host', 'connection', 'content-length', 'content-type', 'accept-encoding', 'cookie', 'if-none-match', 'if-modified-since', 'range'];
+        const skipHeaders = ['host', 'connection', 'content-length', 'content-type', 'accept-encoding', 'if-none-match', 'if-modified-since', 'range'];
         Object.keys(headers).forEach(k => {
             if (skipHeaders.includes(k.toLowerCase())) {
                 delete headers[k];
@@ -895,6 +885,10 @@ function createProxyRoutes(app) {
                         if (retry.ok || retry.status === 206) {
                             resp = retry;
                         } else {
+                            if (retry.status === 403) {
+                                console.error(`[ts-proxy] 403 Forbidden from ${targetUrl}`);
+                                console.error('[ts-proxy] 403 Headers:', JSON.stringify(Object.fromEntries(retry.headers.entries())));
+                            }
                             return res.status(retry.status).json({ error: `TS fetch failed: ${retry.status}` });
                         }
                     } catch (retryErr) {
@@ -902,6 +896,10 @@ function createProxyRoutes(app) {
                         return res.status(resp.status).json({ error: `TS fetch failed: ${resp.status}` });
                     }
                 } else {
+                    if (resp.status === 403) {
+                        console.error(`[ts-proxy] 403 Forbidden from ${targetUrl}`);
+                        console.error('[ts-proxy] 403 Headers:', JSON.stringify(Object.fromEntries(resp.headers.entries())));
+                    }
                     return res.status(resp.status).json({ error: `TS fetch failed: ${resp.status}` });
                 }
             }
@@ -999,6 +997,13 @@ function processStreamsForProxy(streams, serverUrl) {
         
         const original = extractOriginalUrl(s.url);
         
+        let host = '';
+        try {
+            host = new URL(original).hostname.toLowerCase();
+        } catch {}
+        const isVixsrc = host.includes('vixsrc.to');
+        const isMovieBoxCDN = host.includes('hakunaymatata.com');
+
         // Ensure we use the headers provided in the object, or fallback to those in the URL if it was already proxied
         let headers = s.headers || {};
         if (Object.keys(headers).length === 0 && s.url.includes('headers=')) {
@@ -1009,36 +1014,40 @@ function processStreamsForProxy(streams, serverUrl) {
             } catch {}
         }
 
-        const hParam = Object.keys(headers).length ? `&headers=${encodeURIComponent(JSON.stringify(headers))}` : '';
+        const token = encodeURIComponent(encryptUrl(original, null, headers));
         const modeParam = s.proxyMode === 'url' ? '&mode=url' : '';
-        let host = '';
-        try {
-            host = new URL(original).hostname.toLowerCase();
-        } catch {
-            // Ignore errors
+        const hParam = Object.keys(headers).length ? `&headers=${encodeURIComponent(JSON.stringify(headers))}` : '';
+
+        // Pre-proxy subtitles if they exist
+        let proxiedSubtitles = s.subtitles;
+        if (Array.isArray(s.subtitles)) {
+            proxiedSubtitles = s.subtitles.map(sub => {
+                if (!sub.url || typeof sub.url !== 'string') return sub;
+                const subToken = encodeURIComponent(encryptUrl(sub.url, null, headers));
+                return { ...sub, url: `${serverUrl}/sub-proxy?h_token=${subToken}` };
+            });
         }
-        const isVixsrc = host.includes('vixsrc.to');
-        // Force specific hosts through ts-proxy (direct file style) even without extension
-        if (host.includes('pixeldrain.') || host === 'video-downloads.googleusercontent.com') {
-            const token = encodeURIComponent(encryptUrl(original, null, headers));
-            return { ...s, url: `${serverUrl}/ts-proxy?h_token=${token}` };
-        }
-        if (/\.(mp4|mkv)(\?|$)/i.test(original)) {
-            const token = encodeURIComponent(encryptUrl(original, null, headers));
-            return { ...s, url: `${serverUrl}/ts-proxy?h_token=${token}` };
-        }
-        if (s.proxyMode === 'url') {
+
+        let proxiedUrl;
+        if (host.includes('pixeldrain.') || host === 'video-downloads.googleusercontent.com' || isMovieBoxCDN) {
+            const synthParams = isMovieBoxCDN ? '&noSynth=1' : '';
+            proxiedUrl = `${serverUrl}/ts-proxy?h_token=${token}${synthParams}`;
+        } else if (/\.(mp4|mkv)(\?|$)/i.test(original)) {
+            proxiedUrl = `${serverUrl}/ts-proxy?h_token=${token}`;
+        } else if (s.proxyMode === 'url') {
             const forceTsProxy = s.format === 'mp4' || s.format === 'video';
             if (forceTsProxy || /\.(mp4|mkv)(\?|$)/i.test(original)) {
-                return { ...s, url: `${serverUrl}/ts-proxy?url=${encodeURIComponent(original)}${hParam}${modeParam}` };
+                proxiedUrl = `${serverUrl}/ts-proxy?url=${encodeURIComponent(original)}${hParam}${modeParam}`;
+            } else {
+                proxiedUrl = `${serverUrl}/m3u8-proxy?url=${encodeURIComponent(original)}${hParam}${modeParam}`;
             }
-            return { ...s, url: `${serverUrl}/m3u8-proxy?url=${encodeURIComponent(original)}${hParam}${modeParam}` };
+        } else if (isVixsrc) {
+            proxiedUrl = `${serverUrl}/m3u8-proxy?url=${encodeURIComponent(original)}${hParam}`;
+        } else {
+            proxiedUrl = `${serverUrl}/m3u8-proxy?h_token=${token}`;
         }
-        if (isVixsrc) {
-            return { ...s, url: `${serverUrl}/m3u8-proxy?url=${encodeURIComponent(original)}${hParam}` };
-        }
-        const token = encodeURIComponent(encryptUrl(original, null, headers));
-        return { ...s, url: `${serverUrl}/m3u8-proxy?h_token=${token}` };
+
+        return { ...s, url: proxiedUrl, subtitles: proxiedSubtitles };
     });
 }
 

@@ -54,7 +54,7 @@ const { listProviders, getProvider, getCookieStats } = require('./providers/regi
 const { createProxyRoutes, processStreamsForProxy } = require('./proxy/proxyServer');
 const { getAnimeStream, getServers: getAnimeServers } = require('./services/hianime');
 const { getHianimeApp } = require('./services/hianimeApp');
-const { resolveImdbId } = require('./utils/tmdb');
+const { getDetails, resolveImdbId } = require('./utils/tmdb');
 const { applyFilters } = require('./utils/streamFilters');
 const { getCachedStreams, setCachedStreams, addCachedStreams, clearCache } = require('./utils/cache');
 const TTLCache = require('ttl-cache');
@@ -87,13 +87,44 @@ app.get('/api/docs', (req, res) => {
         <title>Hue Stream API Documentation</title>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <style>body { margin: 0; }</style>
+        <style>
+          body { 
+            margin: 0; 
+            background: #101114;
+          }
+          /* Ensure the container is scrollable and takes full height */
+          html, body {
+            height: 100%;
+            overflow: auto !important;
+          }
+          /* Fix for scrollable results in Scalar */
+          .scalar-app, .scalar-api-reference {
+            height: auto !important;
+            min-height: 100vh !important;
+          }
+          /* Target response area for scrollability */
+          [class*="Response"], [class*="results"], .custom-scroll {
+            overflow: auto !important;
+            max-height: 800px !important;
+          }
+          /* Ensure code is selectable for copy */
+          pre, code {
+            user-select: all !important;
+            -webkit-user-select: all !important;
+          }
+        </style>
       </head>
       <body>
         <script
           id="api-reference"
           data-url="/api/docs/swagger.json"
-          data-configuration='{"theme": "elysiajs"}'></script>
+          data-configuration='{
+            "theme": "elysiajs",
+            "layout": "modern",
+            "showSidebar": true,
+            "hideDownloadButton": false,
+            "dark": true
+          }'></script>
         <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
       </body>
     </html>
@@ -668,16 +699,26 @@ app.get('/api/streams/anime/:id', async (req, res) => {
 // Aggregate streams across all enabled providers
 app.get('/api/streams/:type/:tmdbId', async (req,res) => {
   const { type, tmdbId } = req.params;
+  const noCache = req.query.nocache === '1';
   if (!['movie','series'].includes(type)) return res.status(400).json({ success:false, error:'INVALID_TYPE' });
   const season = req.query.season ? Number(req.query.season) : null;
   const episode = req.query.episode ? Number(req.query.episode) : null;
   try {
     metrics.streamRequests++;
     const tmdbType = type === 'movie' ? 'movie' : 'tv';
+    
+    // Pre-fetch TMDB data to share with providers (like MovieBox)
+    let tmdbData = null;
+    try {
+        tmdbData = await getDetails(tmdbType, tmdbId);
+    } catch (e) {
+        logger.warn(`[api] Failed to pre-fetch TMDB details for ${tmdbId}:`, e.message);
+    }
+
     const imdbId = await resolveImdbId(tmdbType, tmdbId); if (imdbId) metrics.tmdbToImdbLookups++;
     
     // Check global cache first
-    const cachedStreams = getCachedStreams(type, tmdbId, season, episode);
+    const cachedStreams = noCache ? null : getCachedStreams(type, tmdbId, season, episode);
     if (cachedStreams && cachedStreams.length > 0) {
         logger.info(`[api] returning ${cachedStreams.length} streams from cache for ${tmdbId}`);
         let streams = applyFilters(cachedStreams, 'aggregate', config.minQualities, config.excludeCodecs);
@@ -710,7 +751,7 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
         const t0 = Date.now();
         // Add a safety timeout per provider
         const r = await Promise.race([
-            prov.fetch({ tmdbId, type, season, episode, imdbId, filters:{ } }),
+            prov.fetch({ tmdbId, type, season, episode, imdbId, tmdbData, filters:{ } }),
             new Promise((_, reject) => setTimeout(() => reject(new Error('Provider timeout')), isFast ? 15000 : 60000))
         ]);
         providerTimings[name] = Date.now()-t0;
@@ -870,6 +911,171 @@ app.get('/api/aisports/flow/:id', async (req, res) => {
         const { pageSize, lastSort } = req.query;
         const data = await aisportsApi.getMatchFlow(req.params.id, pageSize, lastSort);
         res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// MovieBox Routes
+const movieboxApi = require('./utils/moviebox-api');
+
+app.get('/api/moviebox/home', async (req, res) => {
+    try {
+        const data = await movieboxApi.getHome();
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/discover', async (req, res) => {
+    try {
+        const data = await movieboxApi.getDiscover();
+        res.json({ success: true, sections: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/bollywood', async (req, res) => {
+    try {
+        const { type, page } = req.query;
+        const data = await movieboxApi.getIndianContent(type || 'movie', parseInt(page) || 1);
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/shorts', async (req, res) => {
+    try {
+        const { page } = req.query;
+        const data = await movieboxApi.getShorts(parseInt(page) || 1);
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/filter', async (req, res) => {
+    try {
+        const { page, perPage, channelId, genre, country, year, sort } = req.query;
+        const data = await movieboxApi.filter({
+            page: parseInt(page) || 1,
+            perPage: parseInt(perPage) || 28,
+            channelId: parseInt(channelId) || 2,
+            genre, country, year, sort
+        });
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/info', async (req, res) => {
+    try {
+        const path = req.query.path;
+        if (!path) return res.status(400).json({ success: false, error: 'path query required' });
+        const data = await movieboxApi.getDetail(path);
+        res.json({ success: true, data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/search', async (req, res) => {
+    try {
+        const { keyword, page, type } = req.query;
+        if (!keyword) return res.status(400).json({ success: false, error: 'keyword query required' });
+        const data = await movieboxApi.search(keyword, parseInt(page) || 1, parseInt(type) || 0);
+        res.json({ success: true, ...data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/play/:id/:path', async (req, res) => {
+    const { id, path } = req.params;
+    let season = req.query.season !== undefined ? parseInt(req.query.season) : null;
+    let episode = req.query.episode !== undefined ? parseInt(req.query.episode) : null;
+    
+    try {
+        // If season or episode missing, fetch detail to determine type
+        if (season === null || episode === null) {
+            console.log(`[api] MovieBox play: Missing season/episode for ${path}, fetching details...`);
+            const detail = await movieboxApi.getDetail(path);
+            if (detail && detail.subject) {
+                if (detail.subject.subjectType === 1) { // Movie
+                    season = 0;
+                    episode = 0;
+                } else { // Series
+                    season = season !== null ? season : 1;
+                    episode = episode !== null ? episode : 1;
+                }
+            } else {
+                season = season !== null ? season : 1;
+                episode = episode !== null ? episode : 1;
+            }
+        }
+
+        console.log(`[api] MovieBox play: id=${id} path=${path} se=${season} ep=${episode}`);
+        const data = await movieboxApi.getStreams(id, path, season, episode);
+        if (!data) return res.status(404).json({ success: false, error: 'Streams not found' });
+
+        const streams = [];
+        const typePath = (season === 0 && episode === 0) ? 'movies' : 'series';
+        const streamReferer = `https://123movienow.cc/spa/videoPlayPage/${typePath}/${path}?id=${id}&type=/${typePath.slice(0, -1)}/detail&detailSe=&detailEp=&lang=en`;
+        const mbHeaders = movieboxApi.getStreamHeaders(streamReferer);
+
+        if (data.streams && Array.isArray(data.streams)) {
+            // Fetch captions for the first stream (common for this API)
+            const captions = data.streams.length > 0 ? 
+                await movieboxApi.getCaptions(id, path, data.streams[0].id) : [];
+            
+            const subtitles = captions.map(c => ({
+                url: c.url,
+                lang: c.lan || 'en',
+                label: c.lanName || 'English'
+            }));
+
+            data.streams.forEach(s => {
+                streams.push({
+                    title: `MovieBox - ${s.resolutions}p (MP4)`,
+                    url: s.url,
+                    quality: `${s.resolutions}p`,
+                    format: 'mp4',
+                    provider: 'MovieBox',
+                    subtitles: subtitles.length > 0 ? subtitles : undefined,
+                    headers: mbHeaders
+                });
+            });
+        }
+
+        if (data.hls && Array.isArray(data.hls)) {
+            data.hls.forEach(s => {
+                streams.push({
+                    title: `MovieBox - Auto (HLS)`,
+                    url: s.url,
+                    quality: 'Auto',
+                    format: 'hls',
+                    provider: 'MovieBox',
+                    headers: mbHeaders
+                });
+            });
+        }
+
+        let finalStreams = streams;
+        if (config.enableProxy) {
+            const serverUrl = resolveServerUrl(req);
+            finalStreams = processStreamsForProxy(finalStreams, serverUrl);
+        }
+
+        res.json({
+            success: true,
+            id,
+            path,
+            streams: finalStreams
+        });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
@@ -1615,16 +1821,22 @@ module.exports = app;
 // For local development: start server if not in Vercel environment
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   const { refreshSflixCookie } = require('./utils/refreshSflixCookie');
+  const { refreshMovieboxCookie } = require('./utils/refreshMovieboxCookie');
 
-  // Schedule SFlix Cookie Refresh (every 24h)
+  // Schedule Cookie Refresh (every 24h)
   setInterval(() => {
-      refreshSflixCookie().catch(err => console.error('[Cron] Cookie refresh failed:', err));
+      refreshSflixCookie().catch(err => console.error('[Cron] SFlix Cookie refresh failed:', err));
+      refreshMovieboxCookie().catch(err => console.error('[Cron] MovieBox Cookie refresh failed:', err));
   }, 24 * 60 * 60 * 1000);
 
-  // Initial refresh on start (delay 30s to let server settle)
+  // Initial refresh on start (delay to let server settle)
   setTimeout(() => {
-      refreshSflixCookie().catch(err => console.error('[Startup] Cookie refresh failed:', err));
+      refreshSflixCookie().catch(err => console.error('[Startup] SFlix Cookie refresh failed:', err));
   }, 30000);
+
+  setTimeout(() => {
+      refreshMovieboxCookie().catch(err => console.error('[Startup] MovieBox Cookie refresh failed:', err));
+  }, 45000);
 
   const PORT = config.port;
   const HOST = process.env.BIND_HOST || '0.0.0.0';

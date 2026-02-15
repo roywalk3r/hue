@@ -23,7 +23,8 @@ const PROVIDER_RENAME_MAP = {
   'aisports': 'Field',
   'livetv': 'Arena',
   'ppv': 'Event',
-  'vidsrccc-playwright': 'Vertex'
+  'vidsrccc-playwright': 'Vertex',
+  'moviebox': 'Cinema'
 };
 
 // Keywords to sanitize from titles/names (maps to public names)
@@ -41,7 +42,8 @@ const SANITIZE_KEYWORDS = {
   'livesport': 'Stadium',
   'aisports': 'Field',
   'livetv': 'Arena',
-  'ppv': 'Event'
+  'ppv': 'Event',
+  'moviebox': 'Cinema'
 };
 
 function getPublicName(realName) {
@@ -87,6 +89,7 @@ const providerFunctionMap = {
   'vidsrc-icu.js': 'getStreams',
   'dramacool.js': 'getStreams',
   'vidsrc-embed.js': 'getStreams',
+  'moviebox.js': 'getStreams',
   'ppv.js': 'getPPVStreams',
 };
 
@@ -192,6 +195,9 @@ function createFetchFunction(providerInfo) {
         } else if (providerInfo.name === 'livesport' || providerInfo.name === 'aisports' || providerInfo.name === 'livetv' || providerInfo.name === 'ppv') {
           // Livesport/AiSports/LiveTV/PPV needs the request object to extract the match name
           result = await module[funcName]({ ...ctx, req: ctx.req });
+        } else if (providerInfo.name === 'moviebox') {
+          // Moviebox can use pre-fetched tmdbData to avoid failing requests
+          result = await module[funcName](ctx.tmdbId, mediaType, ctx.season || null, ctx.episode || null, ctx.tmdbData);
         } else {
           result = await module[funcName](ctx.tmdbId, mediaType, ctx.season || null, ctx.episode || null);
         }
