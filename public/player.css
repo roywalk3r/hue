@@ -277,6 +277,54 @@ video {
   flex-shrink: 0;
 }
 
+.stream-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.download-btn {
+  background: rgba(49, 215, 169, 0.15);
+  border: 1px solid rgba(49, 215, 169, 0.4);
+  color: var(--accent-2);
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 1rem;
+}
+
+.download-btn:hover {
+  background: var(--accent-2);
+  color: var(--bg);
+  transform: scale(1.1);
+}
+
+.pill-btn {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(49, 215, 169, 0.15);
+  border: 1px solid rgba(49, 215, 169, 0.4);
+  color: var(--accent-2);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pill-btn:hover {
+  background: var(--accent-2);
+  color: var(--bg);
+  box-shadow: 0 0 15px rgba(49, 215, 169, 0.4);
+}
+
 .stream-card:hover .play-icon {
   opacity: 1;
   transform: scale(1.15);

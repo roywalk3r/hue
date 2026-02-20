@@ -396,6 +396,7 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers, options = {}) {
     const urlMode = options.urlMode === true;
     const useUrlMode = vixsrcMode || urlMode;
     const headerPart = useUrlMode ? buildHeaderQuery(headers) : '';
+    const modePart = useUrlMode ? '&mode=url' : '';
     
     for (const line of lines) {
         if (line.startsWith('#')) {
@@ -419,7 +420,7 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers, options = {}) {
                     try {
                         const mediaUrl = new URL(uriMatch[1], targetUrl).href;
                         const proxyUrl = useUrlMode
-                            ? `${baseProxyUrl}/m3u8-proxy?url=${encodeURIComponent(mediaUrl)}${headerPart}`
+                            ? `${baseProxyUrl}/m3u8-proxy?url=${encodeURIComponent(mediaUrl)}${headerPart}${modePart}`
                             : `${baseProxyUrl}/m3u8-proxy?h_token=${encodeURIComponent(encryptUrl(mediaUrl, null, headers))}`;
                         out.push(line.replace(uriMatch[1], proxyUrl));
                     } catch { out.push(line); }
@@ -474,18 +475,20 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers, options = {}) {
                     }
                 }
 
-                if (/\.(ts|mp4|png|jpg|jpeg|bmp)(\?|$)/i.test(abs)) {
+                const isMp3WrappedTs = /\.mp3(\?|$)/i.test(abs);
+                if (/\.(ts|mp4|png|jpg|jpeg|bmp)(\?|$)/i.test(abs) || isMp3WrappedTs) {
                     segmentUrls.push(abs);
+                    const forceTypeParam = isMp3WrappedTs ? '&forceType=video%2Fmp2t' : '';
                     // Removed force200=1 for segments to allow Range requests if needed
                     out.push(
                         useUrlMode
-                            ? `${baseProxyUrl}/ts-proxy?url=${encodeURIComponent(abs)}${headerPart}&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0`
-                            : `${baseProxyUrl}/ts-proxy?h_token=${encodeURIComponent(encryptUrl(abs, null, headers))}`
+                            ? `${baseProxyUrl}/ts-proxy?url=${encodeURIComponent(abs)}${headerPart}&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0${forceTypeParam}`
+                            : `${baseProxyUrl}/ts-proxy?h_token=${encodeURIComponent(encryptUrl(abs, null, headers))}${forceTypeParam}`
                     );
                 } else {
                     // Default: proxy any HTTP/S child URL through m3u8-proxy so nested playlists (even without .m3u8 extension) get rewritten.
                     const proxyUrl = useUrlMode
-                        ? `${baseProxyUrl}/m3u8-proxy?url=${encodeURIComponent(abs)}${headerPart}`
+                        ? `${baseProxyUrl}/m3u8-proxy?url=${encodeURIComponent(abs)}${headerPart}${modePart}`
                         : `${baseProxyUrl}/m3u8-proxy?h_token=${encodeURIComponent(encryptUrl(abs, null, headers))}`;
                     out.push(nextLineIsStreamUrl ? proxyUrl : proxyUrl);
                     nextLineIsStreamUrl = false;
@@ -641,6 +644,10 @@ function createProxyRoutes(app) {
         const debug = req.query.debug === '1';
         const noSynth = req.query.noSynth === '1';
         const force200 = req.query.force200 === '1';
+        const isDownload = req.query.download === '1';
+        const forceType = typeof req.query.forceType === 'string' && /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(req.query.forceType)
+            ? req.query.forceType
+            : null;
         const clampOpen = req.query.clampOpen === '1'; // default off to avoid upstream rejections
         const progressiveOpen = req.query.progressiveOpen === '1';
         const tailPrefetchEnabled = req.query.tailPrefetch !== '0';
@@ -730,7 +737,7 @@ function createProxyRoutes(app) {
         if (!isCacheDisabled()) {
             const cached = getCachedSegment(targetUrl);
             if (cached) {
-                const ct = inferContentType(cached.headers['content-type'], targetUrl);
+                const ct = forceType || inferContentType(cached.headers['content-type'], targetUrl);
                 res.setHeader('Content-Type', ct);
                 res.setHeader('Cache-Control', 'public, max-age=3600');
                 res.setHeader('Access-Control-Allow-Origin', '*');
@@ -752,7 +759,7 @@ function createProxyRoutes(app) {
                             const slice = tailEntry.data.subarray(offset);
                             const endByte = tailEntry.end;
                             res.status(206);
-                            const ct = inferContentType(null, targetUrl);
+                            const ct = forceType || inferContentType(null, targetUrl);
                             res.setHeader('Content-Type', ct);
                             res.setHeader('Accept-Ranges', 'bytes');
                             res.setHeader('Content-Length', slice.length.toString());
@@ -910,7 +917,7 @@ function createProxyRoutes(app) {
                 if (debug) console.log('[ts-proxy] normalizing 206 -> 200 due to force200');
             }
             // Copy key streaming headers
-            const upstreamCT = inferContentType(resp.headers.get('content-type'), targetUrl);
+            const upstreamCT = forceType || inferContentType(resp.headers.get('content-type'), targetUrl);
             res.setHeader('Content-Type', upstreamCT);
             let cl = resp.headers.get('content-length');
             const crHeader = resp.headers.get('content-range');
@@ -926,6 +933,12 @@ function createProxyRoutes(app) {
             const acceptRanges = resp.headers.get('accept-ranges');
             if (acceptRanges) res.setHeader('Accept-Ranges', acceptRanges); else res.setHeader('Accept-Ranges', 'bytes');
             const contentRange = resp.headers.get('content-range'); if (contentRange && !force200) res.setHeader('Content-Range', contentRange);
+            
+            if (isDownload) {
+                const filename = req.query.filename || 'video.mp4';
+                res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            }
+
             res.setHeader('Cache-Control', 'public, max-age=3600');
             res.setHeader('Access-Control-Allow-Origin', '*');
             if (debug) console.log('[ts-proxy] streaming body', { status: resp.status, ct: upstreamCT, cl, contentRange: force200 ? undefined : contentRange });
@@ -981,16 +994,13 @@ function processStreamsForProxy(streams, serverUrl) {
         if (s.skipProxy === true) {
             return s;
         }
-        
-        // Check if already proxied by US to avoid double wrapping
-        // We check for the presence of the proxy path segments anywhere in the URL
-        if (s.url.includes('/m3u8-proxy') || s.url.includes('/ts-proxy')) {
-            return s;
-        }
-        
+
+        // Only skip if it's already proxied by this same server.
+        // If it is proxied by a different host, unwrap and re-proxy locally.
         try {
-            const u = new URL(s.url);
-            if (u.host === serverHost && (u.pathname === '/m3u8-proxy' || u.pathname === '/ts-proxy')) {
+            const u = new URL(s.url, serverUrl);
+            const isProxyPath = u.pathname.includes('/m3u8-proxy') || u.pathname.includes('/ts-proxy');
+            if (isProxyPath && u.host === serverHost) {
                 return s;
             }
         } catch {}
@@ -1003,6 +1013,7 @@ function processStreamsForProxy(streams, serverUrl) {
         } catch {}
         const isVixsrc = host.includes('vixsrc.to');
         const isMovieBoxCDN = host.includes('hakunaymatata.com');
+        const isHlsManifest = s.format === 'hls' || /\.m3u8(\?|$)/i.test(original);
 
         // Ensure we use the headers provided in the object, or fallback to those in the URL if it was already proxied
         let headers = s.headers || {};
@@ -1029,7 +1040,13 @@ function processStreamsForProxy(streams, serverUrl) {
         }
 
         let proxiedUrl;
-        if (host.includes('pixeldrain.') || host === 'video-downloads.googleusercontent.com' || isMovieBoxCDN) {
+        if (isHlsManifest) {
+            if (s.proxyMode === 'url') {
+                proxiedUrl = `${serverUrl}/m3u8-proxy?url=${encodeURIComponent(original)}${hParam}${modeParam}`;
+            } else {
+                proxiedUrl = `${serverUrl}/m3u8-proxy?h_token=${token}`;
+            }
+        } else if (host.includes('pixeldrain.') || host === 'video-downloads.googleusercontent.com' || isMovieBoxCDN) {
             const synthParams = isMovieBoxCDN ? '&noSynth=1' : '';
             proxiedUrl = `${serverUrl}/ts-proxy?h_token=${token}${synthParams}`;
         } else if (/\.(mp4|mkv)(\?|$)/i.test(original)) {

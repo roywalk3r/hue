@@ -172,30 +172,23 @@ class AiSportsProvider {
         const activeMatch = detail || bestMatch;
 
         const streams = [];
-        const proxyBase = 'https://sport-proxy.roywalk3r.deno.net';
         const headers = {
             'Referer': 'https://sportslivenow.top/',
             'Origin': 'https://sportslivenow.top',
             'User-Agent': this.userAgent
         };
 
-        const processUrl = (url) => {
-            if (url && url.includes('.m3u8')) {
-                return `${proxyBase}/m3u8-proxy?url=${encodeURIComponent(url)}&headers=${encodeURIComponent(JSON.stringify(headers))}`;
-            }
-            return url;
-        };
-
         // Add Live Streams
         if (activeMatch.playPath) {
+            const isM3U8 = activeMatch.playPath.includes('.m3u8');
             streams.push({
                 title: `${activeMatch.team1?.name || activeMatch.team1} vs ${activeMatch.team2?.name || activeMatch.team2} (Main)`,
-                url: processUrl(activeMatch.playPath),
+                url: activeMatch.playPath,
                 quality: 'Auto',
-                provider: 'Stadium',
+                provider: 'Field',
                 source: 'aisports',
                 isLive: true,
-                isProxied: activeMatch.playPath.includes('.m3u8'),
+                isProxied: isM3U8,
                 headers: headers,
                 originalUrl: activeMatch.playPath
             });
@@ -207,9 +200,9 @@ class AiSportsProvider {
                     const isM3U8 = source.path.includes('.m3u8');
                     streams.push({
                         title: `${activeMatch.team1?.name || activeMatch.team1} vs ${activeMatch.team2?.name || activeMatch.team2} (${source.title || 'Channel ' + (index + 1)})`,
-                        url: processUrl(source.path),
+                        url: source.path,
                         quality: 'Auto',
-                        provider: 'Stadium',
+                        provider: 'Field',
                         source: 'aisports',
                         isLive: true,
                         isProxied: isM3U8,

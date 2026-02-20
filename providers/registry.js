@@ -21,6 +21,7 @@ const PROVIDER_RENAME_MAP = {
   'showbox-playwright': 'Echo Pro',
   'livesport': 'Stadium',
   'aisports': 'Field',
+  'streamed': 'Relay',
   'livetv': 'Arena',
   'ppv': 'Event',
   'vidsrccc-playwright': 'Vertex',
@@ -41,6 +42,7 @@ const SANITIZE_KEYWORDS = {
   'showbox': 'Echo',
   'livesport': 'Stadium',
   'aisports': 'Field',
+  'streamed': 'Relay',
   'livetv': 'Arena',
   'ppv': 'Event',
   'moviebox': 'Cinema'
@@ -81,6 +83,7 @@ const providerFunctionMap = {
   'vidsrccc-playwright.js': 'getVidsrcStreams',
   'livesport.js': 'getLivesportStreams',
   'aisports.js': 'getAiSportsStreams',
+  'streamed.js': 'getStreamedStreams',
   'livetv.js': 'getLivetvStreams',
   'sflix.js': 'getStreams',
   'kisskh.js': 'getStreams',
@@ -138,7 +141,7 @@ function createFetchFunction(providerInfo) {
     const mediaType = ctx.type === 'movie' ? 'movie' : 'tv';
     
     // Check cache first (skip for complex providers like livesport/livetv/ppv that rely on 'req')
-    if (providerInfo.name !== 'livesport' && providerInfo.name !== 'aisports' && providerInfo.name !== 'livetv' && providerInfo.name !== 'ppv') {
+    if (providerInfo.name !== 'livesport' && providerInfo.name !== 'aisports' && providerInfo.name !== 'streamed' && providerInfo.name !== 'livetv' && providerInfo.name !== 'ppv') {
         const cacheKeyType = `${providerInfo.name}:${mediaType}`;
         const cached = getCachedStreams(cacheKeyType, ctx.tmdbId, ctx.season, ctx.episode);
         if (cached) {
@@ -192,8 +195,8 @@ function createFetchFunction(providerInfo) {
         if (providerInfo.name === 'vidsrccc-playwright') {
           // VidsrcCC needs IMDB ID for TV series
           result = await module[funcName](ctx.tmdbId, mediaType, ctx.season || null, ctx.episode || null, ctx.imdbId || null);
-        } else if (providerInfo.name === 'livesport' || providerInfo.name === 'aisports' || providerInfo.name === 'livetv' || providerInfo.name === 'ppv') {
-          // Livesport/AiSports/LiveTV/PPV needs the request object to extract the match name
+        } else if (providerInfo.name === 'livesport' || providerInfo.name === 'aisports' || providerInfo.name === 'streamed' || providerInfo.name === 'livetv' || providerInfo.name === 'ppv') {
+          // Livesport/AiSports/Streamed/LiveTV/PPV needs the request object to extract the match name
           result = await module[funcName]({ ...ctx, req: ctx.req });
         } else if (providerInfo.name === 'moviebox') {
           // Moviebox can use pre-fetched tmdbData to avoid failing requests

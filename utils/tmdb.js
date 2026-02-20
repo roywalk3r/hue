@@ -59,7 +59,22 @@ async function search(query, type = 'multi', year = null) {
         return [];
     }
 }
+async function getPopular(type = 'movie', page = 1) {
+    const key = `popular:${type}:${page}`;
+    const cached = cache.details.get(key);
+    if (isFresh(cached)) return cached.data;
+    
+    const url = `https://api.themoviedb.org/3/${type}/popular?page=${page}`;
+    try {
+        const json = await tmdbFetchJson(url);
+        const results = json.results || [];
+        cache.details.set(key, { data: results, ts: Date.now() });
+        return results;
+    } catch (e) {
+        return [];
+    }
+}
 async function resolveImdbId(type, tmdbId) {
   try { const ext = await getExternalIds(type, tmdbId); return ext.imdb_id || null; } catch { return null; }
 }
-module.exports = { getExternalIds, getDetails, resolveImdbId, search };
+module.exports = { getExternalIds, getDetails, resolveImdbId, search, getPopular };

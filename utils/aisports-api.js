@@ -54,9 +54,10 @@ async function getMatchDetail(matchId) {
         if (response.data && response.data.code === 0) {
             return response.data.data?.match || null;
         }
+        console.warn(`[AiSports API] Detail returned code ${response.data?.code}: ${response.data?.message}`);
         return null;
     } catch (e) {
-        console.error('[AiSports API] Detail error:', e.message);
+        console.error('[AiSports API] Detail error:', e.response?.data || e.message);
         return null;
     }
 }

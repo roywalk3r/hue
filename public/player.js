@@ -92,6 +92,13 @@
     });
     els.clearJson.addEventListener('click', () => { els.jsonInput.value = ''; setStatus(''); });
     els.streamList.addEventListener('click', (e) => {
+      const downloadBtn = e.target.closest('[data-action="download"]');
+      if (downloadBtn) {
+        e.stopPropagation();
+        const idx = Number(downloadBtn.dataset.idx);
+        downloadStream(idx);
+        return;
+      }
       const card = e.target.closest('.stream-card');
       if (!card) return;
       const idx = Number(card.dataset.idx);
@@ -208,7 +215,10 @@
       card.innerHTML = `
         <div class="stream-card-header">
           <h3>${escapeHtml(stream.name || 'Untitled')}</h3>
-          <span class="play-icon">▶</span>
+          <div class="stream-actions">
+            ${isDirectVideoUrl(stream.url) || stream.format === 'mp4' ? `<button type="button" class="download-btn" title="Download Stream" data-action="download" data-idx="${idx}">⬇</button>` : ''}
+            <span class="play-icon">▶</span>
+          </div>
         </div>
         ${stream.title ? `<div class="stream-title">${escapeHtml(truncate(stream.title, 90))}</div>` : ''}
         <div class="stream-meta">
@@ -256,6 +266,25 @@
     }
   }
 
+  async function downloadStream(idx) {
+    const stream = state.streams[idx];
+    if (!stream) return;
+    setStatus('Preparing download...');
+    try {
+      const resolved = await resolveUrl(stream);
+      if (!resolved || !resolved.url) throw new Error('No usable URL in stream.');
+      
+      const downloadUrl = resolved.url.includes('?') ? 
+        `${resolved.url}&download=1&filename=${encodeURIComponent((stream.name || 'video') + '.mp4')}` : 
+        `${resolved.url}?download=1&filename=${encodeURIComponent((stream.name || 'video') + '.mp4')}`;
+      
+      window.open(downloadUrl, '_blank');
+      setStatus(`Downloading ${stream.provider || 'source'}...`);
+    } catch (e) {
+      setStatus(e.message, true);
+    }
+  }
+
   function updateNowPlaying(stream, url) {
     els.nowPlaying.textContent = `${stream.name || stream.title || 'Stream'} - ${stream.provider || 'Unknown'} ${stream.quality ? `(${stream.quality})` : ''}`;
     const pills = [];
@@ -264,6 +293,16 @@
     if (looksEncrypted(stream.url)) pills.push(makePill('VidZee token', 'warning'));
     if (stream.headers && Object.keys(stream.headers).length) pills.push(makePill('needs proxy', 'warning'));
     pills.push(makePill(urlLabel(url)));
+    
+    if (isDirectVideoUrl(url) || stream.format === 'mp4') {
+      const dlBtn = document.createElement('button');
+      dlBtn.type = 'button';
+      dlBtn.className = 'pill-btn';
+      dlBtn.textContent = '⬇ Download';
+      dlBtn.onclick = () => downloadStream(state.activeIndex);
+      pills.push(dlBtn);
+    }
+
     els.pillRow.replaceChildren(...pills);
     els.headerNote.style.display = stream.headers && Object.keys(stream.headers).length ? 'block' : 'none';
   }

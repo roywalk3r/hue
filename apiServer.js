@@ -54,7 +54,7 @@ const { listProviders, getProvider, getCookieStats } = require('./providers/regi
 const { createProxyRoutes, processStreamsForProxy } = require('./proxy/proxyServer');
 const { getAnimeStream, getServers: getAnimeServers } = require('./services/hianime');
 const { getHianimeApp } = require('./services/hianimeApp');
-const { getDetails, resolveImdbId } = require('./utils/tmdb');
+const { getDetails, resolveImdbId, getPopular: getTmdbPopular } = require('./utils/tmdb');
 const { applyFilters } = require('./utils/streamFilters');
 const { getCachedStreams, setCachedStreams, addCachedStreams, clearCache } = require('./utils/cache');
 const TTLCache = require('ttl-cache');
@@ -66,6 +66,7 @@ const livetvRoutes = require('./routes/livetv');
 const proxyRoutes = require('./routes/proxy');
 const logger = require('./utils/logger');
 const stealth = require('./utils/stealth');
+const { resolveWithPlaywright } = require('./utils/playwrightResolver');
 
 // Register secrets
 if (config.tmdbApiKeys) config.tmdbApiKeys.forEach(k => logger.registerSecret(k));
@@ -80,6 +81,14 @@ app.get('/api/docs/swagger.json', (req, res) => res.json(swaggerDef));
 
 // Scalar API Reference (Modern Documentation)
 app.get('/api/docs', (req, res) => {
+  const host = req.get('host') || 'localhost';
+  const forwardedProto = (req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  let protocol = forwardedProto || req.protocol || 'http';
+  if (/^(localhost|127\.0\.0\.1|\[?::1\]?)(:\d+)?$/i.test(host)) {
+    protocol = 'http';
+  }
+  const openApiUrl = `${protocol}://${host}/api/docs/swagger.json`;
+  res.setHeader('Cache-Control', 'no-store');
   res.send(`
     <!doctype html>
     <html>
@@ -115,9 +124,14 @@ app.get('/api/docs', (req, res) => {
         </style>
       </head>
       <body>
+        <div id="docsFallback" style="display:none;padding:20px;color:#fff;font-family:system-ui,sans-serif;">
+          <h3 style="margin:0 0 8px 0;">Docs Viewer Fallback</h3>
+          <p style="margin:0 0 12px 0;">Scalar failed to load this specification in your browser.</p>
+          <a href="/api/docs/swagger" style="color:#61dafb;">Open Swagger UI</a>
+        </div>
         <script
           id="api-reference"
-          data-url="/api/docs/swagger.json"
+          data-url="${openApiUrl}"
           data-configuration='{
             "theme": "elysiajs",
             "layout": "modern",
@@ -126,6 +140,17 @@ app.get('/api/docs', (req, res) => {
             "dark": true
           }'></script>
         <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+        <script>
+          // Fallback if Scalar fails (e.g., shared document loader issues).
+          setTimeout(() => {
+            const fallback = document.getElementById('docsFallback');
+            const hasScalarUi = document.querySelector('.scalar-app, .scalar-api-reference');
+            const text = (document.body && document.body.innerText) ? document.body.innerText : '';
+            if (!hasScalarUi || /Unable to load the document/i.test(text)) {
+              fallback.style.display = 'block';
+            }
+          }, 2500);
+        </script>
       </body>
     </html>
   `);
@@ -828,7 +853,7 @@ app.get('/api/streams/:type/:tmdbId', async (req,res) => {
 
 // Shared Sports Aggregator Logic
 async function handleSportsRequest(req, res) {
-  const matchName = req.params.matchName + (req.params[0] || '');
+  let matchName = req.params.matchName + (req.params[0] || '');
   if (!matchName) {
     return res.status(400).json({ success: false, error: 'Match name required' });
   }
@@ -836,8 +861,31 @@ async function handleSportsRequest(req, res) {
   try {
     metrics.streamRequests++;
     
-    // Try sports providers in parallel (EXCLUDING aisports as it's separate now)
-    const sportsProviders = ['livesport', 'livetv', 'ppv'];
+    // Check if matchName is a full URL or direct ID
+    let directId = null;
+    if (/^\d{15,}$/.test(matchName)) {
+        directId = matchName;
+    } else if (matchName.includes('id=')) {
+        const m = matchName.match(/id=(\d{15,})/);
+        if (m) directId = m[1];
+    } else if (matchName.includes('detail/')) {
+        const m = matchName.match(/detail\/(\d{15,})/);
+        if (m) directId = m[1];
+    }
+
+    if (directId) {
+        console.log(`[api] Detected AiSports ID in sports-stream: ${directId}`);
+        return res.redirect(`/api/aisports/play/${directId}`);
+    }
+
+    // Provider routing:
+    // - Direct PPV route or PPV-style URI (e.g. ucl/2026-02-18/qar-new) should query only PPV.
+    // - Generic sports route keeps fan-out across all sports providers.
+    const isPpvRoute = req.path.startsWith('/api/ppv/streams/');
+    const isPpvUri = /^[a-z0-9-]+\/\d{4}-\d{2}-\d{2}\/[a-z0-9-]+$/i.test(matchName);
+    const sportsProviders = (isPpvRoute || isPpvUri)
+      ? ['ppv']
+      : ['aisports', 'livesport', 'livetv', 'ppv'];
     const streamsResults = [];
     const providerTimings = {};
 
@@ -916,6 +964,16 @@ app.get('/api/aisports/flow/:id', async (req, res) => {
     }
 });
 
+app.get('/api/tmdb/popular', async (req, res) => {
+    try {
+        const { type, page } = req.query;
+        const results = await getTmdbPopular(type || 'movie', parseInt(page) || 1);
+        res.json({ success: true, results });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 // MovieBox Routes
 const movieboxApi = require('./utils/moviebox-api');
 
@@ -930,8 +988,170 @@ app.get('/api/moviebox/home', async (req, res) => {
 
 app.get('/api/moviebox/discover', async (req, res) => {
     try {
+        const { channelId } = req.query;
+        let data;
+        if (channelId) {
+            data = await movieboxApi.filter({ channelId: parseInt(channelId) });
+            res.json({ success: true, ...data });
+        } else {
+            data = await movieboxApi.getDiscover();
+            res.json({ success: true, sections: data });
+        }
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/section', async (req, res) => {
+    try {
+        const title = req.query.title;
+        if (!title) return res.status(400).json({ success: false, error: 'title query required' });
+        const data = await movieboxApi.getSection(title);
+        res.json({ success: true, items: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/trending', async (req, res) => {
+    try {
+        const data = await movieboxApi.getTrending();
+        res.json({ success: true, items: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/discover', async (req, res) => {
+    try {
         const data = await movieboxApi.getDiscover();
         res.json({ success: true, sections: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/sa', async (req, res) => {
+    try {
+        const data = await movieboxApi.getSection('SA Drama');
+        res.json({ success: true, items: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/thai', async (req, res) => {
+    try {
+        const data = await movieboxApi.getSection('Thai-Drama');
+        res.json({ success: true, items: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/turkish', async (req, res) => {
+    try {
+        const data = await movieboxApi.getSection('Turkish Drama');
+        res.json({ success: true, items: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/western', async (req, res) => {
+    try {
+        const data = await movieboxApi.getSection('Western TV');
+        res.json({ success: true, items: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/animation', async (req, res) => {
+    try {
+        const data = await movieboxApi.getSection('Animation Collection');
+        res.json({ success: true, items: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/black-shows', async (req, res) => {
+    try {
+        const data = await movieboxApi.getSection('Must-watch Black Shows');
+        res.json({ success: true, items: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/hero', async (req, res) => {
+    try {
+        // Specifically target curated Asian Drama rows from the homepage
+        const [kdrama, cdrama] = await Promise.all([
+            movieboxApi.getSection('K-Drama'),
+            movieboxApi.getSection('C-Drama')
+        ]);
+
+        const mixed = [
+            ...(kdrama || []).map(i => ({ ...i, fromMovieBox: true, region: 'K-Drama' })),
+            ...(cdrama || []).map(i => ({ ...i, fromMovieBox: true, region: 'C-Drama' }))
+        ];
+
+        // Filter: Only keep actual live-action Dramas (Exclude Donghua/Anime/Animation)
+        const filteredPool = mixed.filter(item => {
+            const genre = (item.genre || '').toLowerCase();
+            return !genre.includes('animation') && !genre.includes('anime');
+        });
+
+        // Sort by rating (highest first)
+        const pool = filteredPool
+            .sort((a, b) => {
+                const rA = parseFloat(a.rating) || 0;
+                const rB = parseFloat(b.rating) || 0;
+                return rB - rA;
+            })
+            .slice(0, 30); // Pool of top 30 potential hero candidates
+
+        const enriched = [];
+        // First pass: Find items with high-quality trailers
+        for (const item of pool) {
+            if (enriched.length >= 5) break;
+            try {
+                const detail = await movieboxApi.getDetail(item.detailPath);
+                if (detail && detail.subject && detail.subject.trailer && detail.subject.trailer.videoAddress && detail.subject.trailer.videoAddress.url) {
+                    enriched.push({
+                        ...item,
+                        description: detail.subject.description,
+                        trailer: detail.subject.trailer,
+                        stills: detail.subject.stills,
+                        subjectType: detail.subject.subjectType
+                    });
+                }
+            } catch (e) {}
+        }
+
+        // Second pass: Fill with high-rated items if trailers are missing
+        if (enriched.length < 5) {
+            for (const item of pool) {
+                if (enriched.length >= 5) break;
+                if (enriched.find(e => e.id === item.id)) continue;
+                try {
+                    const detail = await movieboxApi.getDetail(item.detailPath);
+                    if (detail && detail.subject) {
+                        enriched.push({
+                            ...item,
+                            description: detail.subject.description,
+                            trailer: detail.subject.trailer,
+                            stills: detail.subject.stills,
+                            subjectType: detail.subject.subjectType
+                        });
+                    }
+                } catch (e) {}
+            }
+        }
+
+        res.json({ success: true, items: enriched });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
@@ -994,8 +1214,9 @@ app.get('/api/moviebox/search', async (req, res) => {
     }
 });
 
-app.get('/api/moviebox/play/:id/:path', async (req, res) => {
-    const { id, path } = req.params;
+app.get('/api/moviebox/play/:id/*', async (req, res) => {
+    const id = req.params.id;
+    const path = req.params[0]; // Captures everything after :id/
     let season = req.query.season !== undefined ? parseInt(req.query.season) : null;
     let episode = req.query.episode !== undefined ? parseInt(req.query.episode) : null;
     
@@ -1008,6 +1229,9 @@ app.get('/api/moviebox/play/:id/:path', async (req, res) => {
                 if (detail.subject.subjectType === 1) { // Movie
                     season = 0;
                     episode = 0;
+                } else if (detail.subject.subjectType === 7) { // Shorts
+                    season = 1;
+                    episode = 1;
                 } else { // Series
                     season = season !== null ? season : 1;
                     episode = episode !== null ? episode : 1;
@@ -1020,11 +1244,23 @@ app.get('/api/moviebox/play/:id/:path', async (req, res) => {
 
         console.log(`[api] MovieBox play: id=${id} path=${path} se=${season} ep=${episode}`);
         const data = await movieboxApi.getStreams(id, path, season, episode);
-        if (!data) return res.status(404).json({ success: false, error: 'Streams not found' });
+        if (!data) return res.status(404).json({ success: false, error: 'STREAMS_NOT_FOUND', message: 'The provider returned no streams for this content.' });
+
+        if (!data.streams || !Array.isArray(data.streams) || data.streams.length === 0) {
+            return res.json({ success: true, streams: [], message: 'No streams available for this specific item/episode.' });
+        }
 
         const streams = [];
-        const typePath = (season === 0 && episode === 0) ? 'movies' : 'series';
-        const streamReferer = `https://123movienow.cc/spa/videoPlayPage/${typePath}/${path}?id=${id}&type=/${typePath.slice(0, -1)}/detail&detailSe=&detailEp=&lang=en`;
+        const isMovie = (season === 0 && episode === 0);
+        // Note: subjectType 7 (Shorts) are usually in 'series' folder
+        const typeFolder = isMovie ? 'movies' : 'series';
+        const typeLabel = isMovie ? 'movie' : 'series';
+        
+        let cleanPath = path.startsWith('/') ? path.substring(1) : path;
+        // Construct SPA referer correctly: e.g. series/slug (remove /detail/ if present)
+        let refererPath = cleanPath.replace('movies/detail/', 'movies/').replace('series/detail/', 'series/');
+        
+        const streamReferer = `https://123movienow.cc/spa/videoPlayPage/${refererPath}?id=${id}&type=/${typeLabel}/detail&detailSe=&detailEp=&lang=en`;
         const mbHeaders = movieboxApi.getStreamHeaders(streamReferer);
 
         if (data.streams && Array.isArray(data.streams)) {
@@ -1093,48 +1329,74 @@ app.get('/api/aisports/play/:id', async (req, res) => {
         // We use the same process logic as in providers/aisports.js but bypass name search
         const streams = [];
         const userAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1';
-        const proxyBase = 'https://sport-proxy.roywalk3r.deno.net';
         const headers = {
             'Referer': 'https://sportslivenow.top/',
             'Origin': 'https://sportslivenow.top',
             'User-Agent': userAgent
         };
 
-        const processUrl = (url) => {
-            if (url && url.includes('.m3u8')) {
-                return `${proxyBase}/m3u8-proxy?url=${encodeURIComponent(url)}&headers=${encodeURIComponent(JSON.stringify(headers))}`;
-            }
-            return url;
-        };
-
         if (detail.playPath) {
+            const isM3U8 = detail.playPath.includes('.m3u8');
             streams.push({
                 title: `${detail.team1?.name} vs ${detail.team2?.name} (Main)`,
-                url: processUrl(detail.playPath),
+                url: detail.playPath,
                 quality: 'Auto',
                 provider: 'Field',
                 source: 'aisports',
                 isLive: true,
-                isProxied: detail.playPath.includes('.m3u8'),
+                isProxied: isM3U8,
                 headers: headers,
                 originalUrl: detail.playPath
             });
         }
 
         if (detail.playSource && Array.isArray(detail.playSource)) {
-            detail.playSource.forEach((source, index) => {
-                if (source.path) {
-                    streams.push({
-                        title: `${detail.team1?.name} vs ${detail.team2?.name} (${source.title || 'Channel ' + (index + 1)})`,
-                        url: processUrl(source.path),
+            const resolutionPromises = detail.playSource.map(async (source, i) => {
+                if (!source.path) return null;
+                
+                const isM3U8 = source.path.includes('.m3u8');
+                if (isM3U8) {
+                    return [{
+                        title: `${detail.team1?.name} vs ${detail.team2?.name} (${source.title || 'Channel ' + (i + 1)})`,
+                        url: source.path, // Let processStreamsForProxy handle it
                         quality: 'Auto',
                         provider: 'Field',
                         source: 'aisports',
                         isLive: true,
-                        isProxied: source.path.includes('.m3u8'),
+                        isProxied: true,
                         headers: headers,
                         originalUrl: source.path
-                    });
+                    }];
+                } else {
+                    try {
+                        console.log(`[api] Resolving AiSports web player: ${source.path}`);
+                        const resolved = await resolveWithPlaywright(source.path, 'https://sportslivenow.top/');
+                        if (resolved && resolved.streams && resolved.streams.length > 0) {
+                            return resolved.streams.map((rs, sIdx) => ({
+                                title: `${detail.team1?.name} vs ${detail.team2?.name} (${source.title || 'Channel ' + (i + 1)}) - Res ${sIdx + 1}`,
+                                url: rs.url,
+                                quality: rs.quality || 'Auto',
+                                provider: 'Field',
+                                source: 'aisports-resolved',
+                                isLive: true,
+                                isProxied: true,
+                                headers: rs.headers || headers,
+                                originalUrl: rs.url
+                            }));
+                        }
+                    } catch (e) {
+                        console.error(`[api] AiSports resolution failed for channel ${i+1}:`, e.message);
+                    }
+                    // Skip raw web-player fallback URLs here.
+                    // They are pages/iframes, not direct media streams, and break players when proxied as HLS.
+                    return null;
+                }
+            });
+
+            const results = await Promise.allSettled(resolutionPromises);
+            results.forEach(r => {
+                if (r.status === 'fulfilled' && r.value) {
+                    streams.push(...r.value);
                 }
             });
         }
@@ -1156,6 +1418,20 @@ app.get('/api/aisports/play/:id', async (req, res) => {
         }
 
         let finalStreams = applyFilters(streams, 'aisports', config.minQualities, config.excludeCodecs);
+
+        // Keep only likely playable media URLs.
+        // Some providers return web player pages in playSource; those are not stream manifests.
+        finalStreams = finalStreams.filter(s => {
+            if (!s || !s.url || typeof s.url !== 'string') return false;
+            const u = s.originalUrl || s.url;
+            return /^https?:\/\//i.test(u) && (
+                u.includes('.m3u8') ||
+                u.includes('.mp4') ||
+                u.includes('/m3u8-proxy') ||
+                u.includes('/ts-proxy')
+            );
+        });
+
         if (config.enableProxy) {
             const serverUrl = resolveServerUrl(req);
             finalStreams = processStreamsForProxy(finalStreams, serverUrl);
@@ -1783,7 +2059,10 @@ app.get('/api/dramacool/info', async (req, res) => {
 });
 
 app.get('/api/dramacool/browse/streams/:id/:episode', async (req, res) => {
-    const { id, episode } = req.params;
+    let { id, episode } = req.params;
+    // Remove any accidental full URL or leading slashes
+    id = id.replace(/https?:\/\/dramacool\.sh\//, '').replace(/^\/|\/$/g, '');
+    
     // Build the direct dramacool.sh URL from the ID and episode
     const url = `https://dramacool.sh/${id}-episode-${episode}/`;
     

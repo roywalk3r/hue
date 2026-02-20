@@ -3,11 +3,23 @@
  * Fetches live sports streams from Livesport.su
  */
 
+const axios = require('axios');
 const LivesportWatchScraper = require('../livesport-watch-scraper');
 
 class LivesportProvider {
     constructor() {
         this.scraper = new LivesportWatchScraper();
+        this.mobileUA = 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Mobile Safari/537.36';
+        this.streamedEmbedHeaders = {
+            'User-Agent': this.mobileUA,
+            'Referer': 'https://streamed.pk/',
+            'Origin': 'https://streamed.pk'
+        };
+        this.streamedPlaylistHeaders = {
+            'User-Agent': this.mobileUA,
+            'Referer': 'https://a.embedsports.top/',
+            'Origin': 'https://a.embedsports.top'
+        };
     }
 
     /**
@@ -18,6 +30,264 @@ class LivesportProvider {
         // Remove /sports-stream/ and any trailing slashes
         const match = path.match(/\/sports-stream\/(.+?)(?:\/|$)/);
         return match ? match[1].replace(/\/$/, '') : null;
+    }
+
+    extractStreamedMatchId(input) {
+        const raw = String(input || '').trim();
+        if (!raw) return null;
+
+        let decoded = raw;
+        try { decoded = decodeURIComponent(raw); } catch (_) {}
+
+        // Full streamed.pk watch URL
+        let m = decoded.match(/streamed\.pk\/watch\/([^/?#]+)/i);
+        if (m && m[1]) return m[1].toLowerCase();
+
+        // Full streamed API URL
+        m = decoded.match(/streamed\.pk\/api\/stream\/admin\/([^/?#]+)/i);
+        if (m && m[1]) return m[1].toLowerCase();
+
+        // Raw id forms
+        if (/^admin\/admin-[a-z0-9-]+$/i.test(decoded)) {
+            return decoded.split('/').pop().toLowerCase();
+        }
+        if (/^admin-[a-z0-9-]+$/i.test(decoded)) {
+            return decoded.toLowerCase();
+        }
+
+        return null;
+    }
+
+    async fetchStreamedSources(matchId) {
+        try {
+            const url = `https://streamed.pk/api/stream/admin/${encodeURIComponent(matchId)}`;
+            const res = await axios.get(url, {
+                timeout: 15000,
+                headers: this.streamedEmbedHeaders
+            });
+            if (Array.isArray(res.data)) return res.data;
+        } catch (e) {
+            console.log(`[Livesport] streamed.pk API failed for ${matchId}: ${e.message}`);
+        }
+        return [];
+    }
+
+    async extractEmbedNoAdsSlug(embedUrl) {
+        if (!embedUrl) return null;
+        try {
+            const res = await axios.get(embedUrl, {
+                timeout: 15000,
+                headers: this.streamedEmbedHeaders,
+                responseType: 'text'
+            });
+            const html = String(res.data || '');
+            const m = html.match(/https:\/\/a\.embedsports\.top\/embed-noads\/([a-z0-9_-]+)/i);
+            if (m && m[1]) return m[1].toLowerCase();
+        } catch (e) {
+            console.log(`[Livesport] Failed to parse embed page (${embedUrl}): ${e.message}`);
+        }
+        return null;
+    }
+
+    async resolveStreamedPlaylistUrl(slug) {
+        if (!slug) return null;
+        const candidates = [
+            `https://gg.poocloud.in/${slug}/index.m3u8`,
+            `https://gg.poocloud.in/${slug}/tracks-v1a1/mono.ts.m3u8`
+        ];
+
+        for (const url of candidates) {
+            try {
+                const res = await axios.get(url, {
+                    timeout: 12000,
+                    headers: this.streamedPlaylistHeaders,
+                    responseType: 'text'
+                });
+                const body = String(res.data || '');
+                if (body.includes('#EXTM3U') && await this.isPlayableM3u8(url)) return url;
+            } catch (_) {
+                // keep trying candidates
+            }
+        }
+        return null;
+    }
+
+    async isPlayableM3u8(m3u8Url) {
+        if (!m3u8Url) return false;
+        const badText = ['watch on', 'watch this game', 'google.com', 'subscribe', 'unavailable'];
+        const badSegmentHosts = ['imgur.gg', 'ghiblivideo.ai'];
+
+        try {
+            const master = await axios.get(m3u8Url, {
+                timeout: 12000,
+                headers: this.streamedPlaylistHeaders,
+                responseType: 'text'
+            });
+            const masterText = String(master.data || '');
+            const lowMaster = masterText.toLowerCase();
+            if (!masterText.includes('#EXTM3U')) return false;
+            if (badText.some(t => lowMaster.includes(t))) return false;
+
+            let mediaUrl = m3u8Url;
+            if (masterText.includes('#EXT-X-STREAM-INF')) {
+                const lines = masterText.split('\n');
+                const variant = lines.find(l => l.trim() && !l.startsWith('#'));
+                if (!variant) return false;
+                mediaUrl = new URL(variant.trim(), m3u8Url).href;
+            }
+
+            const media = await axios.get(mediaUrl, {
+                timeout: 12000,
+                headers: this.streamedPlaylistHeaders,
+                responseType: 'text'
+            });
+            const mediaText = String(media.data || '');
+            const lowMedia = mediaText.toLowerCase();
+            if (!mediaText.includes('#EXTM3U')) return false;
+            if (!mediaText.includes('#EXTINF')) return false;
+            if (badText.some(t => lowMedia.includes(t))) return false;
+            if (lowMedia.includes('.mp3')) return false;
+            if (badSegmentHosts.some(h => lowMedia.includes(h))) return false;
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    async captureSecureM3u8FromEmbed(embedUrl) {
+        let browser = null;
+        try {
+            const { chromium } = require('playwright');
+            browser = await chromium.launch({
+                headless: true,
+                args: ['--no-sandbox', '--disable-setuid-sandbox']
+            });
+
+            const context = await browser.newContext({
+                userAgent: this.mobileUA,
+                viewport: { width: 412, height: 915 },
+                isMobile: true
+            });
+            const page = await context.newPage();
+            await page.setExtraHTTPHeaders({
+                Referer: 'https://embedsports.top/',
+                Origin: 'https://embedsports.top'
+            });
+
+            const discovered = [];
+            const push = (u) => {
+                if (!u || typeof u !== 'string') return;
+                if (!u.includes('/secure/')) return;
+                if (!u.includes('.m3u8')) return;
+                if (!discovered.includes(u)) discovered.push(u);
+            };
+            page.on('request', req => push(req.url()));
+            page.on('response', res => push(res.url()));
+
+            await page.goto(embedUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+            await page.waitForTimeout(2000);
+
+            for (let i = 0; i < 10; i++) {
+                try { await page.mouse.click(206, 460, { delay: 50 }); } catch (_) {}
+                try { await page.keyboard.press('Space'); } catch (_) {}
+
+                for (const frame of page.frames()) {
+                    try {
+                        await frame.evaluate(() => {
+                            const selectors = ['.jw-display-icon-container', '.jw-icon-playback', 'video', '#player', 'body'];
+                            for (const s of selectors) {
+                                const el = document.querySelector(s);
+                                if (el) {
+                                    try { el.click(); } catch (_) {}
+                                }
+                            }
+                            const v = document.querySelector('video');
+                            if (v) {
+                                try { v.muted = true; } catch (_) {}
+                                try { v.play().catch(() => {}); } catch (_) {}
+                            }
+                        });
+                    } catch (_) {}
+                }
+
+                if (discovered.some(u => /\/secure\/.+\.m3u8(\?|$)/i.test(u))) break;
+                await page.waitForTimeout(1000);
+            }
+
+            await context.close();
+
+            const pick = discovered.find(u => /\/secure\/.+\/index\.m3u8(\?|$)/i.test(u))
+                || discovered.find(u => /\/secure\/.+\/tracks-v\d+a\d+\/mono\.ts\.m3u8(\?|$)/i.test(u))
+                || discovered.find(u => /\/secure\/.+\.m3u8(\?|$)/i.test(u));
+
+            if (pick && await this.isPlayableM3u8(pick)) {
+                return pick;
+            }
+            return null;
+        } catch (e) {
+            console.log(`[Livesport] Secure capture failed (${embedUrl}): ${e.message}`);
+            return null;
+        } finally {
+            if (browser) {
+                try { await browser.close(); } catch (_) {}
+            }
+        }
+    }
+
+    async getStreamedPkStreams(matchId) {
+        const sources = await this.fetchStreamedSources(matchId);
+        if (!sources.length) return [];
+
+        const sorted = [...sources].sort((a, b) => {
+            if (Boolean(b.hd) !== Boolean(a.hd)) return Boolean(b.hd) - Boolean(a.hd);
+            return (a.streamNo || 99) - (b.streamNo || 99);
+        });
+
+        const titleBase = matchId.replace(/^admin-/, '').replace(/-/g, ' ').trim() || matchId;
+        const out = [];
+
+        for (const source of sorted) {
+            const embedUrl = source.embedUrl;
+            const streamNo = source.streamNo || 1;
+            const language = source.language || 'Unknown';
+            const sourceName = source.source || 'admin';
+            const watchUrl = `https://streamed.pk/watch/${matchId}/${sourceName}/${streamNo}`;
+
+            let m3u8Url = await this.captureSecureM3u8FromEmbed(embedUrl);
+            if (!m3u8Url) {
+                let slug = await this.extractEmbedNoAdsSlug(embedUrl);
+                if (!slug && /^streamed-[a-z0-9_-]+$/i.test(matchId)) slug = matchId.toLowerCase();
+                if (slug) {
+                    m3u8Url = await this.resolveStreamedPlaylistUrl(slug);
+                }
+            }
+            if (!m3u8Url) continue;
+
+            out.push({
+                title: `${titleBase} (${language})`,
+                url: m3u8Url,
+                quality: source.hd ? 'HD' : 'SD',
+                language,
+                source: sourceName,
+                provider: 'livesport',
+                headers: this.streamedPlaylistHeaders,
+                subtitles: [],
+                isLive: true,
+                viewers: source.viewers || 0,
+                id: `${sourceName}-${streamNo}`,
+                watchUrl,
+                originalUrl: m3u8Url,
+                proxyMode: 'url',
+                isProxied: true
+            });
+        }
+
+        if (out.length) {
+            console.log(`[Livesport] Streamed.pk resolved ${out.length} stream(s) for ${matchId}`);
+        } else {
+            console.log(`[Livesport] Streamed.pk found no playable streams for ${matchId}`);
+        }
+        return out;
     }
 
     /**
@@ -205,6 +475,16 @@ class LivesportProvider {
         if (!finalMatchName) {
             console.log('[Livesport] No match name found');
             return [];
+        }
+
+        const streamedMatchId = this.extractStreamedMatchId(finalMatchName);
+        if (streamedMatchId) {
+            console.log(`[Livesport] Detected streamed.pk match: ${streamedMatchId}`);
+            const streamedStreams = await this.getStreamedPkStreams(streamedMatchId);
+            if (streamedStreams.length === 0) {
+                console.log('[Livesport] Streamed.pk returned no validated playable streams');
+            }
+            return streamedStreams;
         }
 
         console.log(`[Livesport] Fetching streams for: ${finalMatchName}`);

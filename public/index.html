@@ -6,26 +6,127 @@
     <title>Hue Stream</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; }
-        .card { background-color: #1e1e1e; border: none; transition: transform 0.2s; }
-        .card:hover { transform: scale(1.03); z-index: 10; }
-        .nav-tabs .nav-link { color: #aaa; border: none; }
-        .nav-tabs .nav-link.active { background-color: #1e1e1e; color: #fff; border-bottom: 2px solid #0d6efd; }
-        .btn-primary { background-color: #0d6efd; border: none; }
-        .poster { height: 300px; object-fit: cover; width: 100%; border-radius: 4px; }
-        #results { min-height: 400px; }
-        .badge-quality { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); }
+        body { background-color: #0c101a; color: #e7edf9; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .card { background-color: #1a2235; border: 1px solid rgba(255,255,255,0.08); transition: transform 0.2s, border-color 0.2s; color: #fff; }
+        .card:hover { transform: translateY(-5px); border-color: #0d6efd; }
+        .card-title { color: #ffffff !important; font-weight: 700 !important; display: block !important; }
+        .card-body h6 { color: #ffffff !important; }
+        .text-muted { color: #ffffff !important; opacity: 0.8; }
+        .small { color: #ffffff !important; }
+        .text-white { color: #ffffff !important; }
+        .nav-tabs { border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .nav-tabs .nav-link { color: #91a0bb; border: none; font-weight: 600; }
+        .nav-tabs .nav-link.active { background-color: transparent; color: #0d6efd; border-bottom: 3px solid #0d6efd; }
+        .btn-primary { background: linear-gradient(120deg, #0d6efd, #31d7a9); border: none; font-weight: 700; transition: transform 0.2s, box-shadow 0.2s; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(13,110,253,0.4); }
+        .poster { height: 320px; object-fit: cover; width: 100%; border-radius: 8px 8px 0 0; background: #05070f; }
+        #results { min-height: 400px; padding-top: 20px; }
+        .badge-quality { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.75); }
         .spinner-border { width: 3rem; height: 3rem; }
+        
         /* Player styles */
-        #playerContainer { width: 100%; margin-bottom: 20px; background: #000; display: none; }
-        video { width: 100%; height: auto; max-height: 500px; }
+        #playerContainer { width: 100%; margin-bottom: 20px; background: #000; display: none; border-radius: 12px; overflow: hidden; border: 1px solid #333; }
+        video { width: 100%; height: auto; max-height: 500px; background: #000; }
+        
+        .cursor-pointer { pointer: cursor; }
+        .filter-section { background: rgba(255,255,255,0.03); padding: 15px; border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); }
+        .category-pill { cursor: pointer; padding: 5px 15px; border-radius: 20px; background: #1a2235; border: 1px solid rgba(255,255,255,0.1); font-size: 0.85rem; transition: all 0.2s; color: #91a0bb; }
+        .category-pill.active { background: #0d6efd; border-color: #0d6efd; color: #fff; }
+
+        /* Hero Slider Styles */
+        #heroSection {
+            position: relative;
+            width: 100%;
+            height: 500px;
+            border-radius: 20px;
+            overflow: hidden;
+            margin-bottom: 30px;
+            display: none;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: #05070f;
+        }
+        .hero-slider {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        .hero-slide {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+            z-index: 0;
+            pointer-events: none;
+        }
+        .hero-slide.active {
+            opacity: 1;
+            z-index: 1;
+            pointer-events: auto;
+        }
+        .hero-bg-video {
+            position: absolute;
+            top: 50%; left: 50%;
+            min-width: 100%; min-height: 100%;
+            width: auto; height: auto;
+            transform: translate(-50%, -50%);
+            object-fit: cover;
+            z-index: 0;
+        }
+        .hero-bg-image {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-size: cover;
+            background-position: center;
+            z-index: 0;
+        }
+        @media (max-width: 768px) {
+            .hero-bg-video { display: none; }
+            #heroSection { height: 400px; }
+            .hero-title { font-size: 1.8rem; }
+            .hero-desc { -webkit-line-clamp: 2; }
+        }
+        .hero-overlay {
+            position: absolute;
+            bottom: 0; left: 0; right: 0; top: 0;
+            background: linear-gradient(0deg, rgba(12,16,26,1) 0%, rgba(12,16,26,0.4) 50%, rgba(12,16,26,0) 100%);
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            z-index: 1;
+        }
+        .hero-title { font-size: 3rem; font-weight: 800; margin-bottom: 10px; color: #fff; text-shadow: 0 2px 15px rgba(0,0,0,0.8); }
+        .hero-meta { display: flex; gap: 15px; margin-bottom: 15px; font-weight: 600; color: #31d7a9; text-shadow: 0 1px 5px rgba(0,0,0,0.5); }
+        .hero-desc { max-width: 700px; color: #cbd5e0; margin-bottom: 25px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: 1.05rem; line-height: 1.6; }
+        .hero-btns { display: flex; gap: 15px; }
+        .hero-dots {
+            position: absolute;
+            bottom: 20px;
+            right: 40px;
+            display: flex;
+            gap: 8px;
+            z-index: 2;
+        }
+        .hero-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .hero-dot.active {
+            background: #0d6efd;
+            transform: scale(1.3);
+            box-shadow: 0 0 10px rgba(13,110,253,0.5);
+        }
+        .load-more-container { padding: 40px 0; display: flex; justify-content: center; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 border-bottom border-secondary">
         <div class="container">
-            <a class="navbar-brand fw-bold" href="#">Hue Stream</a>
+            <a class="navbar-brand fw-bold text-primary" href="#">HUE STREAM</a>
             <div class="ms-auto">
                 <a href="/api/docs" class="btn btn-outline-light btn-sm me-2">API Docs</a>
                 <a href="/api/metrics" class="btn btn-outline-info btn-sm">Metrics</a>
@@ -34,17 +135,50 @@
     </nav>
 
     <div class="container">
+        <div id="heroSection"></div>
+
         <ul class="nav nav-tabs mb-4" id="searchTabs">
-            <li class="nav-item"><button class="nav-link active" data-source="hitv">Discovery (KDrama)</button></li>
+            <li class="nav-item"><button class="nav-link active" data-source="hitv">Discovery (HiTV)</button></li>
+            <li class="nav-item"><button class="nav-link" data-source="moviebox">Cinema (MovieBox)</button></li>
+            <li class="nav-item"><button class="nav-link" data-source="aisports">Ai Sports</button></li>
             <li class="nav-item"><button class="nav-link" data-source="tmdb">Movies & TV (ID)</button></li>
             <li class="nav-item"><button class="nav-link" data-source="kisskh">KissKH</button></li>
             <li class="nav-item"><button class="nav-link" data-source="dramacool">Dramacool</button></li>
-            <li class="nav-item"><button class="nav-link" data-source="livetv">Live Sports</button></li>
+            <li class="nav-item"><button class="nav-link" data-source="livetv">Sports</button></li>
         </ul>
 
         <div class="input-group mb-4" id="searchGroup">
-            <input type="text" id="searchInput" class="form-control form-control-lg bg-dark text-light border-secondary" placeholder="Discover KDramas or enter Title/ID...">
-            <button class="btn btn-primary" id="searchBtn">Search / Browse</button>
+            <input type="text" id="searchInput" class="form-control form-control-lg bg-dark text-light border-secondary" placeholder="Discover content or enter Title/ID...">
+            <button class="btn btn-primary px-4" id="searchBtn">SEARCH</button>
+        </div>
+
+        <div id="movieboxFilters" class="mb-4 filter-section d-none">
+            <div class="d-flex gap-2 flex-wrap mb-3" id="mbCategoryPills">
+                <div class="category-pill active" data-category="home">Home Snapshot</div>
+                <div class="category-pill" data-category="trending">Trending Now🔥</div>
+                <div class="category-pill" data-category="kdrama">K-Drama (Cinema)</div>
+                <div class="category-pill" data-category="cdrama">C-Drama (Cinema)</div>
+                <div class="category-pill" data-category="sa">SA Drama</div>
+                <div class="category-pill" data-category="thai">Thai Drama</div>
+                <div class="category-pill" data-category="turkish">Turkish Drama</div>
+                <div class="category-pill" data-category="shorts">Short TV & Mini-Series</div>
+                <div class="category-pill" data-category="bollywood">Bollywood / India</div>
+                <div class="category-pill" data-category="western">Western TV</div>
+                <div class="category-pill" data-category="animation">Animation</div>
+                <div class="category-pill" data-category="black-shows">Black Shows</div>
+                <div class="category-pill" data-category="discover">Advanced Discovery</div>
+            </div>
+            <div id="mbDiscoveryFilters" class="d-flex gap-2 flex-wrap">
+                <select id="mbTypeFilter" class="form-select bg-dark text-light border-secondary w-auto">
+                    <option value="1">Movies</option>
+                    <option value="2">Series</option>
+                </select>
+                <select id="mbChannelFilter" class="form-select bg-dark text-light border-secondary w-auto">
+                    <option value="2">Dramas</option>
+                    <option value="1">General</option>
+                    <option value="4">Short TV</option>
+                </select>
+            </div>
         </div>
 
         <div id="sportsFilterBar" class="mb-4 d-flex gap-2 flex-wrap d-none">
@@ -59,6 +193,10 @@
         </div>
 
         <div id="filterBar" class="mb-4 d-flex gap-2 flex-wrap">
+            <select id="tmdbTypeFilter" class="form-select bg-dark text-light border-secondary w-auto d-none">
+                <option value="movie">Popular Movies</option>
+                <option value="tv">Popular Series</option>
+            </select>
             <select id="genreFilter" class="form-select bg-dark text-light border-secondary w-auto">
                 <option value="All">All Genres</option>
             </select>
@@ -71,29 +209,32 @@
 
         <div id="loading" class="text-center my-5 d-none">
             <div class="spinner-border text-primary" role="status"></div>
-            <p class="mt-2 text-muted">Searching...</p>
+            <p class="mt-2 text-muted">Fetching content...</p>
         </div>
 
         <div id="results" class="row g-4"></div>
+        <div id="loadMoreContainer" class="load-more-container d-none">
+            <button id="loadMoreBtn" class="btn btn-outline-primary px-5">LOAD MORE</button>
+        </div>
     </div>
 
     <!-- Stream Modal -->
     <div class="modal fade" id="streamModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
-            <div class="modal-content bg-dark">
+            <div class="modal-content bg-dark border-secondary">
                 <div class="modal-header border-secondary">
-                    <h5 class="modal-title">Streams Found</h5>
+                    <h5 class="modal-title text-white">Streams Found</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div id="playerContainer" class="rounded overflow-hidden">
+                    <div id="playerContainer" class="rounded overflow-hidden shadow">
                         <div class="d-flex justify-content-between bg-black p-2 align-items-center">
-                            <span class="text-light fw-bold small">Now Playing</span>
-                            <button class="btn btn-sm btn-outline-danger py-0" onclick="closePlayer()">Close Player</button>
+                            <span class="text-light fw-bold small ms-2">Now Playing</span>
+                            <button class="btn btn-sm btn-outline-danger py-0 me-2" onclick="closePlayer()">Close</button>
                         </div>
                         <video id="videoPlayer" controls></video>
                     </div>
-                    <div id="modalLoading" class="text-center d-none"><div class="spinner-border text-light"></div></div>
+                    <div id="modalLoading" class="text-center d-none my-4"><div class="spinner-border text-light"></div></div>
                     <div id="streamList" class="list-group"></div>
                 </div>
             </div>
@@ -102,324 +243,689 @@
 
     <script>
         let currentSource = 'hitv';
+        let currentMbCategory = 'home';
+        let currentPage = 1;
+        let heroInterval;
+        let currentHeroIdx = 0;
         const resultsDiv = document.getElementById('results');
         const loadingDiv = document.getElementById('loading');
 
         // Fetch Genres on Load
-        let sportsData = [];
         async function loadMetadata() {
             try {
                 const res = await fetch('/api/hitv/genres');
                 const genres = await res.json();
                 const select = document.getElementById('genreFilter');
-                genres.forEach(g => {
-                    if(g === 'All') return;
-                    const opt = document.createElement('option');
-                    opt.value = g;
-                    opt.textContent = g;
-                    select.appendChild(opt);
-                });
-
-                // Load sports for LiveTV tab
-                const sportSelect = document.getElementById('sportFilter');
-                sportSelect.innerHTML = '<option value="">All Sports (Loading...)</option>';
-                
-                const sportsRes = await fetch('/api/livetv/sports');
-                const sportsJson = await sportsRes.json();
-                
-                sportSelect.innerHTML = '<option value="">All Sports</option>'; // Clear loading
-                
-                if (sportsJson.sports) {
-                    sportsData = sportsJson.sports;
-                    sportsData.forEach(s => {
+                if (select) {
+                    genres.forEach(g => {
+                        if(g === 'All') return;
                         const opt = document.createElement('option');
-                        opt.value = s.id;
-                        opt.textContent = s.title;
-                        sportSelect.appendChild(opt);
+                        opt.value = g;
+                        opt.textContent = g;
+                        select.appendChild(opt);
                     });
                 }
-            } catch(e) {
-                console.error("Metadata load failed", e);
-            }
-        }
-        loadMetadata();
 
+                const sportSelect = document.getElementById('sportFilter');
+                if (sportSelect) {
+                    const sportsRes = await fetch('/api/livetv/sports');
+                    const sportsJson = await sportsRes.json();
+                    if (sportsJson.sports) {
+                        sportsJson.sports.forEach(s => {
+                            const opt = document.createElement('option');
+                            opt.value = s.id;
+                            opt.textContent = s.title;
+                            sportSelect.appendChild(opt);
+                        });
+                    }
+                }
+            } catch(e) { console.error("Metadata load failed", e); }
+        }
+
+        // Tabs switching
         document.querySelectorAll('#searchTabs button').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                document.querySelector('#searchTabs .active').classList.remove('active');
+                const activeBtn = document.querySelector('#searchTabs .active');
+                if (activeBtn) activeBtn.classList.remove('active');
                 e.target.classList.add('active');
                 currentSource = e.target.dataset.source;
-                document.getElementById('filterBar').classList.toggle('d-none', currentSource !== 'hitv');
-                document.getElementById('sportsFilterBar').classList.toggle('d-none', currentSource !== 'livetv');
-                document.getElementById('searchGroup').classList.toggle('d-none', currentSource === 'livetv');
+                currentPage = 1;
                 
-                // Update placeholder based on source
-                const input = document.getElementById('searchInput');
-                if (currentSource === 'tmdb') {
-                    input.placeholder = 'Enter TMDB ID (e.g. 1434)...';
-                } else if (currentSource === 'livetv') {
-                    input.placeholder = 'Live sports - use filters below';
-                } else {
-                    input.placeholder = 'Discover KDramas or enter Title/ID...';
-                }
+                const filterBar = document.getElementById('filterBar');
+                const genreFilter = document.getElementById('genreFilter');
+                const sortFilter = document.getElementById('sortFilter');
+                const tmdbTypeFilter = document.getElementById('tmdbTypeFilter');
+                const sportsFilterBar = document.getElementById('sportsFilterBar');
+                const movieboxFilters = document.getElementById('movieboxFilters');
+                const searchGroup = document.getElementById('searchGroup');
+
+                if (filterBar) filterBar.classList.toggle('d-none', currentSource !== 'hitv' && currentSource !== 'tmdb');
+                if (genreFilter) genreFilter.classList.toggle('d-none', currentSource !== 'hitv');
+                if (sortFilter) sortFilter.classList.toggle('d-none', currentSource !== 'hitv');
+                if (tmdbTypeFilter) tmdbTypeFilter.classList.toggle('d-none', currentSource !== 'tmdb');
+                if (sportsFilterBar) sportsFilterBar.classList.toggle('d-none', currentSource !== 'livetv' && currentSource !== 'aisports');
+                if (movieboxFilters) movieboxFilters.classList.toggle('d-none', currentSource !== 'moviebox');
                 
-                resultsDiv.innerHTML = ''; 
-                if(currentSource === 'hitv') performSearch(); // Auto-browse on tab switch
-                else if(currentSource === 'livetv') performSearch(); // Auto-load matches
+                const showSearch = (currentSource !== 'livetv' && currentSource !== 'aisports' && (currentSource !== 'moviebox' || currentMbCategory === 'discover'));
+                if (searchGroup) searchGroup.classList.toggle('d-none', !showSearch);
+                
+                if (resultsDiv) resultsDiv.innerHTML = ''; 
+                performSearch();
             });
         });
 
-        // Initial browse
-        performSearch();
+        // MovieBox Category Pills
+        document.querySelectorAll('#mbCategoryPills .category-pill').forEach(pill => {
+            pill.addEventListener('click', (e) => {
+                const activePill = document.querySelector('#mbCategoryPills .active');
+                if (activePill) activePill.classList.remove('active');
+                e.target.classList.add('active');
+                currentMbCategory = e.target.dataset.category;
+                currentPage = 1;
+                
+                const mbDiscoveryFilters = document.getElementById('mbDiscoveryFilters');
+                const searchGroup = document.getElementById('searchGroup');
+                if (mbDiscoveryFilters) mbDiscoveryFilters.classList.toggle('d-none', currentMbCategory !== 'discover');
+                const showSearch = (currentMbCategory === 'discover');
+                if (searchGroup) searchGroup.classList.toggle('d-none', !showSearch);
+                
+                if (resultsDiv) resultsDiv.innerHTML = '';
+                performSearch();
+            });
+        });
 
-        document.getElementById('searchBtn').addEventListener('click', performSearch);
-        document.getElementById('searchInput').addEventListener('keypress', (e) => e.key === 'Enter' && performSearch());
-        document.getElementById('sportFilter').addEventListener('change', performSearch);
-        document.getElementById('sportStatusFilter').addEventListener('change', performSearch);
+        const searchBtn = document.getElementById('searchBtn');
+        if (searchBtn) searchBtn.addEventListener('click', () => { currentPage = 1; performSearch(); });
+        const searchInputEl = document.getElementById('searchInput');
+        if (searchInputEl) searchInputEl.addEventListener('keypress', (e) => { if(e.key === 'Enter') { currentPage = 1; performSearch(); } });
+        
+        ['sportFilter', 'sportStatusFilter', 'genreFilter', 'sortFilter', 'mbTypeFilter', 'mbChannelFilter', 'tmdbTypeFilter'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('change', () => { currentPage = 1; performSearch(); });
+        });
 
-        async function performSearch() {
-            const q = document.getElementById('searchInput').value;
-            loadingDiv.classList.remove('d-none');
-            resultsDiv.innerHTML = '';
+        const loadMoreBtn = document.getElementById('loadMoreBtn');
+        if (loadMoreBtn) loadMoreBtn.addEventListener('click', () => { currentPage++; performSearch(true); });
 
-            try {
-                let items = [];
-                if (currentSource === 'hitv') {
-                    if (q) {
-                        const res = await fetch(`/api/hitv/search?q=${encodeURIComponent(q)}`);
-                        const data = await res.json();
-                        items = data.items || [];
-                    } else {
-                        const genre = document.getElementById('genreFilter').value;
-                        const sort = document.getElementById('sortFilter').value;
-                        const res = await fetch(`/api/hitv/browse?genre=${genre}&sort=${sort}&pageSize=28`);
-                        const data = await res.json();
-                        items = data.items || [];
-                    }
-                } else if (currentSource === 'livetv') {
-                    const sportId = document.getElementById('sportFilter').value;
-                    const status = document.getElementById('sportStatusFilter').value;
-                    
-                    const res = await fetch(`/api/livetv/matches${sportId ? `?sportId=${sportId}` : ''}`);
-                    const data = await res.json();
-                    let matches = data.matches || [];
-                    
-                    // Filter by status if selected
-                    if (status === 'live') {
-                        matches = matches.filter(m => m.isLive);
-                    } else if (status === 'upcoming') {
-                        matches = matches.filter(m => !m.isLive);
-                    }
-                    
-                    items = matches;
-                } else if (currentSource === 'tmdb') {
-                    if(!isNaN(q) && q.length > 0) { 
-                         loadStreams(q, 'TMDB Content');
-                         loadingDiv.classList.add('d-none');
-                         return;
-                    }
-                    alert('Please enter a TMDB ID (e.g. 1434 for Family Guy)');
-                    loadingDiv.classList.add('d-none');
-                    return;
-                } else if (currentSource === 'kisskh') {
-                    const res = await fetch(`/api/kdrama/search?q=${encodeURIComponent(q)}`);
-                    const data = await res.json();
-                    items = data.results || [];
-                } else if (currentSource === 'dramacool') {
-                    const res = await fetch(`/api/dramacool/search?q=${encodeURIComponent(q)}`);
-                    const data = await res.json();
-                    items = data.data || [];
-                }
+        async function loadHero() {
+            const heroEl = document.getElementById('heroSection');
+            if (!heroEl) return;
 
-                renderResults(items);
-            } catch (e) {
-                console.error(e);
-                resultsDiv.innerHTML = '<div class="text-center text-danger">Error fetching results</div>';
-            } finally {
-                loadingDiv.classList.add('d-none');
-            }
-        }
-
-        function renderResults(items) {
-            if (items.length === 0) {
-                resultsDiv.innerHTML = '<p class="text-center text-muted">No results found.</p>';
+            if (currentSource !== 'moviebox' && currentSource !== 'hitv') {
+                heroEl.style.display = 'none';
+                if (heroInterval) clearInterval(heroInterval);
                 return;
             }
 
-            // Special rendering for sports matches
-            if (currentSource === 'livetv') {
-                resultsDiv.innerHTML = items.map(item => `
-                    <div class="col-12 col-md-6 col-lg-4">
-                        <div class="card h-100 cursor-pointer" onclick="loadSportsStreams('${item.url}', '${item.title.replace(/'/g, "")}')">
-                            <div class="card-body p-3">
-                                <h6 class="card-title text-truncate mb-2">
-                                    ${item.isLive ? '<span class="badge bg-danger me-2">LIVE</span>' : ''}
-                                    ${item.title}
-                                </h6>
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <small class="text-muted">${item.timeText || 'No time info'}</small>
-                                    <small class="text-primary fw-bold">▶️ Watch</small>
+            try {
+                const res = await fetch('/api/moviebox/hero');
+                const data = await res.json();
+                if (data.success && data.items && data.items.length > 0) {
+                    renderHeroSlider(data.items);
+                } else {
+                    heroEl.style.display = 'none';
+                    if (heroInterval) clearInterval(heroInterval);
+                }
+            } catch (e) { 
+                console.error("Hero load failed", e); 
+                heroEl.style.display = 'none';
+                if (heroInterval) clearInterval(heroInterval);
+            }
+        }
+
+        function renderHeroSlider(items) {
+            const heroEl = document.getElementById('heroSection');
+            if (!heroEl) return;
+            heroEl.innerHTML = `
+                <div class="hero-slider" id="heroSlider">
+                    ${items.map((item, idx) => {
+                        const bg = item.stills?.url || item.cover;
+                        const title = item.title || item.name;
+                        const rating = item.rating || item.score;
+                        const year = item.releaseDate ? item.releaseDate.split('-')[0] : '';
+                        const trailerUrl = item.trailer?.videoAddress?.url || '';
+                        const type = item.type || (item.subjectType === 1 ? 'movie' : 'series');
+                        const isMobile = window.innerWidth <= 768;
+
+                        return `
+                        <div class="hero-slide ${idx === 0 ? 'active' : ''}" data-idx="${idx}">
+                            ${!isMobile && trailerUrl ? 
+                                `<video class="hero-bg-video" autoplay muted loop playsinline poster="${bg}">
+                                    <source src="${trailerUrl}" type="video/mp4">
+                                </video>` : 
+                                `<div class="hero-bg-image" style="background-image: url('${bg}')"></div>`
+                            }
+                            <div class="hero-overlay">
+                                <div class="hero-title">${title}</div>
+                                <div class="hero-meta">
+                                    <span>${year}</span>
+                                    <span>${rating} ⭐</span>
+                                    <span>${item.region || ''}</span>
+                                    <span class="badge bg-primary">${type.toUpperCase()}</span>
+                                </div>
+                                <div class="hero-desc">${item.description || 'No description available.'}</div>
+                                <div class="hero-btns">
+                                    <button class="btn btn-primary px-4" onclick="loadMovieBoxStreams('${item.id}', '${item.detailPath}', '${title.replace(/'/g, "")}', '${type}', '${item.subjectType || ""}')">▶ PLAY NOW</button>
+                                    <button class="btn btn-outline-light px-4" onclick="playStream('${trailerUrl}')">FULL TRAILER</button>
+                                </div>
+                            </div>
+                        </div>`;
+                    }).join('')}
+                </div>
+                <div class="hero-dots">
+                    ${items.map((_, idx) => `<div class="hero-dot ${idx === 0 ? 'active' : ''}" onclick="goToSlide(${idx})"></div>`).join('')}
+                </div>
+            `;
+            heroEl.style.display = 'block';
+            
+            if (heroInterval) clearInterval(heroInterval);
+            currentHeroIdx = 0;
+            heroInterval = setInterval(() => {
+                goToSlide((currentHeroIdx + 1) % items.length);
+            }, 8000);
+        }
+
+        window.goToSlide = (idx) => {
+            const slides = document.querySelectorAll('.hero-slide');
+            const dots = document.querySelectorAll('.hero-dot');
+            if (!slides || !slides.length) return;
+
+            if (slides[currentHeroIdx]) slides[currentHeroIdx].classList.remove('active');
+            if (dots[currentHeroIdx]) dots[currentHeroIdx].classList.remove('active');
+            
+            currentHeroIdx = idx;
+            
+            if (slides[currentHeroIdx]) slides[currentHeroIdx].classList.add('active');
+            if (dots[currentHeroIdx]) dots[currentHeroIdx].classList.add('active');
+        };
+
+        async function performSearch(append = false) {
+            const searchInput = document.getElementById('searchInput');
+            const q = searchInput ? searchInput.value.trim() : '';
+            if (loadingDiv) loadingDiv.classList.remove('d-none');
+            if (!append && resultsDiv) resultsDiv.innerHTML = '';
+
+            // SMART DETECT: If it's a direct URL or ID for AiSports, jump straight to play
+            let directMatchId = null;
+            if (/^\d{15,}$/.test(q)) {
+                directMatchId = q;
+            } else if (q.includes('id=')) {
+                const m = q.match(/id=(\d{15,})/);
+                if (m) directMatchId = m[1];
+            } else if (q.includes('detail/')) {
+                const m = q.match(/detail\/(\d{15,})/);
+                if (m) directMatchId = m[1];
+            }
+
+            if (directMatchId) {
+                loadAiSportsStreams(directMatchId, 'Direct Link Match');
+                if (loadingDiv) loadingDiv.classList.add('d-none');
+                return;
+            }
+
+            if (!append) {
+                const isDiscovery = !q && (currentSource === 'hitv' || currentSource === 'moviebox');
+                if (isDiscovery) {
+                    loadHero();
+                } else {
+                    const heroEl = document.getElementById('heroSection');
+                    if (heroEl) {
+                        heroEl.style.display = 'none';
+                        if (heroInterval) clearInterval(heroInterval);
+                    }
+                }
+            }
+
+            try {
+                let items = [];
+                let hasNext = false;
+
+                function normalizeAiSportsMatches(payload) {
+                    if (!payload || typeof payload !== 'object') return [];
+
+                    if (Array.isArray(payload.matchList)) {
+                        return payload.matchList;
+                    }
+
+                    if (!Array.isArray(payload.list)) return [];
+                    if (payload.list.length === 0) return [];
+
+                    const first = payload.list[0];
+                    if (first && Array.isArray(first.matchList)) {
+                        return payload.list.flatMap(group => {
+                            const leagueName = group?.league?.name || group?.league || '';
+                            const matches = Array.isArray(group?.matchList) ? group.matchList : [];
+                            return matches.map(match => ({ ...match, _leagueName: leagueName }));
+                        });
+                    }
+
+                    return payload.list;
+                }
+
+                function mapAiSportsItems(matches) {
+                    return (matches || []).map(m => ({
+                        id: m.id,
+                        title: `${m.team1?.name || 'Team 1'} vs ${m.team2?.name || 'Team 2'}`,
+                        cover: m.team1?.avatar || m.team1?.logo || '',
+                        team1Logo: m.team1?.avatar || m.team1?.logo || '',
+                        team2Logo: m.team2?.avatar || m.team2?.logo || '',
+                        league: m.league?.name || m.league || m._leagueName || '',
+                        isLive: m.status === 'MatchLive' || m.status === 'MatchIng' || m.statusLive === 1,
+                        statusText: m.timeDesc || m.status,
+                        type: 'aisports'
+                    })).filter(m => m.id);
+                }
+
+                if (currentSource === 'hitv') {
+                    const genreEl = document.getElementById('genreFilter');
+                    const sortEl = document.getElementById('sortFilter');
+                    const genre = genreEl ? genreEl.value : 'All';
+                    const sort = sortEl ? sortEl.value : 'Hottest';
+                    const url = q ? `/api/hitv/search?q=${encodeURIComponent(q)}` : 
+                                   `/api/hitv/browse?genre=${genre}&sort=${sort}&pageSize=28&page=${currentPage}`;
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    items = data.items || [];
+                } else if (currentSource === 'moviebox') {
+                    let url;
+                    if (q) {
+                        url = `/api/moviebox/search?keyword=${encodeURIComponent(q)}&page=${currentPage}`;
+                    } else if (currentMbCategory === 'home') {
+                        url = '/api/moviebox/home';
+                    } else if (currentMbCategory === 'trending') {
+                        url = '/api/moviebox/trending';
+                    } else if (currentMbCategory === 'shorts') {
+                        url = `/api/moviebox/shorts?page=${currentPage}`;
+                    } else if (currentMbCategory === 'bollywood') {
+                        url = `/api/moviebox/bollywood?page=${currentPage}`;
+                    } else if (currentMbCategory === 'kdrama') {
+                        url = `/api/moviebox/filter?channelId=2&country=Korea&page=${currentPage}`;
+                    } else if (currentMbCategory === 'cdrama') {
+                        url = `/api/moviebox/filter?channelId=2&country=China&page=${currentPage}`;
+                    } else if (currentMbCategory === 'sa') {
+                        url = `/api/moviebox/sa`;
+                    } else if (currentMbCategory === 'thai') {
+                        url = `/api/moviebox/thai`;
+                    } else if (currentMbCategory === 'turkish') {
+                        url = `/api/moviebox/turkish`;
+                    } else if (currentMbCategory === 'western') {
+                        url = `/api/moviebox/western`;
+                    } else if (currentMbCategory === 'animation') {
+                        url = `/api/moviebox/animation`;
+                    } else if (currentMbCategory === 'black-shows') {
+                        url = `/api/moviebox/black-shows`;
+                    } else {
+                        const mbChannelFilter = document.getElementById('mbChannelFilter');
+                        url = `/api/moviebox/discover?channelId=${mbChannelFilter ? mbChannelFilter.value : '2'}`;
+                    }
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    hasNext = data.hasNext || false;
+                    
+                    if (currentMbCategory === 'home' && data.sections) {
+                        items = data.sections.flatMap(s => s.items || []).map(i => ({ ...i, fromMovieBox: true }));
+                    } else if ((['trending', 'sa', 'thai', 'turkish', 'western', 'animation', 'black-shows'].includes(currentMbCategory)) && data.items) {
+                        items = data.items.map(i => ({ ...i, fromMovieBox: true }));
+                    } else if (currentMbCategory === 'shorts' && data.items) {
+                        items = data.items.map(i => ({ ...i, fromMovieBox: true, type: 'tv' }));
+                    } else if (currentMbCategory === 'bollywood' && data.items) {
+                        items = data.items.map(i => ({ ...i, fromMovieBox: true }));
+                    } else if (data.sections) {
+                        items = data.sections.flatMap(s => s.items || []).map(i => ({ ...i, fromMovieBox: true }));
+                    } else if (data.items) {
+                        items = data.items.map(i => ({ ...i, fromMovieBox: true }));
+                    } else {
+                        items = (data.items || data.data || []).map(i => ({ ...i, fromMovieBox: true }));
+                    }
+                } else if (currentSource === 'aisports') {
+                    const statusSelect = document.getElementById('sportStatusFilter');
+                    const statusValue = statusSelect ? statusSelect.value : '';
+                    const status = statusValue === 'live' ? 1 : (statusValue === 'upcoming' ? 2 : 0);
+                    const url = `/api/aisports/list/0?status=${status}${q ? `&type=${encodeURIComponent(q)}` : ''}`;
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    items = mapAiSportsItems(normalizeAiSportsMatches(data));
+                    // Fallback client-side search if server-side type filter is too specific
+                    if (q && items.length === 0) {
+                        const allRes = await fetch('/api/aisports/list/0?status=0');
+                        const allData = await allRes.json();
+                        const normalized = normalizeAiSportsMatches(allData);
+                        items = mapAiSportsItems(
+                            normalized.filter(m =>
+                                `${m.team1?.name || ''} ${m.team2?.name || ''}`.toLowerCase().includes(q.toLowerCase())
+                            )
+                        );
+                    }
+                } else if (currentSource === 'livetv') {
+                    const sportSelect = document.getElementById('sportFilter');
+                    const sportId = sportSelect ? sportSelect.value : '';
+                    const statusSelect = document.getElementById('sportStatusFilter');
+                    const status = statusSelect ? statusSelect.value : '';
+                    const res = await fetch(`/api/livetv/matches${sportId ? `?sportId=${sportId}` : ''}`);
+                    const data = await res.json();
+                    items = data.matches || [];
+                    if (status === 'live') items = items.filter(m => m.isLive);
+                    else if (status === 'upcoming') items = items.filter(m => !m.isLive);
+                } else if (currentSource === 'tmdb') {
+                    if (q) {
+                        if (!isNaN(q)) {
+                            loadStreams(q, 'TMDB Content');
+                            if (loadingDiv) loadingDiv.classList.add('d-none');
+                            return;
+                        } else {
+                            alert("Please enter a numeric TMDB ID for direct lookup, or browse popular items.");
+                        }
+                    } else {
+                        const tmdbTypeFilter = document.getElementById('tmdbTypeFilter');
+                        const type = tmdbTypeFilter ? tmdbTypeFilter.value : 'movie';
+                        const res = await fetch(`/api/tmdb/popular?type=${type}&page=${currentPage}`);
+                        const data = await res.json();
+                        items = (data.results || []).map(i => ({
+                            id: i.id,
+                            title: i.title || i.name,
+                            cover: i.poster_path ? `https://image.tmdb.org/t/p/w500${i.poster_path}` : null,
+                            rating: i.vote_average,
+                            releaseDate: i.release_date || i.first_air_date,
+                            tmdbId: i.id,
+                            type: type === 'movie' ? 'movie' : 'series'
+                        }));
+                    }
+                } else if (currentSource === 'kisskh') {
+                    const url = q ? `/api/kdrama/search?q=${encodeURIComponent(q)}` : `/api/kdrama/latest?page=${currentPage}`;
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    items = data.results || [];
+                } else if (currentSource === 'dramacool') {
+                    const url = q ? `/api/dramacool/search?q=${encodeURIComponent(q)}` : `/api/dramacool/latest?page=${currentPage}`;
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    items = data.results || data.data || [];
+                }
+
+                renderResults(items, append);
+                const lmc = document.getElementById('loadMoreContainer');
+                if (lmc) lmc.classList.toggle('d-none', items.length < 20 && !hasNext);
+            } catch (e) {
+                console.error(e);
+                if (resultsDiv && !append) resultsDiv.innerHTML = '<div class="text-center text-danger">Error fetching results</div>';
+            } finally { if (loadingDiv) loadingDiv.classList.add('d-none'); }
+        }
+
+        function renderResults(items, append = false) {
+            if (!items || items.length === 0) {
+                if (!append && resultsDiv) resultsDiv.innerHTML = '<p class="text-center text-muted">No results found.</p>';
+                return;
+            }
+
+            let html = '';
+            if (currentSource === 'livetv' || currentSource === 'aisports') {
+                html = items.map(item => {
+                    const isAi = currentSource === 'aisports';
+                    const safeTitle = (item.title || 'Live Match').replace(/'/g, "");
+                    const click = isAi ? `loadAiSportsStreams('${item.id}', '${safeTitle}')` : `loadSportsStreams('${item.url}', '${safeTitle}')`;
+                    
+                    return `
+                        <div class="col-12 col-md-6 col-lg-4">
+                            <div class="card h-100 cursor-pointer" onclick="${click}">
+                                <div class="card-body p-3">
+                                    ${isAi ? `<div class="d-flex align-items-center gap-3 mb-3">
+                                        <img src="${item.team1Logo || 'https://via.placeholder.com/40?text=T1'}" style="width: 40px; height: 40px; object-fit: contain;">
+                                        <span class="fw-bold">VS</span>
+                                        <img src="${item.team2Logo || 'https://via.placeholder.com/40?text=T2'}" style="width: 40px; height: 40px; object-fit: contain;">
+                                    </div>` : ''}
+                                    <h6 class="card-title text-truncate mb-2">
+                                        ${item.isLive ? '<span class="badge bg-danger me-2">LIVE</span>' : ''}
+                                        ${item.title}
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">${item.league || item.timeText || 'Sports'}</small>
+                                        <small class="text-primary fw-bold">▶️ WATCH</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                html = items.map(item => {
+                    const title = item.title || item.name || 'Untitled';
+                    const id = item.id || item.tmdbId;
+                    const path = item.detailPath || '';
+                    const type = item.type || (item.subjectType === 7 ? 'tv' : (item.subjectType === 1 ? 'movie' : 'tv'));
+                    const img = item.cover || item.thumbnail || item.image || item.poster || 'https://via.placeholder.com/300x450?text=No+Image';
+                    
+                    let clickHandler = `loadStreams('${id}', '${title.replace(/'/g, "")}', '${item.type || ""}')`;
+                    if (item.fromMovieBox || currentSource === 'moviebox') {
+                        clickHandler = `loadMovieBoxStreams('${id}', '${path}', '${title.replace(/'/g, "")}', '${type}', '${item.subjectType || ""}')`;
+                    }
+
+                    return `
+                    <div class="col-6 col-md-4 col-lg-3">
+                        <div class="card h-100 cursor-pointer" onclick="${clickHandler}">
+                            <img src="${img}" class="poster card-img-top" alt="${title}" loading="lazy">
+                            <div class="card-body p-2">
+                                <h6 class="card-title text-truncate small mb-0 fw-bold">${title}</h6>
+                                <div class="d-flex justify-content-between align-items-center mt-1">
+                                    <small class="text-muted">${item.rating || item.score || ''} ⭐</small>
+                                    <small class="text-muted" style="font-size: 0.7rem;">${item.releaseDate ? item.releaseDate.split('-')[0] : (item.year || '')}</small>
                                 </div>
                             </div>
                         </div>
                     </div>
-                `).join('');
-                return;
+                    `;
+                }).join('');
             }
 
-            resultsDiv.innerHTML = items.map(item => `
-                <div class="col-6 col-md-4 col-lg-3">
-                    <div class="card h-100 cursor-pointer" onclick="loadStreams('${item.id}', '${item.title.replace(/'/g, "")}')">
-                        <img src="${item.cover || item.thumbnail || item.image || 'https://via.placeholder.com/300x450?text=No+Image'}" class="poster card-img-top" alt="${item.title}">
-                        <div class="card-body p-2">
-                            <h6 class="card-title text-truncate small mb-0">${item.title}</h6>
-                            <div class="d-flex justify-content-between align-items-center mt-1">
-                                <small class="text-muted">${item.rating || ''} ⭐</small>
-                                <small class="text-muted" style="font-size: 0.7rem;">${item.releaseDate ? item.releaseDate.split('-')[0] : ''}</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `).join('');
+            if (append && resultsDiv) {
+                resultsDiv.insertAdjacentHTML('beforeend', html);
+            } else if (resultsDiv) {
+                resultsDiv.innerHTML = html;
+            }
         }
 
-        window.loadStreams = async (id, title) => {
+        window.loadMovieBoxStreams = async (id, path, title, type, subjectType) => {
             const modal = new bootstrap.Modal(document.getElementById('streamModal'));
             modal.show();
-            
             const list = document.getElementById('streamList');
             const loader = document.getElementById('modalLoading');
-            const modalTitle = document.querySelector('.modal-title');
-            list.innerHTML = '';
-            loader.classList.remove('d-none');
-            modalTitle.textContent = `Streams for ${title}`;
+            if (list) list.innerHTML = '';
+            if (loader) loader.classList.remove('d-none');
+            
+            try {
+                let se = null, ep = null;
+                const sType = parseInt(subjectType);
+                if (sType === 7 || type === 'tv' || sType === 2 || path.includes('/series/')) {
+                    se = prompt(`Enter Season Number for "${title}"`, "1") || 1;
+                    ep = prompt(`Enter Episode Number for "${title}"`, "1") || 1;
+                } else {
+                    se = 0; ep = 0;
+                }
+                const query = `?season=${se}&episode=${ep}`;
+                const cleanPath = path.startsWith('/') ? path : `/${path}`;
+                const res = await fetch(`/api/moviebox/play/${id}${cleanPath}${query}`);
+                const data = await res.json();
+                renderStreamList(data.streams, title);
+            } catch (e) {
+                if (list) list.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+            } finally { if (loader) loader.classList.add('d-none'); }
+        };
+
+        window.loadAiSportsStreams = async (id, title) => {
+            const modal = new bootstrap.Modal(document.getElementById('streamModal'));
+            modal.show();
+            closePlayer();
+            const list = document.getElementById('streamList');
+            const loader = document.getElementById('modalLoading');
+            if (list) list.innerHTML = '';
+            if (loader) loader.classList.remove('d-none');
 
             try {
-                // Default to episode 1 for demo
-                const ep = prompt(`Enter Episode Number for "${title}"`, "1") || 1;
-                
+                const res = await fetch(`/api/aisports/play/${id}`);
+                const data = await res.json();
+                if (!data.streams || data.streams.length === 0) {
+                    if (list) list.innerHTML = '<div class="alert alert-warning">No live streams available for this match.</div>';
+                    return;
+                }
+                renderStreamList(data.streams, title);
+            } catch (e) {
+                if (list) list.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+            } finally { if (loader) loader.classList.add('d-none'); }
+        };
+
+        window.loadStreams = async (id, title, passedType) => {
+            const modal = new bootstrap.Modal(document.getElementById('streamModal'));
+            modal.show();
+            const list = document.getElementById('streamList');
+            const loader = document.getElementById('modalLoading');
+            if (list) list.innerHTML = '';
+            if (loader) loader.classList.remove('d-none');
+
+            try {
                 let url;
-                if (currentSource === 'hitv') url = `/api/hitv/play/${id}/${ep}?title=${encodeURIComponent(title)}`;
-                else if (currentSource === 'tmdb') url = `/api/streams/series/${id}?season=1&episode=${ep}`;
-                else if (currentSource === 'kisskh') url = `/api/kdrama/streams/${id}/${ep}`;
-                else if (currentSource === 'dramacool') url = `/api/dramacool/browse/streams/${id}/${ep}`;
+                if (currentSource === 'hitv') {
+                    const ep = prompt(`Enter Episode Number for "${title}"`, "1") || 1;
+                    url = `/api/hitv/play/${id}/${ep}?title=${encodeURIComponent(title)}`;
+                } else if (currentSource === 'tmdb') {
+                    const type = passedType || prompt("Is this a 'movie' or 'series'?", "movie") || "movie";
+                    let query = "";
+                    if (type === 'series' || type === 'tv') {
+                        const s = prompt("Season?", "1");
+                        const e = prompt("Episode?", "1");
+                        query = `?season=${s}&episode=${e}`;
+                    }
+                    url = `/api/streams/${type === 'tv' ? 'series' : type}/${id}${query}`;
+                } else if (currentSource === 'kisskh') {
+                    const ep = prompt("Episode?", "1") || 1;
+                    url = `/api/kdrama/streams/${id}/${ep}`;
+                } else if (currentSource === 'dramacool') {
+                    const ep = prompt("Episode?", "1") || 1;
+                    let slug = id;
+                    if (id.includes('://')) {
+                        try {
+                            const u = new URL(id);
+                            slug = u.pathname.replace(/^\/|\/$/g, '');
+                        } catch(e) { console.error("URL parse fail", e); }
+                    }
+                    url = `/api/dramacool/browse/streams/${slug}/${ep}`;
+                }
 
                 const res = await fetch(url);
                 const data = await res.json();
-
-                loader.classList.add('d-none');
-                
-                if (!data.streams || data.streams.length === 0) {
-                    list.innerHTML = '<div class="alert alert-warning">No streams found. Try another source or check logs.</div>';
-                    return;
-                }
-
-                list.innerHTML = data.streams.map(s => `
-                    <a href="${s.url}" target="_blank" class="list-group-item list-group-item-action bg-dark text-light border-secondary mb-2 rounded">
-                        <div class="d-flex w-100 justify-content-between align-items-center">
-                            <h6 class="mb-1 text-primary">${s.provider || 'Unknown'}</h6>
-                            <span class="badge bg-secondary">${s.quality || 'Auto'}</span>
-                        </div>
-                        <p class="mb-1 text-truncate small text-muted">${s.url}</p>
-                        <div class="mt-2">
-                            ${s.subtitles ? `<span class="badge bg-info me-1">${s.subtitles.length} Subtitles</span>` : ''}
-                            <small class="text-success fw-bold">▶️ Play Stream</small>
-                        </div>
-                    </a>
-                `).join('');
-
+                renderStreamList(data.streams, title);
             } catch (e) {
-                loader.classList.add('d-none');
-                list.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
-            }
+                if (list) list.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+            } finally { if (loader) loader.classList.add('d-none'); }
         };
 
+        function renderStreamList(streams, title) {
+            const list = document.getElementById('streamList');
+            if (!list) return;
+            if (!streams || streams.length === 0) {
+                list.innerHTML = '<div class="alert alert-warning">No streams found for this content.</div>';
+                return;
+            }
+
+            list.innerHTML = streams.map(s => {
+                const isDirect = /\.(mp4|mkv|webm|ogg|avi|mov)(\?|$)/i.test(s.url) || s.format === 'mp4';
+                const downloadUrl = s.url.includes('?') ? 
+                    `${s.url}&download=1&filename=${encodeURIComponent(title + '.mp4')}` : 
+                    `${s.url}?download=1&filename=${encodeURIComponent(title + '.mp4')}`;
+
+                return `
+                <div class="list-group-item bg-dark text-light border-secondary mb-2 rounded shadow-sm">
+                    <div class="d-flex w-100 justify-content-between align-items-center">
+                        <h6 class="mb-1 text-primary fw-bold">${s.provider || 'Unknown'}</h6>
+                        <span class="badge bg-secondary">${s.quality || 'Auto'}</span>
+                    </div>
+                    <p class="mb-1 text-truncate small text-muted">${s.title || s.url}</p>
+                    <div class="mt-2 d-flex gap-2">
+                        <button onclick="playStream('${s.url}')" class="btn btn-sm btn-success px-3">▶ PLAY</button>
+                        ${isDirect ? `<a href="${downloadUrl}" target="_blank" class="btn btn-sm btn-outline-info">⬇ DOWNLOAD</a>` : ''}
+                        <a href="${s.url}" target="_blank" class="btn btn-sm btn-outline-secondary">RAW</a>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
         let hls = null;
-        
         function playStream(url) {
             const container = document.getElementById('playerContainer');
             const video = document.getElementById('videoPlayer');
-            
-            container.style.display = 'block';
-            
-            if (Hls.isSupported()) {
-                if(hls) { hls.destroy(); }
-                hls = new Hls();
-                hls.loadSource(url);
-                hls.attachMedia(video);
-                hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                    video.play();
-                });
-            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                video.src = url;
-                video.addEventListener('loadedmetadata', function() {
-                    video.play();
-                });
+            if (container) container.style.display = 'block';
+            if (video) {
+                if (Hls.isSupported() && url.includes('.m3u8')) {
+                    if(hls) hls.destroy();
+                    hls = new Hls();
+                    hls.loadSource(url);
+                    hls.attachMedia(video);
+                    hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+                } else {
+                    video.src = url;
+                    video.play().catch(e => console.warn("Auto-play blocked or failed", e));
+                }
+                if (container) container.scrollIntoView({ behavior: 'smooth' });
             }
-            
-            // Scroll to player
-            container.scrollIntoView({ behavior: 'smooth' });
         }
 
         window.closePlayer = function() {
-            const container = document.getElementById('playerContainer');
             const video = document.getElementById('videoPlayer');
-            video.pause();
-            video.src = '';
+            if (video) { video.pause(); video.src = ''; }
             if(hls) { hls.destroy(); hls = null; }
-            container.style.display = 'none';
+            const playerContainer = document.getElementById('playerContainer');
+            if (playerContainer) playerContainer.style.display = 'none';
         }
-
-        // Clean up on modal close
-        document.getElementById('streamModal').addEventListener('hidden.bs.modal', closePlayer);
 
         window.loadSportsStreams = async (matchUrl, title) => {
             const modal = new bootstrap.Modal(document.getElementById('streamModal'));
             modal.show();
-            
-            // Reset player state
             closePlayer();
-            
             const list = document.getElementById('streamList');
             const loader = document.getElementById('modalLoading');
-            const modalTitle = document.querySelector('.modal-title');
-            list.innerHTML = '';
-            loader.classList.remove('d-none');
-            modalTitle.textContent = `Streams for ${title}`;
+            if (list) list.innerHTML = '';
+            if (loader) loader.classList.remove('d-none');
 
             try {
                 const res = await fetch(`/api/livetv/match?url=${encodeURIComponent(matchUrl)}&resolve=true`);
                 const data = await res.json();
-
-                loader.classList.add('d-none');
                 
                 if (!data.streams || data.streams.length === 0) {
-                    list.innerHTML = '<div class="alert alert-warning">No streams found. Try another match.</div>';
+                    if (list) list.innerHTML = '<div class="alert alert-warning">No live streams available for this match.</div>';
                     return;
                 }
 
-                list.innerHTML = data.streams.map((s, index) => `
-                    <div class="list-group-item bg-dark text-light border-secondary mb-2 rounded">
-                        <div class="d-flex w-100 justify-content-between align-items-center">
-                            <h6 class="mb-1 text-primary">Stream ${index + 1} (${s.quality || 'Auto'})</h6>
-                            <span class="badge bg-info">${s.language || 'Unknown'}</span>
-                        </div>
-                        <p class="mb-1 small text-muted text-truncate" title="${s.title}">${s.title}</p>
-                        <div class="mt-2 d-flex gap-2">
-                             ${s.error ? 
-                                `<span class="badge bg-danger">Error: ${s.error}</span>` : 
-                                `<button onclick="playStream('${s.proxyUrl}')" class="btn btn-sm btn-primary">▶ Play Here</button>
-                                 <a href="${s.proxyUrl}" target="_blank" class="btn btn-sm btn-outline-success">New Tab</a>`
-                             }
-                        </div>
-                    </div>
-                `).join('');
-
+                if (list) {
+                    list.innerHTML = data.streams.map((s, index) => {
+                        const isDirect = /\.(mp4|mkv|webm|ogg|avi|mov)(\?|$)/i.test(s.proxyUrl);
+                        const downloadUrl = s.proxyUrl.includes('?') ? 
+                            `${s.proxyUrl}&download=1&filename=${encodeURIComponent(title + '.mp4')}` : 
+                            `${s.proxyUrl}?download=1&filename=${encodeURIComponent(title + '.mp4')}`;
+                        
+                        return `
+                        <div class="list-group-item bg-dark text-light border-secondary mb-2 rounded">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <h6 class="mb-1 text-primary">Stream ${index + 1} (${s.quality || 'Auto'})</h6>
+                                <span class="badge bg-info">${s.language || 'EN'}</span>
+                            </div>
+                            <div class="mt-2 d-flex gap-2">
+                                 ${s.error ? `<span class="badge bg-danger">Error: ${s.error}</span>` : 
+                                    `<button onclick="playStream('${s.proxyUrl}')" class="btn btn-sm btn-primary">▶ PLAY</button>
+                                     ${isDirect ? `<a href="${downloadUrl}" target="_blank" class="btn btn-sm btn-outline-info">⬇ DOWNLOAD</a>` : ''}
+                                     <a href="${s.proxyUrl}" target="_blank" class="btn btn-sm btn-outline-secondary">LINK</a>`
+                                 }
+                            </div>
+                        </div>`;
+                    }).join('');
+                }
             } catch (e) {
-                loader.classList.add('d-none');
-                list.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
-            }
+                if (list) list.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+            } finally { if (loader) loader.classList.add('d-none'); }
         };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadMetadata();
+            performSearch();
+        });
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

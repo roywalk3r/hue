@@ -122,8 +122,8 @@ async function getNewPage(options = {}) {
                 // Allow media
                 if (url.includes('.m3u8') || url.includes('.mp4') || url.includes('.ts')) return route.continue();
                 
-                // Block heavy types
-                if (['image', 'font', 'stylesheet', 'other'].includes(type)) return route.abort();
+                // Block heavy types, but keep "other" because some stream bootstraps use it.
+                if (['image', 'font', 'stylesheet'].includes(type)) return route.abort();
                 
                 // Block ads
                 const blacklisted = ['analytics', 'doubleclick', 'google-analytics', 'adsystem', 'carbon', 'popads', 'popcash', 'histats', 'acscdn'];

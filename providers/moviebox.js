@@ -76,17 +76,24 @@ async function getStreams(tmdbId, type, season = 1, episode = 1, tmdbDataProvide
         const firstStream = data.streams && data.streams.length > 0 ? data.streams[0] : (data.hls && data.hls.length > 0 ? data.hls[0] : null);
         
         if (firstStream) {
-            const captions = await movieboxApi.getCaptions(bestMatch.id, bestMatch.detailPath, firstStream.id || '');
-            subtitles = (captions || []).map(c => ({
-                url: c.url,
-                lang: c.lan || 'en',
-                label: c.lanName || 'English'
-            }));
+            try {
+                const captions = await movieboxApi.getCaptions(bestMatch.id, bestMatch.detailPath, firstStream.id || '');
+                subtitles = (captions || []).map(c => ({
+                    url: c.url,
+                    lang: c.lan || 'en',
+                    label: c.lanName || 'English'
+                }));
+            } catch (capErr) {
+                console.warn(`[MovieBox Provider] Caption fetch failed:`, capErr.message);
+            }
         }
 
         // Add headers for proxying
-        const typePath = (se === 0 && ep === 0) ? 'movies' : 'series';
-        const streamReferer = `https://123movienow.cc/spa/videoPlayPage/${typePath}/${bestMatch.detailPath}?id=${bestMatch.id}&type=/${typePath.slice(0, -1)}/detail&detailSe=&detailEp=&lang=en`;
+        const isMovie = (se === 0 && ep === 0);
+        const typeFolder = isMovie ? 'movies' : 'series';
+        const typeLabel = isMovie ? 'movie' : 'series';
+        const cleanPath = bestMatch.detailPath.startsWith('/') ? bestMatch.detailPath.substring(1) : bestMatch.detailPath;
+        const streamReferer = `https://123movienow.cc/spa/videoPlayPage/${typeFolder}/${cleanPath}?id=${bestMatch.id}&type=/${typeLabel}/detail&detailSe=&detailEp=&lang=en`;
         const mbHeaders = movieboxApi.getStreamHeaders(streamReferer);
 
         if (data.streams && Array.isArray(data.streams)) {
