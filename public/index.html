@@ -856,10 +856,35 @@
             if (video) {
                 if (Hls.isSupported() && url.includes('.m3u8')) {
                     if(hls) hls.destroy();
-                    hls = new Hls();
+                    const hlsConfig = {
+                        maxBufferLength: 30,
+                        maxMaxBufferLength: 60,
+                        maxBufferSize: 60 * 1000 * 1000,
+                        enableWorker: true,
+                        lowLatencyMode: true,
+                        backBufferLength: 90
+                    };
+                    hls = new Hls(hlsConfig);
                     hls.loadSource(url);
                     hls.attachMedia(video);
                     hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+                    hls.on(Hls.Events.ERROR, function (event, data) {
+                        if (data.fatal) {
+                            switch (data.type) {
+                                case Hls.ErrorTypes.NETWORK_ERROR:
+                                    console.log("Fatal network error encountered, try to recover");
+                                    hls.startLoad();
+                                    break;
+                                case Hls.ErrorTypes.MEDIA_ERROR:
+                                    console.log("Fatal media error encountered, try to recover");
+                                    hls.recoverMediaError();
+                                    break;
+                                default:
+                                    hls.destroy();
+                                    break;
+                            }
+                        }
+                    });
                 } else {
                     video.src = url;
                     video.play().catch(e => console.warn("Auto-play blocked or failed", e));

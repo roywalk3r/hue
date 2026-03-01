@@ -10,12 +10,12 @@ const { encryptUrl, decryptUrl } = require('../utils/security');
 let cryptoJs;
 
 // Force persistent connections for proxy requests to avoid latency
-const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 100, timeout: 60000, family: 4 });
-const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 100, timeout: 60000, family: 4 });
+const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 200, timeout: 60000, family: 4 });
+const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 200, timeout: 60000, family: 4 });
 
 // Retry configuration for fetch operations
 const MAX_RETRIES = 2;
-const RETRY_DELAY_MS = 500;
+const RETRY_DELAY_MS = 300;
 const FETCH_TIMEOUT_MS = 60000; // Increased to 60s for slow streams
 
 // Helper function to fetch with retry logic
@@ -33,13 +33,14 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
 
     const isSegment = /\.(ts|m4s|mp4|mkv)$/i.test(url.split('?')[0]);
     const timeout = options.timeout || FETCH_TIMEOUT_MS;
-    const actualRetries = isSegment ? 1 : maxRetries;
+    // Allow 1 retry for segments if they fail (helps with transient network blips)
+    const actualRetries = isSegment ? 2 : maxRetries;
 
     const fetchOptions = {
         ...options,
         agent: (parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgent : httpsAgent),
         timeout,
-        compress: true 
+        compress: !isSegment // Don't compress segments, they are already binary
     };
     
     let lastError;
@@ -479,11 +480,12 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers, options = {}) {
                 if (/\.(ts|mp4|png|jpg|jpeg|bmp)(\?|$)/i.test(abs) || isMp3WrappedTs) {
                     segmentUrls.push(abs);
                     const forceTypeParam = isMp3WrappedTs ? '&forceType=video%2Fmp2t' : '';
-                    // Removed force200=1 for segments to allow Range requests if needed
+                    const segmentExtraParams = '&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0';
+                    
                     out.push(
                         useUrlMode
-                            ? `${baseProxyUrl}/ts-proxy?url=${encodeURIComponent(abs)}${headerPart}&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0${forceTypeParam}`
-                            : `${baseProxyUrl}/ts-proxy?h_token=${encodeURIComponent(encryptUrl(abs, null, headers))}${forceTypeParam}`
+                            ? `${baseProxyUrl}/ts-proxy?url=${encodeURIComponent(abs)}${headerPart}${segmentExtraParams}${forceTypeParam}`
+                            : `${baseProxyUrl}/ts-proxy?h_token=${encodeURIComponent(encryptUrl(abs, null, headers))}${segmentExtraParams}${forceTypeParam}`
                     );
                 } else {
                     // Default: proxy any HTTP/S child URL through m3u8-proxy so nested playlists (even without .m3u8 extension) get rewritten.
@@ -1012,7 +1014,7 @@ function processStreamsForProxy(streams, serverUrl) {
             host = new URL(original).hostname.toLowerCase();
         } catch {}
         const isVixsrc = host.includes('vixsrc.to');
-        const isMovieBoxCDN = host.includes('hakunaymatata.com');
+        const isMovieBoxCDN = host.includes('hakunaymatata.com') || host.includes('aisports.mobi') || host.includes('poocloud.in');
         const isHlsManifest = s.format === 'hls' || /\.m3u8(\?|$)/i.test(original);
 
         // Ensure we use the headers provided in the object, or fallback to those in the URL if it was already proxied

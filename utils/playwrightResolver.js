@@ -23,10 +23,6 @@ async function resolveWithPlaywright(targetUrl, referer = null) {
         // Passive listener for m3u8 requests
         page.on('request', request => {
             const url = request.url();
-            const method = request.method();
-            if (url.includes('fetch') || url.includes('channel') || url.includes('.m3u8')) {
-                console.log(`[Playwright] Request: [${method}] ${url.substring(0, 100)}...`);
-            }
             if (url.includes('.m3u8')) {
                 foundStreams.push({
                     url: url,

@@ -22,8 +22,16 @@ class StreamedProvider {
      * Extract match name from path or query
      */
     extractMatchName(ctx) {
-        const { matchName, req } = ctx;
-        if (matchName) return matchName;
+        const { matchName, id, req } = ctx;
+        const input = matchName || id || '';
+        
+        if (input.includes('streamed.pk/watch/')) {
+            const m = input.match(/watch\/([^/?#]+)/);
+            if (m) return m[1];
+        }
+        
+        if (input) return input;
+
         if (req && req.path) {
             const match = req.path.match(/\/sports-stream\/(.+?)(?:\/|$)/);
             if (match) return match[1].replace(/\/$/, '');
@@ -125,32 +133,39 @@ class StreamedProvider {
 
         // Now resolve the embedUrls using Playwright
         const resolvedStreams = [];
-        // We only resolve the first 2-3 to keep it snappy
-        const limit = streams.slice(0, 3);
+        // Resolve first 2 in parallel for better speed/stability
+        const limit = streams.slice(0, 2);
 
-        for (const s of limit) {
+        const resolutionPromises = limit.map(async (s) => {
             try {
                 console.log(`[Streamed] Resolving embed: ${s.embedUrl}`);
+                // Use a tighter timeout for individual embed resolution
                 const resolved = await resolveWithPlaywright(s.embedUrl, 'https://streamed.pk/');
                 
                 if (resolved && resolved.streams && resolved.streams.length > 0) {
-                    resolved.streams.forEach((rs, idx) => {
-                        resolvedStreams.push({
-                            title: s.title + (resolved.streams.length > 1 ? ` (Alt ${idx + 1})` : ''),
-                            url: rs.url,
-                            quality: rs.quality || s.quality,
-                            provider: 'Field', // Renamed from Streamed for consistency
-                            source: 'streamed',
-                            isLive: true,
-                            headers: rs.headers,
-                            originalUrl: rs.url
-                        });
-                    });
+                    return resolved.streams.map((rs, idx) => ({
+                        title: s.title + (resolved.streams.length > 1 ? ` (Alt ${idx + 1})` : ''),
+                        url: rs.url,
+                        quality: rs.quality || s.quality,
+                        provider: 'Field',
+                        source: 'streamed',
+                        isLive: true,
+                        headers: rs.headers,
+                        originalUrl: rs.url,
+                        proxyMode: 'url',
+                        isProxied: true
+                    }));
                 }
             } catch (e) {
                 console.error(`[Streamed] Resolution failed for ${s.embedUrl}:`, e.message);
             }
-        }
+            return null;
+        });
+
+        const results = await Promise.all(resolutionPromises);
+        results.forEach(r => {
+            if (r) resolvedStreams.push(...r);
+        });
 
         return resolvedStreams;
     }
