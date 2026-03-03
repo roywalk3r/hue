@@ -10,9 +10,20 @@ const { baseurl } = config;
 const MAX_RETRIES = 2;
 const TIMEOUT = 15000;
 const KEY_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+const HARDCODED_MEGACLOUD_KEY =
+  '3709ad8892f413166b796a10c7fb86018bd1be1c7ae6f4d2cfc3fdc299cb3205';
 
-const KEY_URL =
-  'https://raw.githubusercontent.com/ryanwtf88/megacloud-keys/refs/heads/master/key.txt';
+const KEY_TEXT_URLS = [
+  process.env.MEGACLOUD_KEY_URL,
+  'https://raw.githubusercontent.com/itzzzme/megacloud-keys/refs/heads/main/key.txt',
+  'https://raw.githubusercontent.com/ryanwtf88/megacloud-keys/master/key.txt',
+  'https://raw.githubusercontent.com/ryanwtf88/megacloud-keys/main/key.txt',
+  'https://raw.githubusercontent.com/ryanwtf88/megacloud-keys/refs/heads/master/key.txt',
+]
+  .filter(Boolean);
+const KEY_JSON_URLS = [
+  'https://raw.githubusercontent.com/yogesh-hacker/MegacloudKeys/refs/heads/main/keys.json',
+];
 
 const FALLBACK_PROVIDERS = [
   { name: 'megaplay', domain: 'megaplay.buzz' },
@@ -75,10 +86,7 @@ export default async function megacloud({ selectedServer, id }, retry = 0) {
   const epID = extractEpisodeId(id);
 
   try {
-    const [sourcesResponse, key] = await Promise.all([
-      fetchAjaxSources(selectedServer.id),
-      getDecryptionKey(),
-    ]);
+    const sourcesResponse = await fetchAjaxSources(selectedServer.id);
 
     const { baseUrl, sourceId } = parseAjaxLink(sourcesResponse.link);
 
@@ -87,7 +95,7 @@ export default async function megacloud({ selectedServer, id }, retry = 0) {
     let usedFallback = false;
 
     try {
-      ({ sources: decrypted, rawData } = await decryptPrimarySource(baseUrl, sourceId, key));
+      ({ sources: decrypted, rawData } = await decryptPrimarySource(baseUrl, sourceId));
     } catch {
       ({ sources: decrypted, rawData } = await getFallbackSource(
         epID,
@@ -138,7 +146,7 @@ const parseAjaxLink = (link) => {
   return { sourceId, baseUrl };
 };
 
-const decryptPrimarySource = async (baseUrl, sourceId, key) => {
+const decryptPrimarySource = async (baseUrl, sourceId) => {
   const token = await extractToken(`${baseUrl}/${sourceId}?k=1&autoPlay=0&oa=0&asi=1`);
   if (!token) throw new Error('Token extraction failed');
 
@@ -152,7 +160,8 @@ const decryptPrimarySource = async (baseUrl, sourceId, key) => {
   const encrypted = data?.sources;
   if (!encrypted) throw new Error('Missing encrypted sources');
 
-  const sources = typeof encrypted === 'string' ? decryptAES(encrypted, key) : encrypted;
+  const sources =
+    typeof encrypted === 'string' ? await decryptAESWithFallback(encrypted) : encrypted;
 
   return { sources, rawData: data };
 };
@@ -164,6 +173,69 @@ const decryptAES = (encrypted, key) => {
 
   if (!decrypted) throw new Error('AES decryption failed');
   return JSON.parse(decrypted);
+};
+
+const isValidKey = (key) => typeof key === 'string' && /^[a-fA-F0-9]{32,64}$/.test(key.trim());
+
+const normalizeKey = (value) => {
+  const key = typeof value === 'string' ? value.trim() : '';
+  if (!isValidKey(key)) {
+    throw new Error('Invalid key format');
+  }
+  return key;
+};
+
+const getRemoteKey = async () => {
+  for (const keyUrl of KEY_TEXT_URLS) {
+    try {
+      const data = await fetchText(keyUrl);
+      const key = normalizeKey(data);
+      cachedKey = key;
+      keyLastFetched = Date.now();
+      return key;
+    } catch (err) {
+      console.error(`[megacloud] key fetch failed from ${keyUrl}: ${err.message}`);
+    }
+  }
+
+  for (const keyUrl of KEY_JSON_URLS) {
+    try {
+      const data = await fetchJSON(keyUrl);
+      const key = normalizeKey(data?.mega || data?.vidstr || data?.rabbit);
+      cachedKey = key;
+      keyLastFetched = Date.now();
+      return key;
+    } catch (err) {
+      console.error(`[megacloud] key fetch failed from ${keyUrl}: ${err.message}`);
+    }
+  }
+
+  throw new Error('Key fetch failed');
+};
+
+const decryptAESWithFallback = async (encrypted) => {
+  const keysToTry = [];
+
+  try {
+    keysToTry.push(normalizeKey(process.env.MEGACLOUD_KEY || HARDCODED_MEGACLOUD_KEY));
+  } catch {
+    // ignore invalid env override and continue with remote sources
+  }
+
+  if (cachedKey && Date.now() - keyLastFetched < KEY_CACHE_DURATION) {
+    keysToTry.push(cachedKey);
+  }
+
+  for (const key of keysToTry) {
+    try {
+      return decryptAES(encrypted, key);
+    } catch {
+      // Try the next candidate or remote refresh below.
+    }
+  }
+
+  const remoteKey = await getRemoteKey();
+  return decryptAES(encrypted, remoteKey);
 };
 
 /* =======================
@@ -234,15 +306,14 @@ const getDecryptionKey = async () => {
   }
 
   try {
-    const data = await fetchText(KEY_URL);
-    cachedKey = data.trim();
-    keyLastFetched = now;
-    return cachedKey;
-  } catch (err) {
-    console.error(err.message);
-    if (cachedKey) return cachedKey;
-    throw new Error('Key fetch failed');
+    return normalizeKey(process.env.MEGACLOUD_KEY || HARDCODED_MEGACLOUD_KEY);
+  } catch {
+    // Fall through to remote fetch if the override is invalid.
   }
+
+  if (cachedKey) return cachedKey;
+  keyLastFetched = now;
+  return getRemoteKey();
 };
 
 /* =======================

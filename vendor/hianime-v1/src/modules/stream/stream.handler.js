@@ -11,6 +11,6 @@ export default async function streamHandler(c) {
   if (!selectedServer) throw new validationError('invalid or server not found', { server });
 
   const response = await streamExtract({ selectedServer, id });
-  if (!response) throw NotFoundError('Something Went Wtong While Decryption');
+  if (!response) throw new NotFoundError('Something Went Wrong While Decryption');
   return response;
 }

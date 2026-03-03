@@ -1,10 +1,18 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-// Relocated user-config.json into utils directory; maintain backward-compatible fallback
-const NEW_OVERRIDE_PATH = path.join(process.cwd(), 'utils', 'user-config.json');
-const LEGACY_OVERRIDE_PATH = path.join(process.cwd(), 'user-config.json');
-const OVERRIDE_PATH = (fs.existsSync(NEW_OVERRIDE_PATH) || !fs.existsSync(LEGACY_OVERRIDE_PATH)) ? NEW_OVERRIDE_PATH : LEGACY_OVERRIDE_PATH;
+
+function resolveOverridePath() {
+  if (process.env.USER_CONFIG_PATH) {
+    return path.resolve(process.env.USER_CONFIG_PATH);
+  }
+  // Relocated user-config.json into utils directory; maintain backward-compatible fallback
+  const newOverridePath = path.join(process.cwd(), 'utils', 'user-config.json');
+  const legacyOverridePath = path.join(process.cwd(), 'user-config.json');
+  return (fs.existsSync(newOverridePath) || !fs.existsSync(legacyOverridePath)) ? newOverridePath : legacyOverridePath;
+}
+
+const OVERRIDE_PATH = resolveOverridePath();
 const CONFIG_SCHEMA_VERSION = 1; // Increment when structure / semantics change
 
 function parseJsonMaybe(val) {
@@ -44,6 +52,7 @@ function readOverrideFile() {
 
 function writeOverrideFile(obj) {
   try {
+    fs.mkdirSync(path.dirname(OVERRIDE_PATH), { recursive: true });
     fs.writeFileSync(OVERRIDE_PATH, JSON.stringify(obj, null, 2));
     return true;
   } catch (e) {

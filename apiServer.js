@@ -76,8 +76,177 @@ const swaggerUi = require('swagger-ui-express');
 const redoc = require('redoc-express');
 const swaggerDef = require('./utils/swagger-def');
 
+function cloneOpenApiSpec(spec) {
+  return JSON.parse(JSON.stringify(spec));
+}
+
+function addDefaultTagToOperations(paths, tagName) {
+  const taggedPaths = {};
+
+  for (const [routePath, operations] of Object.entries(paths || {})) {
+    const taggedOperations = {};
+
+    for (const [method, operation] of Object.entries(operations || {})) {
+      if (operation && typeof operation === 'object' && !Array.isArray(operation)) {
+        taggedOperations[method] = {
+          ...operation,
+          tags: Array.isArray(operation.tags) && operation.tags.length ? operation.tags : [tagName],
+        };
+      } else {
+        taggedOperations[method] = operation;
+      }
+    }
+
+    taggedPaths[routePath] = taggedOperations;
+  }
+
+  return taggedPaths;
+}
+
+function buildHeaderProxyUrl(req, targetUrl, headers = {}, routePath = '/api/proxy') {
+  if (!targetUrl || typeof targetUrl !== 'string') return targetUrl;
+
+  try {
+    const current = new URL(targetUrl, `${req.protocol}://${req.get('host')}`);
+    if (
+      current.pathname.startsWith('/api/proxy') ||
+      current.pathname.startsWith('/m3u8-proxy') ||
+      current.pathname.startsWith('/ts-proxy') ||
+      current.pathname.startsWith('/sub-proxy')
+    ) {
+      return current.toString();
+    }
+  } catch {
+    // Fall through and rebuild below.
+  }
+
+  const baseUrl = `${req.protocol}://${req.get('host')}${routePath}`;
+  const params = new URLSearchParams();
+  params.set('url', targetUrl);
+  if (headers && Object.keys(headers).length > 0) {
+    params.set('headers', JSON.stringify(headers));
+  }
+  return `${baseUrl}?${params.toString()}`;
+}
+
+function chooseAnimeProxyRoute(targetUrl, kind = 'stream') {
+  const normalized = typeof targetUrl === 'string' ? targetUrl.toLowerCase() : '';
+
+  if (kind === 'subtitle') return '/sub-proxy';
+  if (/\.m3u8(\?|$)/i.test(normalized)) return '/m3u8-proxy';
+  if (/\.(mp4|m4s|ts|mkv)(\?|$)/i.test(normalized)) return '/ts-proxy';
+  return null;
+}
+
+function buildAnimeProxyHeaders(stream) {
+  const referer = stream?.referer || 'https://megacloud.tv';
+  const headers = { Referer: referer };
+
+  try {
+    headers.Origin = new URL(referer).origin;
+  } catch {
+    // Keep referer only if origin cannot be derived.
+  }
+
+  return headers;
+}
+
+function proxyAnimeStreamObject(req, stream) {
+  if (!stream || typeof stream !== 'object') return stream;
+
+  const proxied = { ...stream };
+  const headers = buildAnimeProxyHeaders(stream);
+
+  if (proxied.link && typeof proxied.link === 'object' && typeof proxied.link.file === 'string') {
+    proxied.link = {
+      ...proxied.link,
+      file: buildHeaderProxyUrl(
+        req,
+        proxied.link.file,
+        headers,
+        chooseAnimeProxyRoute(proxied.link.file, 'stream')
+      ),
+    };
+  }
+
+  if (typeof proxied.streamingLink === 'string') {
+    const route = chooseAnimeProxyRoute(proxied.streamingLink, 'stream');
+    if (route) {
+      proxied.streamingLink = buildHeaderProxyUrl(
+        req,
+        proxied.streamingLink,
+        headers,
+        route
+      );
+    }
+  }
+
+  if (Array.isArray(proxied.tracks)) {
+    proxied.tracks = proxied.tracks.map((track) => {
+      if (!track || typeof track.file !== 'string') return track;
+      return {
+        ...track,
+        file: buildHeaderProxyUrl(req, track.file, headers, chooseAnimeProxyRoute(track.file, 'subtitle')),
+      };
+    });
+  }
+
+  return proxied;
+}
+
+function proxyAnimeSuccessPayload(req, payload) {
+  if (!payload || typeof payload !== 'object') return payload;
+
+  const proxied = { ...payload };
+
+  if (proxied.data && typeof proxied.data === 'object') {
+    proxied.data = proxyAnimeStreamObject(req, proxied.data);
+  }
+
+  if (proxied.stream && typeof proxied.stream === 'object') {
+    proxied.stream = proxyAnimeStreamObject(req, proxied.stream);
+  }
+
+  return proxied;
+}
+
+async function buildSwaggerDoc() {
+  const mergedDoc = cloneOpenApiSpec(swaggerDef);
+
+  try {
+    const hianimeApp = await getHianimeApp();
+    const response = await hianimeApp.fetch(new Request('http://local/openapi.json'));
+
+    if (!response.ok) {
+      throw new Error(`HiAnime OpenAPI returned ${response.status}`);
+    }
+
+    const animeDoc = await response.json();
+    const animePaths = addDefaultTagToOperations(animeDoc.paths, 'Anime');
+
+    mergedDoc.paths = {
+      ...animePaths,
+      ...mergedDoc.paths,
+    };
+
+    if (animeDoc.components && typeof animeDoc.components === 'object') {
+      mergedDoc.components = mergedDoc.components || {};
+      for (const [section, value] of Object.entries(animeDoc.components)) {
+        mergedDoc.components[section] = {
+          ...(animeDoc.components[section] || {}),
+          ...(mergedDoc.components[section] || {}),
+        };
+      }
+    }
+  } catch (error) {
+    logger.warn(`[docs] Failed to merge HiAnime OpenAPI spec: ${error.message}`);
+  }
+
+  return mergedDoc;
+}
+
 // Serve the raw OpenAPI spec for Redoc to consume
-app.get('/api/docs/swagger.json', (req, res) => res.json(swaggerDef));
+app.get('/api/docs/swagger.json', async (req, res) => res.json(await buildSwaggerDoc()));
 
 // Scalar API Reference (Modern Documentation)
 app.get('/api/docs', (req, res) => {
@@ -157,7 +326,11 @@ app.get('/api/docs', (req, res) => {
 });
 
 // Mount Swagger UI as an alternative
-app.use('/api/docs/swagger', swaggerUi.serve, swaggerUi.setup(swaggerDef));
+app.use('/api/docs/swagger', swaggerUi.serve, swaggerUi.setup(null, {
+  swaggerOptions: {
+    url: '/api/docs/swagger.json',
+  },
+}));
 
 function resolveServerUrl(req) {
   const host = req.get('host') || 'localhost';
@@ -367,6 +540,10 @@ async function proxyHianimeRequest(req, res, next) {
         message,
         details,
       });
+    }
+
+    if (parsedJson && parsedJson.success === true && targetUrl.startsWith('/api/v1/stream')) {
+      return res.status(status).json(proxyAnimeSuccessPayload(req, parsedJson));
     }
 
     const responseHeaders = {};
@@ -707,14 +884,14 @@ app.get('/api/streams/anime/:id', async (req, res) => {
         .status(404)
         .json({ success: false, error: result.error, id, servers: result.servers });
     }
-    return res.json({
+    return res.json(proxyAnimeSuccessPayload(req, {
       success: true,
       id,
       server,
       type,
       servers: result.servers,
       stream: result.stream,
-    });
+    }));
   } catch (e) {
     metrics.lastError = e.message;
     return res.status(500).json({ success: false, error: 'INTERNAL_ERROR', message: e.message });

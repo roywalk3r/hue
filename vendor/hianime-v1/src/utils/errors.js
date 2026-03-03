@@ -1,18 +1,21 @@
 export class AppError extends Error {
   constructor(message, statusCode = 500, details = null) {
     super(message);
+    this.name = 'AppError';
     this.statusCode = statusCode;
     this.details = details;
   }
 }
-export class NotFoundError extends AppError {
-  constructor(message = 'resource not found', details = null) {
-    super(message, 404, details);
+
+function createAppErrorFactory(name, statusCode, defaultMessage) {
+  function NamedAppError(message = defaultMessage, details = null) {
+    const error = new AppError(message, statusCode, details);
+    error.name = name;
+    return error;
   }
+
+  return NamedAppError;
 }
 
-export class validationError extends AppError {
-  constructor(message = 'validaion failed', details = null) {
-    super(message, 400, details);
-  }
-}
+export const NotFoundError = createAppErrorFactory('NotFoundError', 404, 'resource not found');
+export const validationError = createAppErrorFactory('validationError', 400, 'validaion failed');

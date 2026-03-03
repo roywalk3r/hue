@@ -19,9 +19,10 @@ Advanced aggregator for Movies, TV, Asian Drama, Anime, and Live Sports.
   servers: [{ url: '/', description: 'Default Server' }],
   tags: [
     { name: 'Asian Content', description: 'HiTV, SFlix, and MovieBox Regional discovery.' },
+    { name: 'Anime', description: 'HiAnime stream resolution and catalog endpoints.' },
     { name: 'KDrama Hubs', description: 'Specialized KissKH and Dramacool extractors.' },
     { name: 'Aggregation', description: 'Unified multi-source extraction via TMDB ID.' },
-    { name: 'Live Sports', description: 'Real-time resolution for global sports events.' },
+    { name: 'Sports', description: 'Real-time resolution for global sports events.' },
     { name: 'System', description: 'Health and performance metrics.' }
   ],
   paths: {
@@ -85,6 +86,19 @@ Advanced aggregator for Movies, TV, Asian Drama, Anime, and Live Sports.
     },
 
     /* Aggregation */
+    '/api/streams/anime/{id}': {
+      get: {
+        tags: ['Anime'],
+        summary: 'Resolve HiAnime episode streams',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'HiAnime episode identifier' },
+          { name: 'server', in: 'query', schema: { type: 'string' }, description: 'Preferred server name such as hd-1' },
+          { name: 'type', in: 'query', schema: { type: 'string', enum: ['sub', 'dub', 'raw'], default: 'sub' } },
+          { name: 'serversOnly', in: 'query', schema: { type: 'boolean' }, description: 'Return available servers without resolving a stream' }
+        ],
+        responses: { 200: { description: 'OK' } }
+      }
+    },
     '/api/streams/{type}/{tmdbId}': {
       get: {
         tags: ['Aggregation'],

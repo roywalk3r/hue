@@ -216,7 +216,7 @@
         <div class="stream-card-header">
           <h3>${escapeHtml(stream.name || 'Untitled')}</h3>
           <div class="stream-actions">
-            ${isDirectVideoUrl(stream.url) || stream.format === 'mp4' ? `<button type="button" class="download-btn" title="Download Stream" data-action="download" data-idx="${idx}">⬇</button>` : ''}
+            ${isDownloadableUrl(stream.url, stream) ? `<button type="button" class="download-btn" title="Download Stream" data-action="download" data-idx="${idx}">⬇</button>` : ''}
             <span class="play-icon">▶</span>
           </div>
         </div>
@@ -294,7 +294,7 @@
     if (stream.headers && Object.keys(stream.headers).length) pills.push(makePill('needs proxy', 'warning'));
     pills.push(makePill(urlLabel(url)));
     
-    if (isDirectVideoUrl(url) || stream.format === 'mp4') {
+    if (isDownloadableUrl(url, stream)) {
       const dlBtn = document.createElement('button');
       dlBtn.type = 'button';
       dlBtn.className = 'pill-btn';
@@ -349,6 +349,10 @@
 
   function isDirectVideoUrl(url) {
     return /\.(mp4|webm|ogg|avi|mov|mkv)(\?|$)/i.test(url);
+  }
+
+  function isDownloadableUrl(url, stream) {
+    return isDirectVideoUrl(url) || isHlsUrl(url) || (stream && stream.format === 'mp4');
   }
 
   function loadIntoVideo(resolved, stream) {

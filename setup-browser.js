@@ -30,6 +30,12 @@ for (const browserPath of browserPaths) {
   }
 }
 
+// Official Playwright images ship browsers under /ms-playwright instead of a system Chromium path.
+if (!browserExists && fs.existsSync('/ms-playwright')) {
+  console.log('[setup] Playwright browser cache found at: /ms-playwright');
+  browserExists = true;
+}
+
 if (!browserExists) {
   console.log('[setup] Chrome/Chromium not found in standard paths');
   console.log('[setup] You may need to:');

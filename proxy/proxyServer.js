@@ -4,8 +4,12 @@
 
 const cors = require('cors');
 const fetch = require('node-fetch');
+const fs = require('fs');
 const http = require('http');
 const https = require('https');
+const os = require('os');
+const path = require('path');
+const { spawn } = require('child_process');
 const { encryptUrl, decryptUrl } = require('../utils/security');
 let cryptoJs;
 
@@ -68,6 +72,7 @@ const progressiveOpenMap = new Map(); // url -> { lastEnd }
 // Tail prefetch cache: stores last N KB for quick tail range responses
 const tailPrefetchMap = new Map(); // url -> { data: Buffer, start: number, end: number, size: number, ts: number }
 const TAIL_PREFETCH_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const HLS_DOWNLOAD_TIMEOUT_MS = Number(process.env.HLS_DOWNLOAD_TIMEOUT_MS) || (15 * 60 * 1000);
 
 function isCacheDisabled() {
     return process.env.DISABLE_CACHE === 'true';
@@ -131,6 +136,174 @@ function normalizeTargetUrl(url) {
     if (typeof url !== 'string') return url;
     if (url.startsWith('//')) return `https:${url}`;
     return url;
+}
+
+function buildInternalProxyUrl(req, routePath, omitKeys = []) {
+    const port = Number(process.env.API_PORT) || Number(req.socket?.localPort) || 24608;
+    const internalUrl = new URL(routePath, `http://127.0.0.1:${port}`);
+    const omit = new Set(omitKeys);
+
+    Object.entries(req.query || {}).forEach(([key, value]) => {
+        if (omit.has(key) || value == null) return;
+        if (Array.isArray(value)) {
+            value.forEach(item => {
+                if (item != null) internalUrl.searchParams.append(key, String(item));
+            });
+            return;
+        }
+        internalUrl.searchParams.set(key, String(value));
+    });
+
+    return internalUrl.toString();
+}
+
+function sanitizeDownloadFilename(rawName, fallback = 'video.mp4') {
+    const value = typeof rawName === 'string' ? rawName.trim() : '';
+    const cleaned = value
+        .replace(/[\r\n]/g, ' ')
+        .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const base = cleaned || fallback;
+    return /\.[a-z0-9]{2,5}$/i.test(base) ? base : `${base}.mp4`;
+}
+
+function runFfmpegDownload(inputUrl, outputPath, mode) {
+    const inputOptions = [
+        '-allowed_extensions', 'ALL',
+        '-allowed_segment_extensions', 'ALL',
+        '-extension_picky', '0',
+        '-protocol_whitelist', 'file,http,https,tcp,tls,crypto,data'
+    ];
+    const args = mode === 'transcode'
+        ? [
+            ...inputOptions,
+            '-y',
+            '-nostdin',
+            '-hide_banner',
+            '-loglevel', 'error',
+            '-i', inputUrl,
+            '-map', '0:v:0?',
+            '-map', '0:a?',
+            '-sn',
+            '-c:v', 'libx264',
+            '-preset', 'veryfast',
+            '-crf', '23',
+            '-c:a', 'aac',
+            '-b:a', '128k',
+            '-movflags', '+faststart',
+            outputPath
+        ]
+        : [
+            ...inputOptions,
+            '-y',
+            '-nostdin',
+            '-hide_banner',
+            '-loglevel', 'error',
+            '-i', inputUrl,
+            '-map', '0:v:0?',
+            '-map', '0:a?',
+            '-sn',
+            '-c', 'copy',
+            '-bsf:a', 'aac_adtstoasc',
+            '-movflags', '+faststart',
+            outputPath
+        ];
+
+    return new Promise((resolve, reject) => {
+        const ffmpeg = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] });
+        let stderr = '';
+        const startedAt = Date.now();
+        const timeoutId = setTimeout(() => {
+            if (!ffmpeg.killed) ffmpeg.kill('SIGKILL');
+        }, HLS_DOWNLOAD_TIMEOUT_MS);
+
+        ffmpeg.stderr.on('data', (chunk) => {
+            if (stderr.length < 16384) stderr += chunk.toString();
+        });
+
+        ffmpeg.on('error', (error) => {
+            clearTimeout(timeoutId);
+            reject(error);
+        });
+        ffmpeg.on('close', (code) => {
+            clearTimeout(timeoutId);
+            if (code === 0) return resolve();
+            const elapsedMs = Date.now() - startedAt;
+            const details = stderr.trim() || `ffmpeg exited with code ${code} after ${elapsedMs}ms`;
+            const error = new Error(details);
+            error.code = code;
+            reject(error);
+        });
+    });
+}
+
+async function streamHlsDownload(req, res) {
+    const inputUrl = buildInternalProxyUrl(req, '/m3u8-proxy', ['download', 'filename']);
+    const filename = sanitizeDownloadFilename(req.query.filename, 'video.mp4');
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'hue-hls-'));
+    const outputPath = path.join(tempDir, filename);
+    const startedAt = Date.now();
+    const cleanup = async () => {
+        await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+    };
+
+    try {
+        console.log('[download-hls] starting', {
+            filename,
+            timeoutMs: HLS_DOWNLOAD_TIMEOUT_MS,
+            source: inputUrl
+        });
+        try {
+            console.log('[download-hls] mode=copy');
+            await runFfmpegDownload(inputUrl, outputPath, 'copy');
+            console.log('[download-hls] copy mode succeeded');
+        } catch (copyError) {
+            console.error('[download-hls] copy mode failed:', copyError.message);
+            console.log('[download-hls] mode=transcode');
+            await runFfmpegDownload(inputUrl, outputPath, 'transcode').catch((transcodeError) => {
+                console.error('[download-hls] transcode mode failed:', transcodeError.message);
+                const error = new Error(transcodeError.message || copyError.message);
+                error.cause = { copy: copyError.message, transcode: transcodeError.message };
+                throw error;
+            });
+            console.log('[download-hls] transcode mode succeeded');
+        }
+
+        const stat = await fs.promises.stat(outputPath);
+        if (!stat.size) {
+            throw new Error('ffmpeg produced an empty output file');
+        }
+        console.log('[download-hls] completed', {
+            filename,
+            sizeBytes: stat.size,
+            elapsedMs: Date.now() - startedAt
+        });
+
+        res.status(200);
+        res.setHeader('Content-Type', 'video/mp4');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Length', String(stat.size));
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+
+        const stream = fs.createReadStream(outputPath);
+        stream.on('error', async (error) => {
+            console.error('[download-hls] readback failed:', error.message);
+            if (!res.headersSent) {
+                res.status(500).json({ error: `download read failed: ${error.message}` });
+            } else {
+                res.destroy(error);
+            }
+            await cleanup();
+        });
+        stream.on('close', cleanup);
+        stream.pipe(res);
+    } catch (error) {
+        await cleanup();
+        const details = error?.cause ? error.cause : error.message;
+        return res.status(502).json({ error: 'HLS download failed', details });
+    }
 }
 
 function inferContentType(upstreamCT, targetUrl) {
@@ -540,6 +713,9 @@ function createProxyRoutes(app) {
         if (!/^https?:\/\//i.test(targetUrl)) {
             if (debug) console.log('[m3u8-proxy] Invalid URL check failed, targetUrl:', targetUrl);
             return res.status(400).json({ error: 'Invalid target URL', target: targetUrl });
+        }
+        if (req.query.download === '1') {
+            return streamHlsDownload(req, res);
         }
         if (headers.Referer && !headers.Origin) {
             try { headers.Origin = new URL(headers.Referer).origin; } catch (_e) { /* ignore */ }

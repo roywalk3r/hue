@@ -28955,3 +28955,239 @@
 [2026-02-20T18:54:35.690Z] [INFO] [api] fetching streams for tmdbId=129552 (Smart Wait: 15s)
 [2026-02-20T18:54:37.712Z] [INFO] [api] all providers completed within deadline for 129552
 [2026-02-20T18:54:54.198Z] [INFO] [request] GET /favicon.ico from 12ca17b4
+[2026-03-02T18:36:11.576Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-03-03T08:05:12.907Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-03-03T08:07:45.161Z] [INFO] [request] GET /favicon.ico from 12ca17b4
+[2026-03-03T08:08:50.415Z] [INFO] [request] GET /api/streams/movie/33031 from 12ca17b4
+[2026-03-03T08:08:51.467Z] [INFO] [api] fetching streams for tmdbId=33031 (Smart Wait: 15s)
+[2026-03-03T08:08:54.909Z] [INFO] [api] all providers completed within deadline for 33031
+[2026-03-03T08:12:00.561Z] [INFO] [request] GET /api/streams/movie/1327819 from 12ca17b4
+[2026-03-03T08:12:01.462Z] [INFO] [api] fetching streams for tmdbId=1327819 (Smart Wait: 15s)
+[2026-03-03T08:12:03.514Z] [INFO] [api] all providers completed within deadline for 1327819
+[2026-03-03T08:12:13.801Z] [INFO] [request] GET /api/streams/movie/1327819 from 12ca17b4
+[2026-03-03T08:12:13.802Z] [INFO] [api] returning 2 streams from cache for 1327819
+[2026-03-03T08:13:21.658Z] [INFO] [request] GET /api/streams/movie/1236153 from 12ca17b4
+[2026-03-03T08:13:24.137Z] [INFO] [api] fetching streams for tmdbId=1236153 (Smart Wait: 15s)
+[2026-03-03T08:13:32.029Z] [INFO] [api] all providers completed within deadline for 1236153
+[2026-03-03T08:19:17.784Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-03-03T08:21:06.376Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-03-03T08:22:58.512Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-03-03T08:26:12.777Z] [INFO] [request] GET /api/streams/movie/1236153 from 12ca17b4
+[2026-03-03T08:26:13.589Z] [INFO] [api] fetching streams for tmdbId=1236153 (Smart Wait: 15s)
+[2026-03-03T08:26:25.484Z] [INFO] [api] all providers completed within deadline for 1236153
+[2026-03-03T16:06:18.484Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-03-03T16:17:48.615Z] [INFO] [request] GET /favicon.ico from 12ca17b4
+[2026-03-03T18:25:21.342Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-03-03T18:26:17.564Z] [INFO] [request] GET /api/v1/home from 12ca17b4
+[2026-03-03T18:26:18.131Z] [INFO] [hianime] GET /api/v1/home -> 200 (566ms)
+[2026-03-03T18:28:44.342Z] [INFO] [request] GET /api/v1/anime/steins-gate-3 from 12ca17b4
+[2026-03-03T18:28:44.892Z] [INFO] [hianime] GET /api/v1/anime/steins-gate-3 -> 200 (549ms)
+[2026-03-03T18:29:01.899Z] [INFO] [request] GET /api/v1/stream?id=steinsgate-3%3A%3Aep%3D213 from 12ca17b4
+[2026-03-03T18:29:08.846Z] [INFO] [hianime] GET /api/v1/stream?id=steinsgate-3%3A%3Aep%3D213 -> 500 (6945ms)
+[2026-03-03T18:29:29.450Z] [INFO] [request] GET /api/v1/servers/steinsgate-3%3A%3Aep%3D213 from 12ca17b4
+[2026-03-03T18:29:29.759Z] [INFO] [hianime] GET /api/v1/servers/steinsgate-3%3A%3Aep%3D213 -> 200 (309ms)
+[2026-03-03T18:29:51.199Z] [INFO] [request] GET /api/v1/stream?id=steinsgate-3%3A%3Aep%3D213 from 12ca17b4
+[2026-03-03T18:29:57.656Z] [INFO] [hianime] GET /api/v1/stream?id=steinsgate-3%3A%3Aep%3D213 -> 500 (6456ms)
+[2026-03-03T18:31:50.379Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-03-03T18:31:52.456Z] [INFO] [request] GET /api/v1/stream?id=steinsgate-3%3A%3Aep%3D213 from 12ca17b4
+[2026-03-03T18:31:59.551Z] [INFO] [hianime] GET /api/v1/stream?id=steinsgate-3%3A%3Aep%3D213 -> 404 (6911ms)
+[2026-03-03T18:33:36.580Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-03-03T18:33:42.212Z] [INFO] [request] GET /api/v1/stream?id=steinsgate-3%3A%3Aep%3D213 from 12ca17b4
+[2026-03-03T18:33:50.046Z] [INFO] [hianime] GET /api/v1/stream?id=steinsgate-3%3A%3Aep%3D213 -> 404 (7660ms)
+[2026-03-03T18:36:25.087Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-03-03T18:38:49.348Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-03-03T18:48:51.087Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-03-03T18:48:59.397Z] [INFO] [request] GET /api/v1/stream?id=steinsgate-3%3A%3Aep%3D213 from 12ca17b4
+[2026-03-03T18:49:03.889Z] [INFO] [hianime] GET /api/v1/stream?id=steinsgate-3%3A%3Aep%3D213 -> 200 (4320ms)
+[2026-03-03T18:58:08.020Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-03-03T18:58:29.396Z] [INFO] [request] GET /api/v1/stream?id=steinsgate-3%3A%3Aep%3D213 from 12ca17b4
+[2026-03-03T18:58:31.102Z] [INFO] [hianime] GET /api/v1/stream?id=steinsgate-3%3A%3Aep%3D213 -> 200 (1538ms)
+[2026-03-03T18:59:46.640Z] [INFO] [request] GET /api/v1/anime/hells-paradise-season-2-20405 from 12ca17b4
+[2026-03-03T18:59:46.648Z] [INFO] [request] GET /api/v1/episodes/hells-paradise-season-2-20405 from 12ca17b4
+[2026-03-03T18:59:46.870Z] [INFO] [hianime] GET /api/v1/episodes/hells-paradise-season-2-20405 -> 200 (222ms)
+[2026-03-03T18:59:46.962Z] [INFO] [hianime] GET /api/v1/anime/hells-paradise-season-2-20405 -> 200 (322ms)
+[2026-03-03T18:59:57.249Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T18:59:57.446Z] [INFO] [hianime] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200 (197ms)
+[2026-03-03T18:59:57.453Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T18:59:57.454Z] [INFO] [hianime][cache] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200
+[2026-03-03T18:59:58.507Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub from 12ca17b4
+[2026-03-03T18:59:59.659Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub -> 200 (1152ms)
+[2026-03-03T18:59:59.665Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub from 12ca17b4
+[2026-03-03T19:00:01.206Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub -> 200 (1541ms)
+[2026-03-03T19:10:30.367Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-03-03T19:22:48.835Z] [INFO] [request] GET /api/v1/most-popular?page=1 from 12ca17b4
+[2026-03-03T19:22:49.017Z] [INFO] [request] GET /api/v1/top-airing?page=2 from 12ca17b4
+[2026-03-03T19:22:49.019Z] [INFO] [request] GET /api/v1/home from 12ca17b4
+[2026-03-03T19:22:49.021Z] [INFO] [request] GET /api/v1/recently-added?page=1 from 12ca17b4
+[2026-03-03T19:22:49.022Z] [INFO] [request] GET /api/v1/completed?page=2 from 12ca17b4
+[2026-03-03T19:22:49.023Z] [INFO] [request] GET /api/v1/top-airing?page=1 from 12ca17b4
+[2026-03-03T19:22:49.025Z] [INFO] [request] GET /api/v1/most-favorite?page=1 from 12ca17b4
+[2026-03-03T19:22:49.026Z] [INFO] [request] GET /api/v1/most-popular?page=2 from 12ca17b4
+[2026-03-03T19:22:49.027Z] [INFO] [request] GET /api/v1/recently-added?page=2 from 12ca17b4
+[2026-03-03T19:22:49.029Z] [INFO] [request] GET /api/v1/completed?page=1 from 12ca17b4
+[2026-03-03T19:22:49.401Z] [INFO] [hianime] GET /api/v1/most-popular?page=1 -> 200 (410ms)
+[2026-03-03T19:22:49.448Z] [INFO] [hianime] GET /api/v1/top-airing?page=2 -> 200 (430ms)
+[2026-03-03T19:22:49.477Z] [INFO] [hianime] GET /api/v1/recently-added?page=1 -> 200 (456ms)
+[2026-03-03T19:22:49.526Z] [INFO] [hianime] GET /api/v1/home -> 200 (505ms)
+[2026-03-03T19:22:54.419Z] [INFO] [hianime] GET /api/v1/top-airing?page=1 -> 200 (5396ms)
+[2026-03-03T19:22:54.446Z] [INFO] [hianime] GET /api/v1/completed?page=2 -> 200 (5424ms)
+[2026-03-03T19:22:54.510Z] [INFO] [hianime] GET /api/v1/most-popular?page=2 -> 200 (5484ms)
+[2026-03-03T19:22:54.541Z] [INFO] [hianime] GET /api/v1/most-favorite?page=1 -> 200 (5516ms)
+[2026-03-03T19:22:54.562Z] [INFO] [hianime] GET /api/v1/completed?page=1 -> 200 (5533ms)
+[2026-03-03T19:22:55.236Z] [INFO] [hianime] GET /api/v1/recently-added?page=2 -> 200 (6208ms)
+[2026-03-03T19:24:43.310Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T19:24:43.514Z] [INFO] [hianime] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200 (204ms)
+[2026-03-03T19:24:43.523Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T19:24:43.523Z] [INFO] [hianime][cache] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200
+[2026-03-03T19:24:43.628Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub from 12ca17b4
+[2026-03-03T19:24:44.778Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub -> 200 (1150ms)
+[2026-03-03T19:24:44.782Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub from 12ca17b4
+[2026-03-03T19:24:45.787Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub -> 200 (1005ms)
+[2026-03-03T19:25:31.767Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T19:25:31.767Z] [INFO] [hianime][cache] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200
+[2026-03-03T19:25:31.784Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=megaplay&type=sub from 12ca17b4
+[2026-03-03T19:25:32.098Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=megaplay&type=sub -> 200 (314ms)
+[2026-03-03T19:25:32.110Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub from 12ca17b4
+[2026-03-03T19:25:33.126Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub -> 200 (1014ms)
+[2026-03-03T19:26:37.552Z] [INFO] [request] GET /api/v1/anime/hells-paradise-season-2-20405 from 12ca17b4
+[2026-03-03T19:26:37.558Z] [INFO] [request] GET /api/v1/episodes/hells-paradise-season-2-20405 from 12ca17b4
+[2026-03-03T19:26:38.415Z] [INFO] [hianime] GET /api/v1/episodes/hells-paradise-season-2-20405 -> 200 (857ms)
+[2026-03-03T19:26:38.417Z] [INFO] [request] GET /api/v1/episodes/hells-paradise-season-2-20405 from 12ca17b4
+[2026-03-03T19:26:38.417Z] [INFO] [hianime][cache] GET /api/v1/episodes/hells-paradise-season-2-20405 -> 200
+[2026-03-03T19:26:38.500Z] [INFO] [hianime] GET /api/v1/anime/hells-paradise-season-2-20405 -> 200 (948ms)
+[2026-03-03T19:26:38.502Z] [INFO] [request] GET /api/v1/anime/hells-paradise-season-2-20405 from 12ca17b4
+[2026-03-03T19:26:38.502Z] [INFO] [hianime][cache] GET /api/v1/anime/hells-paradise-season-2-20405 -> 200
+[2026-03-03T19:26:53.951Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=166753 from 12ca17b4
+[2026-03-03T19:26:54.548Z] [INFO] [hianime] GET /api/v1/servers/hells-paradise-season-2-20405::ep=166753 -> 200 (597ms)
+[2026-03-03T19:26:54.549Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=166753 from 12ca17b4
+[2026-03-03T19:26:54.550Z] [INFO] [hianime][cache] GET /api/v1/servers/hells-paradise-season-2-20405::ep=166753 -> 200
+[2026-03-03T19:26:54.552Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D166753&server=hd-1&type=sub from 12ca17b4
+[2026-03-03T19:26:55.985Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D166753&server=hd-1&type=sub -> 200 (1433ms)
+[2026-03-03T19:26:55.987Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D166753&server=hd-1&type=sub from 12ca17b4
+[2026-03-03T19:26:57.630Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D166753&server=hd-1&type=sub -> 200 (1642ms)
+[2026-03-03T19:27:02.793Z] [INFO] [request] GET /api/v1/anime/hells-paradise-season-2-20405 from 12ca17b4
+[2026-03-03T19:27:02.793Z] [INFO] [hianime][cache] GET /api/v1/anime/hells-paradise-season-2-20405 -> 200
+[2026-03-03T19:27:02.795Z] [INFO] [request] GET /api/v1/episodes/hells-paradise-season-2-20405 from 12ca17b4
+[2026-03-03T19:27:02.795Z] [INFO] [hianime][cache] GET /api/v1/episodes/hells-paradise-season-2-20405 -> 200
+[2026-03-03T19:27:02.796Z] [INFO] [request] GET /api/v1/anime/hells-paradise-season-2-20405 from 12ca17b4
+[2026-03-03T19:27:02.797Z] [INFO] [hianime][cache] GET /api/v1/anime/hells-paradise-season-2-20405 -> 200
+[2026-03-03T19:27:02.799Z] [INFO] [request] GET /api/v1/episodes/hells-paradise-season-2-20405 from 12ca17b4
+[2026-03-03T19:27:02.799Z] [INFO] [hianime][cache] GET /api/v1/episodes/hells-paradise-season-2-20405 -> 200
+[2026-03-03T19:27:16.345Z] [INFO] [request] GET /api/v1/home from 12ca17b4
+[2026-03-03T19:27:16.345Z] [INFO] [hianime][cache] GET /api/v1/home -> 200
+[2026-03-03T19:27:16.346Z] [INFO] [request] GET /api/v1/most-popular?page=1 from 12ca17b4
+[2026-03-03T19:27:16.346Z] [INFO] [hianime][cache] GET /api/v1/most-popular?page=1 -> 200
+[2026-03-03T19:27:16.346Z] [INFO] [request] GET /api/v1/top-airing?page=1 from 12ca17b4
+[2026-03-03T19:27:16.346Z] [INFO] [hianime][cache] GET /api/v1/top-airing?page=1 -> 200
+[2026-03-03T19:27:16.346Z] [INFO] [request] GET /api/v1/top-airing?page=2 from 12ca17b4
+[2026-03-03T19:27:16.346Z] [INFO] [hianime][cache] GET /api/v1/top-airing?page=2 -> 200
+[2026-03-03T19:27:16.347Z] [INFO] [request] GET /api/v1/completed?page=1 from 12ca17b4
+[2026-03-03T19:27:16.347Z] [INFO] [hianime][cache] GET /api/v1/completed?page=1 -> 200
+[2026-03-03T19:27:16.347Z] [INFO] [request] GET /api/v1/most-popular?page=2 from 12ca17b4
+[2026-03-03T19:27:16.347Z] [INFO] [hianime][cache] GET /api/v1/most-popular?page=2 -> 200
+[2026-03-03T19:27:16.348Z] [INFO] [request] GET /api/v1/recently-added?page=1 from 12ca17b4
+[2026-03-03T19:27:16.348Z] [INFO] [hianime][cache] GET /api/v1/recently-added?page=1 -> 200
+[2026-03-03T19:27:16.378Z] [INFO] [request] GET /api/v1/most-favorite?page=1 from 12ca17b4
+[2026-03-03T19:27:16.378Z] [INFO] [hianime][cache] GET /api/v1/most-favorite?page=1 -> 200
+[2026-03-03T19:27:16.395Z] [INFO] [request] GET /api/v1/completed?page=2 from 12ca17b4
+[2026-03-03T19:27:16.395Z] [INFO] [hianime][cache] GET /api/v1/completed?page=2 -> 200
+[2026-03-03T19:27:16.397Z] [INFO] [request] GET /api/v1/recently-added?page=2 from 12ca17b4
+[2026-03-03T19:27:16.398Z] [INFO] [hianime][cache] GET /api/v1/recently-added?page=2 -> 200
+[2026-03-03T19:34:44.432Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-03-03T19:36:32.766Z] [INFO] [request] GET /api/v1/anime/demon-slayer-kimetsu-no-yaiba-the-movie-2-infinity-castle-20425 from 12ca17b4
+[2026-03-03T19:36:32.955Z] [INFO] [request] GET /api/v1/episodes/demon-slayer-kimetsu-no-yaiba-the-movie-2-infinity-castle-20425 from 12ca17b4
+[2026-03-03T19:36:33.309Z] [INFO] [hianime] GET /api/v1/episodes/demon-slayer-kimetsu-no-yaiba-the-movie-2-infinity-castle-20425 -> 200 (354ms)
+[2026-03-03T19:36:33.313Z] [INFO] [request] GET /api/v1/episodes/demon-slayer-kimetsu-no-yaiba-the-movie-2-infinity-castle-20425 from 12ca17b4
+[2026-03-03T19:36:33.313Z] [INFO] [hianime][cache] GET /api/v1/episodes/demon-slayer-kimetsu-no-yaiba-the-movie-2-infinity-castle-20425 -> 200
+[2026-03-03T19:36:33.364Z] [INFO] [hianime] GET /api/v1/anime/demon-slayer-kimetsu-no-yaiba-the-movie-2-infinity-castle-20425 -> 200 (436ms)
+[2026-03-03T19:36:33.365Z] [INFO] [request] GET /api/v1/anime/demon-slayer-kimetsu-no-yaiba-the-movie-2-infinity-castle-20425 from 12ca17b4
+[2026-03-03T19:36:33.365Z] [INFO] [hianime][cache] GET /api/v1/anime/demon-slayer-kimetsu-no-yaiba-the-movie-2-infinity-castle-20425 -> 200
+[2026-03-03T19:36:50.436Z] [INFO] [request] GET /api/v1/anime/hells-paradise-season-2-20405 from 12ca17b4
+[2026-03-03T19:36:50.439Z] [INFO] [request] GET /api/v1/episodes/hells-paradise-season-2-20405 from 12ca17b4
+[2026-03-03T19:36:50.702Z] [INFO] [hianime] GET /api/v1/episodes/hells-paradise-season-2-20405 -> 200 (263ms)
+[2026-03-03T19:36:50.704Z] [INFO] [request] GET /api/v1/episodes/hells-paradise-season-2-20405 from 12ca17b4
+[2026-03-03T19:36:50.704Z] [INFO] [hianime][cache] GET /api/v1/episodes/hells-paradise-season-2-20405 -> 200
+[2026-03-03T19:36:50.764Z] [INFO] [hianime] GET /api/v1/anime/hells-paradise-season-2-20405 -> 200 (327ms)
+[2026-03-03T19:36:50.770Z] [INFO] [request] GET /api/v1/anime/hells-paradise-season-2-20405 from 12ca17b4
+[2026-03-03T19:36:50.770Z] [INFO] [hianime][cache] GET /api/v1/anime/hells-paradise-season-2-20405 -> 200
+[2026-03-03T19:37:00.483Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T19:37:00.695Z] [INFO] [hianime] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200 (211ms)
+[2026-03-03T19:37:00.697Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T19:37:00.697Z] [INFO] [hianime][cache] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200
+[2026-03-03T19:37:00.700Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub from 12ca17b4
+[2026-03-03T19:37:01.792Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub -> 200 (1092ms)
+[2026-03-03T19:37:01.797Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub from 12ca17b4
+[2026-03-03T19:37:03.275Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub -> 200 (1478ms)
+[2026-03-03T19:37:05.525Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T19:37:05.525Z] [INFO] [hianime][cache] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200
+[2026-03-03T19:37:05.542Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-2&type=sub from 12ca17b4
+[2026-03-03T19:37:06.570Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-2&type=sub -> 200 (1028ms)
+[2026-03-03T20:05:45.893Z] [INFO] [request] GET /api/v1/anime/hells-paradise-season-2-20405 from 12ca17b4
+[2026-03-03T20:05:45.893Z] [INFO] [hianime][cache] GET /api/v1/anime/hells-paradise-season-2-20405 -> 200
+[2026-03-03T20:05:45.894Z] [INFO] [request] GET /api/v1/episodes/hells-paradise-season-2-20405 from 12ca17b4
+[2026-03-03T20:05:45.894Z] [INFO] [hianime][cache] GET /api/v1/episodes/hells-paradise-season-2-20405 -> 200
+[2026-03-03T20:05:46.478Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T20:05:46.478Z] [INFO] [hianime][cache] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200
+[2026-03-03T20:05:46.478Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T20:05:46.478Z] [INFO] [hianime][cache] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200
+[2026-03-03T20:05:46.498Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub from 12ca17b4
+[2026-03-03T20:05:46.502Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub from 12ca17b4
+[2026-03-03T20:05:48.992Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub -> 200 (2494ms)
+[2026-03-03T20:05:49.259Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub -> 200 (2756ms)
+[2026-03-03T20:06:04.012Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T20:06:04.012Z] [INFO] [hianime][cache] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200
+[2026-03-03T20:06:04.030Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-2&type=sub from 12ca17b4
+[2026-03-03T20:06:06.955Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-2&type=sub -> 200 (2924ms)
+[2026-03-03T20:10:27.885Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T20:10:27.885Z] [INFO] [hianime][cache] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200
+[2026-03-03T20:10:27.891Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=vidwish&type=sub from 12ca17b4
+[2026-03-03T20:10:28.904Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=vidwish&type=sub -> 200 (1013ms)
+[2026-03-03T20:10:28.908Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub from 12ca17b4
+[2026-03-03T20:10:31.365Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub -> 200 (2457ms)
+[2026-03-03T20:10:45.235Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T20:10:45.235Z] [INFO] [hianime][cache] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200
+[2026-03-03T20:10:45.257Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-2&type=sub from 12ca17b4
+[2026-03-03T20:10:47.776Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-2&type=sub -> 200 (2519ms)
+[2026-03-03T20:18:52.709Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T20:18:52.709Z] [INFO] [hianime][cache] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200
+[2026-03-03T20:18:52.715Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=megaplay&type=sub from 12ca17b4
+[2026-03-03T20:18:53.626Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=megaplay&type=sub -> 200 (911ms)
+[2026-03-03T20:18:53.632Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub from 12ca17b4
+[2026-03-03T20:18:57.482Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub -> 200 (3850ms)
+[2026-03-03T20:22:04.152Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T20:22:04.152Z] [INFO] [hianime][cache] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200
+[2026-03-03T20:22:04.156Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-2&type=sub from 12ca17b4
+[2026-03-03T20:22:07.847Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-2&type=sub -> 200 (3691ms)
+[2026-03-03T20:22:17.897Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T20:22:17.898Z] [INFO] [hianime][cache] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200
+[2026-03-03T20:22:17.902Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=megaplay&type=sub from 12ca17b4
+[2026-03-03T20:22:18.876Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=megaplay&type=sub -> 200 (974ms)
+[2026-03-03T20:22:18.879Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub from 12ca17b4
+[2026-03-03T20:22:21.524Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub -> 200 (2645ms)
+[2026-03-03T20:22:46.314Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T20:22:46.315Z] [INFO] [hianime][cache] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200
+[2026-03-03T20:22:46.320Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=megaplay&type=sub from 12ca17b4
+[2026-03-03T20:22:47.317Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=megaplay&type=sub -> 200 (996ms)
+[2026-03-03T20:22:47.321Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub from 12ca17b4
+[2026-03-03T20:22:49.940Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub -> 200 (2619ms)
+[2026-03-03T20:23:26.719Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T20:23:26.719Z] [INFO] [hianime][cache] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200
+[2026-03-03T20:23:26.723Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=vidwish&type=sub from 12ca17b4
+[2026-03-03T20:23:27.782Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=vidwish&type=sub -> 200 (1059ms)
+[2026-03-03T20:23:27.785Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub from 12ca17b4
+[2026-03-03T20:23:30.741Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub -> 200 (2956ms)
+[2026-03-03T20:29:06.838Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T20:29:06.838Z] [INFO] [hianime][cache] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200
+[2026-03-03T20:29:07.247Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-2&type=sub from 12ca17b4
+[2026-03-03T20:29:11.205Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-2&type=sub -> 200 (3957ms)
+[2026-03-03T20:38:33.020Z] [INFO] [startup] enableProxy flag active: mounting proxy routes
+[2026-03-03T20:38:44.121Z] [INFO] [request] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 from 12ca17b4
+[2026-03-03T20:38:45.264Z] [INFO] [hianime] GET /api/v1/servers/hells-paradise-season-2-20405::ep=167755 -> 200 (993ms)
+[2026-03-03T20:38:45.605Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=vidwish&type=sub from 12ca17b4
+[2026-03-03T20:38:46.002Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=vidwish&type=sub -> 200 (397ms)
+[2026-03-03T20:38:46.320Z] [INFO] [request] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub from 12ca17b4
+[2026-03-03T20:38:48.612Z] [INFO] [hianime] GET /api/v1/stream?id=hells-paradise-season-2-20405%3A%3Aep%3D167755&server=hd-1&type=sub -> 200 (2291ms)
+[2026-03-03T20:39:18.516Z] [INFO] [request] GET /favicon.ico from 12ca17b4
+[2026-03-03T20:39:30.229Z] [INFO] [request] GET /api/v1/servers/steinsgate-3%3A%3Aep%3D213 from 12ca17b4
+[2026-03-03T20:39:31.337Z] [INFO] [hianime] GET /api/v1/servers/steinsgate-3%3A%3Aep%3D213 -> 200 (1108ms)
+[2026-03-03T20:39:58.725Z] [INFO] [request] GET /api/streams/anime/%7Bid%7D from 12ca17b4

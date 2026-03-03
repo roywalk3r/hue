@@ -6,9 +6,14 @@ const BASE_URL = 'https://hianime.to';
 const USER_AGENT =
   'Mozilla/5.0 (X11; Linux x86_64; rv:122.0) Gecko/20100101 Firefox/122.0';
 const REFERER = 'https://megacloud.tv';
+const HARDCODED_MEGACLOUD_KEY =
+  '3709ad8892f413166b796a10c7fb86018bd1be1c7ae6f4d2cfc3fdc299cb3205';
 
 const KEY_URL =
-  'https://raw.githubusercontent.com/ryanwtf88/megacloud-keys/refs/heads/master/key.txt';
+  process.env.MEGACLOUD_KEY_URL ||
+  'https://raw.githubusercontent.com/itzzzme/megacloud-keys/refs/heads/main/key.txt';
+const KEY_JSON_URL =
+  'https://raw.githubusercontent.com/yogesh-hacker/MegacloudKeys/refs/heads/main/keys.json';
 
 const FALLBACK_PROVIDERS = [
   { name: 'megaplay', domain: 'megaplay.buzz' },
@@ -183,10 +188,7 @@ const validateToken = (value, min = 10) =>
 async function getDecryptionKey() {
   const now = Date.now();
   if (cachedKey && now - keyLastFetched < KEY_CACHE_DURATION) return cachedKey;
-  const data = await fetchText(KEY_URL);
-  cachedKey = data.trim();
-  keyLastFetched = now;
-  return cachedKey;
+  return normalizeKey(process.env.MEGACLOUD_KEY || HARDCODED_MEGACLOUD_KEY);
 }
 
 function decryptAES(encrypted, key) {
@@ -196,13 +198,69 @@ function decryptAES(encrypted, key) {
   return JSON.parse(decrypted);
 }
 
+function isValidKey(key) {
+  return typeof key === 'string' && /^[a-fA-F0-9]{32,64}$/.test(key.trim());
+}
+
+function normalizeKey(value) {
+  const key = typeof value === 'string' ? value.trim() : '';
+  if (!isValidKey(key)) throw new Error('Invalid key format');
+  return key;
+}
+
+async function getRemoteKey() {
+  try {
+    const data = await fetchText(KEY_URL);
+    const key = normalizeKey(data);
+    cachedKey = key;
+    keyLastFetched = Date.now();
+    return key;
+  } catch (err) {
+    console.error(`[megacloud] key fetch failed from ${KEY_URL}: ${err.message}`);
+  }
+
+  try {
+    const data = await fetchJSON(KEY_JSON_URL);
+    const key = normalizeKey(data?.mega || data?.vidstr || data?.rabbit);
+    cachedKey = key;
+    keyLastFetched = Date.now();
+    return key;
+  } catch (err) {
+    console.error(`[megacloud] key fetch failed from ${KEY_JSON_URL}: ${err.message}`);
+  }
+
+  throw new Error('Key fetch failed');
+}
+
+async function decryptAESWithFallback(encrypted) {
+  const keysToTry = [];
+
+  try {
+    keysToTry.push(normalizeKey(process.env.MEGACLOUD_KEY || HARDCODED_MEGACLOUD_KEY));
+  } catch {
+    // ignore invalid override
+  }
+
+  if (cachedKey && Date.now() - keyLastFetched < KEY_CACHE_DURATION) {
+    keysToTry.push(cachedKey);
+  }
+
+  for (const key of keysToTry) {
+    try {
+      return decryptAES(encrypted, key);
+    } catch {
+      // Try the next candidate or remote refresh below.
+    }
+  }
+
+  const remoteKey = await getRemoteKey();
+  return decryptAES(encrypted, remoteKey);
+}
+
 async function megacloud({ selectedServer, id }, retry = 0) {
   const epID = id.split('ep=').pop();
   try {
-    const [sourcesResponse, key] = await Promise.all([
-      fetchJSON(`${BASE_URL}/ajax/v2/episode/sources?id=${selectedServer.id}`),
-      getDecryptionKey(),
-    ]);
+    const sourcesResponse = await fetchJSON(`${BASE_URL}/ajax/v2/episode/sources?id=${selectedServer.id}`);
 
     const sourceId = /\/([^/?]+)\?/.exec(sourcesResponse.link)?.[1];
     const baseUrl = sourcesResponse.link.match(/^(https?:\/\/[^/]+(?:\/[^/]+){3})/)?.[1];
@@ -222,7 +280,8 @@ async function megacloud({ selectedServer, id }, retry = 0) {
       });
       const encrypted = data?.sources;
       if (!encrypted) throw new Error('Missing encrypted sources');
-      decrypted = typeof encrypted === 'string' ? decryptAES(encrypted, key) : encrypted;
+      decrypted =
+        typeof encrypted === 'string' ? await decryptAESWithFallback(encrypted) : encrypted;
       rawData = data;
     } catch {
       const fallback = await getFallbackSource(epID, selectedServer.type, selectedServer.name);
@@ -330,35 +389,39 @@ async function streamExtract({ selectedServer, id }) {
 async function getAnimeStream({ id, server, type }) {
   const servers = await getServers(id);
   const serverList = servers?.[type] || [];
-  const defaultServerName = 'hd-1';
-  const fallbackServerName = 'hd-2';
-  const resolvedServer =
-    server ||
-    serverList.find((el) => el.name === defaultServerName)?.name ||
-    serverList[0]?.name;
-  const selectedServer = serverList.find((el) => el.name === resolvedServer);
-  if (!selectedServer) {
+  if (!serverList.length) {
     return { servers, stream: null, error: 'SERVER_NOT_FOUND' };
   }
+
+  const preferredServerOrder = ['hd-1', 'hd-2', 'hd-3', 'megaplay', 'vidwish'];
+  const candidateServers = server
+    ? serverList.filter((entry) => entry.name === server)
+    : [
+        ...preferredServerOrder
+          .map((name) => serverList.find((entry) => entry.name === name))
+          .filter(Boolean),
+        ...serverList.filter((entry) => !preferredServerOrder.includes(entry.name)),
+      ].filter((entry, index, array) => array.findIndex((item) => item.name === entry.name) === index);
+
+  if (!candidateServers.length) {
+    return { servers, stream: null, error: 'SERVER_NOT_FOUND' };
+  }
+
   const isValidStream = (candidate) =>
     !!candidate && (candidate.streamingLink || candidate?.link?.file);
 
-  let stream = await streamExtract({ selectedServer, id });
-  if (
-    !isValidStream(stream) &&
-    !server &&
-    resolvedServer === defaultServerName
-  ) {
-    const fallbackServer = serverList.find((el) => el.name === fallbackServerName);
-    if (fallbackServer) {
-      const fallbackStream = await streamExtract({ selectedServer: fallbackServer, id });
-      if (isValidStream(fallbackStream)) {
-        stream = fallbackStream;
-      }
+  for (const selectedServer of candidateServers) {
+    const stream = await streamExtract({ selectedServer, id });
+    if (isValidStream(stream)) {
+      return { servers, stream };
+    }
+
+    if (server) {
+      return { servers, stream, error: 'STREAM_NOT_FOUND' };
     }
   }
 
-  return { servers, stream };
+  return { servers, stream: null, error: 'STREAM_NOT_FOUND' };
 }
 
 module.exports = {
