@@ -7,3 +7,39 @@ restart.trigger
 .gemini/
 gha-creds-*.json
 .env
+
+# Cache files
+*_cache.json
+*-cache.json
+.cache/
+providers/.cache/
+
+# Debug & temp files
+debug_*.html
+debug-*.js
+debug-*.html
+
+# Temp test output / match dump files
+extracted-m3u8.json
+live-matches-with-m3u8.json
+res.json
+result.txt
+streams
+sflix-detail.json
+sflix-search-page.log
+*-streams-*.json
+*-m3u8-*.json
+*-streams-*.txt
+match-name-*.txt
+match-name-*.json
+philadelphia-*.json
+ppv-*.json
+
+# App logs
+app.log
+server.log
+kisskhplan.log
+
+# Screenshots & browser artifacts
+screenshots/
+start.trigger
