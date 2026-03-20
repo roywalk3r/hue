@@ -12,9 +12,9 @@
 
 - Create a feature branch: `git checkout -b feature/my-change`
 - Make your changes and commit with a clear message
+- Run `npm run lint` before committing
 - Push and open a pull request
 
-## Code style
+## Reporting issues
 
-- Follow existing patterns in the codebase
-- Run `npm run lint` before submitting
+Please search existing issues before opening a new one. Include steps to reproduce and your environment details.
