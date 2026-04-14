@@ -224,17 +224,20 @@ async function buildSwaggerDoc() {
     const animeDoc = await response.json();
     const animePaths = addDefaultTagToOperations(animeDoc.paths, 'Anime');
 
+    const originalPathCount = Object.keys(mergedDoc.paths || {}).length;
     mergedDoc.paths = {
       ...animePaths,
       ...mergedDoc.paths,
     };
+    const finalPathCount = Object.keys(mergedDoc.paths || {}).length;
+    console.log(`[docs] Merged HiAnime paths. Original: ${originalPathCount}, Anime: ${Object.keys(animePaths).length}, Final: ${finalPathCount}`);
 
     if (animeDoc.components && typeof animeDoc.components === 'object') {
       mergedDoc.components = mergedDoc.components || {};
       for (const [section, value] of Object.entries(animeDoc.components)) {
         mergedDoc.components[section] = {
-          ...(animeDoc.components[section] || {}),
           ...(mergedDoc.components[section] || {}),
+          ...value,
         };
       }
     }
@@ -246,7 +249,10 @@ async function buildSwaggerDoc() {
 }
 
 // Serve the raw OpenAPI spec for Redoc to consume
-app.get('/api/docs/swagger.json', async (req, res) => res.json(await buildSwaggerDoc()));
+app.get('/api/docs/swagger.json', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(await buildSwaggerDoc());
+});
 
 // Scalar API Reference (Modern Documentation)
 app.get('/api/docs', (req, res) => {
@@ -1193,6 +1199,42 @@ app.get('/api/moviebox/section', async (req, res) => {
 app.get('/api/moviebox/trending', async (req, res) => {
     try {
         const data = await movieboxApi.getTrending();
+        res.json({ success: true, items: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/popular-movie', async (req, res) => {
+    try {
+        const data = await movieboxApi.getSection('Popular Movie');
+        res.json({ success: true, items: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/popular-series', async (req, res) => {
+    try {
+        const data = await movieboxApi.getSection('Popular Series');
+        res.json({ success: true, items: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/hot-shorts', async (req, res) => {
+    try {
+        const data = await movieboxApi.getSection('🔥Hot Short TV');
+        res.json({ success: true, items: data });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/moviebox/anime', async (req, res) => {
+    try {
+        const data = await movieboxApi.getSection('Anime[English Dubbed]');
         res.json({ success: true, items: data });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });

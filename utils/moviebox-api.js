@@ -14,7 +14,7 @@ const axiosInstance = axios.create({
 });
 
 axiosInstance.interceptors.request.use((reqConfig) => {
-    const host = config.movieboxHost || 'moviebox.ph';
+    const host = config.movieboxHost || 'movibox.net';
     const cookie = config.movieboxCookie || DEFAULT_COOKIE;
     
     let token = '';
@@ -79,7 +79,7 @@ function mapItem(item) {
 
 async function getHome() {
     try {
-        const host = config.movieboxHost || 'moviebox.ph';
+        const host = config.movieboxHost || 'movibox.net';
         const url = `${BASE_URL}/home?host=${host}`;
         const response = await axiosInstance.get(url);
         if (response.data && response.data.code === 0) {
@@ -113,6 +113,8 @@ async function getDiscover() {
     const sections = home.sections || [];
     
     const targetTitles = [
+        'Popular Series',
+        'Popular Movie',
         '🔥Hot Short TV', 
         'SA Drama', 
         'Thai-Drama', 
@@ -129,11 +131,23 @@ async function getDiscover() {
         targetTitles.some(t => s.title.toLowerCase().includes(t.toLowerCase()))
     );
 
-    return matched.length > 0 ? matched : sections;
+    return matched.length > 1 ? matched : sections;
 }
 
-async function getTrending() {
-    return await getSection('Trending Now');
+async function getTrending(page = 1) {
+    try {
+        const url = `${BASE_URL}/subject/trending?page=${page}&perPage=18`;
+        const response = await axiosInstance.get(url);
+        if (response.data && response.data.code === 0) {
+            const items = response.data.data?.items || response.data.data?.subjectList || [];
+            return items.map(mapItem);
+        }
+        console.warn(`[MovieBox API] Trending returned code ${response.data?.code}: ${response.data?.message}`);
+        return [];
+    } catch (e) {
+        console.error('[MovieBox API] Trending error:', e.message);
+        return [];
+    }
 }
 
 async function getSection(titleQuery) {
@@ -221,17 +235,15 @@ async function filter(params) {
             tabId: params.tabId || 0,
             classify: params.classify || "All"
         };
-        console.log(`[MovieBox API] Filter Request: ${JSON.stringify(payload)}`);
         const response = await axiosInstance.post(url, payload);
         if (response.data && response.data.code === 0) {
-            console.log(`[MovieBox API] Filter Success: Found ${response.data.data.items?.length || 0} items`);
+            const items = response.data.data.items || response.data.data.subjectList || [];
             return {
                 page: response.data.data.pager.page,
                 hasNext: response.data.data.pager.hasMore,
-                items: (response.data.data.items || []).map(mapItem)
+                items: items.map(mapItem)
             };
         }
-        console.warn(`[MovieBox API] Filter returned code ${response.data?.code}: ${response.data?.message}`);
         return { items: [] };
     } catch (e) {
         console.error('[MovieBox API] Filter error:', e);
@@ -268,11 +280,12 @@ async function search(keyword, page = 1, type = 0) {
         };
         const response = await axiosInstance.post(url, payload);
         if (response.data && response.data.code === 0) {
+            const items = response.data.data.items || response.data.data.subjectList || [];
             return {
                 page: response.data.data.pager.page,
                 hasNext: response.data.data.pager.hasMore,
                 total: response.data.data.pager.totalCount,
-                items: (response.data.data.items || []).map(mapItem)
+                items: items.map(mapItem)
             };
         }
         return { items: [] };
@@ -282,8 +295,8 @@ async function search(keyword, page = 1, type = 0) {
     }
 }
 
-function getStreamHeaders(referer = 'https://moviebox.ph/') {
-    const host = config.movieboxHost || 'moviebox.ph';
+function getStreamHeaders(referer = 'https://movibox.net/') {
+    const host = config.movieboxHost || 'movibox.net';
     const cookie = config.movieboxCookie || DEFAULT_COOKIE;
     
     const headers = {

@@ -229,11 +229,15 @@ async function extractStreamsFromKissKhPage(directUrl) {
 
         if (capturedUrls.video.size === 0 && episodeApiUrl) {
             try {
+                const cookies = await context.cookies(directUrl);
+                const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+                
                 const apiResp = await axiosInstance.get(episodeApiUrl, {
                     headers: {
                         "Referer": directUrl,
                         "User-Agent": USER_AGENT,
-                        "Accept": "application/json"
+                        "Accept": "application/json",
+                        "Cookie": cookieString
                     }
                 });
                 const data = parseEpisodePayload(apiResp.data);
@@ -249,6 +253,9 @@ async function extractStreamsFromKissKhPage(directUrl) {
 
         if (capturedUrls.subtitles.size === 0 && episodeApiUrl) {
             try {
+                const cookies = await context.cookies(directUrl);
+                const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+                
                 const episodeUrl = new URL(directUrl);
                 const episodeId = episodeUrl.searchParams.get("ep");
                 const apiUrl = new URL(episodeApiUrl);
@@ -259,7 +266,8 @@ async function extractStreamsFromKissKhPage(directUrl) {
                         headers: {
                             "Referer": directUrl,
                             "User-Agent": USER_AGENT,
-                            "Accept": "application/json"
+                            "Accept": "application/json",
+                            "Cookie": cookieString
                         }
                     });
                     const data = parseEpisodePayload(subResp.data);
@@ -300,6 +308,7 @@ async function extractStreamsFromKissKhPage(directUrl) {
             const isHls = url.includes('.m3u8');
             streams.push({
                 url,
+                title: isThirdParty ? "ThirdParty" : "Auto",
                 quality: isThirdParty ? "ThirdParty" : "Auto",
                 provider: "Zenith",
                 format: isHls ? 'hls' : 'mp4',
@@ -336,8 +345,8 @@ async function getKissKhStreams(tmdbId, mediaType, season, episode) {
         const episodeId = await getEpisodeId(selectedShow.id, epNum);
         if (!episodeId) return [];
 
-        const slug = selectedShow.title.replace(/[^a-zA-Z0-9]/g, "-");
-        const directUrl = `${BASE_URL}/Drama/${slug}/Episode-${epNum}?id=${selectedShow.id}&ep=${episodeId}&page=0&pageSize=100`;
+        // Consistently use /Drama/Direct/ for direct extraction
+        const directUrl = `${BASE_URL}/Drama/Direct/Episode-${epNum}?id=${selectedShow.id}&ep=${episodeId}&page=0&pageSize=100`;
         return await extractStreamsFromKissKhPage(directUrl);
     } catch (error) {
         console.error(`[KissKH] Error: ${error.message}`);

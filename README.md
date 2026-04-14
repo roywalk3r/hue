@@ -19,17 +19,16 @@ Whether you are building a **Netflix clone**, a **KDrama hub**, a **sports strea
 
 ### 🎬 **Smart Aggregation**
 Fetch streams from multiple high-quality providers simultaneously. The system automatically races them and returns the best results first.
-*   **Western Content:** `vixsrc`, `vidrock`, `sflix`
-*   **Asian Drama:** `kisskh` (Zenith), `dramacool` (Orient)
-*   **Live Sports:** `livetv` (Arena), `livesport` (Stadium)
+*   **General Content:** Nova (SFlix), Aura (Vixsrc), Luna (Vidrock), Solar (Vidsrc-xyz).
+*   **Asian Drama:** Zenith (KissKH), Orient (Dramacool), Cinema (MovieBox).
+*   **Live Sports:** Stadium (Livesport), Field (AiSports), Arena (LiveTV), Event (PPV.to).
 
-### 🌏 **HiTV Discovery Engine**
-A dedicated subsystem for Asian content discovery.
-*   **Browse:** Explore thousands of KDramas, CDramas, and Movies by Genre, Country, and Popularity.
-*   **Smart Play:** Automatically maps a HiTV ID to a playable stream from Zenith or Nova.
-*   **KissKH Streams:** Uses a lightweight Playwright capture to obtain the episode token, then fetches the stream via proxy URL mode (no tokenization, no h_token).
-*   **KissKH Subtitles:** Captures subtitle tracks when available.
-*   **Metadata:** Rich details including ratings, cast, and release dates.
+### 🌏 **Regional Discovery Engine**
+A dedicated subsystem for global content discovery.
+*   **HiTV & SFlix:** Explore thousands of KDramas and CDramas by Genre, Country, and Popularity.
+*   **MovieBox:** Full catalog of Western and Asian content with high-quality MP4/HLS streams.
+*   **Smart Play:** Automatically maps discovery IDs to playable streams from Zenith, Nova, or Cinema.
+*   **Metadata:** Rich details including ratings, cast, and trailers.
 
 ### 🛡️ **Fortress Security**
 Enterprise-grade protection for your streams.
@@ -96,7 +95,7 @@ We offer beautiful, interactive documentation to help you integrate quickly.
 
 ## 📡 API Endpoints Guide
 
-### 1. Western Movies & TV (TMDB)
+### 1. Unified Aggregation (TMDB)
 Aggregate streams for mainstream content.
 ```http
 GET /api/streams/movie/{tmdbId}
@@ -111,86 +110,41 @@ GET /api/streams/anime/{id}?server=hd-1&type=sub
 GET /api/streams/anime/{id}?serversOnly=true
 ```
 
-### 3. HiAnime Catalog (v1)
-Full HiAnime catalog and metadata endpoints.
+### 3. Regional Discovery (HiTV / MovieBox)
+Browse and search the global content library.
 ```http
-GET /api/v1/home
-GET /api/v1/spotlight
-GET /api/v1/topten
-GET /api/v1/anime/{id}
-GET /api/v1/anime/random
-GET /api/v1/search?keyword=one+piece&page=1
-GET /api/v1/suggestion?keyword=one+piece
-GET /api/v1/episodes/{id}
-GET /api/v1/servers/{id}
-GET /api/v1/stream?id={episodeId}&server=hd-1&type=sub
-GET /api/v1/genre/{genre}?page=1
-GET /api/v1/az-list/{letter}?page=1
-GET /api/v1/producer/{id}?page=1
-GET /api/v1/filter?type=tv&status=finished_airing&page=1
-GET /api/v1/schedule?date=21
-GET /api/v1/schedule/next/{id}
-GET /api/v1/meta
-GET /api/v1/{query}?page=1
-```
-Alias: all `/api/v1/*` endpoints are also available under `/api/anime/*`.
-OpenAPI: `GET /api/v1/openapi.json`
-
-### 4. KDrama Discovery (HiTV)
-Browse and search the Asian content library.
-```http
+# HiTV
 GET /api/hitv/browse?sort=Hottest&genre=Romance
 GET /api/hitv/search?q=Squid Game
-GET /api/hitv/info/{id}
+GET /api/hitv/play/{id}/{episode}
+
+# MovieBox
+GET /api/moviebox/hero               # Get trending/hero items
+GET /api/moviebox/search?keyword=...  # Search catalog
+GET /api/moviebox/play/{id}/{path}    # Extract direct streams
 ```
 
-### 5. Smart Play (KDrama)
-The magic endpoint that plays HiTV content.
-```http
-GET /api/hitv/play/{id}/{episode}?title=Show Name
-```
-
-### 6. Live Sports Streaming
+### 4. Live Sports Streaming
 Watch live sports from multiple sources.
 ```http
-# LiveTV.sx (Arena)
-GET /api/livetv/sports              # Get sports categories
-GET /api/livetv/matches?sportId=    # Get matches by sport
-GET /api/livetv/match?url=          # Get stream variants
-GET /livetv/{matchName}             # Direct match access
+# Smart Resolver (Multi-Source)
+GET /sports-stream/{matchName}
 
-# Livesport.su (Stadium)
-GET /sports-stream/{matchName}      # Direct match access
+# PPV.to (Event)
+GET /api/ppv/streams/{matchName}
+
+# AiSports (Field)
+GET /api/aisports/list/0            # List live matches
+GET /api/aisports/play/{id}         # Get direct streams
 ```
 
-### 7. Direct Provider Access
-Target specific providers for granular control.
+### 5. System & Metrics
+Monitor and configure your instance.
 ```http
-GET /api/kdrama/search?q=...
-GET /api/kdrama/list?page=1&type=0&order=latest
-GET /api/kdrama/latest?page=1
-GET /api/kdrama/popular?page=1
-GET /api/kdrama/upcoming
-GET /api/kdrama/show
-GET /api/kdrama/last-update?ispc=false
-GET /api/kdrama/most-view?ispc=false&c=1
-GET /api/kdrama/top-rating?ispc=false
-GET /api/kdrama/animate?ispc=false
-GET /api/kdrama/detail/{id}
-GET /api/kdrama/streams/{id}/{episode}
-GET /api/dramacool/search?q=...
-GET /api/streams/sflix/movie/{id}
+GET /api/status                     # Stats, providers, and endpoints
+GET /api/config                     # Get current configuration
+POST /api/config                    # Update configuration patch
 ```
-
----
-
-## 🔒 Security Configuration
-
-The API automatically secures itself.
-
-*   **Key Rotation:** Run `npm run key:generate` to rotate your encryption secret.
-*   **CORS:** Set `ALLOWED_ORIGINS` in `.env` to comma-separated domains to lock down access.
-*   **Strict Mode:** Set `STRICT_SECURITY=true` to reject any request without a valid signature token (recommended for production).
 
 ---
 
