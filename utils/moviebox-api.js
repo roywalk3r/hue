@@ -199,9 +199,18 @@ async function getStreams(subjectId, detailPath, season = 1, episode = 1) {
             return response.data.data;
         }
         
+        if (response.data && response.data.message === 'invalid region') {
+            console.warn(`[MovieBox API] Region Blocked: id=${subjectId}`);
+            return null;
+        }
+
         console.warn(`[MovieBox API] Play Failed: code=${response.data?.code} msg=${response.data?.message}`);
         return null;
     } catch (e) {
+        if (e.response?.data?.message === 'invalid region') {
+             console.warn(`[MovieBox API] Region Blocked: id=${subjectId}`);
+             return null;
+        }
         console.error('[MovieBox API] Play error:', e.response?.data || e.message);
         return null;
     }
