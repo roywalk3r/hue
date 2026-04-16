@@ -82,6 +82,7 @@ module.exports = function(metrics) {
         }
     });
 
+    /*
     router.get('/anime', async (req, res) => {
         try {
             const data = await movieboxApi.getSection('Anime[English Dubbed]');
@@ -90,6 +91,7 @@ module.exports = function(metrics) {
             res.status(500).json({ success: false, error: e.message });
         }
     });
+    */
 
     router.get('/sa', async (req, res) => {
         try {

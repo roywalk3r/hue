@@ -104,6 +104,7 @@ if (config.enableProxy) {
   createProxyRoutes(app); // Registers /m3u8-proxy, /ts-proxy, /sub-proxy at root
 }
 
+/*
 // --- HiAnime Integration ---
 const hianimeCache = new TTLCache({ ttl: 10 * 60 * 1000, max: 500 });
 async function proxyHianimeRequest(req, res, next) {
@@ -125,6 +126,7 @@ async function proxyHianimeRequest(req, res, next) {
 }
 app.use('/api/v1', proxyHianimeRequest);
 app.use('/api/anime', proxyHianimeRequest);
+*/
 
 // --- Auth Routes ---
 app.post('/auth/login', (req,res) => {

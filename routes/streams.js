@@ -97,6 +97,7 @@ module.exports = function(metrics) {
         }
     });
 
+    /*
     // HiAnime streams (anime)
     router.get('/anime/:id', async (req, res) => {
         const { id } = req.params;
@@ -125,6 +126,7 @@ module.exports = function(metrics) {
             return res.status(500).json({ success: false, error: 'INTERNAL_ERROR', message: e.message });
         }
     });
+    */
 
     // Aggregate streams across all enabled providers
     router.get('/:type/:tmdbId', async (req,res) => {
