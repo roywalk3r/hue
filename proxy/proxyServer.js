@@ -710,15 +710,15 @@ function createProxyRoutes(app) {
             if (unwrapped && unwrapped !== targetUrl) targetUrl = unwrapped;
         }
         targetUrl = normalizeTargetUrl(targetUrl);
+
+        console.log(`[m3u8-proxy] --> FETCHING: ${targetUrl.substring(0, 100)}...`);
+
         if (!/^https?:\/\//i.test(targetUrl)) {
             if (debug) console.log('[m3u8-proxy] Invalid URL check failed, targetUrl:', targetUrl);
             return res.status(400).json({ error: 'Invalid target URL', target: targetUrl });
         }
         if (req.query.download === '1') {
             return streamHlsDownload(req, res);
-        }
-        if (headers.Referer && !headers.Origin) {
-            try { headers.Origin = new URL(headers.Referer).origin; } catch (_e) { /* ignore */ }
         }
         
         // Normalize headers to avoid duplicates and strip problematic ones
@@ -749,12 +749,13 @@ function createProxyRoutes(app) {
         try {
             const t0 = Date.now();
             const response = await fetchWithRetry(targetUrl, { headers: mergedHeaders, redirect: 'manual' });
+            console.log(`[m3u8-proxy] <-- UPSTREAM: ${response.status} for ${targetUrl.substring(0, 80)}...`);
             const duration = Date.now() - t0;
             
             if (!response.ok && response.status !== 206) {
                 console.error(`[m3u8-proxy] Upstream returned ${response.status} for ${targetUrl}`);
                 if (response.status === 403) {
-                    console.error('[m3u8-proxy] 403 Headers:', JSON.stringify(Object.fromEntries(response.headers.entries())));
+                    console.error('[m3u8-proxy] 403 Upstream Headers:', JSON.stringify(Object.fromEntries(response.headers.entries())));
                 }
                 return res.status(response.status).json({ error: `M3U8 fetch failed: ${response.status}`, target: targetUrl });
             }
