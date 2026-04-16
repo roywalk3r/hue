@@ -1,5 +1,7 @@
 const { getNewContext } = require("../utils/browserManager");
 
+const { getTmdbInfo } = require('../utils/tmdb');
+
 const BASE_URL = "https://www.showbox.media";
 
 // Main function to get streams using Playwright
@@ -10,21 +12,7 @@ async function getStreamsFromTmdbId(tmdbId, mediaType, season, episode, imdbId, 
     
     try {
         // Get TMDB data for title
-        const { getTmdbApiKey } = require("../utils/tmdbKey");
-        const TMDB_API_KEY = getTmdbApiKey();
-        if (!TMDB_API_KEY) {
-            console.log("[ShowBoxPlaywright] No TMDB API key available");
-            return streams;
-        }
-        
-        const axios = require("axios");
-        const tmdbApiUrl = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}`;
-        const response = await axios.get(tmdbApiUrl, { timeout: 10000 });
-        const tmdbData = response.data;
-        
-        const title = tmdbData.title || tmdbData.name;
-        const year = tmdbData.release_date ? new Date(tmdbData.release_date).getFullYear() : 
-                     tmdbData.first_air_date ? new Date(tmdbData.first_air_date).getFullYear() : null;
+        const { title, year } = await getTmdbInfo(tmdbId, mediaType);
         
         if (!title) {
             console.log("[ShowBoxPlaywright] No title found from TMDB");

@@ -5,6 +5,8 @@ const cheerio = require('cheerio');
 const fs = require('fs').promises;
 const path = require('path');
 
+const { getTmdbInfo } = require('../utils/tmdb');
+
 // Configuration
 const DOMAINS_URL = 'https://raw.githubusercontent.com/phisher98/TVVVV/refs/heads/main/domains.json';
 let cachedDomains = null;
@@ -1596,38 +1598,7 @@ function processExtractorLink(link, resolve, linkNumber) {
     }
 }
 
-// Helper function to get TMDB details
-async function getTMDBDetails(tmdbId, mediaType) {
-    const { getTmdbApiKey } = require('../utils/tmdbKey');
-    const TMDB_API_KEY = getTmdbApiKey();
-    if (!TMDB_API_KEY) {
-        console.warn('[4KHDHub] TMDB API key missing; skipping TMDB metadata fetch');
-        return null;
-    }
 
-    try {
-        console.log(`[4KHDHub] Fetching ${mediaType} details for TMDB ID: ${tmdbId}`);
-        const response = await makeRequest(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}`);
-        const data = JSON.parse(response.body);
-
-        if (mediaType === 'movie') {
-            return {
-                title: data.title,
-                original_title: data.original_title,
-                year: data.release_date ? data.release_date.split('-')[0] : null
-            };
-        } else {
-            return {
-                title: data.name,
-                original_title: data.original_name,
-                year: data.first_air_date ? data.first_air_date.split('-')[0] : null
-            };
-        }
-    } catch (error) {
-        console.error(`[4KHDHub] Error fetching details from TMDB:`, error.message);
-        return null;
-    }
-}
 
 // Main function to get streams for the addon
 async function get4KHDHubStreams(tmdbId, type, season = null, episode = null) {
@@ -1657,25 +1628,25 @@ async function get4KHDHubStreams(tmdbId, type, season = null, episode = null) {
             const tmdbType = type === 'series' ? 'tv' : type;
 
             // Get TMDB details to get the actual title
-            const tmdbDetails = await getTMDBDetails(tmdbId, tmdbType);
-            if (!tmdbDetails || !tmdbDetails.title) {
+            const info = await getTmdbInfo(tmdbId, tmdbType);
+            if (!info || !info.title) {
                 console.log(`[4KHDHub] Could not fetch TMDB details for ID: ${tmdbId}`);
                 return [];
             }
 
-            console.log(`[4KHDHub] TMDB Details: ${tmdbDetails.title} (${tmdbDetails.year || 'N/A'})`);
+            console.log(`[4KHDHub] TMDB Details: ${info.title} (${info.year || 'N/A'})`);
 
             // Enhanced search with fallback strategies
             let searchResults = [];
             let bestMatch = null;
 
             // Primary search using the actual title
-            const searchQuery = tmdbDetails.title;
+            const searchQuery = info.title;
             searchResults = await searchContent(searchQuery);
             console.log(`[4KHDHub] Primary search found ${searchResults.length} results`);
 
             if (searchResults.length > 0) {
-                bestMatch = findBestMatch(searchResults, tmdbDetails.title, tmdbDetails.year);
+                bestMatch = findBestMatch(searchResults, info.title, info.year);
             }
 
             // Fallback search strategies if no good match found
@@ -1683,12 +1654,12 @@ async function get4KHDHubStreams(tmdbId, type, season = null, episode = null) {
                 console.log(`[4KHDHub] No good match from primary search, trying fallback strategies...`);
 
                 // Try search without year
-                const titleWithoutYear = removeYear(tmdbDetails.title);
-                if (titleWithoutYear !== tmdbDetails.title) {
+                const titleWithoutYear = removeYear(info.title);
+                if (titleWithoutYear !== info.title) {
                     console.log(`[4KHDHub] Trying search without year: "${titleWithoutYear}"`);
                     const fallbackResults = await searchContent(titleWithoutYear);
                     if (fallbackResults.length > 0) {
-                        const fallbackMatch = findBestMatch(fallbackResults, tmdbDetails.title, tmdbDetails.year);
+                        const fallbackMatch = findBestMatch(fallbackResults, info.title, info.year);
                         if (fallbackMatch && (!bestMatch || fallbackMatch.score > bestMatch.score)) {
                             bestMatch = fallbackMatch;
                             searchResults = fallbackResults;
@@ -1699,15 +1670,15 @@ async function get4KHDHubStreams(tmdbId, type, season = null, episode = null) {
                 // Try search with comprehensive alternative title formats
                 if (!bestMatch) {
                     const alternativeQueries = generateAlternativeQueries(
-                        tmdbDetails.title,
-                        tmdbDetails.original_title
-                    ).filter(query => query !== tmdbDetails.title); // Exclude the original title we already tried
+                        info.title,
+                        info.originalTitle
+                    ).filter(query => query !== info.title); // Exclude the original title we already tried
 
                     for (const altQuery of alternativeQueries) {
                         console.log(`[4KHDHub] Trying alternative search: "${altQuery}"`);
                         const altResults = await searchContent(altQuery);
                         if (altResults.length > 0) {
-                            const altMatch = findBestMatch(altResults, tmdbDetails.title, tmdbDetails.year);
+                            const altMatch = findBestMatch(altResults, info.title, info.year);
                             if (altMatch && (!bestMatch || altMatch.score > bestMatch.score)) {
                                 bestMatch = altMatch;
                                 searchResults = altResults;
@@ -1725,7 +1696,7 @@ async function get4KHDHubStreams(tmdbId, type, season = null, episode = null) {
             }
 
             if (!bestMatch) {
-                console.log(`[4KHDHub] No suitable match found for: ${tmdbDetails.title}`);
+                console.log(`[4KHDHub] No suitable match found for: ${info.title}`);
                 return [];
             }
 

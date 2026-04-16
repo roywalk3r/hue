@@ -45,12 +45,7 @@ async function getUHDMoviesDomain() {
 }
 
 // Constants
-const { getTmdbApiKey } = require('../utils/tmdbKey');
-function getUhdMoviesKey() {
-  const k = getTmdbApiKey();
-  if (!k) console.warn('[UHDMovies] TMDB API key missing; certain metadata features skipped.');
-  return k;
-}
+const { getTmdbInfo } = require('../utils/tmdb');
 
 // --- Caching Configuration ---
 const CACHE_ENABLED = process.env.DISABLE_CACHE !== 'true'; // Set to true to disable caching for this provider
@@ -1216,14 +1211,8 @@ async function getUHDMoviesStreams(tmdbId, mediaType = 'movie', season = null, e
       }
       console.log(`[UHDMovies] Cache MISS for ${cacheKey}. Fetching from source.`);
       // 2. If cache miss, get TMDB info to perform search
-      const TMDB_API_KEY_UHDMOVIES = getUhdMoviesKey();
-      const tmdbUrl = `https://api.themoviedb.org/3/${mediaType === 'tv' ? 'tv' : 'movie'}/${tmdbId}?api_key=${TMDB_API_KEY_UHDMOVIES}`;
-      const tmdbResponse = await axios.get(tmdbUrl);
-      const tmdbData = tmdbResponse.data;
-      const mediaInfo = {
-        title: mediaType === 'tv' ? tmdbData.name : tmdbData.title,
-        year: parseInt(((mediaType === 'tv' ? tmdbData.first_air_date : tmdbData.release_date) || '').split('-')[0], 10)
-      };
+      const { title, year } = await getTmdbInfo(tmdbId, mediaType);
+      const mediaInfo = { title, year };
 
       if (!mediaInfo.title) throw new Error('Could not extract title from TMDB response.');
       console.log(`[UHDMovies] TMDB Info: "${mediaInfo.title}" (${mediaInfo.year || 'N/A'})`);

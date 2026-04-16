@@ -1,25 +1,14 @@
 const movieboxApi = require('../utils/moviebox-api');
-const { getDetails } = require('../utils/tmdb');
+const { getTmdbInfo } = require('../utils/tmdb');
 
 async function getStreams(tmdbId, type, season = 1, episode = 1, tmdbDataProvided = null) {
     try {
         console.log(`[MovieBox Provider] Fetching for tmdbId=${tmdbId} type=${type} se=${season} ep=${episode}`);
         // 1. Get TMDB data to find title and year
-        let tmdbData = tmdbDataProvided;
-        if (!tmdbData) {
-            tmdbData = await getDetails(type, tmdbId);
-        }
-        
-        if (!tmdbData) {
-            console.log(`[MovieBox Provider] No TMDB data found for ${tmdbId}`);
-            return [];
-        }
-
-        const title = tmdbData.title || tmdbData.name;
-        const year = (tmdbData.release_date || tmdbData.first_air_date || '').split('-')[0];
+        const { title, year } = await getTmdbInfo(tmdbId, type);
         
         if (!title) {
-            console.log(`[MovieBox Provider] No title found in TMDB data for ${tmdbId}`);
+            console.log(`[MovieBox Provider] No title found in TMDB for ${tmdbId}`);
             return [];
         }
 

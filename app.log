@@ -29218,3 +29218,10 @@
 [2026-04-14T19:50:19.973Z] [INFO] [request] GET /api/hitv/browse from 12ca17b4
 [2026-04-14T19:50:37.003Z] [INFO] [request] GET /api/moviebox/trending from 12ca17b4
 [2026-04-14T19:51:15.128Z] [INFO] [request] GET /api/kdrama/streams/9441/1 from 12ca17b4
+[2026-04-15T08:10:23.920Z] [INFO] [request] GET /api/moviebox/play/275839686325775601/blood-river-QWcmtDbuLh3?season=1&episode=1 from 12ca17b4
+[2026-04-16T19:58:26.359Z] [INFO] [request] GET /api/moviebox/play/4180063205928174912/the-judge-from-hell-utXOkQuJMY4?season=1&episode=1 from eff8e7ca
+[2026-04-16T19:58:26.428Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The+Judge+from+Hell from eff8e7ca
+[2026-04-16T19:58:38.385Z] [INFO] [request] GET /api/hitv/info/4180063205928174912 from eff8e7ca
+[2026-04-16T19:58:39.285Z] [INFO] [request] GET /api/moviebox/info?path=the-judge-from-hell-utXOkQuJMY4 from eff8e7ca
+[2026-04-16T19:58:39.667Z] [INFO] [request] GET /api/hitv/play/4180063205928174912/1?title=The+Judge+from+Hell from eff8e7ca
+[2026-04-16T19:58:39.682Z] [INFO] [request] GET /api/moviebox/play/4180063205928174912/the-judge-from-hell-utXOkQuJMY4?season=1&episode=1 from eff8e7ca

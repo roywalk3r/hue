@@ -152,16 +152,8 @@ const fetchStreamSize = async (url) => {
 
 const FEBBOX_PLAYER_URL = "https://www.febbox.com/file/player";
 const FEBBOX_FILE_SHARE_LIST_URL = "https://www.febbox.com/file/file_share_list";
-// MODIFICATION: Remove SCRAPER_API_URL
-// const SCRAPER_API_URL = 'https://api.scraperapi.com/';
-// TMDB key now sourced from config/env; no hardcoded public key
-const { getTmdbApiKey } = require('../utils/tmdbKey');
-function obtainTmdbKey() {
-    const k = getTmdbApiKey();
-    if (!k) console.warn('[Showbox] No TMDB API key available (multi-key set empty).');
-    return k;
-}
-const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+const { getTmdbInfo, getDetails, resolveImdbId, search: tmdbSearch } = require('../utils/tmdb');
+
 // Determine cache directory based on environment
 // Use /tmp/.cache when running on Vercel, otherwise use local .cache directory
 // Allow external override to keep cache writes out of watched tree during dev
@@ -970,11 +962,7 @@ const getShowboxUrlFromTmdbInfo = async (tmdbType, tmdbId, regionPreference = nu
     if (!disableCache) {
         const cachedResult = await getFromCache(urlCacheKey, urlCacheSubDir);
         if (cachedResult) {
-            if (cachedResult.showboxUrl === 'NO_URL_FOUND') {
-                // For stream searches, always retry immediately - content availability can change anytime
-                console.log(`  [Final URL Cache] HIT: Previously no URL found for ${tmdbType}/${tmdbId}, but retrying immediately for fresh content.`);
-                // Continue to search logic below to retry immediately
-            } else {
+            if (cachedResult.showboxUrl !== 'NO_URL_FOUND') {
                 console.log(`  [Final URL Cache] HIT: Found cached ShowBox result for ${tmdbType}/${tmdbId}.`);
                 return cachedResult;
             }
@@ -983,219 +971,79 @@ const getShowboxUrlFromTmdbInfo = async (tmdbType, tmdbId, regionPreference = nu
 
     // 2. If no cached final URL, proceed with the discovery logic.
     console.time('getShowboxUrlFromTmdbInfo_total');
-    const mainCacheSubDir = 'tmdb_api';
-    const mainCacheKey = `tmdb-${tmdbType}-${tmdbId}.json`;
-    let tmdbData = await getFromCache(mainCacheKey, mainCacheSubDir);
+    
+    try {
+        const { title: mainTitle, year, type } = await getTmdbInfo(tmdbId, tmdbType);
+        const tmdbData = await getDetails(tmdbType, tmdbId);
+        const originalTitle = tmdbData.original_title || tmdbData.original_name;
 
-    if (!tmdbData || process.env.DISABLE_CACHE === 'true') {
-        const TMDB_API_KEY = obtainTmdbKey();
-        const tmdbApiUrl = `${TMDB_BASE_URL}/${tmdbType}/${tmdbId}?api_key=${TMDB_API_KEY}`;
-        console.log(`  Fetching TMDB data from: ${tmdbApiUrl}`);
-        try {
-            const response = await axios.get(tmdbApiUrl, { timeout: 10000 });
-            tmdbData = response.data;
-            if (tmdbData) {
-                if (process.env.DISABLE_CACHE !== 'true') {
-                    await saveToCache(mainCacheKey, tmdbData, mainCacheSubDir);
-                }
-            } else {
-                console.log('  No TMDB data received.');
-                console.timeEnd('getShowboxUrlFromTmdbInfo_total');
-                return null;
-            }
-        } catch (error) {
-            console.log(`  Error fetching TMDB main data: ${error.message}`);
-            console.timeEnd('getShowboxUrlFromTmdbInfo_total');
-            return null;
-        }
-    }
+        // Fetch alternative titles
+        const TMDB_API_KEY = require('../utils/tmdbKey').getTmdbApiKey();
+        const altTitlesResp = await axios.get(`https://api.themoviedb.org/3/${tmdbType}/${tmdbId}/alternative_titles?api_key=${TMDB_API_KEY}`, { timeout: 10000 });
+        const alternativeTitles = altTitlesResp.data?.titles || [];
 
-    if (!tmdbData) {
-        console.log(`  Could not fetch TMDB data for ${tmdbType}/${tmdbId}. Cannot proceed.`);
-        console.timeEnd('getShowboxUrlFromTmdbInfo_total');
-        return null;
-    }
+        // Fetch TMDB images
+        const imagesResp = await axios.get(`https://api.themoviedb.org/3/${tmdbType}/${tmdbId}/images?api_key=${TMDB_API_KEY}`, { timeout: 10000 });
+        const tmdbBackdropPaths = (imagesResp.data?.backdrops || []).map(img => img.file_path).filter(Boolean);
 
-    // Fetch alternative titles
-    const altTitlesCacheKey = `tmdb-${tmdbType}-${tmdbId}-alternatives.json`;
-    let tmdbAlternativeTitlesData = await getFromCache(altTitlesCacheKey, mainCacheSubDir);
+        // Extract special titles like Romaji for anime
+        const specialTitles = extractSpecialTitles(tmdbData, alternativeTitles);
 
-    if (!tmdbAlternativeTitlesData || process.env.DISABLE_CACHE === 'true') {
-        const TMDB_API_KEY = obtainTmdbKey();
-        const altTitlesApiUrl = `${TMDB_BASE_URL}/${tmdbType}/${tmdbId}/alternative_titles?api_key=${TMDB_API_KEY}`;
-        console.log(`  Fetching TMDB alternative titles from: ${altTitlesApiUrl}`);
-        try {
-            const response = await axios.get(altTitlesApiUrl, { timeout: 10000 });
-            tmdbAlternativeTitlesData = response.data;
-            if (tmdbAlternativeTitlesData) {
-                if (process.env.DISABLE_CACHE !== 'true') {
-                    await saveToCache(altTitlesCacheKey, tmdbAlternativeTitlesData, mainCacheSubDir);
-                }
-            }
-        } catch (error) {
-            console.log(`  Error fetching TMDB alternative titles: ${error.message}`);
-            tmdbAlternativeTitlesData = { titles: [] };
-        }
-    }
+        // Collect all available titles in one array for processing
+        const allTitles = [mainTitle, originalTitle, ...specialTitles, ...alternativeTitles.map(alt => alt.title)]
+            .filter(Boolean)
+            .filter((value, index, self) => self.indexOf(value) === index);
 
-    // Get alternative titles array, or empty array if none
-    const alternativeTitles = tmdbAlternativeTitlesData?.titles || [];
+        console.log(`  Collected ${allTitles.length} unique titles for "${mainTitle || originalTitle}"`);
 
-    // NEW: Fetch TMDB images
-    const imagesCacheKey = `tmdb-${tmdbType}-${tmdbId}-images.json`;
-    let tmdbImagesData = await getFromCache(imagesCacheKey, mainCacheSubDir);
-    let tmdbBackdropPaths = [];
+        const showboxScraperInstance = new ShowBoxScraper(regionPreference);
+        const mediaTypeString = tmdbType === 'movie' ? 'movie' : 'tv';
+        const mediaTypePrefix = tmdbType === 'movie' ? 'm' : 't';
 
-    if (!tmdbImagesData || process.env.DISABLE_CACHE === 'true') {
-        const TMDB_API_KEY = obtainTmdbKey();
-        const imagesApiUrl = `${TMDB_BASE_URL}/${tmdbType}/${tmdbId}/images?api_key=${TMDB_API_KEY}`;
-        console.log(`  Fetching TMDB images from: ${imagesApiUrl}`);
-        try {
-            const response = await axios.get(imagesApiUrl, { timeout: 10000 });
-            tmdbImagesData = response.data;
-            if (tmdbImagesData) {
-                if (process.env.DISABLE_CACHE !== 'true') {
-                    await saveToCache(imagesCacheKey, tmdbImagesData, mainCacheSubDir);
-                }
-            }
-        } catch (error) {
-            console.log(`  Error fetching TMDB images: ${error.message}`);
-            tmdbImagesData = { backdrops: [], posters: [] }; // Default to empty if error
-        }
-    }
-    if (tmdbImagesData && tmdbImagesData.backdrops) {
-        tmdbBackdropPaths = tmdbImagesData.backdrops.map(img => img.file_path).filter(Boolean);
-        console.log(`  Collected ${tmdbBackdropPaths.length} TMDB backdrop paths.`);
-        if (tmdbBackdropPaths.length > 0) {
-            console.log(`    Sample TMDB backdrop paths: ${tmdbBackdropPaths.slice(0, 3).join(', ')}`);
-        }
-    }
+        const findUrl = async () => {
+            if (year) {
+                for (const candidateTitle of allTitles.slice(0, 3)) {
+                    const slug = slugify(candidateTitle);
+                    if (!slug) continue;
 
-    // Log anime genres to help identify anime content
-    if (tmdbData.genres && Array.isArray(tmdbData.genres)) {
-        const animeGenre = tmdbData.genres.find(g => g.name === 'Animation');
-        if (animeGenre) {
-            console.log(`  [ANIME] Content identified as Animation genre, will check for anime-specific titles`);
-        }
-    }
+                    const directShowboxUrl = `https://www.showbox.media/${mediaTypeString}/${mediaTypePrefix}-${slug}-${year}`;
+                    const htmlContent = await showboxScraperInstance._makeRequest(directShowboxUrl);
+                    if (htmlContent) {
+                        const pageInfo = showboxScraperInstance.extractContentIdAndType(directShowboxUrl, htmlContent);
+                        if (pageInfo && pageInfo.title) {
+                            const titleIsValid = validateShowboxTitle(pageInfo.title, mainTitle, originalTitle, alternativeTitles);
+                            const showboxTmdbImagePath = extractTmdbImagePathFromShowboxHtml(htmlContent);
+                            const imageIsValid = validateTmdbImage(showboxTmdbImagePath, tmdbBackdropPaths);
 
-    // Extract main titles and year
-    let mainTitle = null;      // Primary/localized title
-    let originalTitle = null;  // Original title (could be in non-Latin script)
-    let year = null;
-
-    if (tmdbType === 'movie') {
-        mainTitle = tmdbData.title; // Prioritize .title for movies (localized)
-        originalTitle = tmdbData.original_title;
-        if (tmdbData.release_date && String(tmdbData.release_date).length >= 4) {
-            year = String(tmdbData.release_date).substring(0, 4);
-        }
-    } else if (tmdbType === 'tv') {
-        mainTitle = tmdbData.name; // Prioritize .name for TV (localized)
-        originalTitle = tmdbData.original_name;
-        const rawFirstAirDate = tmdbData.first_air_date;
-        if (rawFirstAirDate && String(rawFirstAirDate).length >= 4) {
-            year = String(rawFirstAirDate).substring(0, 4);
-        }
-    }
-
-    if (!mainTitle && !originalTitle) {
-        console.log(`  Could not determine any title from TMDB data for ${tmdbType}/${tmdbId}.`);
-        console.timeEnd('getShowboxUrlFromTmdbInfo_total');
-        return null;
-    }
-
-    // If mainTitle is missing, use originalTitle as fallback
-    if (!mainTitle) mainTitle = originalTitle;
-
-    // Extract special titles like Romaji for anime
-    const specialTitles = extractSpecialTitles(tmdbData, alternativeTitles);
-
-    // Collect all available titles in one array for processing
-    const allTitles = [mainTitle, originalTitle, ...specialTitles, ...alternativeTitles.map(alt => alt.title)]
-        .filter(Boolean) // Remove nulls/undefined
-        .filter((value, index, self) => self.indexOf(value) === index); // Remove duplicates
-
-    console.log(`  Collected ${allTitles.length} unique titles for "${mainTitle || originalTitle}":`);
-    allTitles.forEach((title, idx) => {
-        console.log(`    [${idx + 1}] "${title}"`);
-    });
-
-    const MAX_DIRECT_URL_ATTEMPTS = 3; // Configurable limit for direct URL construction
-    const titlesForDirectAttempt = allTitles.slice(0, MAX_DIRECT_URL_ATTEMPTS);
-    console.log(`  Limiting direct URL construction attempts to first ${titlesForDirectAttempt.length} titles out of ${allTitles.length} total unique titles.`);
-
-    // Initialize ShowBox scraper instance
-    const showboxScraperInstance = new ShowBoxScraper(regionPreference);
-    const mediaTypeString = tmdbType === 'movie' ? 'movie' : 'tv';
-    const mediaTypePrefix = tmdbType === 'movie' ? 'm' : 't';
-
-    // This is a new inner function to contain all the discovery logic.
-    const findUrl = async () => {
-        // If we have a year, try direct URL construction with all titles
-        if (year) {
-            console.log(`  Attempting direct ShowBox URL construction for ${tmdbType} "${mainTitle}" (${year}) with ${titlesForDirectAttempt.length} title variants.`);
-
-            for (const candidateTitle of titlesForDirectAttempt) {
-                const slug = slugify(candidateTitle);
-                if (!slug) {
-                    console.log(`    Skipping empty slug for title: "${candidateTitle}"`);
-                    continue;
-                }
-
-                const directShowboxUrl = `https://www.showbox.media/${mediaTypeString}/${mediaTypePrefix}-${slug}-${year}`;
-                console.log(`    Trying direct URL: ${directShowboxUrl} (from title: "${candidateTitle}")`);
-
-                const htmlContent = await showboxScraperInstance._makeRequest(directShowboxUrl);
-                if (htmlContent) {
-                    console.log(`    Successfully fetched content from direct URL: ${directShowboxUrl}`);
-                    const pageInfo = showboxScraperInstance.extractContentIdAndType(directShowboxUrl, htmlContent);
-
-                    if (pageInfo && pageInfo.title) {
-                        const titleIsValid = validateShowboxTitle(pageInfo.title, mainTitle, originalTitle, alternativeTitles);
-                        const showboxTmdbImagePath = extractTmdbImagePathFromShowboxHtml(htmlContent);
-                        const imageIsValid = validateTmdbImage(showboxTmdbImagePath, tmdbBackdropPaths);
-
-                        if (titleIsValid && imageIsValid) {
-                            console.log(`      SUCCESS (TITLE & IMAGE VALIDATED): Validated title and TMDB image for ${directShowboxUrl}. Using this URL.`);
-                            return { showboxUrl: directShowboxUrl, year: year, title: mainTitle };
+                            if (titleIsValid && imageIsValid) {
+                                return { showboxUrl: directShowboxUrl, year: year, title: mainTitle };
+                            }
                         }
                     }
                 }
             }
+
+            console.log(`  No validated ShowBox URL found through direct construction. Falling back to search...`);
+            const searchResult = await _searchAndExtractShowboxUrl(mainTitle, mainTitle, year, showboxScraperInstance, tmdbType, regionPreference, allTitles);
+            if (searchResult && searchResult.url) {
+                return { showboxUrl: searchResult.url, year: year, title: mainTitle };
+            }
+            return null;
+        };
+
+        const finalResult = await findUrl();
+
+        if (!disableCache) {
+            await saveToCache(urlCacheKey, finalResult || { showboxUrl: 'NO_URL_FOUND', timestamp: Date.now() }, urlCacheSubDir);
         }
 
-        // ... (rest of the discovery logic: special slugs, AI search, _searchAndExtractShowboxUrl call)
-        // Note: all 'return { showboxUrl: ... }' statements will now return from this inner function.
-        // ... (this part of the code remains the same but is conceptually inside findUrl)
-
-        // The original search call at the end
-        console.log(`  No validated ShowBox URL found through direct construction. Falling back to search...`);
-        const searchResult = await _searchAndExtractShowboxUrl(mainTitle, mainTitle, year, showboxScraperInstance, tmdbType, regionPreference, allTitles);
-        if (searchResult && searchResult.url) {
-            console.log(`  Search found a result. Title: ${searchResult.title}, Year: ${searchResult.year}`);
-            return { showboxUrl: searchResult.url, year: year, title: mainTitle };
-        }
-
-        return null; // Return null if all methods fail
-    };
-
-    // Execute the discovery function
-    const finalResult = await findUrl();
-
-    // 3. Cache the result of the discovery, whether successful or not.
-    if (!disableCache) {
-        if (finalResult && finalResult.showboxUrl) {
-            console.log(`  [Final URL Cache] SAVING result for ${tmdbType}/${tmdbId}: ${finalResult.showboxUrl}`);
-            await saveToCache(urlCacheKey, finalResult, urlCacheSubDir);
-        } else {
-            console.log(`  [Final URL Cache] SAVING 'NO_URL_FOUND' for ${tmdbType}/${tmdbId}.`);
-            await saveToCache(urlCacheKey, { showboxUrl: 'NO_URL_FOUND', timestamp: Date.now() }, urlCacheSubDir);
-        }
+        console.timeEnd('getShowboxUrlFromTmdbInfo_total');
+        return finalResult;
+    } catch (error) {
+        console.error(`  [Showbox] Error in discovery: ${error.message}`);
+        console.timeEnd('getShowboxUrlFromTmdbInfo_total');
+        return null;
     }
-
-    console.timeEnd('getShowboxUrlFromTmdbInfo_total');
-    return finalResult;
 };
 
 // Function to fetch sources for a single FID
@@ -2953,74 +2801,18 @@ const processPStreamResponse = (apiResponse, tmdbType, seasonNum, episodeNum) =>
 
 // Function to get TMDB data specifically for PStream API (extracts IMDB ID)
 const getTmdbDataForPStream = async (tmdbType, tmdbId) => {
-    const cacheSubDir = 'tmdb_api';
-    const cacheKey = `tmdb-${tmdbType}-${tmdbId}.json`;
-
-    // Try cache first
-    let tmdbData = await getFromCache(cacheKey, cacheSubDir);
-
-    if (!tmdbData || process.env.DISABLE_CACHE === 'true') {
-        const TMDB_API_KEY = obtainTmdbKey();
-        const tmdbApiUrl = `${TMDB_BASE_URL}/${tmdbType}/${tmdbId}?api_key=${TMDB_API_KEY}`;
-        console.log(`  [PStream] Fetching TMDB data from: ${tmdbApiUrl}`);
-
-        try {
-            const response = await axios.get(tmdbApiUrl, { timeout: 10000 });
-            tmdbData = response.data;
-            if (tmdbData) {
-                if (process.env.DISABLE_CACHE !== 'true') {
-                    await saveToCache(cacheKey, tmdbData, cacheSubDir);
-                }
-            }
-        } catch (error) {
-            console.log(`  [PStream] Error fetching TMDB data: ${error.message}`);
+    try {
+        const imdbId = await resolveImdbId(tmdbType, tmdbId);
+        if (!imdbId) {
+            console.log(`  [PStream] No IMDB ID found for ${tmdbType}/${tmdbId}`);
             return null;
         }
-    }
-
-    if (!tmdbData) {
-        console.log(`  [PStream] No TMDB data found for ${tmdbType}/${tmdbId}`);
+        const { title, year } = await getTmdbInfo(tmdbId, tmdbType);
+        return { imdbId, title, year };
+    } catch (error) {
+        console.log(`  [PStream] Error resolving IMDB ID: ${error.message}`);
         return null;
     }
-
-    // Extract IMDB ID
-    let imdbId = null;
-    const externalIdsCacheKey = `tmdb-${tmdbType}-${tmdbId}-external_ids.json`;
-    let externalIdsData = await getFromCache(externalIdsCacheKey, cacheSubDir);
-
-    if (!externalIdsData || process.env.DISABLE_CACHE === 'true') {
-        const TMDB_API_KEY = obtainTmdbKey();
-        const externalIdsApiUrl = `${TMDB_BASE_URL}/${tmdbType}/${tmdbId}/external_ids?api_key=${TMDB_API_KEY}`;
-        console.log(`  [PStream] Fetching TMDB external IDs from: ${externalIdsApiUrl}`);
-
-        try {
-            const response = await axios.get(externalIdsApiUrl, { timeout: 10000 });
-            externalIdsData = response.data;
-            if (externalIdsData) {
-                if (process.env.DISABLE_CACHE !== 'true') {
-                    await saveToCache(externalIdsCacheKey, externalIdsData, cacheSubDir);
-                }
-            }
-        } catch (error) {
-            console.log(`  [PStream] Error fetching TMDB external IDs: ${error.message}`);
-        }
-    }
-
-    if (externalIdsData && externalIdsData.imdb_id) {
-        imdbId = externalIdsData.imdb_id;
-    }
-
-    if (!imdbId) {
-        console.log(`  [PStream] No IMDB ID found for ${tmdbType}/${tmdbId}`);
-        return null;
-    }
-
-    return {
-        imdbId: imdbId,
-        title: tmdbType === 'movie' ? tmdbData.title : tmdbData.name,
-        year: tmdbData.release_date ? new Date(tmdbData.release_date).getFullYear() :
-            tmdbData.first_air_date ? new Date(tmdbData.first_air_date).getFullYear() : null
-    };
 };
 
 // Function to get ui-token for PStream API (handles JWT tokens)

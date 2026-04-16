@@ -3,6 +3,8 @@ const { getNewContext } = require("../utils/browserManager");
 const http = require('http');
 const https = require('https');
 
+const { getTmdbInfo } = require('../utils/tmdb');
+
 const BASE_URL = "https://kisskh.ovh";
 const API_BASE = "https://kisskh.ovh/api";
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -13,21 +15,6 @@ const axiosInstance = axios.create({
     httpsAgent: new https.Agent({ family: 4, keepAlive: true }),
     timeout: 30000
 });
-
-async function getTmdbInfo(tmdbId, mediaType) {
-    const { getTmdbApiKey } = require("../utils/tmdbKey");
-    const TMDB_API_KEY = getTmdbApiKey();
-    if (!TMDB_API_KEY) return { title: null, year: null };
-
-    const type = mediaType === 'series' || mediaType === 'tv' ? 'tv' : 'movie';
-    const url = `https://api.themoviedb.org/3/${type}/${tmdbId}?api_key=${TMDB_API_KEY}`;
-    const response = await axiosInstance.get(url);
-    const data = response.data;
-    const releaseDate = data.release_date || data.first_air_date;
-    const year = releaseDate ? parseInt(releaseDate.split("-")[0], 10) : null;
-    const title = data.title || data.name;
-    return { title, year: isNaN(year) ? null : year };
-}
 
 async function searchShow(title, season) {
     let searchTitle = title;

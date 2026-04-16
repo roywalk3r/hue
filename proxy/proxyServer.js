@@ -20,7 +20,7 @@ const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 200, timeout: 
 // Retry configuration for fetch operations
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 300;
-const FETCH_TIMEOUT_MS = 60000; // Increased to 60s for slow streams
+const FETCH_TIMEOUT_MS = 25000; // Reduced to 25s to avoid Gateway Timeouts (usually 30s)
 
 // Helper function to fetch with retry logic
 async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
@@ -775,7 +775,9 @@ function createProxyRoutes(app) {
                 
                 // Prevent recursive rewriting base
                 let rewriteBase = response.url;
-                if (rewriteBase.includes('localhost') || rewriteBase.includes('127.0.0.1')) {
+                const host = req.get('host');
+                if ((rewriteBase.includes('localhost') || rewriteBase.includes('127.0.0.1')) && !host.includes('localhost')) {
+                    // Only override if we are NOT on localhost ourselves (i.e., we are on a VPS)
                     rewriteBase = targetUrl;
                 }
 
@@ -1120,6 +1122,16 @@ function createProxyRoutes(app) {
             res.setHeader('Cache-Control', 'public, max-age=3600');
             res.setHeader('Access-Control-Allow-Origin', '*');
             if (debug) console.log('[ts-proxy] streaming body', { status: resp.status, ct: upstreamCT, cl, contentRange: force200 ? undefined : contentRange });
+            
+            // Add a timeout to the body stream to prevent hanging
+            const streamTimeout = setTimeout(() => {
+                if (!res.headersSent) res.status(504).json({ error: 'Upstream stream timeout' });
+                resp.body.destroy(new Error('Stream timeout'));
+            }, 30000);
+
+            resp.body.on('end', () => clearTimeout(streamTimeout));
+            resp.body.on('error', () => clearTimeout(streamTimeout));
+            
             resp.body.pipe(res);
         } catch (e) { 
             if (debug) console.log('[ts-proxy] exception', e.message, e.stack); 

@@ -1,8 +1,11 @@
 const axios = require('axios');
 const FormData = require('form-data');
 
+const { getTmdbInfo } = require('../utils/tmdb');
+
 // Helper function to generate slug from title
 function generateSlug(title) {
+    if (!title) return '';
     return title.toLowerCase()
         .replace(/[^\w\s-]/g, '') // Remove special characters
         .replace(/\s+/g, '-')     // Replace spaces with hyphens
@@ -35,11 +38,18 @@ async function getMP4HydraStreams(tmdbId, mediaType, seasonNum = null, episodeNu
         console.log(`[MP4Hydra] Fetching streams for TMDB ID: ${tmdbId}, Type: ${mediaType}, Season: ${seasonNum}, Episode: ${episodeNum}`);
 
         // Get TMDB details
-        const details = await getTMDBDetails(tmdbId, mediaType);
-        if (!details) {
+        const info = await getTmdbInfo(tmdbId, mediaType);
+        if (!info || !info.title) {
             console.log(`[MP4Hydra] Could not fetch details for TMDB ID: ${tmdbId}`);
             return [];
         }
+
+        const details = {
+            title: info.title,
+            original_title: info.originalTitle,
+            year: info.year,
+            slug: generateSlug(info.title)
+        };
 
         console.log(`[MP4Hydra] Found title: ${details.title} (${details.year})`);
 
@@ -448,40 +458,6 @@ async function tryWithoutYear(details, mediaType, seasonNum, episodeNum) {
     } catch (error) {
         console.error(`[MP4Hydra] Error with title-only:`, error.message);
         return [];
-    }
-}
-
-// Helper function to get TMDB details
-async function getTMDBDetails(tmdbId, mediaType) {
-    const { getTmdbApiKey } = require('../utils/tmdbKey');
-    const TMDB_API_KEY = getTmdbApiKey();
-    if (!TMDB_API_KEY) {
-        console.warn('[MP4Hydra] TMDB API key missing; skipping TMDB metadata fetch');
-        return null;
-    }
-
-    try {
-        console.log(`[MP4Hydra] Fetching ${mediaType} details for TMDB ID: ${tmdbId}`);
-        const response = await axios.get(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}`);
-
-        if (mediaType === 'movie') {
-            return {
-                title: response.data.title,
-                original_title: response.data.original_title,
-                year: response.data.release_date ? response.data.release_date.split('-')[0] : null,
-                slug: generateSlug(response.data.title)
-            };
-        } else {
-            return {
-                title: response.data.name,
-                original_title: response.data.original_name,
-                year: response.data.first_air_date ? response.data.first_air_date.split('-')[0] : null,
-                slug: generateSlug(response.data.name)
-            };
-        }
-    } catch (error) {
-        console.error(`[MP4Hydra] Error fetching details from TMDB:`, error.message);
-        return null;
     }
 }
 

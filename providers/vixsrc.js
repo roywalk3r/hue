@@ -35,20 +35,6 @@ function makeRequest(url, options = {}) {
         });
 }
 
-// Helper function to get TMDB info
-function getTmdbInfo(tmdbId, mediaType) {
-    const url = `https://api.themoviedb.org/3/${mediaType === 'tv' ? 'tv' : 'movie'}/${tmdbId}?api_key=${TMDB_API_KEY}`;
-
-    return makeRequest(url)
-        .then(response => response.json())
-        .then(data => ({ data }));
-}
-
-// Helper function to parse M3U8 playlist
-// Removed obsolete parseM3U8Playlist implementation
-
-// Removed unused helpers getQualityFromResolution and resolveUrl
-
 // Helper function to extract stream URL from Vixsrc page
 function extractStreamFromPage(url, contentType, contentId, seasonNum, episodeNum) {
 
@@ -171,8 +157,7 @@ function getSubtitles(subtitleApiUrl) {
 function getVixsrcStreams(tmdbId, mediaType = 'movie', seasonNum = null, episodeNum = null) {
     console.log(`[Vixsrc] Fetching streams for TMDB ID: ${tmdbId}, Type: ${mediaType}`);
 
-    return getTmdbInfo(tmdbId, mediaType)
-        .then(() => extractStreamFromPage(null, mediaType, tmdbId, seasonNum, episodeNum))
+    return extractStreamFromPage(null, mediaType, tmdbId, seasonNum, episodeNum)
         .then(streamData => {
             if (!streamData) {
                 console.log('[Vixsrc] No stream data found');

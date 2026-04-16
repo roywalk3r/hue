@@ -1,6 +1,8 @@
 const axios = require("axios");
 const { getNewPage, getNewContext } = require("../utils/browserManager");
 
+const { getTmdbInfo } = require('../utils/tmdb');
+
 const XYRA_BASE = "https://api.xyra.stream/v1/dramacool";
 const XYRA_KEY = "key1";
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -163,15 +165,9 @@ async function extractFromUrlWithPlaywright(url) {
 }
 
 async function getStreams(tmdbId, mediaType, season, episode) {
-    const { getTmdbApiKey } = require("../utils/tmdbKey");
-    const TMDB_API_KEY = getTmdbApiKey();
-    if (!TMDB_API_KEY) return [];
-
     try {
-        const type = (mediaType === 'tv' || mediaType === 'series') ? 'tv' : 'movie';
-        const { data: tmdbData } = await axios.get(`https://api.themoviedb.org/3/${type}/${tmdbId}?api_key=${TMDB_API_KEY}`);
-        const baseTitle = tmdbData.name || tmdbData.title;
-        const releaseYear = (tmdbData.first_air_date || tmdbData.release_date || "").split('-')[0];
+        const { title: baseTitle, year: releaseYear, type } = await getTmdbInfo(tmdbId, mediaType);
+        if (!baseTitle) return [];
         
         let title = baseTitle;
         if (type === 'tv' && season && season > 1) title = `${baseTitle} Season ${season}`;

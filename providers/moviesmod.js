@@ -10,6 +10,7 @@ const { CookieJar } = require('tough-cookie');
 const { URLSearchParams, URL } = require('url');
 const fs = require('fs').promises;
 const path = require('path');
+const { getTmdbInfo } = require('../utils/tmdb');
 const { findBestMatch } = require('string-similarity');
 
 // Dynamic import for axios-cookiejar-support
@@ -778,21 +779,12 @@ async function getMoviesModStreams(tmdbId, mediaType, seasonNum = null, episodeN
                 console.log(`[MoviesMod Cache] MISS for key: ${cacheKey}. Fetching from source.`);
             }
 
-            // We need to fetch title and year from TMDB API
-            const { getTmdbApiKey } = require('../utils/tmdbKey');
-            const TMDB_API_KEY = getTmdbApiKey();
-            if(!TMDB_API_KEY){
-                console.warn('[MoviesMod] TMDB API key missing; cannot fetch TMDB metadata');
-                throw new Error('TMDB_API_KEY missing');
-            }
+            // Get metadata from unified TMDB service
+            const info = await getTmdbInfo(tmdbId, mediaType);
+            if (!info || !info.title) throw new Error('Could not get title from TMDB');
 
-            const { default: fetch } = await import('node-fetch');
-            const tmdbUrl = `https://api.themoviedb.org/3/${mediaType === 'tv' ? 'tv' : 'movie'}/${tmdbId}?api_key=${TMDB_API_KEY}&language=en-US`;
-            const tmdbDetails = await (await fetch(tmdbUrl)).json();
-
-            const title = mediaType === 'tv' ? tmdbDetails.name : tmdbDetails.title;
-            const year = mediaType === 'tv' ? tmdbDetails.first_air_date?.substring(0, 4) : tmdbDetails.release_date?.substring(0, 4);
-            if (!title) throw new Error('Could not get title from TMDB');
+            const title = info.title;
+            const year = info.year;
 
             console.log(`[MoviesMod] Found metadata: ${title} (${year})`);
             const searchResults = await searchMoviesMod(title);
