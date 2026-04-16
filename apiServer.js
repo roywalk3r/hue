@@ -156,8 +156,25 @@ app.get('/api/docs/swagger.json', async (req, res) => {
 });
 app.use('/api/docs/swagger', swaggerUi.serve, swaggerUi.setup(null, { swaggerOptions: { url: '/api/docs/swagger.json' } }));
 app.get('/api/docs', (req, res) => {
-  const openApiUrl = `${resolveServerUrl(req)}/api/docs/swagger.json`;
-  res.send(`<!doctype html><html><head><title>API Docs</title><script id="api-reference" data-url="${openApiUrl}"></script><script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script></head><body></body></html>`);
+  res.send(`
+    <!doctype html>
+    <html>
+      <head>
+        <title>Hue Stream API Docs</title>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <style>
+          body { margin: 0; }
+        </style>
+      </head>
+      <body>
+        <script
+          id="api-reference"
+          data-url="/api/docs/swagger.json"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+      </body>
+    </html>
+  `);
 });
 
 // --- Error Handling ---

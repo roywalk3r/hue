@@ -76,9 +76,8 @@ async function getStreams(tmdbId, mediaType, season, episode) {
                 provider: "VidsrcXYZ",
                 subtitles: subtitles.length > 0 ? subtitles : undefined,
                 headers: {
-                    "Referer": hlsReferer, // Use the dynamically captured referer
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-                    "Origin": new URL(hlsReferer).origin // Set origin based on the correct referer
+                    "Referer": hlsReferer,
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0"
                 }
             });
         }

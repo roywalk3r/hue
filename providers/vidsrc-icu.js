@@ -66,8 +66,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
                 subtitles: subtitles.length > 0 ? subtitles : undefined,
                 headers: {
                     "Referer": hlsReferer,
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-                    "Origin": new URL(hlsReferer).origin
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0"
                 }
             });
         }
