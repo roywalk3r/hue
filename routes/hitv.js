@@ -116,7 +116,20 @@ module.exports = function(metrics) {
     router.get('/sorts', (req, res) => res.json(hitvApi.getHiTvSorts()));
 
     router.get('/play/:id/:episode', async (req, res) => {
-        const { id, episode } = req.params;
+        let { id, episode } = req.params;
+        let targetTitle = req.query.title;
+
+        // Support for slug format: the-judge-from-hell-4180063205928174912
+        if (id.includes('-') && !/^\d+$/.test(id)) {
+            const parts = id.split('-');
+            const numericId = parts.pop();
+            if (/^\d+$/.test(numericId)) {
+                targetTitle = targetTitle || parts.join(' ').replace(/-/g, ' ');
+                id = numericId;
+                console.log(`[HiTV] Parsed slug: title="${targetTitle}", id=${id}`);
+            }
+        }
+
         try {
             const cached = getCachedStreams('hitv', id, 1, episode);
             if (cached && cached.length > 0) {
@@ -129,7 +142,7 @@ module.exports = function(metrics) {
             }
 
             const info = await hitvApi.getHiTvDetail(id);
-            let targetTitle = req.query.title || (info ? info.title : null);
+            targetTitle = targetTitle || (info ? info.title : null);
 
             if (!targetTitle || targetTitle === "Unknown") {
                 return res.status(404).json({ success: false, error: 'Show title not found. Please provide ?title= param.' });
