@@ -99,6 +99,37 @@ module.exports = function(metrics) {
         }
     });
 
+    // MASSIVE DYNAMIC DISCOVERY
+    // Pattern: /api/hitv/Korea/Hottest/Action
+    router.get('/:country/:sort?/:genre?', async (req, res) => {
+        try {
+            const { country, sort, genre } = req.params;
+            const page = req.query.page || 1;
+            
+            // Map common aliases
+            const sortMap = {
+                'latest': 'Newest',
+                'hottest': 'Hottest',
+                'foryou': 'ForYou',
+                'trending': 'Recommend',
+                'popular': 'Hottest'
+            };
+
+            const params = {
+                page: page,
+                country: country || "All",
+                sort: sortMap[sort?.toLowerCase()] || sort || "ForYou",
+                genre: genre || "All",
+                year: req.query.year || null
+            };
+
+            const data = await hitvApi.browseDrama(params);
+            res.json({ success: true, ...data });
+        } catch (e) {
+            res.status(500).json({ success: false, error: e.message });
+        }
+    });
+
     router.get('/info/:id', async (req, res) => {
         try {
             const data = await hitvApi.getHiTvDetail(req.params.id);

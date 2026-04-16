@@ -86,6 +86,7 @@ const livetvRoutes = require('./routes/livetv');
 
 // Mount API routes
 app.use('/api/hitv', hitvRoutes(metrics));
+app.use('/api/sflix', hitvRoutes(metrics)); // Alias for Sflix Discovery
 app.use('/api/moviebox', movieboxRoutes(metrics));
 app.use('/api/streams', streamsRoutes(metrics));
 app.use('/api', sportsRoutes(metrics)); 

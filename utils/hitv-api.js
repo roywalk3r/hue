@@ -237,27 +237,14 @@ const HITV_GENRES = [
 const HITV_SORTS = ["ForYou", "Hottest", "Newest", "Latest", "Recommend", "General"];
 
 async function browseHiTv(page = 1, pageSize = 28, country = "Korea", category = "Drama", genre = "All", sort = "Hottest", year = null) {
-
     const url = `${BASE_URL}/subject/filter`;
-
-    
-
     const catObj = HITV_CATEGORIES.find(c => c.name.toLowerCase() === category.toLowerCase()) || HITV_CATEGORIES[0];
-
-    
-
     const payload = {
-
         page: parseInt(page),
-
         perPage: parseInt(pageSize),
-
         channelId: catObj.id, 
-
         country: (country === "All" || !country) ? undefined : country, 
-
         sort: sort
-
     };
     if (genre && genre.toLowerCase() !== "all") payload.genre = genre;
     if (year) payload.year = year.toString();
@@ -291,7 +278,10 @@ async function browseDrama({ page = 1, country = "Korea", genre = "All", sort = 
     const res = await browseHiTv(page, 28, country, "Drama", genre, sort, year);
     if (!res.items || res.items.length === 0) return res;
 
-    const enrichedItems = await Promise.all(res.items.map(async (item) => {
+    // Vercel Timeout Protection: Max 7 seconds for enrichment
+    const ENRICH_TIMEOUT = 7000;
+    
+    const enrichTask = Promise.all(res.items.map(async (item) => {
         try {
             if (item.title) {
                 const results = await tmdb.search(cleanTitle(item.title), 'tv', item.year);
@@ -309,6 +299,15 @@ async function browseDrama({ page = 1, country = "Korea", genre = "All", sort = 
         } catch (e) {}
         return item;
     }));
+
+    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), ENRICH_TIMEOUT));
+    const enrichedItems = await Promise.race([enrichTask, timeoutPromise]);
+
+    if (!enrichedItems) {
+        console.warn(`[HiTV] Enrichment timed out after ${ENRICH_TIMEOUT}ms, returning partial/original data.`);
+        return res; 
+    }
+
     return { ...res, items: enrichedItems };
 }
 

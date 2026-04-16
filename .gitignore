@@ -7,3 +7,18 @@ restart.trigger
 .gemini/
 gha-creds-*.json
 .env
+
+# Dynamic Data & Config
+utils/user-config.json
+hitv_library_cache.json
+hitv_home_cache.json
+*.json.bak
+*.html.bak
+
+# Playwright/Browser data
+.auth/
+.browser/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.local-browsers/
