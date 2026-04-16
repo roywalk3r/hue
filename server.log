@@ -1,0 +1,25 @@
+[registry] 4khdhub disabled via config
+[registry] mp4hydra disabled via config
+[registry] aisports provider enabled as "Field"
+[registry] dramacool provider enabled as "Orient"
+[registry] kisskh provider enabled as "Zenith"
+[registry] livesport provider enabled as "Stadium"
+[registry] livetv provider enabled as "Arena"
+[registry] moviebox provider enabled as "Cinema"
+[registry] moviesmod disabled via config
+[registry] ppv provider enabled as "Event"
+[registry] sflix provider enabled as "Nova"
+[registry] streamed provider enabled as "Relay"
+[registry] uhdmovies disabled via config
+[registry] vidrock disabled via config
+[registry] vidsrc-embed disabled via config
+[registry] vidsrc-icu disabled via config
+[registry] vidsrc-xyz disabled via config
+[registry] vidsrccc-playwright disabled via config
+[registry] vixsrc provider enabled as "Aura"
+[32m[2026-04-16T20:55:12.119Z] [INFO] [startup] enableProxy flag active: mounting proxy routes[0m
+Hue Stream API listening on http://0.0.0.0:24608
+[HiTV] Loaded 3377 items from disk cache.
+[32m[2026-04-16T20:55:16.031Z] [INFO] [request] GET /api/health from 12ca17b4[0m
+[32m[2026-04-16T20:55:18.047Z] [INFO] [request] GET /api/sflix/Thailand/Latest/All from 12ca17b4[0m
+[HiTV] Browsing Drama: Page 1, Thailand, All, Newest, All Years
