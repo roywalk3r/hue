@@ -188,6 +188,7 @@ function loadConfig() {
     movieboxCookie: process.env.MOVIEBOX_COOKIE || null,
     movieboxUserAgent: process.env.MOVIEBOX_USER_AGENT || null,
     movieboxHost: process.env.MOVIEBOX_HOST || 'moviebox.ph',
+    movieboxProxyUrl: process.env.MOVIEBOX_PROXY_URL || null,
     // Extended advanced config (may not exist in env)
     disableCache: process.env.DISABLE_CACHE,
     enablePStreamApi: process.env.ENABLE_PSTREAM_API,

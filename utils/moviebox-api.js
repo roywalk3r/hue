@@ -1,23 +1,42 @@
 const axios = require('axios');
 const { config } = require('./config');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 
 const BASE_URL = 'https://h5-api.aoneroom.com/wefeed-h5api-bff';
-const PLAY_URL = 'https://123movienow.cc/wefeed-h5api-bff';
+const PLAY_URL = 'https://movibox.net/wefeed-h5api-bff';
 
 // working token from call_subject_play.sh, switched to appType 2 (Android) to bypass web restrictions
 const DEFAULT_X_USER = '{"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjc1NjEyMzU2Nzc1NjA4NTMyODAsImF0cCI6MywiZXh0IjoiMTc3MTE0NDQ4MiIsImV4cCI6MTc3ODkyMDQ4MiwiaWF0IjoxNzcxMTQxNDk1fQ.BF7r1K_npeKWjkjuIxqZMTvUDxJ8oBjvSBc3glWcqtU","userId":"7561235677560853280","userType":0,"appType":2}';
 const DEFAULT_COOKIE = 'uuid=202d061a-fbe4-443c-aa09-be0232791ef7';
-const DEFAULT_UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36';
+
+const USER_AGENTS = [
+    'Mozilla/5.0 (Linux; Android 13; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36',
+    'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Mobile Safari/537.36',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36'
+];
 
 const axiosInstance = axios.create({
     timeout: 15000,
 });
 
 axiosInstance.interceptors.request.use((reqConfig) => {
-    const host = config.movieboxHost || 'movibox.net';
+    const host = config.movieboxHost || 'moviebox.ph';
     const cookie = config.movieboxCookie || DEFAULT_COOKIE;
-    
-    let token = '';
+
+    // Use Proxy if configured to bypass region blocks
+    if (config.movieboxProxyUrl) {
+        try {
+            console.log(`[MovieBox API] Using proxy: ${config.movieboxProxyUrl}`);
+            reqConfig.httpsAgent = new HttpsProxyAgent(config.movieboxProxyUrl);
+            reqConfig.proxy = false; // Disable default axios proxy handling to use HttpsProxyAgent
+        } catch (e) {
+            console.error('[MovieBox API] Proxy setup error:', e.message);
+        }
+    }
+
+    const randomUA = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+    let token = null;
     try {
         const userData = JSON.parse(DEFAULT_X_USER);
         token = userData.token;
@@ -34,7 +53,7 @@ axiosInstance.interceptors.request.use((reqConfig) => {
     };
 
     setHeader('Accept', 'application/json');
-    setHeader('User-Agent', config.movieboxUserAgent || DEFAULT_UA);
+    setHeader('User-Agent', config.movieboxUserAgent || randomUA);
     setHeader('Origin', `https://${host}`);
     
     // Only set Referer if not already set by specific calls
@@ -79,7 +98,7 @@ function mapItem(item) {
 
 async function getHome() {
     try {
-        const host = config.movieboxHost || 'movibox.net';
+        const host = config.movieboxHost || 'moviebox.ph';
         const url = `${BASE_URL}/home?host=${host}`;
         const response = await axiosInstance.get(url);
         if (response.data && response.data.code === 0) {
@@ -172,48 +191,80 @@ async function getDetail(detailPath) {
 }
 
 async function getStreams(subjectId, detailPath, season = 1, episode = 1) {
-    try {
-        const isMovie = (season === 0 && episode === 0);
-        const typeFolder = isMovie ? 'movies' : 'series';
-        const typeLabel = isMovie ? 'movie' : 'series';
-        
-        // Clean path for Referer: remove /detail/ if it exists, as the SPA URL doesn't use it
-        // e.g. series/detail/slug -> series/slug
-        let refererPath = detailPath.startsWith('/') ? detailPath.substring(1) : detailPath;
-        refererPath = refererPath.replace('movies/detail/', 'movies/').replace('series/detail/', 'series/');
+    const isMovie = (season === 0 && episode === 0);
+    const typeLabel = isMovie ? 'movie' : 'series';
+    
+    // List of hosts to try in case of region block
+    const hosts = [
+        'moviebox.ph',
+        'movibox.net',
+        '123movienow.cc',
+        'moviebox.to'
+    ];
 
-        const referer = `https://123movienow.cc/spa/videoPlayPage/${refererPath}?id=${subjectId}&type=/${typeLabel}/detail&detailSe=&detailEp=&lang=en`;
+    // List of timezones to try in case of region block
+    const timezones = [
+        'Pacific/Pago_Pago',
+        'Asia/Hong_Kong',
+        'Europe/London',
+        'America/New_York'
+    ];
 
-        const url = `${PLAY_URL}/subject/play?subjectId=${subjectId}&se=${season}&ep=${episode}&detailPath=${encodeURIComponent(detailPath)}`;
-        console.log(`[MovieBox API] Play Request: ${url}`);
-        console.log(`[MovieBox API] Play Referer: ${referer}`);
-        
-        const response = await axiosInstance.get(url, {
-            headers: {
-                'Referer': referer
+    for (let h = 0; h < hosts.length; h++) {
+        const host = hosts[h];
+        for (let t = 0; t < (h === 0 ? 1 : 2); t++) { // Only try alternative timezone on fallback hosts or second attempt
+            const timezone = timezones[t];
+            
+            try {
+                const PLAY_URL_DYNAMIC = `https://${host}/wefeed-h5api-bff`;
+                
+                let refererPath = detailPath.startsWith('/') ? detailPath.substring(1) : detailPath;
+                refererPath = refererPath.replace('movies/detail/', 'movies/').replace('series/detail/', 'series/');
+
+                const referer = `https://${host}/spa/videoPlayPage/${refererPath}?id=${subjectId}&type=/${typeLabel}/detail&detailSe=&detailEp=&lang=en`;
+
+                const url = `${PLAY_URL_DYNAMIC}/subject/play?subjectId=${subjectId}&se=${season}&ep=${episode}&detailPath=${encodeURIComponent(detailPath)}`;
+                
+                if (h > 0 || t > 0) {
+                    console.log(`[MovieBox API] Retrying with host=${host} tz=${timezone}`);
+                }
+
+                const response = await axiosInstance.get(url, {
+                    headers: {
+                        'Referer': referer,
+                        'x-client-info': JSON.stringify({ timezone })
+                    }
+                });
+                
+                if (response.data && response.data.code === 0) {
+                    if (h > 0 || t > 0) {
+                        console.log(`[MovieBox API] Play Success on fallback: id=${subjectId} host=${host} tz=${timezone}`);
+                    } else {
+                        console.log(`[MovieBox API] Play Success: id=${subjectId} streams=${response.data.data?.streams?.length || 0} hls=${response.data.data?.hls?.length || 0}`);
+                    }
+                    return response.data.data;
+                }
+                
+                if (response.data && response.data.message === 'invalid region') {
+                    console.warn(`[MovieBox API] Region Blocked on ${host}: id=${subjectId}`);
+                    continue; // Try next host/tz
+                }
+
+                console.warn(`[MovieBox API] Play Failed on ${host}: code=${response.data?.code} msg=${response.data?.message}`);
+                // If it's a different error than region block, we might still want to try next host, but maybe not
+                continue; 
+            } catch (e) {
+                if (e.response?.data?.message === 'invalid region') {
+                     console.warn(`[MovieBox API] Region Blocked on ${host}: id=${subjectId}`);
+                     continue;
+                }
+                console.error(`[MovieBox API] Play error on ${host}:`, e.response?.data || e.message);
+                continue;
             }
-        });
-        
-        if (response.data && response.data.code === 0) {
-            console.log(`[MovieBox API] Play Success: id=${subjectId} streams=${response.data.data?.streams?.length || 0} hls=${response.data.data?.hls?.length || 0}`);
-            return response.data.data;
         }
-        
-        if (response.data && response.data.message === 'invalid region') {
-            console.warn(`[MovieBox API] Region Blocked: id=${subjectId}`);
-            return null;
-        }
-
-        console.warn(`[MovieBox API] Play Failed: code=${response.data?.code} msg=${response.data?.message}`);
-        return null;
-    } catch (e) {
-        if (e.response?.data?.message === 'invalid region') {
-             console.warn(`[MovieBox API] Region Blocked: id=${subjectId}`);
-             return null;
-        }
-        console.error('[MovieBox API] Play error:', e.response?.data || e.message);
-        return null;
     }
+    
+    return null;
 }
 
 async function getCaptions(subjectId, detailPath, streamId) {
@@ -304,8 +355,8 @@ async function search(keyword, page = 1, type = 0) {
     }
 }
 
-function getStreamHeaders(referer = 'https://movibox.net/') {
-    const host = config.movieboxHost || 'movibox.net';
+function getStreamHeaders(referer = 'https://moviebox.ph/') {
+    const host = config.movieboxHost || 'moviebox.ph';
     const cookie = config.movieboxCookie || DEFAULT_COOKIE;
     
     const headers = {

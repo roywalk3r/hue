@@ -118,4 +118,88 @@ async function getStreams(tmdbId, type, season = 1, episode = 1, tmdbDataProvide
     }
 }
 
-module.exports = { getStreams };
+async function getStreamsDirect(title, episode, season = 1) {
+    try {
+        const type = (season || episode) ? 'tv' : 'movie';
+        console.log(`[MovieBox Provider] Direct Fetch for: "${title}" type=${type} se=${season} ep=${episode}`);
+
+        // 1. Search MovieBox
+        const searchResults = await movieboxApi.search(title, 1, type === 'movie' ? 1 : 2);
+        if (!searchResults || !searchResults.items || searchResults.items.length === 0) {
+            console.log(`[MovieBox Provider] No MovieBox search results for: "${title}"`);
+            return [];
+        }
+
+        // 2. Find the best match
+        const targetType = type === 'movie' ? 1 : 2;
+        const bestMatch = searchResults.items.find(item => {
+            const itemTitle = (item.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const searchTitle = title.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return itemTitle === searchTitle && item.subjectType === targetType;
+        }) || searchResults.items[0];
+
+        if (!bestMatch) return [];
+
+        // 3. Fetch streams
+        const se = type === 'movie' ? 0 : (parseInt(season) || 1);
+        const ep = type === 'movie' ? 0 : (parseInt(episode) || 1);
+
+        const data = await movieboxApi.getStreams(bestMatch.id, bestMatch.detailPath, se, ep);
+        if (!data) return [];
+
+        const streams = [];
+        let subtitles = [];
+        const firstStream = data.streams && data.streams.length > 0 ? data.streams[0] : (data.hls && data.hls.length > 0 ? data.hls[0] : null);
+        
+        if (firstStream) {
+            try {
+                const captions = await movieboxApi.getCaptions(bestMatch.id, bestMatch.detailPath, firstStream.id || '');
+                subtitles = (captions || []).map(c => ({
+                    url: c.url,
+                    lang: c.lan || 'en',
+                    label: c.lanName || 'English'
+                }));
+            } catch (capErr) {}
+        }
+
+        const isMovie = (se === 0 && ep === 0);
+        const typeFolder = isMovie ? 'movies' : 'series';
+        const typeLabel = isMovie ? 'movie' : 'series';
+        const cleanPath = bestMatch.detailPath.startsWith('/') ? bestMatch.detailPath.substring(1) : bestMatch.detailPath;
+        const streamReferer = `https://123movienow.cc/spa/videoPlayPage/${typeFolder}/${cleanPath}?id=${bestMatch.id}&type=/${typeLabel}/detail&detailSe=&detailEp=&lang=en`;
+        const mbHeaders = movieboxApi.getStreamHeaders(streamReferer);
+
+        if (data.streams) {
+            data.streams.forEach(s => {
+                streams.push({
+                    title: `MovieBox - ${s.resolutions}p (MP4)`,
+                    url: s.url,
+                    quality: `${s.resolutions}p`,
+                    format: 'mp4',
+                    subtitles: subtitles.length > 0 ? subtitles : undefined,
+                    headers: mbHeaders
+                });
+            });
+        }
+
+        if (data.hls) {
+            data.hls.forEach(s => {
+                streams.push({
+                    title: `MovieBox - Auto (HLS)`,
+                    url: s.url,
+                    quality: 'Auto',
+                    format: 'hls',
+                    subtitles: subtitles.length > 0 ? subtitles : undefined,
+                    headers: mbHeaders
+                });
+            });
+        }
+
+        return streams;
+    } catch (e) {
+        console.error('[MovieBox Provider] Direct Error:', e.message);
+        return [];
+    }
+}
+
+module.exports = { getStreams, getStreamsDirect };

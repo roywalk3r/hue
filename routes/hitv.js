@@ -7,6 +7,7 @@ const { processStreamsForProxy } = require('../proxy/proxyServer');
 const { getCachedStreams, addCachedStreams } = require('../utils/cache');
 const kisskhDirect = require('../providers/kisskh');
 const sflixDirect = require('../providers/sflix');
+const movieboxDirect = require('../providers/moviebox');
 
 module.exports = function(metrics) {
     router.get('/browse', async (req, res) => {
@@ -171,15 +172,16 @@ module.exports = function(metrics) {
                     new Promise(resolve => setTimeout(() => resolve([]), ms))
                 ]);
 
-            const [kissStreams, sflixStreams] = await Promise.all([
+            const [kissStreams, sflixStreams, movieboxStreams] = await Promise.all([
                 fetchWithTimeout(kisskhDirect.getStreamsDirect(targetTitle, episode).catch(() => []), "Zenith", 30000),
                 fetchWithTimeout((async () => {
                     if (info && info.detailPath) return sflixDirect.getStreamsBySlug(id, info.detailPath, episode);
                     return sflixDirect.getStreamsDirect(targetTitle, episode, 1);
-                })().catch(() => []), "Nova", 35000)
+                })().catch(() => []), "Nova", 35000),
+                fetchWithTimeout(movieboxDirect.getStreamsDirect(targetTitle, episode, 1).catch(() => []), "Nebula", 25000)
             ]);
 
-            let streams = [...kissStreams, ...sflixStreams];
+            let streams = [...kissStreams, ...sflixStreams, ...movieboxStreams];
             if (streams.length > 0) addCachedStreams('hitv', id, 1, episode, streams);
             if (config.enableProxy) {
                 const serverUrl = resolveServerUrl(req);

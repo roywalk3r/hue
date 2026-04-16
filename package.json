@@ -12,7 +12,7 @@
   "scripts": {
     "start": "node setup-browser.js && node apiServer.js",
     "start:dev": "node setup-browser.js && nodemon --watch restart.trigger --ignore providers/.cache --ignore **/cache apiServer.js",
-    "postinstall":"npx playwright install chromium",
+    "postinstall": "npx playwright install chromium",
     "lint": "eslint . --ext .js",
     "setup-browser": "node setup-browser.js",
     "key:generate": "node scripts/generate-key.js",
