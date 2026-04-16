@@ -24,7 +24,6 @@ const axiosInstance = axios.create({
 });
 const { getTmdbInfo } = require('../utils/tmdb');
 
-const BASE_URL = "https://sflix.film";
 async function searchSflixViaApi(keyword, mediaType) {
     try {
         const url = `${API_BASE}/subject/search`;
