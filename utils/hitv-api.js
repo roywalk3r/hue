@@ -278,8 +278,8 @@ async function browseDrama({ page = 1, country = "Korea", genre = "All", sort = 
     const res = await browseHiTv(page, 28, country, "Drama", genre, sort, year);
     if (!res.items || res.items.length === 0) return res;
 
-    // Vercel Timeout Protection: Max 7 seconds for enrichment
-    const ENRICH_TIMEOUT = 7000;
+    // Enrichment Timeout Protection: Max 20 seconds for enrichment (extended for VPS stability)
+    const ENRICH_TIMEOUT = 20000;
     
     const enrichTask = Promise.all(res.items.map(async (item) => {
         try {

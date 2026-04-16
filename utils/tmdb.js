@@ -5,7 +5,8 @@ const { getTmdbApiKey } = require('./tmdbKey');
 const cache = {
   imdbByTmdb: new Map(),
   details: new Map(),
-  seasons: new Map()
+  seasons: new Map(),
+  search: new Map()
 };
 
 const TTL_MS = 6 * 60 * 60 * 1000;
@@ -88,6 +89,10 @@ async function getSeasonDetails(tmdbId, season) {
 }
 
 async function search(query, type = 'multi', year = null) {
+  const key = `search:${type}:${query}:${year || 'all'}`;
+  const cached = cache.search.get(key);
+  if (isFresh(cached)) return cached.data;
+
   let endpoint = `/search/${type}`;
   const params = { query };
   
@@ -99,7 +104,9 @@ async function search(query, type = 'multi', year = null) {
   
   try {
     const data = await tmdbFetch(endpoint, params);
-    return data.results || [];
+    const results = data.results || [];
+    cache.search.set(key, { data: results, ts: Date.now() });
+    return results;
   } catch (e) {
     return [];
   }

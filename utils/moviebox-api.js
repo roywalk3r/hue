@@ -18,7 +18,7 @@ const USER_AGENTS = [
 ];
 
 const axiosInstance = axios.create({
-    timeout: 15000,
+    timeout: 30000,
 });
 
 axiosInstance.interceptors.request.use((reqConfig) => {
@@ -63,7 +63,7 @@ axiosInstance.interceptors.request.use((reqConfig) => {
     }
     
     setHeader('x-user', DEFAULT_X_USER);
-    setHeader('x-client-info', '{"timezone":"Pacific/Pago_Pago"}');
+    setHeader('x-client-info', '{"timezone":"Europe/Berlin"}');
     
     if (token) {
         setHeader('Authorization', `Bearer ${token}`);
