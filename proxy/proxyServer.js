@@ -20,10 +20,11 @@ const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 200, timeout: 
 // Retry configuration for fetch operations
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 300;
-const FETCH_TIMEOUT_MS = 45000; // Increased to 45s to handle slow upstream bodies
+const FETCH_TIMEOUT_MS = 60000; // Increased to 60s for slow upstream providers
 
 // Helper function to fetch with retry logic
 async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
+    const timeout = options.timeout || FETCH_TIMEOUT_MS;
     // Prevent fetching localhost or internal IPs
     try {
         const u = new URL(url);

@@ -104,7 +104,7 @@ module.exports = function(metrics) {
         try {
             const params = {
                 page: req.query.page || 1,
-                pageSize: req.query.pageSize || 28,
+                pageSize: req.query.pageSize || 500,
                 country: req.query.country || "Korea",
                 genre: req.query.genre || "All",
                 sort: req.query.sort || "Hottest",
@@ -198,7 +198,7 @@ module.exports = function(metrics) {
         try {
             const { country, sort, genre } = req.params;
             const page = req.query.page || 1;
-            const pageSize = req.query.pageSize || 28;
+            const pageSize = req.query.pageSize || 500;
             
             // Map common aliases
             const sortMap = {
