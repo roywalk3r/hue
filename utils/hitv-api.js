@@ -324,60 +324,61 @@ async function browseDrama({ page = 1, country = "Korea", genre = "All", sort = 
     const res = await browseHiTv(page, 28, country, "Drama", genre, sort, year);
     if (!res.items || res.items.length === 0) return res;
 
-    let hasNewMappings = false;
+    // 1. Map items with what we have in cache immediately
     const items = res.items.map(item => {
         const cached = mappingCache[item.id];
-        if (cached) {
+        if (cached && cached.enriched !== false) {
             return { ...item, ...cached };
         }
         return item;
     });
 
-    // Enrichment for items not in cache
+    // 2. Identify items that need enrichment
     const itemsToEnrich = items.filter(i => !mappingCache[i.id]);
     
     if (itemsToEnrich.length > 0) {
-        console.log(`[HiTV] Enriching ${itemsToEnrich.length} new items with TMDB data...`);
-        // Use a smaller batch size to avoid overwhelming TMDB and timing out
-        const batchSize = 5;
-        for (let i = 0; i < itemsToEnrich.length; i += batchSize) {
-            const batch = itemsToEnrich.slice(i, i + batchSize);
-            await Promise.all(batch.map(async (item) => {
-                try {
-                    const results = await tmdb.search(cleanTitle(item.title), 'tv', item.year);
-                    if (results && results.length > 0) {
-                        const match = results[0];
-                        const enrichedData = {
-                            tmdbId: match.id,
-                            overview: match.overview,
-                            rating: match.vote_average ? match.vote_average.toString() : item.rating
-                        };
-                        if (match.backdrop_path) {
-                            enrichedData.backdrop = `https://image.tmdb.org/t/p/original${match.backdrop_path}`;
-                            enrichedData.cover = `https://image.tmdb.org/t/p/w780${match.poster_path}`;
+        console.log(`[HiTV] Enrichment needed for ${itemsToEnrich.length} items. Starting background task...`);
+        
+        // --- BACKGROUND TASK (Fire and Forget) ---
+        // We don't 'await' this so the user gets their results immediately
+        (async () => {
+            let hasNewMappings = false;
+            const batchSize = 5;
+            for (let i = 0; i < itemsToEnrich.length; i += batchSize) {
+                const batch = itemsToEnrich.slice(i, i + batchSize);
+                await Promise.all(batch.map(async (item) => {
+                    try {
+                        const searchTitle = cleanTitle(item.title);
+                        const results = await tmdb.search(searchTitle, 'tv', item.year);
+                        if (results && results.length > 0) {
+                            const match = results[0];
+                            const enrichedData = {
+                                tmdbId: match.id,
+                                overview: match.overview,
+                                rating: match.vote_average ? match.vote_average.toString() : item.rating,
+                                enriched: true
+                            };
+                            if (match.backdrop_path) {
+                                enrichedData.backdrop = `https://image.tmdb.org/t/p/original${match.backdrop_path}`;
+                                enrichedData.cover = `https://image.tmdb.org/t/p/w780${match.poster_path}`;
+                            }
+                            mappingCache[item.id] = enrichedData;
+                            hasNewMappings = true;
+                        } else {
+                            mappingCache[item.id] = { enriched: false };
+                            hasNewMappings = true;
                         }
-                        
-                        Object.assign(item, enrichedData);
-                        mappingCache[item.id] = enrichedData;
-                        hasNewMappings = true;
-                    } else {
-                        // Store empty mapping to avoid re-searching failed items
-                        mappingCache[item.id] = { enriched: false };
-                        hasNewMappings = true;
+                    } catch (e) {
+                        // Silently fail in background
                     }
-                } catch (e) {
-                    console.error(`[HiTV] Mapping failed for "${item.title}":`, e.message);
-                }
-            }));
-            // Short delay between batches
-            if (i + batchSize < itemsToEnrich.length) await sleep(500);
-        }
+                }));
+                if (i + batchSize < itemsToEnrich.length) await sleep(500);
+            }
+            if (hasNewMappings) saveMappingCache();
+        })();
     }
 
-    if (hasNewMappings) {
-        saveMappingCache();
-    }
-
+    // 3. Return results INSTANTLY
     return { ...res, items };
 }
 
