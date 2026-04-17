@@ -18,7 +18,7 @@ const USER_AGENTS = [
 ];
 
 const axiosInstance = axios.create({
-    timeout: 30000,
+    timeout: 45000,
 });
 
 axiosInstance.interceptors.request.use((reqConfig) => {

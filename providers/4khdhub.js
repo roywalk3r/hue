@@ -89,7 +89,7 @@ function validateUrl(url) {
 
             const options = {
                 method: 'HEAD',
-                timeout: 15000,
+                timeout: 30000,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                     ...extraHeaders
@@ -141,7 +141,7 @@ function makeRequest(url, options = {}) {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
                 ...options.headers
             },
-            timeout: 30000
+            timeout: 45000
         };
 
         const req = httpModule.request(requestOptions, (res) => {
@@ -214,7 +214,7 @@ function getFilenameFromUrl(url) {
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
                 },
-                timeout: 10000
+                timeout: 20000
             };
 
             const req = httpModule.request(requestOptions, (res) => {

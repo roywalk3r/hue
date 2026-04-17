@@ -20,7 +20,7 @@ const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 200, timeout: 
 // Retry configuration for fetch operations
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 300;
-const FETCH_TIMEOUT_MS = 60000; // Increased to 60s for slow upstream providers
+const FETCH_TIMEOUT_MS = 90000; // Increased to 90s for slow upstream providers
 
 // Helper function to fetch with retry logic
 async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
@@ -44,7 +44,9 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
         ...options,
         agent: (parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgent : httpsAgent),
         timeout: fetchTimeout,
-        compress: !isSegment // Don't compress segments, they are already binary
+        compress: !isSegment, // Don't compress segments, they are already binary
+        size: 0,
+        follow: 5
     };
     
     let lastError;
