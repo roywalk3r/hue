@@ -18,6 +18,10 @@ let lastLibraryFetch = 0;
 let isBuilding = false;
 const CACHE_TTL = 12 * 3600 * 1000; // 12 hours
 const CACHE_FILE = path.join(__dirname, '../hitv_library_cache.json');
+const MAPPING_CACHE_FILE = path.join(__dirname, '../hitv_mapping_cache.json');
+
+// Mapping cache (persistent)
+let mappingCache = {};
 
 // Hero cache
 let heroCache = null;
@@ -30,11 +34,23 @@ const HERO_CACHE_TTL = 3600 * 1000; // 1 hour
         const data = await fs.readFile(CACHE_FILE, 'utf8');
         libraryCache = JSON.parse(data);
         lastLibraryFetch = Date.now(); 
-        console.log(`[HiTV] Loaded ${libraryCache.length} items from disk cache.`);
-    } catch (e) {
-        console.log('[HiTV] No disk cache found, library empty.');
-    }
+        console.log(`[HiTV] Loaded ${libraryCache.length} library items from disk cache.`);
+    } catch (e) {}
+
+    try {
+        const mappingData = await fs.readFile(MAPPING_CACHE_FILE, 'utf8');
+        mappingCache = JSON.parse(mappingData);
+        console.log(`[HiTV] Loaded ${Object.keys(mappingCache).length} TMDB mappings from disk cache.`);
+    } catch (e) {}
 })();
+
+async function saveMappingCache() {
+    try {
+        await fs.writeFile(MAPPING_CACHE_FILE, JSON.stringify(mappingCache));
+    } catch (e) {
+        console.error(`[HiTV] Failed to save mapping cache: ${e.message}`);
+    }
+}
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -164,44 +180,74 @@ async function getHero() {
 
     console.log(`[HiTV] Processing ${items.length} candidates for Hero...`);
 
+    let hasNewMappings = false;
     const enriched = [];
-    for (const item of items) {
+    const batchSize = 5;
+
+    for (let i = 0; i < items.length; i += batchSize) {
         if (enriched.length >= 12) break;
-
-        try {
-            const searchTitle = cleanTitle(item.title);
-            const year = item.year || (item.releaseDate ? item.releaseDate.split('-')[0] : null);
-            const isVariety = item.genre && (item.genre.toLowerCase().includes('reality') || item.genre.toLowerCase().includes('variety'));
+        const batch = items.slice(i, i + batchSize);
+        
+        await Promise.all(batch.map(async (item) => {
+            if (enriched.length >= 12) return;
             
-            const tmdbResults = await tmdb.search(searchTitle, 'tv');
-            
-            if (tmdbResults && tmdbResults.length > 0) {
-                const match = tmdbResults[0];
-                const tmdbYear = (match.first_air_date || "").split('-')[0];
+            try {
+                // Check cache first
+                const cached = mappingCache[item.id];
+                if (cached && cached.enriched !== false) {
+                    enriched.push({ ...item, ...cached });
+                    return;
+                }
                 
-                let isMatch = false;
-                if (isVariety) {
-                    isMatch = true; 
-                } else if (year && tmdbYear && Math.abs(parseInt(year) - parseInt(tmdbYear)) <= 1) {
-                    isMatch = true;
-                }
+                // If not in cache or previous failed mapping, search TMDB
+                const searchTitle = cleanTitle(item.title);
+                const year = item.year || (item.releaseDate ? item.releaseDate.split('-')[0] : null);
+                const isVariety = item.genre && (item.genre.toLowerCase().includes('reality') || item.genre.toLowerCase().includes('variety'));
+                
+                const tmdbResults = await tmdb.search(searchTitle, 'tv');
+                
+                if (tmdbResults && tmdbResults.length > 0) {
+                    const match = tmdbResults[0];
+                    const tmdbYear = (match.first_air_date || "").split('-')[0];
+                    
+                    let isMatch = false;
+                    if (isVariety) isMatch = true; 
+                    else if (year && tmdbYear && Math.abs(parseInt(year) - parseInt(tmdbYear)) <= 1) isMatch = true;
 
-                if (isMatch) {
-                    if (match.backdrop_path) {
-                        item.cover = `https://image.tmdb.org/t/p/original${match.backdrop_path}`;
-                        item.isBackdrop = true;
-                    } else if (match.poster_path) {
-                        item.cover = `https://image.tmdb.org/t/p/w780${match.poster_path}`;
-                        item.isBackdrop = false;
+                    if (isMatch) {
+                        const enrichedData = {
+                            tmdbId: match.id,
+                            description: match.overview,
+                            rating: match.vote_average ? match.vote_average.toString() : item.rating,
+                            enriched: true
+                        };
+                        
+                        if (match.backdrop_path) {
+                            enrichedData.cover = `https://image.tmdb.org/t/p/original${match.backdrop_path}`;
+                            enrichedData.isBackdrop = true;
+                        } else if (match.poster_path) {
+                            enrichedData.cover = `https://image.tmdb.org/t/p/w780${match.poster_path}`;
+                            enrichedData.isBackdrop = false;
+                        }
+                        
+                        const merged = { ...item, ...enrichedData };
+                        enriched.push(merged);
+                        mappingCache[item.id] = enrichedData;
+                        hasNewMappings = true;
+                        console.log(`[HiTV-Enrich] Hero Success: "${item.title}"`);
                     }
-                    item.description = match.overview || item.description;
-                    item.rating = match.vote_average ? match.vote_average.toString() : item.rating;
-                    item.tmdbId = match.id;
-                    enriched.push(item);
-                    console.log(`[HiTV-Enrich] Hero Success: "${item.title}" (Backdrop: ${item.isBackdrop})`);
+                } else if (!cached) {
+                    mappingCache[item.id] = { enriched: false };
+                    hasNewMappings = true;
                 }
-            }
-        } catch (e) {}
+            } catch (e) {}
+        }));
+        
+        if (i + batchSize < items.length) await sleep(500);
+    }
+
+    if (hasNewMappings) {
+        saveMappingCache();
     }
 
     enriched.sort((a, b) => (b.isBackdrop ? 1 : 0) - (a.isBackdrop ? 1 : 0));
@@ -278,37 +324,61 @@ async function browseDrama({ page = 1, country = "Korea", genre = "All", sort = 
     const res = await browseHiTv(page, 28, country, "Drama", genre, sort, year);
     if (!res.items || res.items.length === 0) return res;
 
-    // Enrichment Timeout Protection: Max 20 seconds for enrichment (extended for VPS stability)
-    const ENRICH_TIMEOUT = 20000;
-    
-    const enrichTask = Promise.all(res.items.map(async (item) => {
-        try {
-            if (item.title) {
-                const results = await tmdb.search(cleanTitle(item.title), 'tv', item.year);
-                if (results && results.length > 0) {
-                    const match = results[0];
-                    if (match.backdrop_path) {
-                        item.backdrop = `https://image.tmdb.org/t/p/original${match.backdrop_path}`;
-                        item.cover = `https://image.tmdb.org/t/p/w780${match.poster_path}`; 
-                    }
-                    item.tmdbId = match.id;
-                    item.overview = match.overview;
-                    item.rating = match.vote_average ? match.vote_average.toString() : item.rating;
-                }
-            }
-        } catch (e) {}
+    let hasNewMappings = false;
+    const items = res.items.map(item => {
+        const cached = mappingCache[item.id];
+        if (cached) {
+            return { ...item, ...cached };
+        }
         return item;
-    }));
+    });
 
-    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), ENRICH_TIMEOUT));
-    const enrichedItems = await Promise.race([enrichTask, timeoutPromise]);
-
-    if (!enrichedItems) {
-        console.warn(`[HiTV] Enrichment timed out after ${ENRICH_TIMEOUT}ms, returning partial/original data.`);
-        return res; 
+    // Enrichment for items not in cache
+    const itemsToEnrich = items.filter(i => !mappingCache[i.id]);
+    
+    if (itemsToEnrich.length > 0) {
+        console.log(`[HiTV] Enriching ${itemsToEnrich.length} new items with TMDB data...`);
+        // Use a smaller batch size to avoid overwhelming TMDB and timing out
+        const batchSize = 5;
+        for (let i = 0; i < itemsToEnrich.length; i += batchSize) {
+            const batch = itemsToEnrich.slice(i, i + batchSize);
+            await Promise.all(batch.map(async (item) => {
+                try {
+                    const results = await tmdb.search(cleanTitle(item.title), 'tv', item.year);
+                    if (results && results.length > 0) {
+                        const match = results[0];
+                        const enrichedData = {
+                            tmdbId: match.id,
+                            overview: match.overview,
+                            rating: match.vote_average ? match.vote_average.toString() : item.rating
+                        };
+                        if (match.backdrop_path) {
+                            enrichedData.backdrop = `https://image.tmdb.org/t/p/original${match.backdrop_path}`;
+                            enrichedData.cover = `https://image.tmdb.org/t/p/w780${match.poster_path}`;
+                        }
+                        
+                        Object.assign(item, enrichedData);
+                        mappingCache[item.id] = enrichedData;
+                        hasNewMappings = true;
+                    } else {
+                        // Store empty mapping to avoid re-searching failed items
+                        mappingCache[item.id] = { enriched: false };
+                        hasNewMappings = true;
+                    }
+                } catch (e) {
+                    console.error(`[HiTV] Mapping failed for "${item.title}":`, e.message);
+                }
+            }));
+            // Short delay between batches
+            if (i + batchSize < itemsToEnrich.length) await sleep(500);
+        }
     }
 
-    return { ...res, items: enrichedItems };
+    if (hasNewMappings) {
+        saveMappingCache();
+    }
+
+    return { ...res, items };
 }
 
 function getHiTvCountries() { return HITV_COUNTRIES; }
