@@ -1,0 +1,408 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1776386462300,
+  "projectRoot": "/home/rseann/projects/Misc/hue",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": ">=14.0.0",
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "express",
+        "version": "4.21.2",
+        "category": "backend"
+      },
+      {
+        "name": "playwright",
+        "version": "1.58.0",
+        "category": "testing"
+      }
+    ],
+    "packageManager": "pnpm",
+    "runtime": "Node.js 14.0.0"
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": "pnpm lint",
+    "devCommand": "pnpm start",
+    "scripts": {
+      "start": "node setup-browser.js && node apiServer.js",
+      "start:dev": "node setup-browser.js && nodemon --watch restart.trigger --ignore providers/.cache --ignore **/cache apiServer.js",
+      "postinstall": "npx playwright install chromium",
+      "lint": "eslint . --ext .js",
+      "setup-browser": "node setup-browser.js",
+      "key:generate": "node scripts/generate-key.js",
+      "check:hianime-imports": "node scripts/check-hianime-imports.js"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "public",
+      "scripts"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "providers": {
+      "path": "providers",
+      "purpose": null,
+      "fileCount": 26,
+      "lastAccessed": 1776386462285,
+      "keyFiles": [
+        "4khdhub.js",
+        "MP4Hydra.js",
+        "Showbox.js",
+        "VidZee.js",
+        "aisports.js"
+      ]
+    },
+    "proxy": {
+      "path": "proxy",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1776386462285,
+      "keyFiles": [
+        "proxy.log",
+        "proxyServer.js"
+      ]
+    },
+    "public": {
+      "path": "public",
+      "purpose": "Public files",
+      "fileCount": 10,
+      "lastAccessed": 1776386462290,
+      "keyFiles": [
+        "config.html",
+        "index.html",
+        "index.js",
+        "login.js",
+        "player.css"
+      ]
+    },
+    "routes": {
+      "path": "routes",
+      "purpose": "Route handlers",
+      "fileCount": 8,
+      "lastAccessed": 1776386462293,
+      "keyFiles": [
+        "drama.js",
+        "hitv.js",
+        "livetv.js",
+        "moviebox.js",
+        "proxy.js"
+      ]
+    },
+    "screenshots": {
+      "path": "screenshots",
+      "purpose": null,
+      "fileCount": 8,
+      "lastAccessed": 1776386462295,
+      "keyFiles": [
+        "Screenshot 2025-09-16 174931.png",
+        "Screenshot 2025-09-16 175002.png",
+        "Screenshot 2025-09-16 175008.png",
+        "Screenshot 2025-09-16 175013.png",
+        "Screenshot 2025-09-16 175020.png"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 3,
+      "lastAccessed": 1776386462295,
+      "keyFiles": [
+        "check-hianime-imports.js",
+        "generate-key.js",
+        "publish-docker.ps1"
+      ]
+    },
+    "services": {
+      "path": "services",
+      "purpose": "Business logic services",
+      "fileCount": 3,
+      "lastAccessed": 1776386462295,
+      "keyFiles": [
+        "hianime.js",
+        "hianimeApp.js",
+        "livetvScraper.js"
+      ]
+    },
+    "utils": {
+      "path": "utils",
+      "purpose": "Utility functions",
+      "fileCount": 26,
+      "lastAccessed": 1776386462296,
+      "keyFiles": [
+        "aisports-api.js",
+        "auth-users.json",
+        "auth.js",
+        "browserConfig.js",
+        "browserManager.js"
+      ]
+    },
+    "vendor": {
+      "path": "vendor",
+      "purpose": "Third-party code",
+      "fileCount": 0,
+      "lastAccessed": 1776386462296,
+      "keyFiles": []
+    },
+    "web-scraper": {
+      "path": "web-scraper",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1776386462296,
+      "keyFiles": [
+        "api-server.js",
+        "index.html",
+        "package.json",
+        "vercel.json"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "utils/openapi-spec.js",
+      "accessCount": 21,
+      "lastAccessed": 1776419232107,
+      "type": "file"
+    },
+    {
+      "path": "providers/registry.js",
+      "accessCount": 10,
+      "lastAccessed": 1776412699176,
+      "type": "file"
+    },
+    {
+      "path": "apiServer.js",
+      "accessCount": 7,
+      "lastAccessed": 1776414703200,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 7,
+      "lastAccessed": 1776419620314,
+      "type": "directory"
+    },
+    {
+      "path": "public/docs.html",
+      "accessCount": 6,
+      "lastAccessed": 1776423746298,
+      "type": "file"
+    },
+    {
+      "path": "providers/autoembed.js",
+      "accessCount": 5,
+      "lastAccessed": 1776410599090,
+      "type": "file"
+    },
+    {
+      "path": "providers/Showbox.js",
+      "accessCount": 4,
+      "lastAccessed": 1776386984219,
+      "type": "file"
+    },
+    {
+      "path": "routes/streams.js",
+      "accessCount": 4,
+      "lastAccessed": 1776412663967,
+      "type": "file"
+    },
+    {
+      "path": "routes/hitv.js",
+      "accessCount": 3,
+      "lastAccessed": 1776412664491,
+      "type": "file"
+    },
+    {
+      "path": "routes/moviebox.js",
+      "accessCount": 3,
+      "lastAccessed": 1776412664928,
+      "type": "file"
+    },
+    {
+      "path": "routes/sports.js",
+      "accessCount": 3,
+      "lastAccessed": 1776412665350,
+      "type": "file"
+    },
+    {
+      "path": "routes/drama.js",
+      "accessCount": 3,
+      "lastAccessed": 1776412666184,
+      "type": "file"
+    },
+    {
+      "path": "routes/system.js",
+      "accessCount": 3,
+      "lastAccessed": 1776412666677,
+      "type": "file"
+    },
+    {
+      "path": "routes/livetv.js",
+      "accessCount": 3,
+      "lastAccessed": 1776412666990,
+      "type": "file"
+    },
+    {
+      "path": "routes/proxy.js",
+      "accessCount": 3,
+      "lastAccessed": 1776412667463,
+      "type": "file"
+    },
+    {
+      "path": "utils/swagger-def.js",
+      "accessCount": 3,
+      "lastAccessed": 1776414244258,
+      "type": "file"
+    },
+    {
+      "path": "proxy/proxyServer.js",
+      "accessCount": 3,
+      "lastAccessed": 1776420381488,
+      "type": "file"
+    },
+    {
+      "path": "providers/vixsrc.js",
+      "accessCount": 2,
+      "lastAccessed": 1776386871843,
+      "type": "file"
+    },
+    {
+      "path": "providers/vidsrcextractor.js",
+      "accessCount": 2,
+      "lastAccessed": 1776408712405,
+      "type": "file"
+    },
+    {
+      "path": "providers/MP4Hydra.js",
+      "accessCount": 2,
+      "lastAccessed": 1776408712814,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 2,
+      "lastAccessed": 1776412651236,
+      "type": "file"
+    },
+    {
+      "path": "utils/config.js",
+      "accessCount": 2,
+      "lastAccessed": 1776412676146,
+      "type": "file"
+    },
+    {
+      "path": "public/index.html",
+      "accessCount": 2,
+      "lastAccessed": 1776412844584,
+      "type": "directory"
+    },
+    {
+      "path": "providers/sflix.js",
+      "accessCount": 1,
+      "lastAccessed": 1776386713746,
+      "type": "file"
+    },
+    {
+      "path": "providers/vidrock.js",
+      "accessCount": 1,
+      "lastAccessed": 1776386714152,
+      "type": "file"
+    },
+    {
+      "path": "providers/vidsrc-embed.js",
+      "accessCount": 1,
+      "lastAccessed": 1776386715651,
+      "type": "file"
+    },
+    {
+      "path": "providers/vidsrc-icu.js",
+      "accessCount": 1,
+      "lastAccessed": 1776386876835,
+      "type": "file"
+    },
+    {
+      "path": "utils/tmdb.js",
+      "accessCount": 1,
+      "lastAccessed": 1776387143916,
+      "type": "file"
+    },
+    {
+      "path": "vendor/hianime-v1/src/lib/configure-docs.js",
+      "accessCount": 1,
+      "lastAccessed": 1776412273654,
+      "type": "file"
+    },
+    {
+      "path": "services/hianimeApp.js",
+      "accessCount": 1,
+      "lastAccessed": 1776412298085,
+      "type": "file"
+    },
+    {
+      "path": "vendor/hianime-v1/src/lib/create-app.js",
+      "accessCount": 1,
+      "lastAccessed": 1776412300269,
+      "type": "file"
+    },
+    {
+      "path": "vendor/hianime-v1/src/routes/routes.js",
+      "accessCount": 1,
+      "lastAccessed": 1776412301187,
+      "type": "file"
+    },
+    {
+      "path": "vendor/hianime-v1/src/app.js",
+      "accessCount": 1,
+      "lastAccessed": 1776412308264,
+      "type": "file"
+    },
+    {
+      "path": "public/style.css",
+      "accessCount": 1,
+      "lastAccessed": 1776412675674,
+      "type": "file"
+    },
+    {
+      "path": "utils/auth.js",
+      "accessCount": 1,
+      "lastAccessed": 1776412717673,
+      "type": "file"
+    },
+    {
+      "path": "public",
+      "accessCount": 1,
+      "lastAccessed": 1776412929117,
+      "type": "directory"
+    },
+    {
+      "path": "utils/streamFilters.js",
+      "accessCount": 1,
+      "lastAccessed": 1776412929294,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}
