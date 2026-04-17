@@ -114,18 +114,16 @@
     </div>
   </div>
 
-  <div id="app"></div>
+  <div id="app">
+    <script
+      id="api-reference"
+      data-url="/api/docs/openapi.json"
+      data-proxy-url=""
+    ></script>
+  </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.25.100"></script>
   <script>
-    Scalar.createApiReference('#app', {
-      url: '/api/docs/openapi.json',
-      theme: 'dark',
-      layout: 'modern',
-      hideModels: false,
-      hideTestRequestButton: false,
-    });
-
     // Update version badge from spec
     fetch('/api/docs/openapi.json')
       .then(r => r.json())
