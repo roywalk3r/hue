@@ -24,7 +24,6 @@ const FETCH_TIMEOUT_MS = 60000; // Increased to 60s for slow upstream providers
 
 // Helper function to fetch with retry logic
 async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
-    const timeout = options.timeout || FETCH_TIMEOUT_MS;
     // Prevent fetching localhost or internal IPs
     try {
         const u = new URL(url);

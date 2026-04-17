@@ -25,7 +25,8 @@ const PROVIDER_RENAME_MAP = {
   'livetv': 'Arena',
   'ppv': 'Event',
   'vidsrccc-playwright': 'Vertex',
-  'moviebox': 'Cinema'
+  'moviebox': 'Cinema',
+  'autoembed': 'Blaze'
 };
 
 // Keywords to sanitize from titles/names (maps to public names)
@@ -45,7 +46,8 @@ const SANITIZE_KEYWORDS = {
   'streamed': 'Relay',
   'livetv': 'Arena',
   'ppv': 'Event',
-  'moviebox': 'Cinema'
+  'moviebox': 'Cinema',
+  'autoembed': 'Blaze'
 };
 
 function getPublicName(realName) {
@@ -94,6 +96,7 @@ const providerFunctionMap = {
   'vidsrc-embed.js': 'getStreams',
   'moviebox.js': 'getStreams',
   'ppv.js': 'getPPVStreams',
+  'autoembed.js': 'getStreams',
 };
 
 // Stats for debug endpoint

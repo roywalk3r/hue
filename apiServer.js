@@ -131,33 +131,22 @@ app.get('/', (req,res) => res.sendFile(path.join(process.cwd(),'public','index.h
 
 // --- Documentation ---
 const swaggerUi = require('swagger-ui-express');
-const swaggerDef = require('./utils/swagger-def');
-app.get('/api/docs/swagger.json', async (req, res) => {
+const buildOpenApiSpec = require('./utils/openapi-spec');
+
+app.get('/api/docs/openapi.json', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  // Simple merge for docs
-  res.json(swaggerDef); 
+  res.json(buildOpenApiSpec());
 });
+
+app.get('/api/docs/swagger.json', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(buildOpenApiSpec());
+});
+
 app.use('/api/docs/swagger', swaggerUi.serve, swaggerUi.setup(null, { swaggerOptions: { url: '/api/docs/swagger.json' } }));
+
 app.get('/api/docs', (req, res) => {
-  res.send(`
-    <!doctype html>
-    <html>
-      <head>
-        <title>Hue Stream API Docs</title>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <style>
-          body { margin: 0; }
-        </style>
-      </head>
-      <body>
-        <script
-          id="api-reference"
-          data-url="/api/docs/swagger.json"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
-      </body>
-    </html>
-  `);
+  res.redirect(302, '/docs.html');
 });
 
 // --- Error Handling ---
