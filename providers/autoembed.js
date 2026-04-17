@@ -68,52 +68,62 @@ async function extractFromEmbedPage(embedUrl) {
 
   const streams = [];
 
-  // Extract window.streams — array of server objects with direct playlist URLs
+  // Extract auth params from masterPlaylist first — all playlist URLs need them
+  let authToken = null;
+  let authExpires = null;
+  if (html.includes('window.masterPlaylist')) {
+    const masterMatch = html.match(/window\.masterPlaylist\s*=\s*(\{[\s\S]*?\n\s*\})\s*[;\n]/);
+    if (masterMatch) {
+      const block = masterMatch[1];
+      const tokenMatch = block.match(/['"]?token['"]?\s*:\s*['"]([^'"]+)['"]/);
+      const expiresMatch = block.match(/['"]?expires['"]?\s*:\s*['"]([^'"]+)['"]/);
+      const urlMatch = block.match(/url:\s*['"]([^'"]+)['"]/);
+      if (tokenMatch) authToken = tokenMatch[1];
+      if (expiresMatch) authExpires = expiresMatch[1];
+
+      if (urlMatch) {
+        let masterUrl = urlMatch[1];
+        if (authToken && authExpires) {
+          const sep = masterUrl.includes('?') ? '&' : '?';
+          masterUrl += `${sep}token=${authToken}&expires=${authExpires}&h=1&lang=en`;
+        }
+        streams.push({
+          url: masterUrl,
+          quality: '1080p',
+          format: 'hls',
+          serverName: 'Master',
+        });
+      }
+    }
+  }
+
+  // Helper to append auth params to a playlist URL
+  function withAuth(url) {
+    if (!authToken || !authExpires) return url;
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}token=${authToken}&expires=${authExpires}&h=1&lang=en`;
+  }
+
+  // Extract window.streams — array of server objects with playlist URLs
   const streamsMatch = html.match(/window\.streams\s*=\s*(\[[\s\S]*?\]);/);
   if (streamsMatch) {
     try {
       const servers = JSON.parse(streamsMatch[1]);
       for (const server of servers) {
         if (server.url) {
-          streams.push({
-            url: server.url,
-            quality: 'Auto',
-            format: 'hls',
-            serverName: server.name || 'Server',
-          });
+          const authedUrl = withAuth(server.url);
+          if (!streams.some(s => s.url === authedUrl)) {
+            streams.push({
+              url: authedUrl,
+              quality: 'Auto',
+              format: 'hls',
+              serverName: server.name || 'Server',
+            });
+          }
         }
       }
     } catch (e) {
       console.log(`[Blaze] Failed to parse window.streams: ${e.message}`);
-    }
-  }
-
-  // Extract window.masterPlaylist — primary playlist URL with auth params
-  if (html.includes('window.masterPlaylist')) {
-    // Match the full assignment including nested braces (greedy to outermost closing brace + semicolon/newline)
-    const masterMatch = html.match(/window\.masterPlaylist\s*=\s*(\{[\s\S]*?\n\s*\})\s*[;\n]/);
-      if (masterMatch) {
-      const block = masterMatch[1];
-      const urlMatch = block.match(/url:\s*['"]([^'"]+)['"]/);
-      const tokenMatch = block.match(/['"]?token['"]?\s*:\s*['"]([^'"]+)['"]/);
-      const expiresMatch = block.match(/['"]?expires['"]?\s*:\s*['"]([^'"]+)['"]/);
-
-      if (urlMatch) {
-        let masterUrl = urlMatch[1];
-        if (tokenMatch && expiresMatch) {
-          const sep = masterUrl.includes('?') ? '&' : '?';
-          masterUrl += `${sep}token=${tokenMatch[1]}&expires=${expiresMatch[1]}&h=1&lang=en`;
-        }
-        // Avoid duplicating a URL already captured from window.streams
-        if (!streams.some(s => s.url === masterUrl)) {
-          streams.push({
-            url: masterUrl,
-            quality: '1080p',
-            format: 'hls',
-            serverName: 'Master',
-          });
-        }
-      }
     }
   }
 
