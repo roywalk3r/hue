@@ -69,7 +69,7 @@ module.exports = function(metrics) {
     router.get('/library', async (req, res) => {
         try {
             const page = parseInt(req.query.page) || 1;
-            const pageSize = parseInt(req.query.pageSize) || 28;
+            const pageSize = parseInt(req.query.pageSize) || 5000;
             const allDramas = await hitvApi.getLibrary();
             
             const total = allDramas.length;
@@ -104,6 +104,7 @@ module.exports = function(metrics) {
         try {
             const params = {
                 page: req.query.page || 1,
+                pageSize: req.query.pageSize || 28,
                 country: req.query.country || "Korea",
                 genre: req.query.genre || "All",
                 sort: req.query.sort || "Hottest",
@@ -197,6 +198,7 @@ module.exports = function(metrics) {
         try {
             const { country, sort, genre } = req.params;
             const page = req.query.page || 1;
+            const pageSize = req.query.pageSize || 28;
             
             // Map common aliases
             const sortMap = {
@@ -209,6 +211,7 @@ module.exports = function(metrics) {
 
             const params = {
                 page: page,
+                pageSize: pageSize,
                 country: country || "All",
                 sort: sortMap[sort?.toLowerCase()] || sort || "ForYou",
                 genre: genre || "All",

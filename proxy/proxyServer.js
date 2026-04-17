@@ -121,7 +121,7 @@ async function prefetchSegment(url, headers) {
     const existing = segmentCache.get(url);
     if (existing && Date.now() - existing.timestamp <= CACHE_EXPIRY_MS) return;
     try {
-        const resp = await fetch(url, { headers: { 'User-Agent': DEFAULT_UA, ...headers } });
+        const resp = await fetchWithRetry(url, { headers: { 'User-Agent': DEFAULT_UA, ...headers } });
         if (!resp.ok) return;
         const data = new Uint8Array(await resp.arrayBuffer());
         const responseHeaders = {};

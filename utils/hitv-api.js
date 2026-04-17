@@ -319,9 +319,9 @@ async function browseHiTv(page = 1, pageSize = 28, country = "Korea", category =
     }
 }
 
-async function browseDrama({ page = 1, country = "Korea", genre = "All", sort = "Hottest", year = null }) {
+async function browseDrama({ page = 1, pageSize = 28, country = "Korea", genre = "All", sort = "Hottest", year = null }) {
     console.log(`[HiTV] Browsing Drama: Page ${page}, ${country}, ${genre}, ${sort}, ${year || 'All Years'}`);
-    const res = await browseHiTv(page, 28, country, "Drama", genre, sort, year);
+    const res = await browseHiTv(page, pageSize, country, "Drama", genre, sort, year);
     if (!res.items || res.items.length === 0) return res;
 
     // 1. Map items with what we have in cache immediately
