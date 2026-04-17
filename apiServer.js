@@ -104,29 +104,10 @@ if (config.enableProxy) {
   createProxyRoutes(app); // Registers /m3u8-proxy, /ts-proxy, /sub-proxy at root
 }
 
-/*
-// --- HiAnime Integration ---
-const hianimeCache = new TTLCache({ ttl: 10 * 60 * 1000, max: 500 });
-async function proxyHianimeRequest(req, res, next) {
-  try {
-    const hianimeApp = await getHianimeApp();
-    const targetUrl = req.originalUrl.startsWith('/api/anime') ? req.originalUrl.replace(/^\/api\/anime/, '/api/v1') : req.originalUrl;
-    const url = `http://local${targetUrl}`;
-    
-    const honoResponse = await hianimeApp.fetch(new Request(url, { 
-      method: req.method, 
-      headers: req.headers, 
-      body: ['GET','HEAD'].includes(req.method) ? undefined : req.body 
-    }));
-    
-    const buffer = Buffer.from(await honoResponse.arrayBuffer());
-    honoResponse.headers.forEach((v, k) => res.setHeader(k, v));
-    res.status(honoResponse.status).send(buffer);
-  } catch (error) { next(error); }
-}
-app.use('/api/v1', proxyHianimeRequest);
-app.use('/api/anime', proxyHianimeRequest);
-*/
+// --- Silent Anime Handlers (Disables anime fetches) ---
+app.use(['/api/v1', '/api/anime'], (req, res) => {
+  res.json({ success: true, data: [], items: [], message: 'Anime fetches disabled' });
+});
 
 // --- Auth Routes ---
 app.post('/auth/login', (req,res) => {

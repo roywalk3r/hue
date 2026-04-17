@@ -97,36 +97,10 @@ module.exports = function(metrics) {
         }
     });
 
-    /*
-    // HiAnime streams (anime)
-    router.get('/anime/:id', async (req, res) => {
-        const { id } = req.params;
-        const server = req.query.server;
-        const type = (req.query.type || 'sub').toString();
-        const serversOnly = ['1', 'true', 'yes'].includes(String(req.query.serversOnly || ''));
-        try {
-            if (serversOnly) {
-                const servers = await getAnimeServers(id);
-                return res.json({ success: true, id, servers });
-            }
-            const result = await getAnimeStream({ id, server, type });
-            if (result.error) {
-                return res.status(404).json({ success: false, error: result.error, id, servers: result.servers });
-            }
-            return res.json(proxyAnimeSuccessPayload(req, {
-                success: true,
-                id,
-                server,
-                type,
-                servers: result.servers,
-                stream: result.stream,
-            }));
-        } catch (e) {
-            if (metrics) metrics.lastError = e.message;
-            return res.status(500).json({ success: false, error: 'INTERNAL_ERROR', message: e.message });
-        }
+    // Silent handler for disabled anime fetches
+    router.all('/anime/*', (req, res) => {
+        res.json({ success: true, streams: [], message: 'Anime fetches disabled' });
     });
-    */
 
     // Aggregate streams across all enabled providers
     router.get('/:type/:tmdbId', async (req,res) => {
