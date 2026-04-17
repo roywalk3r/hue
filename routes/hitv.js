@@ -68,8 +68,24 @@ module.exports = function(metrics) {
 
     router.get('/library', async (req, res) => {
         try {
-            const dramas = await hitvApi.getLibrary();
-            res.json({ success: true, count: dramas.length, items: dramas });
+            const page = parseInt(req.query.page) || 1;
+            const pageSize = parseInt(req.query.pageSize) || 28;
+            const allDramas = await hitvApi.getLibrary();
+            
+            const total = allDramas.length;
+            const start = (page - 1) * pageSize;
+            const end = start + pageSize;
+            const items = allDramas.slice(start, end);
+            
+            res.json({ 
+                success: true, 
+                count: total,
+                page,
+                pageSize,
+                totalPages: Math.ceil(total / pageSize),
+                hasNext: end < total,
+                items: items 
+            });
         } catch (e) {
             res.status(500).json({ success: false, error: 'Failed to load library data' });
         }
