@@ -190,6 +190,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
       quality: s.quality,
       provider: 'Blaze',
       format: s.format || 'hls',
+      proxyMode: 'url',
       headers: {
         Referer: `${BASE_URL}/`,
         Origin: BASE_URL,
