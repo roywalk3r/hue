@@ -36,14 +36,14 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
     }
 
     const isSegment = /\.(ts|m4s|mp4|mkv)$/i.test(url.split('?')[0]);
-    const timeout = options.timeout || FETCH_TIMEOUT_MS;
+    const fetchTimeout = options.timeout || FETCH_TIMEOUT_MS;
     // Allow 1 retry for segments if they fail (helps with transient network blips)
     const actualRetries = isSegment ? 2 : maxRetries;
 
     const fetchOptions = {
         ...options,
         agent: (parsedUrl) => (parsedUrl.protocol === 'http:' ? httpAgent : httpsAgent),
-        timeout,
+        timeout: fetchTimeout,
         compress: !isSegment // Don't compress segments, they are already binary
     };
     
