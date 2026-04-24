@@ -62,19 +62,25 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         const refererUrl = `${DOMAIN}/${mediaType === 'tv' ? 'tv' : 'movie'}/${tmdbId}`;
         await page.goto(refererUrl, { waitUntil: 'commit', timeout: 15000 });
         
-        // Wait a few seconds for cookies/tokens to settle
-        await new Promise(r => setTimeout(r, 3000));
+        // Wait a few seconds for cookies/tokens to settle OR for responseBody to be captured via listener
+        for (let i = 0; i < 10; i++) {
+            if (responseBody) break;
+            await new Promise(r => setTimeout(r, 500));
+        }
 
-        // Now manually fetch the API using the browser context (which has the CF tokens)
-        responseBody = await page.evaluate(async (url) => {
-            try {
-                const res = await fetch(url);
-                if (!res.ok) return null;
-                return await res.json();
-            } catch (e) {
-                return null;
-            }
-        }, targetUrl);
+        // If not captured via listener, try manual fetch
+        if (!responseBody) {
+            console.log('[VidRock] Falling back to manual evaluate fetch...');
+            responseBody = await page.evaluate(async (url) => {
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) return null;
+                    return await res.json();
+                } catch (e) {
+                    return null;
+                }
+            }, targetUrl);
+        }
 
         if (!responseBody || Object.keys(responseBody).length === 0) {
             console.log('[VidRock] No sources returned or 403 blocked');

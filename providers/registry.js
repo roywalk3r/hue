@@ -26,6 +26,7 @@ const PROVIDER_RENAME_MAP = {
   'ppv': 'Event',
   'vidsrccc-playwright': 'Vertex',
   'moviebox': 'Cinema',
+  '9anime': 'Saber',
   'autoembed': 'Blaze'
 };
 
@@ -47,6 +48,7 @@ const SANITIZE_KEYWORDS = {
   'livetv': 'Arena',
   'ppv': 'Event',
   'moviebox': 'Cinema',
+  '9anime': 'Saber',
   'autoembed': 'Blaze'
 };
 
@@ -95,6 +97,7 @@ const providerFunctionMap = {
   'dramacool.js': 'getStreams',
   'vidsrc-embed.js': 'getStreams',
   'moviebox.js': 'getStreams',
+  '9anime.js': 'getStreams',
   'ppv.js': 'getPPVStreams',
   'autoembed.js': 'getStreams',
 };
@@ -260,10 +263,18 @@ for (const providerInfo of providerFiles) {
 
   if (enabled) {
     const publicName = getPublicName(providerInfo.name);
+    const isFast = isFastProvider(providerInfo.name) || 
+                   providerInfo.name === 'moviebox' || 
+                   providerInfo.name === 'autoembed' || 
+                   providerInfo.name === '4khdhub' ||
+                   providerInfo.name === 'moviesmod' ||
+                   providerInfo.name === 'uhdmovies';
+
     providers.push({
       name: publicName,
       realName: providerInfo.name,
       enabled: true,
+      isFast: isFast,
       fetch: createFetchFunction({ ...providerInfo, realName: providerInfo.name, publicName })
     });
     console.log(`[registry] ${providerInfo.name} provider enabled as "${publicName}"`);

@@ -4,53 +4,37 @@ const { saveConfigPatch } = require('./config');
 const SFLIX_URL = 'https://sflix.film';
 
 async function refreshSflixCookie() {
-    console.log('[SFlix Refresh] Starting cookie refresh sequence...');
+    console.log('[SFlix Refresh] Starting ultra-fast refresh...');
     let context;
-    let page;
-
     try {
         context = await getNewContext();
-        page = await context.newPage();
+        const page = await context.newPage();
 
-        // Navigate to home page to generate cookies
+        // BLOCK EVERYTHING except the document to make it instant
+        await page.route('**/*', (route) => {
+            const type = route.request().resourceType();
+            return type === 'document' ? route.continue() : route.abort();
+        });
+
         console.log(`[SFlix Refresh] Navigating to ${SFLIX_URL}...`);
-        await page.goto(SFLIX_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.goto(SFLIX_URL, { waitUntil: 'commit', timeout: 60000 });
         
         await page.waitForTimeout(5000);
 
-        // Get Cookies
         const cookies = await context.cookies();
-        
         const tokenCookie = cookies.find(c => c.name === 'sflix_token');
-        const accountCookie = cookies.find(c => c.name === 'account');
-        const uuidCookie = cookies.find(c => c.name === 'uuid');
         
         if (!tokenCookie) {
-            console.error('[SFlix Refresh] Failed: sflix_token cookie not found.');
+            console.error('[SFlix Refresh] Failed: sflix_token not found.');
             return false;
         }
 
-        let cookieString = `sflix_token=${tokenCookie.value}; sflix_i18n_lang=en`;
-        if (accountCookie) cookieString += `; account=${accountCookie.value}`;
-        if (uuidCookie) cookieString += `; uuid=${uuidCookie.value}`;
-
-        // Get User-Agent
+        const cookieString = `sflix_token=${tokenCookie.value}; sflix_i18n_lang=en`;
         const userAgent = await page.evaluate(() => navigator.userAgent);
-        console.log(`[SFlix Refresh] Captured UA: ${userAgent}`);
 
-        // Save both Cookie AND User-Agent to config
-        const success = saveConfigPatch({ 
-            sflixCookie: cookieString,
-            sflixUserAgent: userAgent
-        });
-        
-        if (success) {
-            console.log('[SFlix Refresh] Config updated successfully.');
-            return true;
-        } else {
-            console.error('[SFlix Refresh] Failed to save config.');
-            return false;
-        }
+        saveConfigPatch({ sflixCookie: cookieString, sflixUserAgent: userAgent });
+        console.log('[SFlix Refresh] Success.');
+        return true;
 
     } catch (error) {
         console.error(`[SFlix Refresh] Error: ${error.message}`);
@@ -61,9 +45,7 @@ async function refreshSflixCookie() {
 }
 
 if (require.main === module) {
-    refreshSflixCookie().then(success => {
-        if (!success) process.exit(1);
-    });
+    refreshSflixCookie().then(success => process.exit(success ? 0 : 1));
 }
 
 module.exports = { refreshSflixCookie };

@@ -1,9 +1,9 @@
 const TTLCache = require('ttl-cache');
 
-// Cache results for 1 hour
+// Cache results for 4 hours
 const cache = new TTLCache({
-    ttl: 60 * 60 * 1000,
-    max: 100 // Store last 100 movie/series lookups
+    ttl: 4 * 60 * 60 * 1000,
+    max: 1000 // Store last 1000 movie/series lookups
 });
 
 function getCacheKey(type, tmdbId, season, episode) {

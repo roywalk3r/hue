@@ -281,25 +281,28 @@ async function getSflixStreams(tmdbId, mediaType, season, episode, directTitle =
 
             await triggerPlayback(page, "fallback");
             const start = Date.now();
-            while (Date.now() - start < 10000) {
+            while (Date.now() - start < 15000) {
                 if (capturedUrls.video.size > 0) break;
                 await new Promise(r => setTimeout(r, 500));
             }
 
             const streams = [];
+            if (capturedUrls.video.size === 0) return [];
+
             const subtitles = Array.from(capturedUrls.subtitles).map(url => ({ url, lang: "en", label: "English" }));
-            Array.from(capturedUrls.video).forEach(url => {
-                const isHls = url.includes('.m3u8');
-                streams.push({
-                    url,
-                    title: `Nova - ${isHls ? 'HLS' : 'MP4'} (Fallback)`,
-                    quality: "Auto", 
-                    provider: "Nova",
-                    format: isHls ? 'hls' : 'mp4',
-                    subtitles: subtitles.length > 0 ? subtitles : undefined,
-                    headers: { "Referer": `${BASE_URL}/`, "User-Agent": USER_AGENT }
-                });
+            const firstVideo = Array.from(capturedUrls.video)[0];
+            const isHls = firstVideo.includes('.m3u8');
+            
+            streams.push({
+                url: firstVideo,
+                title: `Nova - ${isHls ? 'HLS' : 'MP4'} (Fallback)`,
+                quality: "Auto", 
+                provider: "Nova",
+                format: isHls ? 'hls' : 'mp4',
+                subtitles: subtitles.length > 0 ? subtitles : undefined,
+                headers: { "Referer": `${BASE_URL}/`, "User-Agent": USER_AGENT }
             });
+
             return streams;
         } finally {
             if (context) await context.close();

@@ -14,13 +14,25 @@ const { encryptUrl, decryptUrl } = require('../utils/security');
 let cryptoJs;
 
 // Force persistent connections for proxy requests to avoid latency
-const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 200, timeout: 60000, family: 4 });
-const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 200, timeout: 60000, family: 4 });
+const httpAgent = new http.Agent({ 
+    keepAlive: true, 
+    maxSockets: 1000, // Increased for 16GB VPS
+    maxFreeSockets: 128,
+    timeout: 30000, 
+    family: 4 
+});
+const httpsAgent = new https.Agent({ 
+    keepAlive: true, 
+    maxSockets: 1000, // Increased for 16GB VPS
+    maxFreeSockets: 128,
+    timeout: 30000, 
+    family: 4 
+});
 
 // Retry configuration for fetch operations
-const MAX_RETRIES = 2;
-const RETRY_DELAY_MS = 300;
-const FETCH_TIMEOUT_MS = 90000; // Increased to 90s for slow upstream providers
+const MAX_RETRIES = 1; // Reduced for faster failure detection
+const RETRY_DELAY_MS = 100;
+const FETCH_TIMEOUT_MS = 30000; // 30s is enough for segments
 
 // Helper function to fetch with retry logic
 async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
@@ -63,8 +75,8 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
     throw lastError;
 }
 
-const CACHE_MAX_SIZE = 2000;
-const CACHE_EXPIRY_MS = 2 * 60 * 60 * 1000; // 2 hours
+const CACHE_MAX_SIZE = 5000; // Increased for 16GB RAM
+const CACHE_EXPIRY_MS = 4 * 60 * 60 * 1000; // 4 hours TTL
 const segmentCache = new Map();
 // Track first open-ended (bytes=0-) range per target to clamp only once per TTL window
 const openRangeClampMap = new Map();
@@ -676,10 +688,20 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers, options = {}) {
             nextLineIsStreamUrl = false;
         }
     }
-    // Disable aggressive prefetching to prevent rate-limiting/stuttering
-    // if (segmentUrls.length && !isCacheDisabled()) {
-    //     Promise.all(segmentUrls.length > 5 ? segmentUrls.slice(0, 5).map(u => prefetchSegment(u, headers)) : segmentUrls.map(u => prefetchSegment(u, headers))).catch(() => undefined);
-    // }
+
+    // --- RAM TURBO: PREFETCH NEXT 5 SEGMENTS ---
+    if (segmentUrls.length > 0 && !isCacheDisabled()) {
+        (async () => {
+            // We prefetch the first 5 segments of any playlist to make the initial load instant
+            const toPrefetch = segmentUrls.slice(0, 5);
+            for (const url of toPrefetch) {
+                if (!segmentCache.has(url)) {
+                    prefetchSegment(url, headers).catch(() => {});
+                }
+            }
+        })();
+    }
+
     return out.join('\n');
 }
 
@@ -1145,7 +1167,7 @@ function createProxyRoutes(app) {
         }
     });
 
-    // subtitle proxy
+    // subtitle proxy with SRT to WebVTT conversion
     app.get('/sub-proxy', cors(), async (req, res) => {
         let targetUrl = req.query.url;
         const token = req.query.h_token;
@@ -1157,17 +1179,32 @@ function createProxyRoutes(app) {
             decryptedHeaders = decrypted.headers;
         }
         if (!targetUrl) return res.status(400).json({ error: 'url parameter required' });
-        let headers = {}; try { headers = JSON.parse(req.query.headers || '{}'); } catch {
-            // Ignore URL parsing errors
-        }
+        
+        let headers = {}; 
+        try { headers = JSON.parse(req.query.headers || '{}'); } catch {}
         if (decryptedHeaders) headers = { ...decryptedHeaders, ...headers };
+
         try {
             const resp = await fetchWithRetry(targetUrl, { headers: { 'User-Agent': DEFAULT_UA, ...headers } });
             if (!resp.ok) return res.status(resp.status).json({ error: `subtitle fetch failed: ${resp.status}` });
+            
+            const contentType = resp.headers.get('content-type') || '';
+            let body = await resp.text();
+
+            // Auto-convert SRT to WebVTT for maximum compatibility
+            if (targetUrl.toLowerCase().endsWith('.srt') || body.trim().startsWith('1')) {
+                console.log(`[sub-proxy] Converting SRT to WebVTT: ${targetUrl.substring(0, 50)}...`);
+                body = 'WEBVTT\n\n' + body
+                    .replace(/(\d+:\d+:\d+),(\d+)/g, '$1.$2') // Fix timestamp format
+                    .replace(/^\d+\r?\n/gm, ''); // Remove sequence numbers
+                res.setHeader('Content-Type', 'text/vtt');
+            } else {
+                res.setHeader('Content-Type', contentType || 'text/vtt');
+            }
+
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Cache-Control', 'public, max-age=3600');
-            res.setHeader('Content-Type', resp.headers.get('content-type') || 'text/vtt');
-            resp.body.pipe(res);
+            res.send(body);
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 }

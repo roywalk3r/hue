@@ -83,12 +83,14 @@ const dramaRoutes = require('./routes/drama');
 const systemRoutes = require('./routes/system');
 const proxyRoutes = require('./routes/proxy');
 const livetvRoutes = require('./routes/livetv');
+const playRoutes = require('./routes/play');
 
 // Mount API routes
 app.use('/api/hitv', hitvRoutes(metrics));
 app.use('/api/sflix', hitvRoutes(metrics)); // Alias for Sflix Discovery
 app.use('/api/moviebox', movieboxRoutes(metrics));
 app.use('/api/streams', streamsRoutes(metrics));
+app.use('/api/play', playRoutes(metrics));
 app.use('/api', sportsRoutes(metrics)); 
 app.use('/api', dramaRoutes(metrics)); 
 app.use('/api', systemRoutes(metrics));
@@ -163,5 +165,16 @@ if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   const PORT = config.port;
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Hue Stream API listening on http://0.0.0.0:${PORT}`);
+    
+    // Start background token worker to keep "Fast Paths" warm
+    try {
+      const { startTokenWorker } = require('./services/tokenWorker');
+      startTokenWorker();
+      
+      const { startWarmupWorker } = require('./services/warmupWorker');
+      startWarmupWorker();
+    } catch (e) {
+      console.error('[startup] Failed to start background workers:', e.message);
+    }
   });
 }

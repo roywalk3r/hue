@@ -138,39 +138,69 @@ module.exports = function(metrics) {
             const selectedProviders = (config.defaultProviders.length ? config.defaultProviders : listProviders().map(p=>p.name))
                 .filter(name => !dramaProviders.includes(name.toLowerCase()));
 
-            const providerTimings = {};
-            const streamsResults = [];
             const tStart = Date.now();
 
-            const providerPromises = selectedProviders.map(async name => {
+            const fastProviderPromises = [];
+            const slowProviderPromises = [];
+
+            const { isProviderHealthy, recordSuccess, recordFailure } = require('../utils/providerCircuitBreaker');
+
+            selectedProviders.forEach(name => {
                 const prov = getProvider(name);
-                if (!prov || !prov.enabled) return [];
+                if (!prov || !prov.enabled) return;
                 
-                const isFast = prov.realName === 'vixsrc' || prov.realName === 'aura';
-                if (metrics) metrics.providerCalls[name] = (metrics.providerCalls[name]||0)+1;
-                try {
-                    const t0 = Date.now();
-                    const r = await Promise.race([
-                        prov.fetch({ tmdbId, type, season, episode, imdbId, tmdbData, filters:{ } }),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('Provider timeout')), isFast ? 15000 : 60000))
-                    ]);
-                    providerTimings[name] = Date.now()-t0;
-                    const results = Array.isArray(r) ? r : [];
-                    if (results.length > 0) addCachedStreams(type, tmdbId, season, episode, results);
-                    return results;
-                } catch (e) {
-                    logger.error(`[api] provider ${name} failed or timed out:`, e.message);
-                    return [];
+                // Skip providers that are currently "tripped" (repeatedly failing)
+                if (!isProviderHealthy(prov.realName)) {
+                    logger.info(`[api] Skipping unhealthy provider: ${name}`);
+                    return;
                 }
+
+                const isFast = prov.isFast;
+                if (metrics) metrics.providerCalls[name] = (metrics.providerCalls[name]||0)+1;
+
+                const promise = (async () => {
+                    try {
+                        const t0 = Date.now();
+                        const r = await Promise.race([
+                            prov.fetch({ tmdbId, type, season, episode, imdbId, tmdbData, filters:{ } }),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Provider timeout')), isFast ? 15000 : 60000))
+                        ]);
+                        providerTimings[name] = Date.now()-t0;
+                        const results = Array.isArray(r) ? r : [];
+                        
+                        if (results.length > 0) {
+                            recordSuccess(prov.realName);
+                            addCachedStreams(type, tmdbId, season, episode, results);
+                            streamsResults.push(...results);
+                        } else {
+                            // Empty results count as a failure for the circuit breaker
+                            recordFailure(prov.realName);
+                        }
+                        return results;
+                    } catch (e) {
+                        logger.error(`[api] provider ${name} failed or timed out:`, e.message);
+                        recordFailure(prov.realName);
+                        return [];
+                    }
+                })();
+
+                if (isFast) fastProviderPromises.push(promise);
+                else slowProviderPromises.push(promise);
             });
 
-            const deadline = new Promise(resolve => setTimeout(() => resolve('DEADLINE'), 15000));
-            const resultsOrDeadline = await Promise.race([ Promise.all(providerPromises), deadline ]);
-
-            if (resultsOrDeadline === 'DEADLINE') {
-                logger.info(`[api] deadline reached for ${tmdbId}`);
-            } else if (Array.isArray(resultsOrDeadline)) {
-                resultsOrDeadline.forEach((r) => { if (r && Array.isArray(r)) streamsResults.push(...r); });
+            // Strategy: 
+            // 1. Wait for all FAST providers (max 5s)
+            // 2. If we have results, return.
+            // 3. Otherwise wait for the remaining providers up to the deadline.
+            
+            const fastDeadline = new Promise(resolve => setTimeout(() => resolve('FAST_DEADLINE'), 5000));
+            const slowDeadline = new Promise(resolve => setTimeout(() => resolve('DEADLINE'), 15000));
+            
+            await Promise.race([ Promise.all(fastProviderPromises), fastDeadline ]);
+            
+            if (streamsResults.length === 0) {
+                // If no fast results, wait longer for any results
+                await Promise.race([ Promise.all([...fastProviderPromises, ...slowProviderPromises]), slowDeadline ]);
             }
 
             const cachedAtEnd = getCachedStreams(type, tmdbId, season, episode);
@@ -194,7 +224,7 @@ module.exports = function(metrics) {
                 providerTimings, 
                 streams,
                 totalDurationMs: totalDuration,
-                status: resultsOrDeadline === 'DEADLINE' ? "Partial" : "Complete"
+                status: Date.now() - tStart > 14000 ? "Partial" : "Complete"
             });
         } catch (e) {
             if (metrics) metrics.lastError = e.message;

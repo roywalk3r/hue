@@ -664,7 +664,7 @@ chromium.use(StealthPlugin());
                 if (details && details.sources) {
                     const iframeSource = details.sources.find(s => s.type === 'iframe');
                     if (iframeSource) {
-                        console.log(`[PPV] Falling back to browser extraction: ${iframeSource.data}`);
+                        console.log(`[PPV] Falling back to browser extraction: ${iframeSource.data.substring(0, 100)}...`);
 
                         // Most reliable path for PPV currently.
                         m3u8Url = await this.captureM3u8FromEmbed(iframeSource.data);

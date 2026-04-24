@@ -1,7 +1,7 @@
 {
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"pkill -f \\\"node apiServer\\\" 2>/dev/null; sleep 2; echo \\\"killed\\\"\",\"description\":\"Kill any existing server\"}",
-  "error": "Exit code 144",
-  "timestamp": "2026-04-17T10:20:17.144Z",
-  "retry_count": 3
+  "tool_name": "Glob",
+  "tool_input_preview": "{\"pattern\":\"**/vue.config.*\",\"path\":\"/home/rseann/projects\"}",
+  "error": "Ripgrep search timed out after 20 seconds. The search may have matched files but did not complete in time. Try searching a more specific path or pattern.",
+  "timestamp": "2026-04-24T11:18:16.192Z",
+  "retry_count": 1
 }

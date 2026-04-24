@@ -10,7 +10,7 @@ let firefoxInstance = null;
 let launchMutex = Promise.resolve();
 
 // Semaphore for concurrency control
-const MAX_GLOBAL_CONCURRENT_PAGES = process.env.MAX_CONCURRENT_PAGES ? parseInt(process.env.MAX_CONCURRENT_PAGES) : 5;
+const MAX_GLOBAL_CONCURRENT_PAGES = process.env.MAX_CONCURRENT_PAGES ? parseInt(process.env.MAX_CONCURRENT_PAGES) : 10;
 const queue = [];
 let activePages = 0;
 
@@ -58,7 +58,7 @@ async function _getBrowserInternal(type = 'chromium') {
     }
 
     if (!browserInstance) {
-        console.log(`[BrowserManager] Launching CPU-optimized Chromium (Headless: ${headless})...`);
+        console.log(`[BrowserManager] Launching Optimized Chromium (Headless: ${headless})...`);
         const baseOptions = buildLaunchOptions();
         // Force headless based on env if not already set in baseOptions
         if (baseOptions.headless === undefined) {
@@ -85,7 +85,8 @@ async function _getBrowserInternal(type = 'chromium') {
             '--disable-notifications',
             '--disable-popup-blocking',
             '--no-first-run',
-            '--no-default-browser-check'
+            '--no-default-browser-check',
+            '--font-render-hinting=none'
         ];
         const mergedArgs = Array.from(new Set([...(baseOptions.args || []), ...extraArgs]));
         browserInstance = await chromium.launch({ ...baseOptions, args: mergedArgs });
@@ -119,10 +120,16 @@ async function getNewPage(options = {}) {
                 const type = route.request().resourceType();
                 const url = route.request().url();
                 
+                // Allow essential scripts for Turnstile/Cloudflare
+                if (url.includes('challenges.cloudflare.com') || url.includes('turnstile')) {
+                    return route.continue();
+                }
+
                 // Allow media
                 if (url.includes('.m3u8') || url.includes('.mp4') || url.includes('.ts')) return route.continue();
                 
-                // Block heavy types, but keep "other" because some stream bootstraps use it.
+                // Block heavy types: images, fonts, and stylesheets
+                // (Stylesheet blocking was previously removed but caused log spam)
                 if (['image', 'font', 'stylesheet'].includes(type)) return route.abort();
                 
                 // Block ads
@@ -160,6 +167,17 @@ async function closeBrowser() {
 
 async function getNewContext(options = {}) {
     const browserType = options.browserType || 'chromium';
+    const { config } = require('./config');
+    
+    // Auto-proxy rotation
+    let proxy = options.proxy;
+    if (!proxy && config.proxyList && config.proxyList.length > 0) {
+        const randomProxy = config.proxyList[Math.floor(Math.random() * config.proxyList.length)];
+        // Expected format: "http://user:pass@host:port" or "http://host:port"
+        proxy = { server: randomProxy };
+        console.log(`[BrowserManager] Using rotated proxy: ${randomProxy.split('@').pop()}`);
+    }
+
     await acquirePageSlot(); 
     try {
         const browser = await getBrowser(browserType);
@@ -167,7 +185,8 @@ async function getNewContext(options = {}) {
             userAgent: browserType === 'firefox' 
                 ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0'
                 : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            viewport: { width: 1280, height: 720 }
+            viewport: { width: 1280, height: 720 },
+            proxy: proxy
         };
         const context = await browser.newContext({ ...defaultOptions, ...options });
         

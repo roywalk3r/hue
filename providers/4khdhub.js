@@ -1729,33 +1729,27 @@ async function get4KHDHubStreams(tmdbId, type, season = null, episode = null) {
                 return [];
             }
 
-            // Resolve redirect URLs to actual file hosting URLs
-            console.log(`[4KHDHub] Resolving ${downloadLinks.length} redirect URLs to file hosting URLs...`);
-            const resolvedUrls = [];
-
-            for (let i = 0; i < downloadLinks.length; i++) {
-                const link = downloadLinks[i];
-                console.log(`[4KHDHub] Resolving link ${i + 1}/${downloadLinks.length}: ${link}`);
-
+            // Resolve redirect URLs to actual file hosting URLs in parallel
+            console.log(`[4KHDHub] Resolving ${downloadLinks.length} redirect URLs to file hosting URLs in parallel...`);
+            
+            const resolutionPromises = downloadLinks.map(async (link, index) => {
                 try {
                     if (link.toLowerCase().includes('id=')) {
-                        // This is a redirect URL, resolve it
                         const resolvedUrl = await getRedirectLinks(link);
                         if (resolvedUrl && resolvedUrl.trim()) {
-                            console.log(`[4KHDHub] Link ${i + 1} resolved to: ${resolvedUrl}`);
-                            resolvedUrls.push(resolvedUrl);
-                        } else {
-                            console.log(`[4KHDHub] Link ${i + 1} resolution failed or returned empty`);
+                            return resolvedUrl;
                         }
                     } else {
-                        // Direct URL, use as-is
-                        console.log(`[4KHDHub] Link ${i + 1} is direct URL: ${link}`);
-                        resolvedUrls.push(link);
+                        return link;
                     }
                 } catch (error) {
-                    console.error(`[4KHDHub] Error resolving link ${i + 1} (${link}):`, error.message);
+                    console.error(`[4KHDHub] Error resolving link ${index + 1}:`, error.message);
                 }
-            }
+                return null;
+            });
+
+            const results = await Promise.all(resolutionPromises);
+            const resolvedUrls = results.filter(url => url !== null);
 
             if (resolvedUrls.length === 0) {
                 console.log(`[4KHDHub] No URLs resolved successfully`);

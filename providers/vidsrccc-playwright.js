@@ -112,6 +112,9 @@ async function getVidsrcStreams(tmdbId, mediaType, season, episode, imdbId) {
             }
         }
         
+        // If we already have a stream, don't bother checking other servers (Save 10-20 seconds!)
+        if (streams.length > 0) return streams;
+        
         for (const server of servers) {
             if (server.isActive) continue;
             
