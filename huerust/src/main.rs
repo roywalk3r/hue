@@ -244,8 +244,10 @@ async fn ts_handler(State(state): State<AppState>, Query(params): Query<ProxyQue
         Ok(resp) => {
             let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::OK);
             let mut builder = Response::builder().status(status);
-            if let Some(ct) = resp.headers().get(CONTENT_TYPE) {
-                builder = builder.header(CONTENT_TYPE, ct);
+            if let Some(ct) = resp.headers().get("content-type") {
+                if let Ok(ct_str) = ct.to_str() {
+                    builder = builder.header("content-type", ct_str);
+                }
             }
             builder = builder.header("Access-Control-Allow-Origin", "*");
             builder.body(Body::from_stream(resp.bytes_stream())).unwrap()
@@ -270,7 +272,7 @@ async fn sub_handler(State(state): State<AppState>, Query(params): Query<ProxyQu
                 body 
             };
             Response::builder()
-                .header(CONTENT_TYPE, "text/vtt")
+                .header("content-type", "text/vtt")
                 .header("Access-Control-Allow-Origin", "*")
                 .body(Body::from(final_body))
                 .unwrap()
@@ -296,13 +298,13 @@ fn inject_cdn_headers(mut req: reqwest::RequestBuilder, target_url: &str) -> req
     };
 
     if let Some(r) = referer { 
-        req = req.header(REFERER, r); 
+        req = req.header("Referer", r); 
         if let Ok(origin_url) = Url::parse(r) { 
-            req = req.header(ORIGIN, origin_url.origin().unicode_serialization()); 
+            req = req.header("Origin", origin_url.origin().unicode_serialization()); 
         } 
     }
     
-    req.header(USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+    req.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 }
 
 fn rewrite_playlist(content: &str, target_url: &str, proxy_base: &str, secret: &str, headers: Option<HashMap<String, String>>) -> String {

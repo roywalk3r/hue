@@ -132,7 +132,45 @@ impl SflixClient {
                 }
                 Ok(results)
             }
-            None => Ok(vec![])
+            None => {
+                info!("[SFlix Rust] API fast-path failed, delegating to Node.js Scraper Microservice...");
+                let type_path = "movies"; 
+                let type_query = "/movie/detail";
+                let detail_url = format!("{}/spa/videoPlayPage/{}/{}?id={}&type={}&lang=en", 
+                    BASE_URL, type_path, slug, subject_id, urlencoding::encode(type_query));
+                
+                let is_movie = media_type == "movie";
+                
+                let payload = serde_json::json!({
+                    "url": detail_url,
+                    "isMovie": is_movie,
+                    "season": season,
+                    "episode": episode
+                });
+
+                match self.client.post("http://127.0.0.1:24610/scrape/sflix")
+                    .json(&payload)
+                    .send()
+                    .await {
+                        Ok(scraper_resp) => {
+                            if scraper_resp.status().is_success() {
+                                #[derive(Deserialize)]
+                                struct ScraperResponse {
+                                    success: bool,
+                                    streams: Vec<StreamResult>,
+                                }
+                                if let Ok(data) = scraper_resp.json::<ScraperResponse>().await {
+                                    if data.success {
+                                        return Ok(data.streams);
+                                    }
+                                }
+                            }
+                        },
+                        Err(e) => warn!("[SFlix Rust] Scraper microservice call failed: {}", e),
+                    }
+                
+                Ok(vec![])
+            }
         }
     }
 }

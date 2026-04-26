@@ -11,6 +11,8 @@
   },
   "scripts": {
     "start": "node setup-browser.js && node apiServer.js",
+    "start:scraper": "node setup-browser.js && node scraperServer.js",
+    "start:rust": "cd huerust && cargo run --release",
     "start:dev": "node setup-browser.js && nodemon --watch restart.trigger --ignore providers/.cache --ignore **/cache apiServer.js",
     "postinstall": "npx playwright install chromium",
     "lint": "eslint . --ext .js",

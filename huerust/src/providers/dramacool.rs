@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use reqwest::Client;
 use anyhow::{Result, anyhow};
-use tracing::info;
+use tracing::{info, warn};
 use crate::models::{StreamResult, Subtitle};
 use std::collections::HashMap;
 
@@ -122,8 +122,40 @@ impl DramacoolClient {
                             subtitles: None,
                             headers: Some(headers),
                         });
+                        return Ok(results);
                     }
                 }
+                
+                // Fallback to Microservice
+                if let Some(server_url) = data.server_url {
+                    info!("[Dramacool Rust] API direct link failed, delegating to Node.js Scraper Microservice for URL: {}", server_url);
+                    
+                    let payload = serde_json::json!({
+                        "url": server_url
+                    });
+
+                    match self.client.post("http://127.0.0.1:24610/scrape/dramacool")
+                        .json(&payload)
+                        .send()
+                        .await {
+                            Ok(scraper_resp) => {
+                                if scraper_resp.status().is_success() {
+                                    #[derive(Deserialize)]
+                                    struct ScraperResponse {
+                                        success: bool,
+                                        streams: Vec<StreamResult>,
+                                    }
+                                    if let Ok(data) = scraper_resp.json::<ScraperResponse>().await {
+                                        if data.success {
+                                            return Ok(data.streams);
+                                        }
+                                    }
+                                }
+                            },
+                            Err(e) => warn!("[Dramacool Rust] Scraper microservice call failed: {}", e),
+                        }
+                }
+                
                 Ok(results)
             }
             None => Ok(vec![])
