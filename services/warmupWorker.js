@@ -45,31 +45,31 @@ async function runWarmup() {
         const movies = await getPopular('movie', 1);
         const shows = await getPopular('tv', 1);
         
-        const now = new Date();
-        const currentYear = now.getFullYear();
+        const currentYear = 2025; // Hard limit for VPS stability
 
         // Stricter filter: Must have a release date AND it must be in the past
         const topItems = [
             ...movies.map(i => ({ ...i, type: 'movie' })),
             ...shows.map(i => ({ ...i, type: 'tv' }))
         ].filter(item => {
-            const releaseStr = item.release_date || item.first_air_date;
             const title = (item.title || item.name || '').toLowerCase();
-            
-            // If no date at all, it's likely unreleased or invalid
-            if (!releaseStr) return false;
-            
-            const releaseDate = new Date(releaseStr);
-            
-            // Safety: No future years in date OR title
-            if (releaseDate.getFullYear() > currentYear) return false;
+            const releaseStr = item.release_date || item.first_air_date;
+
+            // 1. Title Year Check (Fastest)
             if (title.includes('2026') || title.includes('2027')) return false;
-            
-            // Must be released at least 1 day ago
+
+            // 2. Metadata Date Check
+            if (!releaseStr) return false;
+            const releaseDate = new Date(releaseStr);
+            if (releaseDate.getFullYear() > currentYear) return false;
+
+            // 3. One-day old check
             const yesterday = new Date();
             yesterday.setDate(yesterday.getDate() - 1);
             return releaseDate < yesterday;
         }).slice(0, 20);
+
+        logger.info(`[Warmup] Filtered ${topItems.length} valid items out of 40 popular titles.`);
 
         // Process sequentially to be gentle on CPU
         for (const item of topItems) {

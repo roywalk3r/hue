@@ -84,8 +84,12 @@ const systemRoutes = require('./routes/system');
 const proxyRoutes = require('./routes/proxy');
 const livetvRoutes = require('./routes/livetv');
 const playRoutes = require('./routes/play');
+const tmdbRoutes = require('./routes/tmdb');
+const animeRoutes = require('./routes/anime');
 
 // Mount API routes
+app.use('/api/tmdb', tmdbRoutes(metrics));
+app.use('/api/anime', animeRoutes(metrics));
 app.use('/api/hitv', hitvRoutes(metrics));
 app.use('/api/sflix', hitvRoutes(metrics)); // Alias for Sflix Discovery
 app.use('/api/moviebox', movieboxRoutes(metrics));
@@ -105,13 +109,6 @@ if (config.enableProxy) {
   logger.info('[startup] enableProxy flag active: mounting proxy routes');
   createProxyRoutes(app); // Registers /m3u8-proxy, /ts-proxy, /sub-proxy at root
 }
-
-// --- Silent Anime Handlers (Disables anime fetches) ---
-app.use(['/api/v1', '/api/anime'], (req, res) => {
-  res.json({ success: true, data: [], items: [], message: 'Anime fetches disabled' });
-});
-
-// --- Auth Routes ---
 app.post('/auth/login', (req,res) => {
   const { username, password } = req.body || {};
   if (!authenticate(username, password)) return res.status(401).json({ success:false, error:'INVALID_CREDENTIALS' });

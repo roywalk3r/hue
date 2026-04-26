@@ -4,28 +4,32 @@ const { saveConfigPatch } = require('./config');
 const SFLIX_URL = 'https://sflix.film';
 
 async function refreshSflixCookie() {
-    console.log('[SFlix Refresh] Starting ultra-fast refresh...');
+    console.log('[SFlix Refresh] Starting reliable refresh...');
     let context;
     try {
         context = await getNewContext();
         const page = await context.newPage();
 
-        // BLOCK EVERYTHING except the document to make it instant
+        // Allow scripts and documents, block images/fonts
         await page.route('**/*', (route) => {
             const type = route.request().resourceType();
-            return type === 'document' ? route.continue() : route.abort();
+            if (['document', 'script', 'xhr', 'fetch'].includes(type)) {
+                return route.continue();
+            }
+            return route.abort();
         });
 
         console.log(`[SFlix Refresh] Navigating to ${SFLIX_URL}...`);
-        await page.goto(SFLIX_URL, { waitUntil: 'commit', timeout: 60000 });
+        await page.goto(SFLIX_URL, { waitUntil: 'networkidle', timeout: 90000 });
         
-        await page.waitForTimeout(5000);
+        // Give scripts time to set cookies
+        await page.waitForTimeout(10000);
 
         const cookies = await context.cookies();
         const tokenCookie = cookies.find(c => c.name === 'sflix_token');
         
         if (!tokenCookie) {
-            console.error('[SFlix Refresh] Failed: sflix_token not found.');
+            console.error('[SFlix Refresh] Failed: sflix_token not found after waiting.');
             return false;
         }
 

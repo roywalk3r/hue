@@ -121,6 +121,24 @@ async function getPopular(type = 'movie', page = 1) {
   }
 }
 
+async function getNowPlaying(page = 1) {
+  try {
+    const data = await tmdbFetch('/movie/now_playing', { page });
+    return data.results || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+async function getTrending(mediaType = 'all', timeWindow = 'day', page = 1) {
+  try {
+    const data = await tmdbFetch(`/trending/${mediaType}/${timeWindow}`, { page });
+    return data.results || [];
+  } catch (e) {
+    return [];
+  }
+}
+
 async function resolveImdbId(type, tmdbId) {
   try {
     const ext = await getExternalIds(type, tmdbId);
@@ -137,5 +155,7 @@ module.exports = {
   getSeasonDetails,
   resolveImdbId, 
   search, 
-  getPopular 
+  getPopular,
+  getNowPlaying,
+  getTrending
 };

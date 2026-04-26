@@ -1,137 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Hue Stream API Docs</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { height: 100%; background: #0a0e17; }
-
-    /* ── Branded header ── */
-    .hue-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 24px;
-      height: 52px;
-      background: linear-gradient(135deg, #0d1117 0%, #161b26 100%);
-      border-bottom: 1px solid rgba(49, 215, 169, 0.15);
-      position: sticky;
-      top: 0;
-      z-index: 1000;
-    }
-    .hue-header .logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      text-decoration: none;
-    }
-    .hue-header .logo-icon {
-      width: 28px;
-      height: 28px;
-      background: linear-gradient(135deg, #31d7a9, #0d6efd);
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-    }
-    .hue-header .logo-text {
-      font-family: 'Inter', -apple-system, sans-serif;
-      font-size: 16px;
-      font-weight: 700;
-      color: #e7edf9;
-      letter-spacing: -0.3px;
-    }
-    .hue-header .logo-version {
-      font-size: 11px;
-      color: #31d7a9;
-      font-weight: 500;
-      background: rgba(49, 215, 169, 0.1);
-      padding: 2px 8px;
-      border-radius: 10px;
-      margin-left: 4px;
-    }
-    .hue-header .nav-links {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-    .hue-header .nav-links a {
-      font-family: 'Inter', -apple-system, sans-serif;
-      font-size: 13px;
-      color: #91a0bb;
-      text-decoration: none;
-      transition: color 0.2s;
-    }
-    .hue-header .nav-links a:hover { color: #31d7a9; }
-
-    /* ── Layout ── */
-    #app { margin-top: 52px; height: calc(100vh - 52px); }
-
-    /* ── Scalar overrides ── */
-    :root {
-      --scalar-color-1: rgba(231, 237, 249, 0.86);
-      --scalar-color-2: rgba(231, 237, 249, 0.6);
-      --scalar-color-3: rgba(231, 237, 249, 0.38);
-      --scalar-color-accent: #31d7a9;
-      --scalar-color-green: #3dd68c;
-      --scalar-color-red: #f66f81;
-      --scalar-color-yellow: #f9b44e;
-      --scalar-color-blue: #0d6efd;
-      --scalar-background-1: #0a0e17;
-      --scalar-background-2: #111827;
-      --scalar-background-3: #1a2235;
-      --scalar-background-4: rgba(255, 255, 255, 0.06);
-      --scalar-background-accent: rgba(49, 215, 169, 0.08);
-      --scalar-border-color: rgba(255, 255, 255, 0.08);
-      --scalar-button-1: #0d6efd;
-      --scalar-button-1-color: #ffffff;
-      --scalar-button-1-hover: #0b5ed7;
-      --scalar-sidebar-background: #0d1117;
-      --scalar-sidebar-item-active-background: rgba(49, 215, 169, 0.12);
-      --scalar-sidebar-item-hover-background: rgba(255, 255, 255, 0.04);
-    }
-  </style>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-</head>
-<body>
-  <div class="hue-header">
-    <a href="/" class="logo">
-      <div class="logo-icon">🎬</div>
-      <span class="logo-text">Hue Stream API</span>
-      <span class="logo-version" id="version-badge">v1.0.9</span>
-    </a>
-    <div class="nav-links">
-      <a href="/api/docs/swagger">Swagger UI</a>
-      <a href="/api/docs/openapi.json">OpenAPI JSON</a>
-      <a href="/api/status">Status</a>
-      <a href="/">Dashboard</a>
-    </div>
-  </div>
-
-  <div id="app">
+<html>
+  <head>
+    <title>Hue Stream API Reference</title>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- This ID is important for the script to find the configuration -->
     <script
       id="api-reference"
-      data-url="/api/docs/openapi.json"
-      data-proxy-url=""
-    ></script>
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.25.100"></script>
-  <script>
-    // Update version badge from spec
-    fetch('/api/docs/openapi.json')
-      .then(r => r.json())
-      .then(spec => {
-        const badge = document.getElementById('version-badge');
-        if (spec && spec.info && spec.info.version) badge.textContent = 'v' + spec.info.version;
-      })
-      .catch(() => {});
-  </script>
-</body>
+      data-url="/api/docs/openapi.json"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
 </html>

@@ -149,71 +149,69 @@ module.exports = function(metrics) {
 
     router.get('/hero', async (req, res) => {
         try {
-            // Specifically target curated Asian Drama rows from the homepage
-            const [kdrama, cdrama] = await Promise.all([
+            const { getPopular } = require('../utils/tmdb');
+
+            // 1. Fetch from all sources (MovieBox + TMDB)
+            const [trending, kdrama, cdrama, tmdbMovies, tmdbTv] = await Promise.all([
+                movieboxApi.getTrending(1),
                 movieboxApi.getSection('K-Drama'),
-                movieboxApi.getSection('C-Drama')
+                movieboxApi.getSection('C-Drama'),
+                getPopular('movie', 1),
+                getPopular('tv', 1)
             ]);
 
-            const mixed = [
-                ...(kdrama || []).map(i => ({ ...i, fromMovieBox: true, region: 'K-Drama' })),
-                ...(cdrama || []).map(i => ({ ...i, fromMovieBox: true, region: 'C-Drama' }))
+            // 2. Prepare TMDB candidates (Find them on MovieBox first)
+            const tmdbCandidates = [...(tmdbMovies || []), ...(tmdbTv || [])].slice(0, 10);
+            const tmdbMatched = await Promise.all(tmdbCandidates.map(async (t) => {
+                const searchResults = await movieboxApi.search(t.title || t.name, 1, t.title ? 1 : 2);
+                return searchResults.items?.[0] || null;
+            }));
+
+            // 3. Combine everything into a master pool
+            const rawPool = [
+                ...tmdbMatched.filter(i => i !== null),
+                ...(kdrama || []),
+                ...(cdrama || []),
+                ...(trending || [])
             ];
 
-            // Filter: Only keep actual live-action Dramas (Exclude Donghua/Anime/Animation)
-            const filteredPool = mixed.filter(item => {
-                const genre = (item.genre || '').toLowerCase();
-                return !genre.includes('animation') && !genre.includes('anime');
-            });
+            // 4. Strict filtering and deduplication
+            const filteredPool = rawPool.filter((item, index, self) => 
+                item && item.id && index === self.findIndex((t) => t.id === item.id)
+            ).filter(item => {
+                const title = (item.title || '').toLowerCase();
+                // Kill Western cable TV leakage
+                const isWesternLeak = ['sistas', 'divorced', '202', 'all the queen', 'tyler perry'].some(word => title.includes(word));
+                return !isWesternLeak;
+            }).sort((a, b) => (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0))
+              .slice(0, 20);
 
-            // Sort by rating (highest first)
-            const pool = filteredPool
-                .sort((a, b) => {
-                    const rA = parseFloat(a.rating) || 0;
-                    const rB = parseFloat(b.rating) || 0;
-                    return rB - rA;
-                })
-                .slice(0, 30); // Pool of top 30 potential hero candidates
-
-            const enriched = [];
-            // First pass: Find items with high-quality trailers
-            for (const item of pool) {
-                if (enriched.length >= 5) break;
+            // 5. Parallel Enrichment
+            const enrichmentPromises = filteredPool.map(async (item) => {
                 try {
                     const detail = await movieboxApi.getDetail(item.detailPath);
-                    if (detail && detail.subject && detail.subject.trailer && detail.subject.trailer.videoAddress && detail.subject.trailer.videoAddress.url) {
-                        enriched.push({
+                    if (detail && detail.subject && detail.subject.description) {
+                        return {
                             ...item,
                             description: detail.subject.description,
                             trailer: detail.subject.trailer,
                             stills: detail.subject.stills,
-                            subjectType: detail.subject.subjectType
-                        });
+                            subjectType: detail.subject.subjectType,
+                            isTMDB: !!tmdbCandidates.find(t => (t.title || t.name) === item.title)
+                        };
                     }
                 } catch (e) {}
-            }
+                return null;
+            });
 
-            // Second pass: Fill with high-rated items if trailers are missing
-            if (enriched.length < 5) {
-                for (const item of pool) {
-                    if (enriched.length >= 5) break;
-                    if (enriched.find(e => e.id === item.id)) continue;
-                    try {
-                        const detail = await movieboxApi.getDetail(item.detailPath);
-                        if (detail && detail.subject) {
-                            enriched.push({
-                                ...item,
-                                description: detail.subject.description,
-                                trailer: detail.subject.trailer,
-                                stills: detail.subject.stills,
-                                subjectType: detail.subject.subjectType
-                            });
-                        }
-                    } catch (e) {}
-                }
-            }
+            const results = await Promise.all(enrichmentPromises);
+            const enriched = results.filter(r => r !== null).slice(0, 12);
 
-            res.json({ success: true, items: enriched });
+            res.json({
+                success: true,
+                count: enriched.length,
+                items: enriched
+            });
         } catch (e) {
             res.status(500).json({ success: false, error: e.message });
         }

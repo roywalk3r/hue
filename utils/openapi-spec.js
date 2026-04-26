@@ -158,7 +158,14 @@ function buildOpenApiSpec() {
       '/api/moviebox/turkish': { get: { tags: ['MovieBox'], summary: 'Turkish Drama', responses: { 200: { description: 'Turkish Drama items' } } } },
       '/api/moviebox/western': { get: { tags: ['MovieBox'], summary: 'Western TV', responses: { 200: { description: 'Western TV items' } } } },
       '/api/moviebox/black-shows': { get: { tags: ['MovieBox'], summary: 'Must-watch Black Shows', responses: { 200: { description: 'Black shows' } } } },
-      '/api/moviebox/hero': { get: { tags: ['MovieBox'], summary: 'Hero slider', responses: { 200: { description: 'Hero items with trailers' } } } },
+      '/api/moviebox/hero': { 
+        get: { 
+          tags: ['MovieBox'], 
+          summary: 'Premium Hero content', 
+          description: 'Returns a curated mix of TMDB trending hits and enriched Asian dramas, complete with trailers, stills, and full synopses.',
+          responses: { 200: { description: 'Hero items with trailers and metadata' } } 
+        } 
+      },
       '/api/moviebox/bollywood': {
         get: { tags: ['MovieBox'], summary: 'Bollywood content', parameters: [
           { name: 'type', in: 'query', schema: { type: 'string', default: 'movie' } },
@@ -200,6 +207,27 @@ function buildOpenApiSpec() {
           { name: 'season', in: 'query', schema: { type: 'integer' } },
           { name: 'episode', in: 'query', schema: { type: 'integer' } },
         ], responses: { 200: { description: 'Stream results with captions' } } },
+      },
+
+      // ── Play Gateway ──────────────────────────────────────────
+      '/api/play/{type}/{tmdbId}': {
+        get: {
+          tags: ['Streams'],
+          summary: 'Smart Play Gateway',
+          description: 'Unified endpoint that validates and returns the single best working proxied stream for a title. Ideal for direct player integration.',
+          parameters: [
+            { name: 'type', in: 'path', required: true, schema: { type: 'string', enum: ['movie', 'series'] } },
+            { name: 'tmdbId', in: 'path', required: true, schema: { type: 'string' } },
+            { name: 'season', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'episode', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'redirect', in: 'query', schema: { type: 'string', enum: ['0', '1'] }, description: 'Set to 1 to 302 redirect directly to the stream URL' },
+          ],
+          responses: {
+            200: { description: 'Best stream found', content: { 'application/json': { schema: { $ref: '#/components/schemas/Stream' } } } },
+            302: { description: 'Redirect to stream URL' },
+            404: { description: 'No streams found' },
+          },
+        },
       },
 
       // ── Drama ─────────────────────────────────────────────────
@@ -282,6 +310,81 @@ function buildOpenApiSpec() {
           { name: 'resolve', in: 'query', schema: { type: 'string', enum: ['true', 'false'] } },
           { name: 'stream', in: 'query', schema: { type: 'string', enum: ['true', 'false'] }, description: 'Enable SSE mode' },
         ], responses: { 200: { description: 'Stream results (JSON or SSE)' } } },
+      },
+
+      // ── Anime ─────────────────────────────────────────────────
+      '/api/anime/home': {
+        get: {
+          tags: ['Anime'],
+          summary: 'Get anime home feed',
+          description: 'Fetches the curated home feed with featured, trending, and latest categories.',
+          responses: { 200: { description: 'Home data' } }
+        }
+      },
+      '/api/anime/category': {
+        get: {
+          tags: ['Anime'],
+          summary: 'Get anime by category',
+          description: 'Filter anime by type (tv, movie, ova, ona).',
+          parameters: [
+            { name: 'type', in: 'query', schema: { type: 'string', enum: ['tv', 'movie', 'ova', 'ona'], default: 'tv' } },
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } }
+          ],
+          responses: { 200: { description: 'Category items' } }
+        }
+      },
+      '/api/anime/search': {
+        get: {
+          tags: ['Anime'],
+          summary: 'Search for anime',
+          description: 'Universal search across the HiAnime library.',
+          parameters: [
+            { name: 'q', in: 'query', required: true, schema: { type: 'string' } },
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } }
+          ],
+          responses: { 200: { description: 'Search results' } }
+        }
+      },
+      '/api/anime/latest': {
+        get: {
+          tags: ['Anime'],
+          summary: 'Get latest updated anime',
+          parameters: [
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } }
+          ],
+          responses: { 200: { description: 'Latest anime list' } }
+        }
+      },
+      '/api/anime/servers': {
+        get: {
+          tags: ['Anime'],
+          summary: 'Get anime episode servers',
+          description: 'Fetches the available streaming servers for a specific anime episode slug.',
+          parameters: [
+            { name: 'id', in: 'query', required: true, schema: { type: 'string' }, description: 'The anime episode slug (e.g., one-piece-episode-1158-xra5nl)' }
+          ],
+          responses: {
+            200: { description: 'Server list' },
+            400: { description: 'Missing ID' }
+          }
+        }
+      },
+      '/api/anime/stream': {
+        get: {
+          tags: ['Anime'],
+          summary: 'Get direct anime stream',
+          description: 'Extracts the final .m3u8 stream and tracks for a chosen server.',
+          parameters: [
+            { name: 'id', in: 'query', required: true, schema: { type: 'string' }, description: 'The anime episode slug' },
+            { name: 'server', in: 'query', schema: { type: 'string' }, description: 'Target server name (e.g., HD-1)' },
+            { name: 'type', in: 'query', schema: { type: 'string', enum: ['sub', 'dub'], default: 'sub' } }
+          ],
+          responses: {
+            200: { description: 'Stream data' },
+            404: { description: 'Stream not found' }
+          }
+        }
       },
 
       // ── System ────────────────────────────────────────────────

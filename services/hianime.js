@@ -1,430 +1,204 @@
 const fetch = require('node-fetch');
-const cheerio = require('cheerio');
-const CryptoJS = require('crypto-js');
 
-const BASE_URL = 'https://hianime.to';
-const USER_AGENT =
-  'Mozilla/5.0 (X11; Linux x86_64; rv:122.0) Gecko/20100101 Firefox/122.0';
-const REFERER = 'https://megacloud.tv';
-const HARDCODED_MEGACLOUD_KEY =
-  '3709ad8892f413166b796a10c7fb86018bd1be1c7ae6f4d2cfc3fdc299cb3205';
+/**
+ * HiAnime Provider (Advanced 2026 Edition)
+ * Uses direct myani.cfd API with correct POST methods and category mapping.
+ */
 
-const KEY_URL =
-  process.env.MEGACLOUD_KEY_URL ||
-  'https://raw.githubusercontent.com/itzzzme/megacloud-keys/refs/heads/main/key.txt';
-const KEY_JSON_URL =
-  'https://raw.githubusercontent.com/yogesh-hacker/MegacloudKeys/refs/heads/main/keys.json';
-
-const FALLBACK_PROVIDERS = [
-  { name: 'megaplay', domain: 'megaplay.buzz' },
-  { name: 'vidwish', domain: 'vidwish.live' },
+const HIANIME_DOMAINS = [
+  'https://hianimes.se',
+  'https://hianime.ph',
+  'https://hianime.lc'
 ];
 
-const TIMEOUT = 15000;
-const MAX_RETRIES = 2;
-const KEY_CACHE_DURATION = 60 * 60 * 1000;
+const API_BASE = 'https://myani.cfd/api';
+const STREAM_BASE = 'https://megaplay.buzz/stream/getSources';
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
 
-let cachedKey = null;
-let keyLastFetched = 0;
-
-async function fetchJSON(url, { headers = {}, timeout = TIMEOUT } = {}) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
+async function fetchJSON(url, options = {}) {
   try {
-    const res = await fetch(url, { headers, signal: controller.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } finally {
-    clearTimeout(id);
-  }
-}
-
-async function fetchText(url, { headers = {}, timeout = TIMEOUT } = {}) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  try {
-    const res = await fetch(url, { headers, signal: controller.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.text();
-  } finally {
-    clearTimeout(id);
-  }
-}
-
-async function getServers(id) {
-  const episode = id.split('ep=').at(-1);
-  const ajaxUrl = `/ajax/v2/episode/servers?episodeId=${episode}`;
-  const referer = `/watch/${id.replace('::', '?')}`;
-  const res = await fetchJSON(BASE_URL + ajaxUrl, {
-    headers: {
-      Referer: BASE_URL + referer,
-      'User-Agent': USER_AGENT,
-    },
-  });
-  return extractServers(res.html);
-}
-
-function extractServers(html) {
-  const $ = cheerio.load(html);
-  const episode = $('.server-notice strong b').text().trim().split(' ').at(-1);
-
-  const extractServerList = (block) => {
-    const servers = [];
-    $(block)
-      .find('.server-item')
-      .each((_, element) => {
-        const serverType = $(element).attr('data-type');
-        const serverId = Number($(element).attr('data-id'));
-        const serverName = $(element).find('a').text().trim().toLowerCase();
-        const serverIndex = $(element).attr('data-server-id');
-        servers.push({
-          index: Number(serverIndex),
-          type: serverType,
-          id: serverId,
-          name: serverName,
-        });
-      });
-
-    ['megaplay', 'vidwish'].forEach((name) => {
-      servers.push({
-        index: null,
-        type: block.includes('sub') ? 'sub' : 'dub',
-        id: null,
-        name: name,
-      });
+    const res = await fetch(url, {
+        ...options,
+        headers: {
+            'User-Agent': USER_AGENT,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/json',
+            ...options.headers
+        },
+        timeout: 10000
     });
-    return servers;
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
+}
+
+async function tryFetchWithFallback(path, options = {}) {
+    for (const domain of HIANIME_DOMAINS) {
+        try {
+            const url = domain + path;
+            const res = await fetchJSON(url, options);
+            if (res) return res;
+        } catch (err) {}
+    }
+    return null;
+}
+
+/**
+ * Discovery Functions
+ */
+
+async function search(keyword, page = 1) {
+    // Verified: Search is a POST request
+    return await fetchJSON(`${API_BASE}/search`, {
+        method: 'POST',
+        body: JSON.stringify({ title: keyword })
+    });
+}
+
+async function getByCategory(type = 'tv', page = 1, limit = 20) {
+    return await fetchJSON(`${API_BASE}/category?type=${type}&page=${page}&limit=${limit}`);
+}
+
+async function getLatest() {
+    return await fetchJSON(`${API_BASE}/latest/anime`);
+}
+
+async function getEpisodes(animeId) {
+    // animeId is the hash id like '68e5280064d200c87068dcd1'
+    return await fetchJSON(`${API_BASE}/episodes/${animeId}`);
+}
+
+async function getHome() {
+    return await fetchJSON(`${API_BASE}/home?slugNth=12&includeSlugs=false`);
+}
+
+async function getAnimeInfo(slug) {
+    // Fetches full details including the _id needed for episodes
+    return await fetchJSON(`${API_BASE}/anime/${slug}`);
+}
+async function getServers(id) {
+  console.log(`[HiAnime] Fetching servers for ID/Slug: ${id}`);
+
+  // If it's a hex ID (24 chars), we use it directly, otherwise we treat it as a slug
+  const isHexId = /^[0-9a-fA-F]{24}$/.test(id);
+  const endpoint = isHexId ? `${API_BASE}/episode/id/${id}` : `${API_BASE}/episode/${id}`;
+
+  const data = await fetchJSON(endpoint);
+
+  if (!data || !data.episode || !data.episode.link) {
+      // Fallback: try the other endpoint format just in case
+      const fallbackEndpoint = isHexId ? `${API_BASE}/episode/${id}` : `${API_BASE}/episode/id/${id}`;
+      const fallbackData = await fetchJSON(fallbackEndpoint);
+      if (!fallbackData || !fallbackData.episode) return { sub: [], dub: [] };
+      return parseServersFromApi(fallbackData);
+  }
+
+  return parseServersFromApi(data);
+}
+
+function parseServersFromApi(data) {
+  const mapLinks = (links, type) => {
+      return (links || []).map(link => {
+          // Case 1: Internal JSON Server (megaplay/animeplay)
+          const match = link.match(/\/s-2\/(\d+)/);
+          if (match) {
+            return {
+                id: match[1],
+                name: link.includes('megaplay') ? 'HD-1' : 'HD-2',
+                type,
+                format: 'json'
+            };
+          }
+
+          // Case 2: Direct Embed (Vidmoly, Vidwish, etc)
+          try {
+              const url = new URL(link);
+              const name = url.hostname.replace('www.', '').split('.')[0].toUpperCase();
+              return {
+                  id: link, // The link itself is the ID
+                  name: name,
+                  type,
+                  format: 'embed'
+              };
+          } catch (e) {
+              return null;
+          }
+      }).filter(s => s && s.id);
   };
 
   return {
-    episode: Number(episode),
-    sub: extractServerList('.servers-sub .ps__-list'),
-    dub: extractServerList('.servers-dub .ps__-list'),
+    sub: mapLinks(data.episode.link.sub, 'sub'),
+    dub: mapLinks(data.episode.link.dub, 'dub')
   };
 }
 
-async function extractToken(url, retry = 0) {
-  try {
-    const html = await fetchText(url, {
-      headers: {
-        Referer: `${BASE_URL}/`,
-        'User-Agent': USER_AGENT,
-        Accept: 'text/html',
-      },
-      timeout: 10000,
-    });
-    const $ = cheerio.load(html);
-    return (
-      extractFromMeta($) ||
-      extractFromDataAttr($) ||
-      extractFromNonce($) ||
-      extractFromWindowStrings(html) ||
-      extractFromWindowObjects(html) ||
-      extractFromComments($) ||
-      null
-    );
-  } catch (err) {
-    if (retry < 2) {
-      await new Promise((res) => setTimeout(res, 1000 * (retry + 1)));
-      return extractToken(url, retry + 1);
-    }
-    return null;
-  }
-}
+async function getAnimeStream({ id, server, type, episode = 1 }) {
+  let targetId = id;
+  let preResolvedServers = null;
 
-const extractFromMeta = ($) => validateToken($('meta[name="_gg_fb"]').attr('content'));
-const extractFromDataAttr = ($) => validateToken($('[data-dpi]').attr('data-dpi'));
-const extractFromNonce = ($) =>
-  validateToken(
-    $('script[nonce]')
-      .map((_, el) => $(el).attr('nonce'))
-      .get()
-      .find(Boolean)
-  );
+  // 1. Resolve Anime ID to Episode
+  const isHexId = /^[0-9a-fA-F]{24}$/.test(id);
+  if (isHexId) {
+      const epData = await getEpisodes(id);
+      if (epData && epData.episodes?.length > 0) {
+          const ep = epData.episodes.find(e => e.episodeNumber == episode) || epData.episodes[0];
+          targetId = ep.slugs?.[0] || ep._id;
 
-const extractFromWindowStrings = (html) => {
-  const regex = /window\.\w+\s*=\s*["']([a-zA-Z0-9_-]{10,})["']/g;
-  for (const match of html.matchAll(regex)) {
-    const token = validateToken(match[1]);
-    if (token) return token;
-  }
-};
-
-const extractFromWindowObjects = (html) => {
-  const regex = /window\.\w+\s*=\s*(\{[\s\S]*?\});/g;
-  for (const match of html.matchAll(regex)) {
-    try {
-      const obj = new Function(`return ${match[1]}`)();
-      if (!obj || typeof obj !== 'object') continue;
-      const joined = Object.values(obj)
-        .filter((v) => typeof v === 'string')
-        .join('');
-      const token = validateToken(joined, 20);
-      if (token) return token;
-    } catch {
-      continue;
-    }
-  }
-};
-
-const extractFromComments = ($) => {
-  let token = null;
-  $('*')
-    .contents()
-    .each((_, node) => {
-      if (node.type !== 'comment') return;
-      const match = node.data.trim().match(/(?:_is_th|token|key):([a-zA-Z0-9_-]{10,})/);
-      if (match) {
-        token = match[1];
-        return false;
+          // Optimization: If the episode list already has links, use them!
+          if (ep.link && (ep.link.sub?.length > 0 || ep.link.dub?.length > 0)) {
+              preResolvedServers = parseServersFromApi({ episode: ep });
+          }
       }
-    });
-  return validateToken(token);
-};
-
-const validateToken = (value, min = 10) =>
-  typeof value === 'string' && value.length >= min ? value : null;
-
-async function getDecryptionKey() {
-  const now = Date.now();
-  if (cachedKey && now - keyLastFetched < KEY_CACHE_DURATION) return cachedKey;
-  return normalizeKey(process.env.MEGACLOUD_KEY || HARDCODED_MEGACLOUD_KEY);
-}
-
-function decryptAES(encrypted, key) {
-  const tryDecrypt = (k) => CryptoJS.AES.decrypt(encrypted, k).toString(CryptoJS.enc.Utf8);
-  const decrypted = tryDecrypt(key) || tryDecrypt(CryptoJS.enc.Hex.parse(key));
-  if (!decrypted) throw new Error('AES decryption failed');
-  return JSON.parse(decrypted);
-}
-
-function isValidKey(key) {
-  return typeof key === 'string' && /^[a-fA-F0-9]{32,64}$/.test(key.trim());
-}
-
-function normalizeKey(value) {
-  const key = typeof value === 'string' ? value.trim() : '';
-  if (!isValidKey(key)) throw new Error('Invalid key format');
-  return key;
-}
-
-async function getRemoteKey() {
-  try {
-    const data = await fetchText(KEY_URL);
-    const key = normalizeKey(data);
-    cachedKey = key;
-    keyLastFetched = Date.now();
-    return key;
-  } catch (err) {
-    console.error(`[megacloud] key fetch failed from ${KEY_URL}: ${err.message}`);
   }
 
-  try {
-    const data = await fetchJSON(KEY_JSON_URL);
-    const key = normalizeKey(data?.mega || data?.vidstr || data?.rabbit);
-    cachedKey = key;
-    keyLastFetched = Date.now();
-    return key;
-  } catch (err) {
-    console.error(`[megacloud] key fetch failed from ${KEY_JSON_URL}: ${err.message}`);
+  // 2. Get Servers
+  const servers = preResolvedServers || await getServers(targetId);
+  const list = servers[type || 'sub'];
+
+  if (!list?.length) return { error: 'SERVERS_NOT_FOUND' };  // Select target (Prefer HD-1 or provided server)
+  const target = server ? list.find(s => s.name === server) : (list.find(s => s.format === 'json') || list[0]);
+  if (!target) return { error: 'SERVER_NOT_FOUND' };
+
+  // 3. Handle Embed Format
+  if (target.format === 'embed') {
+      return {
+          stream: {
+              link: { file: target.id, type: 'iframe' },
+              server: target.name
+          }
+      };
   }
 
-  throw new Error('Key fetch failed');
-}
-
-async function decryptAESWithFallback(encrypted) {
-  const keysToTry = [];
-
-  try {
-    keysToTry.push(normalizeKey(process.env.MEGACLOUD_KEY || HARDCODED_MEGACLOUD_KEY));
-  } catch {
-    // ignore invalid override
-  }
-
-  if (cachedKey && Date.now() - keyLastFetched < KEY_CACHE_DURATION) {
-    keysToTry.push(cachedKey);
-  }
-
-  for (const key of keysToTry) {
-    try {
-      return decryptAES(encrypted, key);
-    } catch {
-      // Try the next candidate or remote refresh below.
-    }
-  }
-
-  const remoteKey = await getRemoteKey();
-  return decryptAES(encrypted, remoteKey);
-}
-
-async function megacloud({ selectedServer, id }, retry = 0) {
-  const epID = id.split('ep=').pop();
-  try {
-    const sourcesResponse = await fetchJSON(`${BASE_URL}/ajax/v2/episode/sources?id=${selectedServer.id}`);
-
-    const sourceId = /\/([^/?]+)\?/.exec(sourcesResponse.link)?.[1];
-    const baseUrl = sourcesResponse.link.match(/^(https?:\/\/[^/]+(?:\/[^/]+){3})/)?.[1];
-    if (!sourceId || !baseUrl) throw new Error('Invalid ajax link format');
-
-    let decrypted;
-    let rawData;
-    let usedFallback = false;
-    try {
-      const token = await extractToken(`${baseUrl}/${sourceId}?k=1&autoPlay=0&oa=0&asi=1`);
-      if (!token) throw new Error('Token extraction failed');
-      const data = await fetchJSON(`${baseUrl}/getSources?id=${sourceId}&_k=${token}`, {
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest',
-          Referer: `${baseUrl}/${sourceId}`,
-        },
+  // 4. Handle JSON Format (Internal Extraction)
+  for (const streamDom of STREAM_DOMAINS) {
+      console.log(`[HiAnime] Extracting from ${streamDom} ID: ${target.id}`);
+      const sources = await fetchJSON(`${streamDom}/stream/getSources?id=${target.id}`, {
+          headers: { 'Referer': streamDom + '/' }
       });
-      const encrypted = data?.sources;
-      if (!encrypted) throw new Error('Missing encrypted sources');
-      decrypted =
-        typeof encrypted === 'string' ? await decryptAESWithFallback(encrypted) : encrypted;
-      rawData = data;
-    } catch {
-      const fallback = await getFallbackSource(epID, selectedServer.type, selectedServer.name);
-      decrypted = fallback.sources;
-      rawData = fallback.rawData;
-      usedFallback = true;
-    }
 
-    if (!decrypted?.[0]?.file) throw new Error('Invalid decrypted sources');
-    return {
-      id,
-      type: selectedServer.type,
-      link: { file: decrypted[0].file, type: 'hls' },
-      tracks: rawData?.tracks ?? [],
-      intro: rawData?.intro ?? null,
-      outro: rawData?.outro ?? null,
-      server: selectedServer.name,
-      usedFallback,
-    };
-  } catch (err) {
-    if (retry < MAX_RETRIES) {
-      await new Promise((res) => setTimeout(res, 2000 * (retry + 1)));
-      return megacloud({ selectedServer, id }, retry + 1);
-    }
-    return null;
-  }
-}
-
-async function getFallbackSource(epID, type, serverName) {
-  const providers =
-    serverName.toLowerCase() === 'hd-1'
-      ? [FALLBACK_PROVIDERS[0], FALLBACK_PROVIDERS[1]]
-      : [FALLBACK_PROVIDERS[1], FALLBACK_PROVIDERS[0]];
-
-  for (const provider of providers) {
-    try {
-      const html = await fetchText(`https://${provider.domain}/stream/s-2/${epID}/${type}`, {
-        headers: {
-          Referer: `https://${provider.domain}/`,
-          'User-Agent': USER_AGENT,
-        },
-      });
-      const realId = html.match(/data-id=["'](\d+)["']/)?.[1];
-      if (!realId) continue;
-      const data = await fetchJSON(`https://${provider.domain}/stream/getSources?id=${realId}`, {
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest',
-          Referer: `https://${provider.domain}/`,
-        },
-      });
-      if (data?.sources?.file) {
-        return { sources: [{ file: data.sources.file }], rawData: data };
+      if (sources?.sources?.file) {
+          return {
+              stream: {
+                  link: { file: sources.sources.file, type: 'hls' },
+                  tracks: sources.tracks || [],
+                  intro: sources.intro,
+                  outro: sources.outro,
+                  server: target.name
+              }
+          };
       }
-    } catch {
-      continue;
-    }
   }
 
-  throw new Error('All fallbacks failed');
-}
-
-async function attachSubtitlesFromSub(stream, server, id) {
-  try {
-    const allServers = await getServers(id);
-    const subServer = allServers?.sub?.find(
-      (s) => s.name === server.name || s.index === server.index
-    );
-    if (!subServer?.id) return;
-    const subStream = await megacloud({ selectedServer: subServer, id });
-    const subtitles =
-      subStream?.tracks?.filter((t) => t.kind === 'captions' || t.kind === 'subtitles') ?? [];
-    if (subtitles.length === 0) return;
-    stream.tracks = [...(stream.tracks ?? []), ...subtitles];
-  } catch {
-    // ignore subtitle fallback errors
-  }
-}
-
-async function streamExtract({ selectedServer, id }) {
-  const isEmbedded = selectedServer.name === 'megaplay' || selectedServer.name === 'vidwish';
-  if (isEmbedded) {
-    const episodeId = id.split('ep=').pop();
-    const endPath = `${episodeId}/${selectedServer.type}`;
-    const endUrl =
-      selectedServer.name === 'megaplay'
-        ? `https://megaplay.buzz/stream/s-2/${endPath}`
-        : `https://vidwish.live/stream/s-2/${endPath}`;
-    return { streamingLink: endUrl, servers: selectedServer.name };
-  }
-
-  const stream = await megacloud({ selectedServer, id });
-  if (!stream?.link?.file) return stream;
-
-  if (selectedServer.type === 'dub') {
-    const captions =
-      stream.tracks?.filter((t) => t.kind === 'captions' || t.kind === 'subtitles') ?? [];
-    if (captions.length === 0) {
-      await attachSubtitlesFromSub(stream, selectedServer, id);
-    }
-  }
-
-  return { ...stream, referer: REFERER };
-}
-
-async function getAnimeStream({ id, server, type }) {
-  const servers = await getServers(id);
-  const serverList = servers?.[type] || [];
-  if (!serverList.length) {
-    return { servers, stream: null, error: 'SERVER_NOT_FOUND' };
-  }
-
-  const preferredServerOrder = ['hd-1', 'hd-2', 'hd-3', 'megaplay', 'vidwish'];
-  const candidateServers = server
-    ? serverList.filter((entry) => entry.name === server)
-    : [
-        ...preferredServerOrder
-          .map((name) => serverList.find((entry) => entry.name === name))
-          .filter(Boolean),
-        ...serverList.filter((entry) => !preferredServerOrder.includes(entry.name)),
-      ].filter((entry, index, array) => array.findIndex((item) => item.name === entry.name) === index);
-
-  if (!candidateServers.length) {
-    return { servers, stream: null, error: 'SERVER_NOT_FOUND' };
-  }
-
-  const isValidStream = (candidate) =>
-    !!candidate && (candidate.streamingLink || candidate?.link?.file);
-
-  for (const selectedServer of candidateServers) {
-    const stream = await streamExtract({ selectedServer, id });
-    if (isValidStream(stream)) {
-      return { servers, stream };
-    }
-
-    if (server) {
-      return { servers, stream, error: 'STREAM_NOT_FOUND' };
-    }
-  }
-
-  return { servers, stream: null, error: 'STREAM_NOT_FOUND' };
-}
-
-module.exports = {
+  return { error: 'EXTRACTION_FAILED' };
+}module.exports = {
   getServers,
   getAnimeStream,
+  getEpisodes,
+  getAnimeInfo,
+  search,
+  getLatest,
+  getHome,
+  getByCategory
 };

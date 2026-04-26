@@ -237,6 +237,12 @@ async function getStreams(subjectId, detailPath, season = 1, episode = 1) {
                     }
                 });
                 
+                // CRITICAL: Check if we actually got JSON. If not, it's a 404 HTML page.
+                if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE')) {
+                    console.warn(`[MovieBox API] Received HTML instead of JSON on ${host}. Skipping dump.`);
+                    continue;
+                }
+
                 if (response.data && response.data.code === 0) {
                     if (h > 0 || t > 0) {
                         console.log(`[MovieBox API] Play Success on fallback: id=${subjectId} host=${host} tz=${timezone}`);
@@ -259,7 +265,8 @@ async function getStreams(subjectId, detailPath, season = 1, episode = 1) {
                      console.warn(`[MovieBox API] Region Blocked on ${host}: id=${subjectId}`);
                      continue;
                 }
-                console.error(`[MovieBox API] Play error on ${host}:`, e.response?.data || e.message);
+                const errorData = typeof e.response?.data === 'string' ? e.response.data.substring(0, 200) + '...' : e.response?.data;
+                console.error(`[MovieBox API] Play error on ${host}:`, errorData || e.message);
                 continue;
             }
         }

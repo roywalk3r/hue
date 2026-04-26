@@ -1,0 +1,157 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: H
+      - generic [ref=e6]: Hue Command Center
+    - navigation "Plan sections" [ref=e7]:
+      - link "Cockpit" [ref=e8] [cursor=pointer]:
+        - /url: "#cockpit"
+      - link "Roadmap" [ref=e9] [cursor=pointer]:
+        - /url: "#roadmap"
+      - link "Watch" [ref=e10] [cursor=pointer]:
+        - /url: "#watch"
+      - link "Verification" [ref=e11] [cursor=pointer]:
+        - /url: "#verification"
+  - main [ref=e12]:
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - generic [ref=e16]:
+            - generic [ref=e17]: Plan artifact
+            - generic [ref=e18]: Backend-first
+            - generic [ref=e19]: Crazy UX, controlled risk
+          - heading "Turn Hue into a media control room." [level=1] [ref=e20]
+          - paragraph [ref=e21]: "The backend already aggregates streams, live sports, discovery, proxying, and provider health. The new product should make that power visible: dense discovery, resilient playback, live diagnostics, and protected operator controls in one cinematic interface."
+        - generic "Plan metrics" [ref=e22]:
+          - generic [ref=e23]:
+            - strong [ref=e24]: "0"
+            - text: unsafe admin routes before UI polish
+          - generic [ref=e25]:
+            - strong [ref=e26]: "7"
+            - text: core routes in the command center
+          - generic [ref=e27]:
+            - strong [ref=e28]: "4"
+            - text: visual QA viewport sizes
+          - generic [ref=e29]:
+            - strong [ref=e30]: "1"
+            - text: trust-building watch surface
+      - complementary [ref=e31]:
+        - generic [ref=e32]:
+          - heading "Phase zero is non-negotiable." [level=2] [ref=e33]
+          - list [ref=e34]:
+            - listitem [ref=e35]:
+              - generic [ref=e37]: "Fix `/api/streams` cache-miss crash before the frontend leans on provider aggregation."
+            - listitem [ref=e38]:
+              - generic [ref=e40]: Protect config, cache, debug, and password routes with authenticated sessions.
+            - listitem [ref=e41]:
+              - generic [ref=e43]: "Block private-network targets in `/api/proxy` so the UI cannot expose an SSRF path."
+            - listitem [ref=e44]:
+              - generic [ref=e46]: Rotate tracked secrets and stop rendering sensitive config in public surfaces.
+        - generic [ref=e47]:
+          - heading "Design language" [level=2] [ref=e48]
+          - paragraph [ref=e49]: Graphite base, real media imagery, sharp panels, status colors, compact controls, visible provider confidence, and motion only for real state changes.
+    - generic [ref=e50]:
+      - generic [ref=e51]:
+        - generic [ref=e52]:
+          - text: First viewport concept
+          - heading "Discovery cockpit" [level=2] [ref=e53]
+        - paragraph [ref=e54]: No giant empty hero. The landing view should show content, search, provider state, cache/proxy health, and live sports immediately.
+      - generic [ref=e55]:
+        - generic [ref=e56]:
+          - generic [ref=e57]:
+            - generic [ref=e58]: Search title, TMDB ID, match, provider...
+            - generic [ref=e59]: Movie
+            - generic [ref=e60]: Live
+          - generic [ref=e62]:
+            - text: Provider confidence 92%
+            - heading "Featured stream, not empty space." [level=3] [ref=e63]
+          - generic [ref=e64]:
+            - generic [ref=e65]: Trending
+            - generic [ref=e66]: K-Drama
+            - generic [ref=e67]: Live Match
+            - generic [ref=e68]: MovieBox
+            - generic [ref=e69]: HiTV
+        - generic [ref=e70]:
+          - generic [ref=e72]:
+            - text: Provider health
+            - generic [ref=e73]: 18/22
+          - generic [ref=e77]:
+            - text: Proxy readiness
+            - generic [ref=e78]: secure
+          - generic [ref=e82]:
+            - text: Fast play cache
+            - generic [ref=e83]: hot
+          - generic [ref=e86]:
+            - generic [ref=e87]:
+              - text: Live sports
+              - generic [ref=e88]: 12 events
+            - paragraph [ref=e89]: Surface live/upcoming matches without forcing users into a separate search flow.
+    - generic [ref=e90]:
+      - generic [ref=e91]:
+        - generic [ref=e92]:
+          - text: Build sequence
+          - heading "Roadmap" [level=2] [ref=e93]
+        - paragraph [ref=e94]: Ship the foundation first, then layer the visual product on APIs that are stable enough to trust.
+      - generic [ref=e95]:
+        - article [ref=e96]:
+          - text: 01 / Backend
+          - heading "Stabilize contracts" [level=3] [ref=e97]
+          - paragraph [ref=e98]: Fix stream aggregation, auth, password change, SSRF protection, proxy-disabled behavior, and warmup drift.
+        - article [ref=e99]:
+          - text: 02 / API
+          - heading "Compose UI payloads" [level=3] [ref=e100]
+          - paragraph [ref=e101]: Add discovery, unified search, live, status, and smart-play diagnostics so the frontend stops stitching internals.
+        - article [ref=e102]:
+          - text: 03 / Frontend
+          - heading "Command shell" [level=3] [ref=e103]
+          - paragraph [ref=e104]: Build routes for command center, discover, streams, watch, live, status, and protected admin.
+        - article [ref=e105]:
+          - text: 04 / QA
+          - heading "Prove the experience" [level=3] [ref=e106]
+          - paragraph [ref=e107]: Run smoke tests, playback checks, and browser screenshots across mobile, tablet, desktop, and wide desktop.
+    - generic [ref=e108]:
+      - generic [ref=e109]:
+        - generic [ref=e110]:
+          - text: Playback trust
+          - heading "Watch surface" [level=2] [ref=e111]
+        - paragraph [ref=e112]: The player should explain the stream, not hide it. Provider, quality, latency, proxy mode, and fallback state become first-class UI.
+      - generic [ref=e113]:
+        - generic [ref=e114]: SSR-safe player boundary
+        - generic [ref=e115]:
+          - generic [ref=e116]:
+            - generic [ref=e117]:
+              - generic [ref=e118]: MovieBox / Cinema
+              - text: 1080p HLS · proxy valid · 842ms
+            - generic [ref=e119]: Active
+          - generic [ref=e120]:
+            - generic [ref=e121]:
+              - generic [ref=e122]: Vixsrc / Aura
+              - text: 720p HLS · headers required · 1.2s
+            - generic [ref=e123]: Ready
+          - generic [ref=e124]:
+            - generic [ref=e125]:
+              - generic [ref=e126]: AutoEmbed / Blaze
+              - text: validation failed · retry available
+            - generic [ref=e127]: Fallback
+          - paragraph [ref=e128]: Users should know whether failure means no match, dead source, proxy disabled, missing headers, or browser media rejection.
+    - generic [ref=e129]:
+      - generic [ref=e130]:
+        - generic [ref=e131]:
+          - text: Acceptance
+          - heading "Verification path" [level=2] [ref=e132]
+        - paragraph [ref=e133]: "The UI is only awesome if it survives real backend conditions: slow providers, no streams, bad proxy targets, and protected admin routes."
+      - list [ref=e134]:
+        - listitem [ref=e135]:
+          - generic [ref=e137]: "`/api/streams/movie/:id` returns JSON on cache miss instead of throwing."
+        - listitem [ref=e138]:
+          - generic [ref=e140]: Config, debug, cache, and password endpoints reject unauthenticated requests.
+        - listitem [ref=e141]:
+          - generic [ref=e143]: "`/api/proxy?url=` blocks localhost and private network targets."
+        - listitem [ref=e144]:
+          - generic [ref=e146]: First viewport shows hero, rails, live/system state, and search on mobile and desktop.
+        - listitem [ref=e147]:
+          - generic [ref=e149]: Watch page shows loading, playable, and provider/proxy failure states.
+        - listitem [ref=e150]:
+          - generic [ref=e152]: Status page exposes provider health without leaking secrets.
+  - contentinfo [ref=e153]:
+    - paragraph [ref=e154]: "Source plan: `.omx/plans/2026-04-25-hue-command-center-ux.md`"

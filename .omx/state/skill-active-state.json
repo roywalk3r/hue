@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "active": true,
+  "skill": "autopilot",
+  "keyword": "",
+  "phase": "planning",
+  "activated_at": "2026-04-25T07:31:48.506Z",
+  "updated_at": "2026-04-25T07:31:48.506Z",
+  "source": "state-server",
+  "active_skills": [
+    {
+      "skill": "autopilot",
+      "phase": "planning",
+      "active": true,
+      "activated_at": "2026-04-25T07:31:48.506Z",
+      "updated_at": "2026-04-25T07:31:48.506Z"
+    }
+  ]
+}

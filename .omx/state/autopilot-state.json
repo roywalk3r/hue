@@ -1,0 +1,15 @@
+{
+  "active": true,
+  "current_phase": "planning",
+  "task_description": "Plan a premium hosted consumer frontend for Hue, not an operator command center.",
+  "active_plan": ".omx/plans/2026-04-25-hue-premium-consumer-frontend.md",
+  "visual_plan": ".omx/plans/hue-premium-consumer-frontend.html",
+  "preview": ".omx/plans/hue-premium-consumer-frontend-preview.png",
+  "verified_at": "2026-04-25T07:32:00Z",
+  "verification": [
+    "rg confirmed consumer plan terms, Nuxt/BFF topology, and public product route surfaces",
+    "Playwright eval confirmed browser title, hero, sections, BFF content, and page height",
+    "git status checked existing unrelated dirty files plus new .omx/.playwright-cli artifacts"
+  ],
+  "next_phase": "execution planning or implementation after user chooses to build"
+}

@@ -8,36 +8,75 @@ const { resolveImdbId } = require('../utils/tmdb');
 const { applyFilters } = require('../utils/streamFilters');
 const { config } = require('../utils/config');
 
+const { getHiTvDetail } = require('../utils/hitv-api');
+
 module.exports = function(metrics) {
     /**
      * Smart Play Gateway
      * GET /api/play/:type/:tmdbId?season=1&episode=1
-     * 
-     * Returns a direct, proxied HLS/MP4 link for immediate playback.
      */
     router.get('/:type/:tmdbId', async (req, res) => {
-        const { type, tmdbId } = req.params;
+        let { type, tmdbId } = req.params;
         const season = req.query.season ? parseInt(req.query.season) : 1;
         const episode = req.query.episode ? parseInt(req.query.episode) : 1;
 
         try {
+            // --- 0. SMART REVERSE MAPPING ---
+            // If the ID looks like a HiTV/MovieBox internal ID (> 10 digits)
+            if (/^\d{15,}$/.test(tmdbId)) {
+                console.log(`[SmartPlay] Internal ID detected: ${tmdbId}. Resolving to TMDB...`);
+                try {
+                    const detail = await getHiTvDetail(tmdbId);
+                    if (detail && detail.title) {
+                        const cleanTitle = detail.title
+                            .replace(/\s*S\d+(-S\d+)?/gi, '') // Remove S1, S1-S2
+                            .replace(/\s*Season\s*\d+/gi, '')
+                            .split(' (Ep')[0].split(' - ')[0].trim();
+                        
+                        console.log(`[SmartPlay] Resolved Title: "${cleanTitle}". Searching TMDB...`);
+                        const tmdbResults = await resolveImdbId(type === 'movie' ? 'movie' : 'tv', cleanTitle, true); // Overloaded helper
+                        
+                        // We'll use search here instead of resolveImdbId since we have title, not ID
+                        const results = await require('../utils/tmdb').search(cleanTitle, type === 'movie' ? 'movie' : 'tv');
+                        if (results && results.length > 0) {
+                            console.log(`[SmartPlay] Reverse Mapping SUCCESS: ${tmdbId} -> ${results[0].id} (${results[0].name || results[0].title})`);
+                            tmdbId = results[0].id.toString();
+                        }
+                    }
+                } catch (mapErr) {
+                    console.error(`[SmartPlay] Reverse mapping failed:`, mapErr.message);
+                }
+            }
+
             // 1. Check Cache First (Fastest)
             let streams = getCachedStreams(type, tmdbId, season, episode);
             
-            // 2. If not cached, trigger FAST providers only
+            // 2. If not cached, trigger FAST providers
             if (!streams || streams.length === 0) {
-                const fastProviders = ['vixsrc', 'moviebox', 'autoembed'];
+                const isDramaId = /^\d{15,}$/.test(tmdbId) || req.query.dp?.includes('drama');
+                
+                // Priority providers based on content type
+                const fastProviders = isDramaId 
+                    ? ['moviebox', 'vixsrc', 'autoembed'] // Fast generic fallback
+                    : ['vixsrc', 'moviebox', 'autoembed'];
+                
+                // Add specialized Drama providers if it's a drama or from HiTV
+                const specializedProviders = isDramaId ? ['kisskh', 'dramacool'] : [];
+                
                 const imdbId = await resolveImdbId(type === 'movie' ? 'movie' : 'tv', tmdbId);
                 
-                const fastPromises = fastProviders.map(async name => {
+                // Combine and fetch
+                const allToFetch = [...specializedProviders, ...fastProviders];
+                const fetchPromises = [...new Set(allToFetch)].map(async name => {
                     const prov = getProvider(name);
                     if (!prov || !prov.enabled) return [];
                     try {
+                        console.log(`[SmartPlay] Triggering specialized fetch: ${name}`);
                         return await prov.fetch({ tmdbId, type, season, episode, imdbId, filters: {} });
                     } catch (e) { return []; }
                 });
 
-                const results = await Promise.all(fastPromises);
+                const results = await Promise.all(fetchPromises);
                 streams = results.flat();
             }
 
@@ -96,7 +135,8 @@ module.exports = function(metrics) {
 
             res.json({
                 success: true,
-                tmdbId,
+                tmdbId, // This is now the resolved numeric ID
+                realTmdbId: tmdbId, // Explicit field for confirmation
                 title: finalStream.title,
                 url: finalStream.url,
                 quality: finalStream.quality,

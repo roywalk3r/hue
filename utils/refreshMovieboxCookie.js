@@ -4,7 +4,7 @@ const { config, saveConfigPatch } = require('./config');
 const BACKUP_DOMAINS = ['moviebox.ph', 'moviebox.id', 'moviebox.pk', 'movieboxapp.in'];
 
 async function refreshMovieboxCookie() {
-    console.log('[MovieBox Refresh] Starting ultra-fast refresh...');
+    console.log('[MovieBox Refresh] Starting reliable refresh...');
     const primaryHost = config.movieboxHost || 'moviebox.ph';
     const hostsToTry = [primaryHost, ...BACKUP_DOMAINS.filter(d => d !== primaryHost)];
 
@@ -16,14 +16,17 @@ async function refreshMovieboxCookie() {
             context = await getNewContext();
             const page = await context.newPage();
 
-            // BLOCK EVERYTHING except the document
+            // Allow essential types for cookie setting
             await page.route('**/*', (route) => {
                 const type = route.request().resourceType();
-                return type === 'document' ? route.continue() : route.abort();
+                if (['document', 'script', 'xhr', 'fetch'].includes(type)) {
+                    return route.continue();
+                }
+                return route.abort();
             });
 
-            await page.goto(url, { waitUntil: 'commit', timeout: 60000 });
-            await page.waitForTimeout(5000);
+            await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
+            await page.waitForTimeout(10000);
 
             const cookies = await context.cookies();
             const tokenCookie = cookies.find(c => c.name === 'mb_token');
