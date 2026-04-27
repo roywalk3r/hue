@@ -1,8 +1,15 @@
+//! Hue Stream API
+//! Professional Streaming Aggregator
+//!
+//! @author roywalk3r <roywalker440@gmail.com>
+//! @repository https://github.com/roywalk3r/hue.git
+//! @license MIT
+
 use serde::{Deserialize, Serialize};
 use reqwest::Client;
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use tracing::{info, warn};
-use crate::models::{StreamResult, Subtitle};
+use crate::models::StreamResult;
 use std::collections::HashMap;
 
 const XYRA_BASE: &str = "https://api.xyra.stream/v1/dramacool";
@@ -43,16 +50,20 @@ pub struct XyraStreamData {
 
 pub struct DramacoolClient {
     client: Client,
+    scraper_url: String,
 }
 
 impl DramacoolClient {
     pub fn new() -> Self {
+        let scraper_url = std::env::var("MICROSERVICE_URL")
+            .unwrap_or_else(|_| "http://127.0.0.1:24610".to_string());
         Self {
             client: Client::builder()
                 .user_agent(USER_AGENT)
                 .timeout(std::time::Duration::from_secs(30))
                 .build()
                 .unwrap(),
+            scraper_url,
         }
     }
 
@@ -134,7 +145,7 @@ impl DramacoolClient {
                         "url": server_url
                     });
 
-                    match self.client.post("http://127.0.0.1:24610/scrape/dramacool")
+                    match self.client.post(format!("{}/scrape/dramacool", self.scraper_url))
                         .json(&payload)
                         .send()
                         .await {

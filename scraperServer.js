@@ -1,3 +1,12 @@
+/**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
 const express = require('express');
 const sflixProvider = require('./providers/sflix');
 const dramacoolProvider = require('./providers/dramacool');

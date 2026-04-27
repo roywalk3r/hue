@@ -1,3 +1,12 @@
+/**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
 const express = require('express');
 const router = express.Router();
 const { config } = require('../utils/config');
@@ -9,6 +18,9 @@ const { applyFilters } = require('../utils/streamFilters');
 const { getDetails, resolveImdbId } = require('../utils/tmdb');
 const { getAnimeStream, getServers: getAnimeServers } = require('../services/hianime');
 const logger = require('../utils/logger');
+
+// In-flight request coalescing: same key → same Promise
+const pendingFetches = new Map();
 
 module.exports = function(metrics) {
     // Shared Anime Proxy Payload Helper (if not in a common util)
@@ -54,32 +66,51 @@ module.exports = function(metrics) {
 
     // --- Endpoints ---
 
-    // Dedicated Drama Endpoint (KissKH + Dramacool only)
+    // Dedicated Drama Endpoint — delegates to Rust engine first, then KissKH / Dramacool fallback
     router.get('/drama/:type/:tmdbId', async (req,res) => {
         const { type, tmdbId } = req.params;
         const season = req.query.season ? Number(req.query.season) : null;
         const episode = req.query.episode ? Number(req.query.episode) : null;
-        
+
         try {
             if (metrics) metrics.streamRequests++;
-            const dramaProviders = ['kisskh', 'dramacool'];
             const streamsResults = [];
             const providerTimings = {};
 
-            await Promise.all(dramaProviders.map(async name => {
-                const prov = getProvider(name);
-                if (!prov || !prov.enabled) return;
-                
-                if (metrics) metrics.providerCalls[name] = (metrics.providerCalls[name]||0)+1;
+            // 1. Try Rust engine via huerust first (handles all providers including drama)
+            const huerust = getProvider('huerust');
+            if (huerust && huerust.enabled) {
                 try {
                     const t0 = Date.now();
-                    const r = await prov.fetch({ tmdbId, type: 'tv', season, episode, imdbId: null, filters:{} });
-                    providerTimings[name] = Date.now()-t0;
-                    if (Array.isArray(r)) streamsResults.push(...r);
+                    const r = await huerust.fetch({ tmdbId, type: 'tv', season, episode, filters:{} });
+                    providerTimings['huerust'] = Date.now()-t0;
+                    if (Array.isArray(r) && r.length) {
+                        streamsResults.push(...r);
+                        console.log(`[api/drama] Rust engine returned ${r.length} streams`);
+                    }
                 } catch (e) {
-                    console.error(`[api] drama provider ${name} failed:`, e.message);
+                    console.warn(`[api/drama] Rust engine failed:`, e.message);
                 }
-            }));
+            }
+
+            // 2. Fallback to individual Node.js drama providers if Rust returned nothing
+            if (!streamsResults.length) {
+                const dramaProviders = ['kisskh', 'dramacool'];
+                await Promise.all(dramaProviders.map(async name => {
+                    const prov = getProvider(name);
+                    if (!prov || !prov.enabled) return;
+
+                    if (metrics) metrics.providerCalls[name] = (metrics.providerCalls[name]||0)+1;
+                    try {
+                        const t0 = Date.now();
+                        const r = await prov.fetch({ tmdbId, type: 'tv', season, episode, imdbId: null, filters:{} });
+                        providerTimings[name] = Date.now()-t0;
+                        if (Array.isArray(r)) streamsResults.push(...r);
+                    } catch (e) {
+                        console.error(`[api] drama provider ${name} failed:`, e.message);
+                    }
+                }));
+            }
 
             let streams = streamsResults;
             streams = applyFilters(streams, 'drama', config.minQualities, config.excludeCodecs);
@@ -102,11 +133,137 @@ module.exports = function(metrics) {
         res.json({ success: true, streams: [], message: 'Anime fetches disabled' });
     });
 
+    // SSE Live streaming endpoint — streams results as providers complete
+    router.get('/:type/:tmdbId/live', async (req, res) => {
+        const { type, tmdbId } = req.params;
+        if (!['movie','series','tv'].includes(type)) {
+            return res.status(400).json({ success:false, error:'INVALID_TYPE' });
+        }
+        const season = req.query.season ? Number(req.query.season) : null;
+        const episode = req.query.episode ? Number(req.query.episode) : null;
+        const noCache = req.query.nocache === '1';
+
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders();
+
+        // Keepalive: browsers close SSE after ~30s of silence
+        const heartbeat = setInterval(() => {
+            if (!res.writableEnded) res.write(': heartbeat\n\n');
+        }, 15000);
+        res.on('close', () => clearInterval(heartbeat));
+
+        const sendEvent = (event, data) => {
+            res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        };
+
+        try {
+            if (metrics) metrics.streamRequests++;
+            const tmdbType = type === 'movie' ? 'movie' : 'tv';
+
+            // Check cache first
+            if (!noCache) {
+                const cached = getCachedStreams(type, tmdbId, season, episode);
+                if (cached && cached.length > 0) {
+                    let streams = applyFilters(cached, 'aggregate', config.minQualities, config.excludeCodecs);
+                    if (config.enableProxy) {
+                        const serverUrl = resolveServerUrl(req);
+                        streams = processStreamsForProxy(streams, serverUrl);
+                    }
+                    sendEvent('cached', { streams, count: streams.length, cached: true });
+                    sendEvent('done', { total: streams.length, cached: true });
+                    res.end();
+                    return;
+                }
+            }
+
+            let tmdbData = null;
+            try {
+                tmdbData = await getDetails(tmdbType, tmdbId);
+            } catch (e) {
+                logger.warn(`[api/live] Failed to pre-fetch TMDB details for ${tmdbId}:`, e.message);
+            }
+
+            const imdbId = await resolveImdbId(tmdbType, tmdbId);
+
+            const dramaProviders = ['dramacool', 'orient'];
+            const selectedProviders = (config.defaultProviders.length ? config.defaultProviders : listProviders().map(p=>p.name))
+                .filter(name => !dramaProviders.includes(name.toLowerCase()));
+
+            const { isProviderHealthy, recordSuccess, recordFailure } = require('../utils/providerCircuitBreaker');
+            const rawResults = [];
+
+            const providerPromises = selectedProviders.map(name => {
+                const prov = getProvider(name);
+                if (!prov || !prov.enabled) return null;
+                if (!isProviderHealthy(prov.realName)) {
+                    logger.info(`[api/live] Skipping unhealthy provider: ${name}`);
+                    return null;
+                }
+
+                return (async () => {
+                    try {
+                        const t0 = Date.now();
+                        const r = await Promise.race([
+                            prov.fetch({ tmdbId, type, season, episode, imdbId, tmdbData, filters:{} }),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Provider timeout')), prov.isFast ? 15000 : 60000))
+                        ]);
+                        const elapsedMs = Date.now() - t0;
+                        const results = Array.isArray(r) ? r : [];
+
+                        if (results.length > 0) {
+                            recordSuccess(prov.realName);
+                            addCachedStreams(type, tmdbId, season, episode, results);
+                            rawResults.push(...results);
+
+                            // Huerust returns streams with per-provider names — emit one event per group
+                            const groups = new Map();
+                            for (const s of results) {
+                                const p = s.provider || prov.name;
+                                if (!groups.has(p)) groups.set(p, []);
+                                groups.get(p).push(s);
+                            }
+
+                            for (const [provName, groupStreams] of groups) {
+                                let display = applyFilters(groupStreams, 'aggregate', config.minQualities, config.excludeCodecs);
+                                if (config.enableProxy) {
+                                    const serverUrl = resolveServerUrl(req);
+                                    display = processStreamsForProxy(display, serverUrl);
+                                }
+                                sendEvent('provider', { provider: provName, streams: display, count: display.length, elapsed_ms: elapsedMs });
+                            }
+                        } else {
+                            recordFailure(prov.realName);
+                        }
+                    } catch (e) {
+                        logger.error(`[api/live] provider ${name} failed or timed out:`, e.message);
+                        recordFailure(prov.realName);
+                    }
+                })();
+            }).filter(Boolean);
+
+            await Promise.all(providerPromises);
+
+            // Deduplicate by URL
+            const urlMap = new Map();
+            rawResults.forEach(s => { if(s.url) urlMap.set(s.url, s); });
+            const deduped = Array.from(urlMap.values());
+
+            sendEvent('done', { total: deduped.length, cached: false });
+            res.end();
+        } catch (e) {
+            logger.error('[api/live] SSE error:', e.message);
+            sendEvent('error', { message: e.message });
+            res.end();
+        }
+    });
+
     // Aggregate streams across all enabled providers
     router.get('/:type/:tmdbId', async (req,res) => {
         const { type, tmdbId } = req.params;
         const noCache = req.query.nocache === '1';
-        if (!['movie','series'].includes(type)) return res.status(400).json({ success:false, error:'INVALID_TYPE' });
+        if (!['movie','series','tv'].includes(type)) return res.status(400).json({ success:false, error:'INVALID_TYPE' });
         const season = req.query.season ? Number(req.query.season) : null;
         const episode = req.query.episode ? Number(req.query.episode) : null;
         
@@ -138,7 +295,23 @@ module.exports = function(metrics) {
             const selectedProviders = (config.defaultProviders.length ? config.defaultProviders : listProviders().map(p=>p.name))
                 .filter(name => !dramaProviders.includes(name.toLowerCase()));
 
+            // Coalesce duplicate in-flight requests for the same content
+            const fetchKey = `${type}:${tmdbId}:${season || 0}:${episode || 0}`;
+            if (!noCache && pendingFetches.has(fetchKey)) {
+                const result = await pendingFetches.get(fetchKey);
+                let streams = applyFilters(result, 'aggregate', config.minQualities, config.excludeCodecs);
+                if (config.enableProxy) streams = processStreamsForProxy(streams, resolveServerUrl(req));
+                return res.json({ success: true, tmdbId, imdbId, count: streams.length, providerTimings: {}, streams, totalDurationMs: 0, status: 'Complete' });
+            }
+
             const tStart = Date.now();
+            const providerTimings = {};
+            const streamsResults = [];
+
+            // Register this fetch so concurrent identical requests coalesce
+            let resolvePending;
+            const pendingPromise = new Promise(r => { resolvePending = r; });
+            if (!noCache) pendingFetches.set(fetchKey, pendingPromise);
 
             const fastProviderPromises = [];
             const slowProviderPromises = [];
@@ -206,6 +379,9 @@ module.exports = function(metrics) {
             const cachedAtEnd = getCachedStreams(type, tmdbId, season, episode);
             const finalStreams = (cachedAtEnd && cachedAtEnd.length > 0) ? cachedAtEnd : streamsResults;
             const totalDuration = Date.now() - tStart;
+
+            // Resolve coalesced waiters and clean up
+            if (resolvePending) { resolvePending(finalStreams); pendingFetches.delete(fetchKey); }
 
             let streams = finalStreams;
             streams = applyFilters(streams, 'aggregate', config.minQualities, config.excludeCodecs);

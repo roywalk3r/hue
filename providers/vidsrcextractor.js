@@ -1,4 +1,14 @@
 #!/usr/bin/env node
+
+/**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
 const cheerio = require('cheerio');
 // --- Constants ---
 let BASEDOM = "https://cloudnestra.com"; // This can be updated by serversLoad

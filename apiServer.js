@@ -1,5 +1,10 @@
 /**
- * Hue Stream API - Lean Modular Entry Point
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
  */
 
 require('dotenv').config();
@@ -144,8 +149,18 @@ app.get('/api/docs/swagger.json', (req, res) => {
 
 app.use('/api/docs/swagger', swaggerUi.serve, swaggerUi.setup(null, { swaggerOptions: { url: '/api/docs/swagger.json' } }));
 
+// Scalar modern API reference UI
+const { apiReference } = require('@scalar/express-api-reference');
+app.use('/api/docs/scalar', apiReference({
+    spec: { url: '/api/docs/openapi.json' },
+    theme: 'default',
+    hideDownloadButton: true,
+    favicon: '',
+    pageTitle: 'Hue Stream API Docs',
+}));
+
 app.get('/api/docs', (req, res) => {
-  res.redirect(302, '/docs.html');
+  res.redirect(302, '/api/docs/scalar');
 });
 
 // --- Error Handling ---

@@ -1,4 +1,13 @@
 /**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
+/**
  * Livesport API Scraper
  * Uses Livesport's public API to get matches and extracts M3U8 URLs
  */

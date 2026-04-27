@@ -1,4 +1,13 @@
 /**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
+/**
  * Hue Stream API — Comprehensive OpenAPI 3.1.0 Specification
  */
 const pkg = require('../package.json');
@@ -44,6 +53,31 @@ function buildOpenApiSpec() {
             200: { description: 'Stream results', content: { 'application/json': { schema: { $ref: '#/components/schemas/StreamAggregationResponse' } } } },
             400: { description: 'Invalid type', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
             500: { description: 'Internal error', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          },
+        },
+      },
+      '/api/streams/{type}/{tmdbId}/live': {
+        get: {
+          tags: ['Streams'],
+          summary: 'Live SSE stream aggregation',
+          description: 'Streams results progressively via Server-Sent Events as each provider completes. Events: `cached`, `provider`, `done`, `error`.',
+          parameters: [
+            { name: 'type', in: 'path', required: true, schema: { type: 'string', enum: ['movie', 'series'] }, description: 'Content type' },
+            { name: 'tmdbId', in: 'path', required: true, schema: { type: 'string' }, description: 'TMDB ID' },
+            { name: 'season', in: 'query', schema: { type: 'integer' }, description: 'Season number (series only)' },
+            { name: 'episode', in: 'query', schema: { type: 'integer' }, description: 'Episode number (series only)' },
+            { name: 'nocache', in: 'query', schema: { type: 'string', enum: ['0', '1'] }, description: 'Set to 1 to bypass cache' },
+          ],
+          responses: {
+            200: {
+              description: 'SSE stream with provider results as they arrive',
+              content: {
+                'text/event-stream': {
+                  schema: { $ref: '#/components/schemas/SseStreamEvent' },
+                },
+              },
+            },
+            400: { description: 'Invalid type', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
           },
         },
       },
@@ -510,6 +544,20 @@ function buildOpenApiSpec() {
               tmdbToImdbLookups: { type: 'integer' },
             } },
             providers: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, enabled: { type: 'boolean' } } } },
+          },
+        },
+        SseStreamEvent: {
+          type: 'object',
+          description: 'SSE event payload. The event type is sent in the `event:` field of the SSE frame.',
+          properties: {
+            event: { type: 'string', enum: ['cached', 'provider', 'done', 'error'], description: 'SSE event type' },
+            provider: { type: 'string', description: 'Provider name (for provider events)', example: 'Cinema' },
+            streams: { type: 'array', items: { $ref: '#/components/schemas/Stream' }, description: 'Stream results' },
+            count: { type: 'integer', description: 'Number of streams in this event' },
+            elapsed_ms: { type: 'integer', description: 'Provider fetch duration in milliseconds' },
+            total: { type: 'integer', description: 'Total unique streams across all providers (done event)' },
+            cached: { type: 'boolean', description: 'Whether results came from cache' },
+            message: { type: 'string', description: 'Error message (error event only)' },
           },
         },
       },

@@ -1,7 +1,7 @@
 {
-  "tool_name": "Glob",
-  "tool_input_preview": "{\"pattern\":\"**/vue.config.*\",\"path\":\"/home/rseann/projects\"}",
-  "error": "Ripgrep search timed out after 20 seconds. The search may have matched files but did not complete in time. Try searching a more specific path or pattern.",
-  "timestamp": "2026-04-24T11:18:16.192Z",
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"# Get a play URL for a known working item\\ncurl -s \\\"http://127.0.0.1:24608/api/play/movie/550?redirect=false\\\" 2>/dev/null | node -e \\\"\\nconst data = '';\\nprocess.stdin.on('data', c => da...",
+  "error": "Exit code 1\n[eval]:3\nprocess.stdin.on('data', c => data.push(c));\n                                   ^\n\nTypeError: data.push is not a function\n    at Socket.<anonymous> ([eval]:3:36)\n    at Socket.emit (node:events:509:20)\n    at addChunk (node:internal/streams/readable:564:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:515:3)\n    at Readable.push (node:internal/streams/readable:395:5)\n    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)\n\nNode.js v25.9.0",
+  "timestamp": "2026-04-27T18:23:33.163Z",
   "retry_count": 1
 }

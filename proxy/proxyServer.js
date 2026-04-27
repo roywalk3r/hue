@@ -1,3 +1,11 @@
+/**
+ * Hue Proxy Layer
+ * Handles secure stream proxying, HLS rewriting, and headers.
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @license MIT
+ */
+
 // Lightweight proxy/m3u8/segment/subtitle rewriting layer. thanks to https://github.com/cinepro-org/ for the original code.
 // Adapted from external project (user supplied) to fit CommonJS style and existing config system.
 // Provides conditional route registration via enableProxy flag.
@@ -145,6 +153,153 @@ async function prefetchSegment(url, headers) {
 }
 
 const DEFAULT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+// ── Ad-Surgery (HLS Manifest) ──────────────────────────────────────────────────
+
+const AD_KEYWORDS = ['googleads', 'googlesyndication', 'doubleclick', 'adsystem', 'adserver', 'google-analytics', 'googletagmanager', 'ads', 'pre-roll', 'mid-roll', 'post-roll', 'cdn.ads'];
+const SUSPICIOUS_DURATION = 2.0;
+
+function parseExtinfDuration(line) {
+    const m = line.match(/^#EXTINF:([\d.]+)/);
+    return m ? parseFloat(m[1]) : 0;
+}
+
+function isAdUrl(url) {
+    if (!url) return false;
+    const lower = url.toLowerCase();
+    return AD_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+function isAdSegment(extinfLine, urlLine) {
+    const duration = parseExtinfDuration(extinfLine);
+    if (duration > 0 && duration < SUSPICIOUS_DURATION) return true;
+    return isAdUrl(urlLine);
+}
+
+function sanitizeM3u8Manifest(content) {
+    const lines = content.split(/\r?\n/);
+    const output = [];
+    let removed = 0;
+    let maxDuration = 0;
+    let targetDurationIdx = -1;
+
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('#EXT-X-TARGETDURATION:')) {
+            targetDurationIdx = i;
+        }
+    }
+
+    let i = 0;
+    while (i < lines.length) {
+        const line = lines[i];
+
+        if (line.trim() === '#EXT-X-DISCONTINUITY') {
+            if (i + 2 < lines.length && isAdSegment(lines[i + 1], lines[i + 2])) {
+                i += 3;
+                removed++;
+                continue;
+            }
+            output.push(line);
+            i++;
+            continue;
+        }
+
+        if (line.startsWith('#EXTINF:')) {
+            const duration = parseExtinfDuration(line);
+            const urlLine = i + 1 < lines.length ? lines[i + 1] : '';
+
+            if (isAdSegment(line, urlLine)) {
+                i += 2;
+                removed++;
+                continue;
+            }
+
+            if (duration > maxDuration) maxDuration = duration;
+            output.push(line);
+            if (urlLine && !urlLine.startsWith('#')) {
+                output.push(urlLine);
+                i += 2;
+                continue;
+            }
+            i++;
+            continue;
+        }
+
+        if (!line.startsWith('#') && line.trim()) {
+            if (isAdUrl(line)) {
+                i++;
+                removed++;
+                continue;
+            }
+        }
+
+        output.push(line);
+        i++;
+    }
+
+    if (targetDurationIdx >= 0 && maxDuration > 0 && targetDurationIdx < output.length) {
+        output[targetDurationIdx] = `#EXT-X-TARGETDURATION:${Math.ceil(maxDuration)}`;
+    }
+
+    return { manifest: output.join('\n'), removed };
+}
+
+// ── TS Sanitization (Segment-Level) ────────────────────────────────────────────
+
+const TS_PACKET_SIZE = 188;
+const TS_SYNC_BYTE = 0x47;
+const AD_PIDS = new Set([0x0100, 0x1FFF]);
+const AD_KEYWORDS_BUF = ['googlesyndication', 'doubleclick', 'adsystem', 'adserver'];
+
+function isValidTs(buffer) {
+    return buffer.length >= TS_PACKET_SIZE && buffer[0] === TS_SYNC_BYTE && buffer.length % TS_PACKET_SIZE === 0;
+}
+
+function extractPid(packet) {
+    return ((packet[1] & 0x1F) << 8) | packet[2];
+}
+
+function containsAdSignature(packet) {
+    const hasAdaptation = (packet[3] & 0x20) !== 0;
+    const payloadStart = hasAdaptation ? 5 + packet[4] : 4;
+    if (payloadStart >= packet.length) return false;
+    const payload = packet.subarray(payloadStart);
+    if (payload.length > 3 && payload[0] === 0xFC) return true; // SCTE-35
+    const checkLen = Math.min(payload.length, 64);
+    const payloadStr = payload.subarray(0, checkLen).toString('ascii');
+    return AD_KEYWORDS_BUF.some(kw => payloadStr.includes(kw));
+}
+
+function sanitizeTsSegment(buffer) {
+    if (!isValidTs(buffer)) {
+        return { cleaned: buffer, stripped: 0 };
+    }
+    const output = Buffer.allocUnsafe(buffer.length);
+    let outOffset = 0;
+    let stripped = 0;
+
+    for (let offset = 0; offset + TS_PACKET_SIZE <= buffer.length; offset += TS_PACKET_SIZE) {
+        const packet = buffer.subarray(offset, offset + TS_PACKET_SIZE);
+        if (packet[0] !== TS_SYNC_BYTE) {
+            packet.copy(output, outOffset);
+            outOffset += TS_PACKET_SIZE;
+            continue;
+        }
+        const pid = extractPid(packet);
+        if (AD_PIDS.has(pid)) {
+            stripped++;
+            continue;
+        }
+        if (containsAdSignature(packet)) {
+            stripped++;
+            continue;
+        }
+        packet.copy(output, outOffset);
+        outOffset += TS_PACKET_SIZE;
+    }
+
+    return { cleaned: output.subarray(0, outOffset), stripped };
+}
 
 function normalizeTargetUrl(url) {
     if (typeof url !== 'string') return url;
@@ -795,9 +950,19 @@ function createProxyRoutes(app) {
             }
 
             if (isHls) {
+                // Ad-surgery before rewriting
+                const adsurgery = req.query.adsurgery === '1' || process.env.SANITIZE_STREAMS === 'true';
+                if (adsurgery) {
+                    const { manifest: cleaned, removed } = sanitizeM3u8Manifest(body);
+                    if (removed > 0) {
+                        console.log(`[m3u8-proxy] Ad-surgery removed ${removed} segments from ${targetUrl.substring(0, 80)}...`);
+                    }
+                    body = cleaned;
+                }
+
                 const protocol = req.headers['x-forwarded-proto'] || req.protocol;
                 const baseProxyUrl = `${protocol}://${req.get('host')}`;
-                
+
                 // Prevent recursive rewriting base
                 let rewriteBase = response.url;
                 const host = req.get('host');
@@ -1154,16 +1319,37 @@ function createProxyRoutes(app) {
                 resp.body.destroy(new Error('Stream timeout'));
             }, 30000);
 
-            resp.body.on('end', () => clearTimeout(streamTimeout));
-            resp.body.on('error', () => clearTimeout(streamTimeout));
-            
-            resp.body.pipe(res);
-        } catch (e) { 
-            if (debug) console.log('[ts-proxy] exception', e.message, e.stack); 
+            // Optional TS sanitization (buffer mode — adds latency, use sparingly)
+            const sanitize = req.query.sanitize === '1' || process.env.SANITIZE_STREAMS === 'true';
+            if (sanitize && !isDownload && !force200 && upstreamCT.includes('mp2t')) {
+                const chunks = [];
+                resp.body.on('data', chunk => chunks.push(chunk));
+                resp.body.on('end', () => {
+                    clearTimeout(streamTimeout);
+                    const buffer = Buffer.concat(chunks);
+                    const { cleaned, stripped } = sanitizeTsSegment(buffer);
+                    if (stripped > 0) {
+                        console.log(`[ts-proxy] Sanitized ${stripped} packets from ${targetUrl.substring(0, 80)}...`);
+                    }
+                    res.setHeader('Content-Length', cleaned.length);
+                    res.end(cleaned);
+                });
+                resp.body.on('error', (err) => {
+                    clearTimeout(streamTimeout);
+                    console.error('[ts-proxy] stream error', err);
+                    if (!res.headersSent) res.status(500).end();
+                });
+            } else {
+                resp.body.on('end', () => clearTimeout(streamTimeout));
+                resp.body.on('error', () => clearTimeout(streamTimeout));
+                resp.body.pipe(res);
+            }
+        } catch (e) {
+            if (debug) console.log('[ts-proxy] exception', e.message, e.stack);
             console.error('[ts-proxy] error', e);
             console.error('[ts-proxy] stack', e.stack);
             console.error('[ts-proxy] targetUrl', targetUrl);
-            res.status(500).json({ error: e.message, details: e.stack }); 
+            res.status(500).json({ error: e.message, details: e.stack });
         }
     });
 

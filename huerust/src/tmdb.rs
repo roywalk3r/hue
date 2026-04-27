@@ -1,3 +1,10 @@
+//! Hue Stream API
+//! Professional Streaming Aggregator
+//!
+//! @author roywalk3r <roywalker440@gmail.com>
+//! @repository https://github.com/roywalk3r/hue.git
+//! @license MIT
+
 use serde::{Deserialize, Serialize};
 use reqwest::Client;
 use anyhow::{Result, anyhow};
@@ -13,6 +20,12 @@ pub struct TmdbMovieInfo {
     pub backdrop_path: Option<String>,
     pub release_date: Option<String>,
     pub vote_average: Option<f64>,
+    pub imdb_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ExternalIds {
+    pub imdb_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -24,6 +37,7 @@ pub struct TmdbTvInfo {
     pub backdrop_path: Option<String>,
     pub first_air_date: Option<String>,
     pub vote_average: Option<f64>,
+    pub external_ids: Option<ExternalIds>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,6 +49,7 @@ pub struct TmdbNormalizedInfo {
     pub backdrop_path: Option<String>,
     pub year: Option<u32>,
     pub rating: Option<f64>,
+    pub imdb_id: Option<String>,
 }
 
 pub struct TmdbClient {
@@ -113,6 +128,7 @@ impl TmdbClient {
                     backdrop_path: info.backdrop_path,
                     year,
                     rating: info.vote_average,
+                    imdb_id: None,
                 })
             } else {
                 let info: TmdbMovieInfo = serde_json::from_value(v).ok()?;
@@ -127,6 +143,7 @@ impl TmdbClient {
                     backdrop_path: info.backdrop_path,
                     year,
                     rating: info.vote_average,
+                    imdb_id: None,
                 })
             }
         }).collect();
@@ -136,13 +153,15 @@ impl TmdbClient {
 
     pub async fn get_details(&self, m_type: &str, tmdb_id: u64) -> Result<TmdbNormalizedInfo> {
         let endpoint = format!("/{}/{}", if m_type == "tv" { "tv" } else { "movie" }, tmdb_id);
-        let params = HashMap::new();
+        let mut params = HashMap::new();
 
         if m_type == "tv" {
+            params.insert("append_to_response", "external_ids".to_string());
             let info: TmdbTvInfo = self.tmdb_fetch(&endpoint, params).await?;
             let year = info.first_air_date.as_ref()
                 .and_then(|d| d.split('-').next())
                 .and_then(|y| y.parse::<u32>().ok());
+            let imdb_id = info.external_ids.and_then(|e| e.imdb_id);
             Ok(TmdbNormalizedInfo {
                 id: info.id,
                 title: info.name,
@@ -151,6 +170,7 @@ impl TmdbClient {
                 backdrop_path: info.backdrop_path,
                 year,
                 rating: info.vote_average,
+                imdb_id,
             })
         } else {
             let info: TmdbMovieInfo = self.tmdb_fetch(&endpoint, params).await?;
@@ -165,6 +185,7 @@ impl TmdbClient {
                 backdrop_path: info.backdrop_path,
                 year,
                 rating: info.vote_average,
+                imdb_id: info.imdb_id,
             })
         }
     }

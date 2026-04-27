@@ -1,3 +1,11 @@
+/**
+ * Authentication System
+ * Simple session-based auth for the admin panel.
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @license MIT
+ */
+
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');

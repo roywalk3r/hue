@@ -1,3 +1,11 @@
+/**
+ * Configuration Management
+ * Handles environment variables and user-config overrides.
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @license MIT
+ */
+
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');

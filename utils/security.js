@@ -1,3 +1,11 @@
+/**
+ * Security & Encryption
+ * AES-256 HMAC implementation for signed URLs.
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @license MIT
+ */
+
 const crypto = require('crypto');
 
 // Use a persistent secret from ENV or generate a random one on startup

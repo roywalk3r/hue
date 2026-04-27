@@ -1,4 +1,13 @@
 /**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
+/**
  * AutoEmbed Provider (codename: Blaze)
  * Fast API-based provider using the vixsrc.to API chain.
  * No browser/Playwright required — pure HTTP extraction.

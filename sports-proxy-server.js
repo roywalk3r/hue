@@ -1,4 +1,14 @@
 #!/usr/bin/env node
+
+/**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
 /**
  * Standalone Sports Proxy Server
  * Run this alongside your main server on a different port

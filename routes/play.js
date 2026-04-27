@@ -1,3 +1,12 @@
+/**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
 const express = require('express');
 const router = express.Router();
 const { getCachedStreams } = require('../utils/cache');
@@ -32,10 +41,10 @@ module.exports = function(metrics) {
                             .replace(/\s*S\d+(-S\d+)?/gi, '') // Remove S1, S1-S2
                             .replace(/\s*Season\s*\d+/gi, '')
                             .split(' (Ep')[0].split(' - ')[0].trim();
-                        
+
                         console.log(`[SmartPlay] Resolved Title: "${cleanTitle}". Searching TMDB...`);
                         const tmdbResults = await resolveImdbId(type === 'movie' ? 'movie' : 'tv', cleanTitle, true); // Overloaded helper
-                        
+
                         // We'll use search here instead of resolveImdbId since we have title, not ID
                         const results = await require('../utils/tmdb').search(cleanTitle, type === 'movie' ? 'movie' : 'tv');
                         if (results && results.length > 0) {
@@ -50,21 +59,38 @@ module.exports = function(metrics) {
 
             // 1. Check Cache First (Fastest)
             let streams = getCachedStreams(type, tmdbId, season, episode);
-            
-            // 2. If not cached, trigger FAST providers
+
+            // 2. Try Rust engine first via huerust provider
+            if (!streams || streams.length === 0) {
+                const huerust = getProvider('huerust');
+                if (huerust && huerust.enabled) {
+                    try {
+                        console.log(`[SmartPlay] Delegating to Rust engine via huerust...`);
+                        const rustStreams = await huerust.fetch({ tmdbId, type, season, episode, filters: {} });
+                        if (Array.isArray(rustStreams) && rustStreams.length > 0) {
+                            streams = rustStreams;
+                            console.log(`[SmartPlay] Rust engine returned ${streams.length} streams`);
+                        }
+                    } catch (rustErr) {
+                        console.warn(`[SmartPlay] Rust engine failed:`, rustErr.message);
+                    }
+                }
+            }
+
+            // 3. Fallback to individual Node.js providers if Rust returned nothing
             if (!streams || streams.length === 0) {
                 const isDramaId = /^\d{15,}$/.test(tmdbId) || req.query.dp?.includes('drama');
-                
+
                 // Priority providers based on content type
-                const fastProviders = isDramaId 
+                const fastProviders = isDramaId
                     ? ['moviebox', 'vixsrc', 'autoembed'] // Fast generic fallback
                     : ['vixsrc', 'moviebox', 'autoembed'];
-                
+
                 // Add specialized Drama providers if it's a drama or from HiTV
                 const specializedProviders = isDramaId ? ['kisskh', 'dramacool'] : [];
-                
+
                 const imdbId = await resolveImdbId(type === 'movie' ? 'movie' : 'tv', tmdbId);
-                
+
                 // Combine and fetch
                 const allToFetch = [...specializedProviders, ...fastProviders];
                 const fetchPromises = [...new Set(allToFetch)].map(async name => {
@@ -84,9 +110,9 @@ module.exports = function(metrics) {
                 return res.status(404).json({ success: false, error: 'No streams found' });
             }
 
-            // 3. Filter and Sort
+            // 4. Filter and Sort
             streams = applyFilters(streams, 'aggregate', config.minQualities, config.excludeCodecs);
-            
+
             // Sort to prefer 1080p and non-CAM
             streams.sort((a, b) => {
                 const qA = parseInt(a.quality) || 0;
@@ -94,7 +120,7 @@ module.exports = function(metrics) {
                 return qB - qA;
             });
 
-            // 4. Validate the best stream before returning (Pre-flight)
+            // 5. Validate the best stream before returning (Pre-flight)
             const serverUrl = resolveServerUrl(req);
             let finalStream = null;
 
@@ -103,19 +129,19 @@ module.exports = function(metrics) {
             for (const s of streams) {
                 try {
                     const originalUrl = s.url.includes('url=') ? decodeURIComponent(s.url.split('url=')[1].split('&')[0]) : s.url;
-                    
+
                     // Ultra-fast 2s timeout check
-                    const response = await require('node-fetch')(originalUrl, { 
-                        method: 'HEAD', 
+                    const response = await require('node-fetch')(originalUrl, {
+                        method: 'HEAD',
                         headers: s.headers || {},
-                        timeout: 2000 
+                        timeout: 2000
                     });
 
                     if (response.ok) {
                         const proxied = processStreamsForProxy([s], serverUrl);
                         finalStream = proxied[0];
                         console.log(`[SmartPlay] Validated stream from ${s.provider}`);
-                        break; 
+                        break;
                     }
                 } catch (e) {
                     console.log(`[SmartPlay] Skipping broken stream from ${s.provider}: ${e.message}`);
@@ -128,7 +154,7 @@ module.exports = function(metrics) {
                 finalStream = proxied[0];
             }
 
-            // 5. Redirect or Return JSON
+            // 6. Redirect or Return JSON
             if (req.query.redirect === '1') {
                 return res.redirect(302, finalStream.url);
             }

@@ -1,3 +1,12 @@
+/**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
 const { chromium, firefox } = require("playwright-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const { buildLaunchOptions } = require("./browserConfig");

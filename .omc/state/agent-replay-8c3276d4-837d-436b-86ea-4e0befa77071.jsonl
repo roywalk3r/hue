@@ -1,7 +1,0 @@
-{"t":0,"agent":"a3de115","agent_type":"unknown","event":"agent_stop","success":true}
-{"t":0,"agent":"a6da800","agent_type":"Explore","event":"agent_start","parent_mode":"none"}
-{"t":0,"agent":"aa1e623","agent_type":"Explore","event":"agent_start","parent_mode":"none"}
-{"t":0,"agent":"afd4cb3","agent_type":"unknown","event":"agent_stop","success":true}
-{"t":0,"agent":"system","event":"keyword_detected","keyword":"autopilot"}
-{"t":0,"agent":"system","event":"mode_change","mode_from":"none","mode_to":"autopilot"}
-{"t":0,"agent":"system","event":"skill_invoked","skill_name":"oh-my-claudecode:autopilot"}

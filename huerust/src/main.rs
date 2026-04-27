@@ -1,59 +1,128 @@
+//! Hue Stream API
+//! Professional Streaming Aggregator
+//!
+//! @author roywalk3r <roywalker440@gmail.com>
+//! @repository https://github.com/roywalk3r/hue.git
+//! @license MIT
+
 mod security;
 mod tmdb;
 mod moviebox;
 mod hitv;
 mod providers;
 mod models;
+mod cache;
+mod registry;
+mod filters;
+mod circuit_breaker;
+mod routes;
+mod microservice;
+mod config;
+mod proxy;
+mod user_config;
+mod coalesce;
+mod metrics;
+mod openapi;
 
 use axum::{
-    extract::{Query, State, Path},
+    extract::State,
     response::{IntoResponse, Response},
     routing::get,
     Router,
     middleware::{self, Next},
-    http::{StatusCode, Request, header::{REFERER, CONTENT_TYPE, USER_AGENT, ORIGIN}},
+    http::{StatusCode, Request},
 };
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
-use tracing::{info, error, warn};
-use url::Url;
+use tracing::info;
 use axum::body::Body;
-use std::collections::HashMap;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 use std::env;
 use dotenv::dotenv;
 use std::sync::Arc;
+use std::time::Duration;
+use dashmap::DashMap;
+use std::time::Instant;
 
 use crate::tmdb::TmdbClient;
 use crate::moviebox::MovieBoxClient;
 use crate::hitv::HiTvClient;
+use crate::cache::StreamCache;
+use crate::coalesce::FetchCoalescer;
+use crate::registry::ProviderRegistry;
+use crate::filters::FilterConfig;
+use crate::circuit_breaker::CircuitBreaker;
+use crate::metrics::Metrics;
 use crate::providers::{
-    vixsrc, 
-    kisskh::KissKhClient, 
-    sflix::SflixClient, 
+
+    moviebox_provider::MovieBoxProvider,
+    kisskh_provider::KissKhProvider,
+    sflix_provider::SflixProvider,
+    dramacool_provider::DramacoolProvider,
+    vixsrc_provider::VixsrcProvider,
+    mp4hydra_provider::Mp4HydraProvider,
+    vixsrc::VixsrcClient,
+    kisskh::KissKhClient,
     dramacool::DramacoolClient,
-    nineanime::NineAnimeClient
 };
-use crate::models::{StreamResult, Subtitle};
+
+#[derive(Clone)]
+struct RateLimitState {
+    store: Arc<DashMap<String, (usize, Instant)>>,
+    max_requests: usize,
+    window_secs: u64,
+}
+
+impl RateLimitState {
+    fn new(max_requests: usize, window_secs: u64) -> Self {
+        Self {
+            store: Arc::new(DashMap::new()),
+            max_requests,
+            window_secs,
+        }
+    }
+
+    fn check(&self, key: &str) -> bool {
+        let now = Instant::now();
+        let window = Duration::from_secs(self.window_secs);
+
+        if let Some(mut entry) = self.store.get_mut(key) {
+            let (count, start) = *entry.value();
+            if now.duration_since(start) > window {
+                // New window
+                *entry.value_mut() = (1, now);
+                return true;
+            }
+            if count >= self.max_requests {
+                return false;
+            }
+            *entry.value_mut() = (count + 1, start);
+            true
+        } else {
+            self.store.insert(key.to_string(), (1, now));
+            true
+        }
+    }
+}
 
 #[derive(Clone)]
 struct AppState {
     client: Client,
     tmdb: Arc<TmdbClient>,
-    moviebox: Arc<MovieBoxClient>,
-    kisskh: Arc<KissKhClient>,
-    sflix: Arc<SflixClient>,
-    dramacool: Arc<DramacoolClient>,
-    nineanime: Arc<NineAnimeClient>,
+    registry: Arc<ProviderRegistry>,
+    cache: Arc<StreamCache>,
+    filter_config: Arc<FilterConfig>,
     hitv: Arc<HiTvClient>,
+    kisskh: Arc<KissKhClient>,
+    dramacool: Arc<DramacoolClient>,
     secret: String,
     proxy_base_url: String,
-}
-
-#[derive(Deserialize)]
-struct ProxyQuery {
-    h_token: String,
+    config: Arc<crate::config::AppConfig>,
+    rate_limiter: RateLimitState,
+    coalescer: Arc<FetchCoalescer>,
+    metrics: Arc<Metrics>,
 }
 
 #[tokio::main]
@@ -61,34 +130,55 @@ async fn main() {
     dotenv().ok();
     tracing_subscriber::fmt::init();
 
-    let secret = env::var("APP_SECRET").unwrap_or_else(|_| "hue-streaming-stable-secret-2026".to_string());
-    let host = env::var("RUST_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
-    let port = env::var("RUST_PORT").unwrap_or_else(|_| "24609".to_string());
-    let proxy_base_url = env::var("RUST_PROXY_URL").unwrap_or_else(|_| format!("http://{}:{}", host, port));
+    let cfg = config::AppConfig::from_env();
 
-    let tmdb_keys = env::var("TMDB_API_KEYS")
-        .unwrap_or_else(|_| env::var("TMDB_API_KEY").unwrap_or_default())
-        .split(|c| c == ',' || c == ';' || c == '\n')
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<String>>();
+    let tmdb = Arc::new(TmdbClient::new(cfg.tmdb_api_keys.clone()));
+    let cache = Arc::new(StreamCache::new_from_config(&cfg,
+    ).await);
+    let circuit_breaker = Arc::new(CircuitBreaker::new());
+    let metrics = Arc::new(Metrics::new(&["Cinema", "Nova", "Zenith", "Orient", "Aura", "Hydra"]));
+    circuit_breaker.set_metrics(metrics.clone());
+    let filter_config = Arc::new(FilterConfig::default());
 
-    let tmdb = Arc::new(TmdbClient::new(tmdb_keys));
+    let mut registry = ProviderRegistry::new(circuit_breaker.clone());
+    let moviebox_client = Arc::new(MovieBoxClient::new(None));
+    let kisskh_client = Arc::new(crate::providers::kisskh::KissKhClient::new());
+    let sflix_client = Arc::new(crate::providers::sflix::SflixClient::new());
+    let dramacool_client = Arc::new(crate::providers::dramacool::DramacoolClient::new());
+    let vixsrc_client = Arc::new(VixsrcClient::new(
+        Client::builder()
+            .tcp_keepalive(Duration::from_secs(60))
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            .build()
+            .unwrap(),
+    ));
+
+    registry.register(Arc::new(MovieBoxProvider::new(moviebox_client.clone())));
+    registry.register(Arc::new(KissKhProvider::new(kisskh_client.clone())));
+    registry.register(Arc::new(SflixProvider::new(sflix_client.clone())));
+    registry.register(Arc::new(DramacoolProvider::new(dramacool_client.clone())));
+    registry.register(Arc::new(VixsrcProvider::new(vixsrc_client)));
+    registry.register(Arc::new(Mp4HydraProvider::new()));
+
     let state = AppState {
         client: Client::builder()
-            .tcp_keepalive(std::time::Duration::from_secs(60))
+            .tcp_keepalive(Duration::from_secs(60))
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
             .build()
             .unwrap(),
         tmdb: tmdb.clone(),
-        moviebox: Arc::new(MovieBoxClient::new(None)),
-        kisskh: Arc::new(KissKhClient::new()),
-        sflix: Arc::new(SflixClient::new()),
-        dramacool: Arc::new(DramacoolClient::new()),
-        nineanime: Arc::new(NineAnimeClient::new()),
+        registry: Arc::new(registry),
+        cache: cache.clone(),
+        filter_config: filter_config.clone(),
         hitv: Arc::new(HiTvClient::new(tmdb.clone())),
-        secret,
-        proxy_base_url,
+        kisskh: kisskh_client,
+        dramacool: dramacool_client,
+        secret: cfg.secret.clone(),
+        proxy_base_url: cfg.proxy_base_url.clone(),
+        config: Arc::new(cfg.clone()),
+        rate_limiter: RateLimitState::new(120, 60),
+        coalescer: Arc::new(FetchCoalescer::new()),
+        metrics: metrics.clone(),
     };
 
     // Background Task: Build HiTV Library every 12 hours
@@ -96,30 +186,87 @@ async fn main() {
     tokio::spawn(async move {
         loop {
             let _ = hitv_bg.build_library().await;
-            tokio::time::sleep(std::time::Duration::from_secs(12 * 3600)).await;
+            tokio::time::sleep(Duration::from_secs(12 * 3600)).await;
         }
     });
 
     let app = Router::new()
         .route("/health", get(health_check))
-        .route("/m3u8-proxy", get(m3u8_handler))
-        .route("/ts-proxy", get(ts_handler))
-        .route("/sub-proxy", get(sub_handler))
+        .route("/metrics", get(metrics_handler))
+        .route("/m3u8-proxy", get(proxy::m3u8_handler))
+        .route("/ts-proxy", get(proxy::ts_handler))
+        .route("/sub-proxy", get(proxy::sub_handler))
         .route("/api/hitv/library", get(hitv_library_handler))
-        .route("/api/streams/:type/:tmdbId", get(streams_handler))
+        .route("/api/hitv/browse", get(routes::hitv::browse_handler))
+        .route("/api/hitv/search", get(routes::hitv::search_handler))
+        .route("/api/hitv/latest", get(routes::hitv::latest_handler))
+        .route("/api/hitv/trending", get(routes::hitv::trending_handler))
+        .route("/api/hitv/hero", get(routes::hitv::hero_handler))
+        .route("/api/hitv/drama", get(routes::hitv::drama_handler))
+        .route("/api/hitv/info/:id", get(routes::hitv::info_handler))
+        .route("/api/hitv/play/:id/:episode", get(routes::hitv::play_handler))
+        .route("/api/hitv/countries", get(routes::hitv::countries_handler))
+        .route("/api/hitv/categories", get(routes::hitv::categories_handler))
+        .route("/api/hitv/genres", get(routes::hitv::genres_handler))
+        .route("/api/hitv/sorts", get(routes::hitv::sorts_handler))
+        .route("/api/hitv/:country/:sort/:genre", get(routes::hitv::dynamic_browse_handler))
+        .route("/api/streams/:type/:tmdbId", get(routes::streams::streams_handler))
+        .route("/api/streams/:type/:tmdbId/live", get(routes::sse::sse_streams_handler))
+        .route("/api/providers", get(routes::providers::providers_handler))
+        .route("/api/admin/reload", axum::routing::post(admin_reload_handler))
+        .route("/api/play/:type/:tmdbId", get(routes::play::play_handler))
+        .route("/api/drama/kisskh/search", get(routes::drama::kisskh_search_handler))
+        .route("/api/drama/kisskh/streams/:id/:episode", get(routes::drama::kisskh_streams_handler))
+        .route("/api/drama/dramacool/search", get(routes::drama::dramacool_search_handler))
+        .route("/api/drama/dramacool/streams/:id/:episode", get(routes::drama::dramacool_streams_handler))
+        .merge(SwaggerUi::new("/api/docs").url("/api/docs/openapi.json", openapi::ApiDoc::openapi()))
+        .layer(middleware::from_fn_with_state(state.clone(), rate_limit_middleware))
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    let addr_str = format!("{}:{}", host, port);
+    let addr_str = format!("{}:{}", cfg.host, cfg.port);
     let addr: SocketAddr = addr_str.parse().expect("Invalid RUST_HOST or RUST_PORT");
-    info!("🚀 Huerust Engine Active on {}", addr);
-    
+    info!("Huerust Engine Active on {}", addr);
+
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    info!("Huerust Engine listening on {}", addr);
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .unwrap();
+
+    info!("Huerust Engine shutdown complete");
 }
 
-async fn health_check() -> &'static str { "Huerust is Alive 🦀" }
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    info!("Shutdown signal received, starting graceful shutdown...");
+}
+
+async fn health_check() -> &'static str { "Huerust is Alive" }
 
 async fn auth_middleware(State(_state): State<AppState>, req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
     let is_local = req.extensions().get::<SocketAddr>().map_or(false, |a| a.ip().is_loopback());
@@ -131,208 +278,36 @@ async fn auth_middleware(State(_state): State<AppState>, req: Request<Body>, nex
     Ok(next.run(req).await)
 }
 
+async fn rate_limit_middleware(State(state): State<AppState>, req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
+    let ip = req.extensions()
+        .get::<axum::extract::ConnectInfo<SocketAddr>>()
+        .map(|c| c.0.ip().to_string())
+        .or_else(|| req.headers().get("x-forwarded-for").and_then(|v| v.to_str().ok()).map(|s| s.split(',').next().unwrap_or(s).trim().to_string()))
+        .unwrap_or_else(|| "unknown".to_string());
+
+    if !state.rate_limiter.check(&ip) {
+        return Ok((StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded").into_response());
+    }
+    Ok(next.run(req).await)
+}
+
+async fn metrics_handler(State(state): State<AppState>) -> Response {
+    let body = state.metrics.render_prometheus();
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+        body,
+    ).into_response()
+}
+
 async fn hitv_library_handler(State(state): State<AppState>) -> Response {
     let items = state.hitv.get_library().await;
     (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response()
 }
 
-async fn vixsrc_api_handler(
-    State(state): State<AppState>,
-    Path((m_type, id)): Path<(String, String)>,
-) -> Response {
-    match vixsrc::get_vixsrc_streams(&state.client, &m_type, &id).await {
-        Ok(msg) => (StatusCode::OK, msg).into_response(),
-        Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response()
-    }
+async fn admin_reload_handler() -> Response {
+    crate::user_config::HueUserConfig::invalidate();
+    (StatusCode::OK, "{\"ok\":true,\"message\":\"Config cache invalidated — next request reloads from disk\"}").into_response()
 }
 
-async fn streams_handler(
-    State(state): State<AppState>,
-    Path((m_type, tmdb_id)): Path<(String, String)>,
-    Query(params): Query<HashMap<String, String>>,
-) -> Response {
-    let season = params.get("season").and_then(|s| s.parse::<u32>().ok()).unwrap_or(1);
-    let episode = params.get("episode").and_then(|e| e.parse::<u32>().ok()).unwrap_or(1);
-    
-    info!("[api] Rust Streams: {} {} S{} E{}", &m_type, tmdb_id, season, episode);
-
-    let tmdb_info = match state.tmdb.get_details(&m_type, tmdb_id.parse().unwrap_or(0)).await {
-        Ok(info) => Some(info),
-        Err(_) => None,
-    };
-
-    let target_title = tmdb_info.as_ref().map(|i| i.title.clone()).unwrap_or_default();
-    if target_title.is_empty() {
-        return (StatusCode::NOT_FOUND, "TMDB info not found").into_response();
-    }
-
-    let moviebox = state.moviebox.clone();
-    let kisskh = state.kisskh.clone();
-    let sflix = state.sflix.clone();
-    
-    let tid_box = tmdb_id.clone();
-    let title_kh = target_title.clone();
-    let title_sf = target_title.clone();
-    let mtype_sf = m_type.clone();
-    
-    let cinema_task = tokio::spawn(async move {
-        moviebox.get_streams_normalized(&tid_box, "", season, episode).await
-            .unwrap_or_default()
-    });
-
-    let zenith_task = tokio::spawn(async move {
-        kisskh.get_streams_normalized(&title_kh, season, episode).await
-            .unwrap_or_default()
-    });
-
-    let nova_task = tokio::spawn(async move {
-        sflix.get_streams_normalized(&title_sf, &mtype_sf, season, episode).await
-            .unwrap_or_default()
-    });
-
-    let results = tokio::select! {
-        res = async {
-            let mut all = Vec::new();
-            if let Ok(r) = cinema_task.await { all.extend(r); }
-            if let Ok(r) = zenith_task.await { all.extend(r); }
-            if let Ok(r) = nova_task.await { all.extend(r); }
-            all
-        } => res,
-        _ = tokio::time::sleep(std::time::Duration::from_secs(35)) => {
-            warn!("[api] Stream aggregation timed out");
-            vec![]
-        }
-    };
-
-    if results.is_empty() {
-        return (StatusCode::NOT_FOUND, "No streams found").into_response();
-    }
-
-    (StatusCode::OK, serde_json::to_string(&results).unwrap()).into_response()
-}
-
-// --- Proxy Handlers ---
-async fn m3u8_handler(State(state): State<AppState>, Query(params): Query<ProxyQuery>) -> Response {
-    let data = match security::decrypt_url(&params.h_token, &state.secret) {
-        Some(d) => d,
-        None => return (StatusCode::FORBIDDEN, "Invalid Token").into_response(),
-    };
-    let req = state.client.get(&data.url);
-    let req = inject_cdn_headers(req, &data.url);
-    match req.send().await {
-        Ok(resp) => {
-            let body = resp.text().await.unwrap_or_default();
-            let rewritten = rewrite_playlist(&body, &data.url, &state.proxy_base_url, &state.secret, data.headers);
-            Response::builder()
-                .header(CONTENT_TYPE, "application/vnd.apple.mpegurl")
-                .header("Access-Control-Allow-Origin", "*")
-                .body(Body::from(rewritten))
-                .unwrap()
-        }
-        Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
-    }
-}
-
-async fn ts_handler(State(state): State<AppState>, Query(params): Query<ProxyQuery>) -> Response {
-    let data = match security::decrypt_url(&params.h_token, &state.secret) {
-        Some(d) => d,
-        None => return (StatusCode::FORBIDDEN, "Invalid Token").into_response(),
-    };
-    let req = state.client.get(&data.url);
-    let req = inject_cdn_headers(req, &data.url);
-    match req.send().await {
-        Ok(resp) => {
-            let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::OK);
-            let mut builder = Response::builder().status(status);
-            if let Some(ct) = resp.headers().get("content-type") {
-                if let Ok(ct_str) = ct.to_str() {
-                    builder = builder.header("content-type", ct_str);
-                }
-            }
-            builder = builder.header("Access-Control-Allow-Origin", "*");
-            builder.body(Body::from_stream(resp.bytes_stream())).unwrap()
-        }
-        Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
-    }
-}
-
-async fn sub_handler(State(state): State<AppState>, Query(params): Query<ProxyQuery>) -> Response {
-    let data = match security::decrypt_url(&params.h_token, &state.secret) {
-        Some(d) => d,
-        None => return (StatusCode::FORBIDDEN, "Invalid Token").into_response(),
-    };
-    let req = state.client.get(&data.url);
-    let req = inject_cdn_headers(req, &data.url);
-    match req.send().await {
-        Ok(resp) => {
-            let body = resp.text().await.unwrap_or_default();
-            let final_body = if data.url.to_lowercase().contains(".srt") || body.trim().starts_with("1") { 
-                format!("WEBVTT\n\n{}", body) 
-            } else { 
-                body 
-            };
-            Response::builder()
-                .header("content-type", "text/vtt")
-                .header("Access-Control-Allow-Origin", "*")
-                .body(Body::from(final_body))
-                .unwrap()
-        }
-        Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
-    }
-}
-
-fn inject_cdn_headers(mut req: reqwest::RequestBuilder, target_url: &str) -> reqwest::RequestBuilder {
-    let host = match Url::parse(target_url) { 
-        Ok(u) => u.host_str().unwrap_or("").to_string(), 
-        Err(_) => return req 
-    };
-    
-    let referer = if host.contains("vixsrc.to") { 
-        Some("https://vixsrc.to/") 
-    } else if host.contains("hakunaymatata.com") || host.contains("aisports.mobi") || host.contains("poocloud.in") { 
-        Some("https://moviebox.ph/") 
-    } else if host.contains("mewstream.buzz") || host.contains("animeplay.cfd") { 
-        Some("https://hianimes.se/") 
-    } else { 
-        None 
-    };
-
-    if let Some(r) = referer { 
-        req = req.header("Referer", r); 
-        if let Ok(origin_url) = Url::parse(r) { 
-            req = req.header("Origin", origin_url.origin().unicode_serialization()); 
-        } 
-    }
-    
-    req.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-}
-
-fn rewrite_playlist(content: &str, target_url: &str, proxy_base: &str, secret: &str, headers: Option<HashMap<String, String>>) -> String {
-    let base_url = match Url::parse(target_url) { Ok(u) => u, Err(_) => return content.to_string() };
-    let query_str = base_url.query().map(|q| format!("?{}", q)).unwrap_or_default();
-    content.lines().map(|line| {
-        if line.starts_with("#") {
-            if line.contains("URI=\"") {
-                let parts: Vec<&str> = line.split("URI=\"").collect();
-                if parts.len() > 1 {
-                    let uri_parts: Vec<&str> = parts[1].split("\"").collect();
-                    let relative_uri = uri_parts[0];
-                    let abs_url = base_url.join(relative_uri).map(|u| u.to_string()).unwrap_or_else(|_| relative_uri.to_string());
-                    let final_url = if abs_url.contains('?') { abs_url } else { format!("{}{}", abs_url, query_str) };
-                    let token = security::encrypt_url(&final_url, secret, headers.clone());
-                    let is_media = line.contains("EXT-X-MEDIA");
-                    let route = if is_media { "m3u8-proxy" } else { "ts-proxy" };
-                    return line.replace(relative_uri, &format!("{}/{}?h_token={}", proxy_base, route, token));
-                }
-            }
-            line.to_string()
-        } else if !line.trim().is_empty() {
-            let abs_url = base_url.join(line.trim()).map(|u| u.to_string()).unwrap_or_else(|_| line.trim().to_string());
-            let final_url = if abs_url.contains('?') { abs_url.clone() } else { format!("{}{}", abs_url, query_str) };
-            let token = security::encrypt_url(&final_url, secret, headers.clone());
-            let is_hls = abs_url.contains(".m3u8");
-            let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
-            format!("{}/{}?h_token={}", proxy_base, route, token)
-        } else { line.to_string() }
-    }).collect::<Vec<_>>().join("\n")
-}
+// --- Handlers moved to src/routes/ ---

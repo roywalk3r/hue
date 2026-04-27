@@ -1,3 +1,10 @@
+//! Hue Stream API
+//! Professional Streaming Aggregator
+//!
+//! @author roywalk3r <roywalker440@gmail.com>
+//! @repository https://github.com/roywalk3r/hue.git
+//! @license MIT
+
 use aes::Aes256;
 use cbc::{Decryptor, Encryptor}; // Note: Typo in 'Encryptor' often occurs, check correct trait
 use cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
@@ -62,4 +69,37 @@ pub fn decrypt_url(token: &str, secret: &str) -> Option<DecryptedToken> {
         return None;
     }
     Some(token)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encrypt_decrypt_roundtrip() {
+        let secret = "test-secret-12345678901234567890";
+        let url = "https://example.com/stream.m3u8";
+        let mut headers = HashMap::new();
+        headers.insert("Referer".to_string(), "https://example.com/".to_string());
+
+        let token = encrypt_url(url, secret, Some(headers.clone()));
+        let decrypted = decrypt_url(&token, secret).unwrap();
+
+        assert_eq!(decrypted.url, url);
+        assert_eq!(decrypted.headers, Some(headers));
+    }
+
+    #[test]
+    fn test_decrypt_invalid_token() {
+        let secret = "test-secret";
+        assert!(decrypt_url("badtoken", secret).is_none());
+        assert!(decrypt_url("", secret).is_none());
+    }
+
+    #[test]
+    fn test_decrypt_wrong_secret() {
+        let secret = "correct-secret-1234567890123456";
+        let token = encrypt_url("https://example.com", secret, None);
+        assert!(decrypt_url(&token, "wrong-secret-1234567890123456").is_none());
+    }
 }

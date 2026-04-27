@@ -1,3 +1,11 @@
+/**
+ * Provider Registry
+ * Dynamic loading and management of streaming sources.
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @license MIT
+ */
+
 const { config } = require('../utils/config');
 const fs = require('fs');
 const path = require('path');
@@ -5,6 +13,7 @@ const { getCachedStreams, setCachedStreams } = require('../utils/cache');
 
 // Map real provider names to "special" names for the API response
 const PROVIDER_RENAME_MAP = {
+  'huerust': 'Huerust',
   'sflix': 'Nova',
   'vixsrc': 'Aura',
   'vidrock': 'Luna',
@@ -58,7 +67,7 @@ function getPublicName(realName) {
 
 function isFastProvider(name) {
   const n = name.toLowerCase();
-  return n === 'vixsrc' || n === 'aura';
+  return n === 'vixsrc' || n === 'aura' || n === 'huerust';
 }
 
 function sanitizeText(text) {
@@ -100,6 +109,7 @@ const providerFunctionMap = {
   '9anime.js': 'getStreams',
   'ppv.js': 'getPPVStreams',
   'autoembed.js': 'getStreams',
+  'huerust.js': 'getStreams',
 };
 
 // Stats for debug endpoint
@@ -223,11 +233,11 @@ function createFetchFunction(providerInfo) {
           let sanitizedTitle = s.title || s.name || 'Stream';
           sanitizedTitle = sanitizeText(sanitizedTitle);
           
-          return { 
-              ...s, 
+          return {
+              ...s,
               title: sanitizedTitle,
               name: s.name ? sanitizeText(s.name) : undefined,
-              provider: publicName 
+              provider: s.provider || publicName
           };
       });
       
@@ -258,6 +268,13 @@ for (const providerInfo of providerFiles) {
   // Only enable when explicitly allowed in config
   let enabled = config[enableFlag] === true;
   if (providerInfo.name === 'vidsrc-xyz' || providerInfo.name === 'vidsrc-icu' || providerInfo.name === 'vidsrccc-playwright') {
+      enabled = false;
+  }
+
+  // When Huerust is enabled, skip providers it already handles to avoid duplicates
+  const HUERUST_HANDLES = ['moviebox', 'sflix', 'vixsrc', 'kisskh', 'dramacool'];
+  if (enabled && config.enableHuerustProvider && HUERUST_HANDLES.includes(providerInfo.name)) {
+      console.log(`[registry] ${providerInfo.name} skipped — handled by Huerust engine`);
       enabled = false;
   }
 

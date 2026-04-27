@@ -1,5 +1,5 @@
 {
-  "name": "tmdb-embed-api",
+  "name": "hue-stream-api",
   "version": "1.0.9",
   "description": "Professional Streaming Aggregator API",
   "main": "apiServer.js",
@@ -24,6 +24,7 @@
     "@definisi/vidsrc-scraper": "^1.0.3",
     "@hono/swagger-ui": "^0.5.3",
     "@hono/zod-openapi": "^1.2.0",
+    "@scalar/express-api-reference": "^0.9.10",
     "@scalar/hono-api-reference": "^0.9.30",
     "@upstash/redis": "^1.35.8",
     "aromanize": "^0.1.5",
