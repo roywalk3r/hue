@@ -21,7 +21,7 @@ async function warmupMedia(item, type) {
     const mediaType = type === 'movie' ? 'movie' : 'series';
     
     // Skip if already cached
-    const existing = getCachedStreams(mediaType, tmdbId, 1, 1);
+    const existing = await getCachedStreams(mediaType, tmdbId, 1, 1);
     if (existing && existing.length > 0) return;
 
     logger.info(`[Warmup] Pre-scraping ${type}: ${item.title || item.name} (${tmdbId})`);

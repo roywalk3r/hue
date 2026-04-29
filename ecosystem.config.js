@@ -10,20 +10,28 @@
 module.exports = {
   apps: [
     {
-      name: 'hue-rust-api',
-      script: 'cargo',
-      args: 'run --release',
-      cwd: './huerust',
-      env: {
-        RUST_PORT: 24608,
-      }
+      name: 'hue-api',
+      script: 'apiServer.js',
+      autorestart: true,
+      max_restarts: 10,
+      min_uptime: '10s',
+      max_memory_restart: '512M',
+      env: { NODE_ENV: 'production', API_PORT: 24608 }
     },
     {
-      name: 'hue-scraper-microservice',
+      name: 'hue-scraper',
       script: 'scraperServer.js',
-      env: {
-        SCRAPER_PORT: 24610
-      }
+      autorestart: true,
+      max_restarts: 10,
+      min_uptime: '5s',
+      env: { SCRAPER_PORT: 24610 }
+    },
+    {
+      name: 'hue-rust',
+      script: './huerust/target/release/huerust',
+      autorestart: true,
+      max_restarts: 5,
+      min_uptime: '10s',
     }
   ]
 };

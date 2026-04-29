@@ -1,0 +1,364 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1777325990240,
+  "projectRoot": "/home/rseann/projects/Misc/hue",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": ">=14.0.0",
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "express",
+        "version": "4.21.2",
+        "category": "backend"
+      },
+      {
+        "name": "playwright",
+        "version": "1.58.0",
+        "category": "testing"
+      }
+    ],
+    "packageManager": "pnpm",
+    "runtime": "Node.js 14.0.0"
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": "pnpm lint",
+    "devCommand": "pnpm start",
+    "scripts": {
+      "start": "node setup-browser.js && node apiServer.js",
+      "start:scraper": "node setup-browser.js && node scraperServer.js",
+      "start:rust": "cd huerust && cargo run --release",
+      "start:dev": "node setup-browser.js && nodemon --watch restart.trigger --ignore providers/.cache --ignore **/cache apiServer.js",
+      "postinstall": "npx playwright install chromium",
+      "lint": "eslint . --ext .js",
+      "setup-browser": "node setup-browser.js",
+      "key:generate": "node scripts/generate-key.js",
+      "check:hianime-imports": "node scripts/check-hianime-imports.js"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "public",
+      "scripts"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "huerust": {
+      "path": "huerust",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1777325990214,
+      "keyFiles": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "Dockerfile",
+        "release.log"
+      ]
+    },
+    "providers": {
+      "path": "providers",
+      "purpose": null,
+      "fileCount": 30,
+      "lastAccessed": 1777325990216,
+      "keyFiles": [
+        "4khdhub.js",
+        "9anime.js",
+        "MP4Hydra.js",
+        "Showbox.js",
+        "VidZee.js"
+      ]
+    },
+    "proxy": {
+      "path": "proxy",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1777325990227,
+      "keyFiles": [
+        "proxy.log",
+        "proxyServer.js"
+      ]
+    },
+    "public": {
+      "path": "public",
+      "purpose": "Public files",
+      "fileCount": 11,
+      "lastAccessed": 1777325990228,
+      "keyFiles": [
+        "config.html",
+        "docs.html",
+        "index.html",
+        "index.js",
+        "login.js"
+      ]
+    },
+    "routes": {
+      "path": "routes",
+      "purpose": "Route handlers",
+      "fileCount": 11,
+      "lastAccessed": 1777325990229,
+      "keyFiles": [
+        "anime.js",
+        "drama.js",
+        "hitv.js",
+        "livetv.js",
+        "moviebox.js"
+      ]
+    },
+    "screenshots": {
+      "path": "screenshots",
+      "purpose": null,
+      "fileCount": 8,
+      "lastAccessed": 1777325990229,
+      "keyFiles": [
+        "Screenshot 2025-09-16 174931.png",
+        "Screenshot 2025-09-16 175002.png",
+        "Screenshot 2025-09-16 175008.png",
+        "Screenshot 2025-09-16 175013.png",
+        "Screenshot 2025-09-16 175020.png"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 3,
+      "lastAccessed": 1777325990230,
+      "keyFiles": [
+        "check-hianime-imports.js",
+        "generate-key.js",
+        "publish-docker.ps1"
+      ]
+    },
+    "services": {
+      "path": "services",
+      "purpose": "Business logic services",
+      "fileCount": 6,
+      "lastAccessed": 1777325990231,
+      "keyFiles": [
+        "hianime.js",
+        "hianimeApp.js",
+        "livetvScraper.js",
+        "rustCircuitSync.js",
+        "tokenWorker.js"
+      ]
+    },
+    "utils": {
+      "path": "utils",
+      "purpose": "Utility functions",
+      "fileCount": 28,
+      "lastAccessed": 1777325990232,
+      "keyFiles": [
+        "aisports-api.js",
+        "auth-users.json",
+        "auth.js",
+        "browserConfig.js",
+        "browserManager.js"
+      ]
+    },
+    "vendor": {
+      "path": "vendor",
+      "purpose": "Third-party code",
+      "fileCount": 0,
+      "lastAccessed": 1777325990233,
+      "keyFiles": []
+    },
+    "web-scraper": {
+      "path": "web-scraper",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1777325990233,
+      "keyFiles": [
+        "api-server.js",
+        "index.html",
+        "package.json",
+        "vercel.json"
+      ]
+    },
+    "huerust/src": {
+      "path": "huerust/src",
+      "purpose": "Source code",
+      "fileCount": 16,
+      "lastAccessed": 1777325990234,
+      "keyFiles": [
+        "cache.rs",
+        "circuit_breaker.rs",
+        "coalesce.rs"
+      ]
+    },
+    "huerust/tests": {
+      "path": "huerust/tests",
+      "purpose": "Test files",
+      "fileCount": 0,
+      "lastAccessed": 1777325990236,
+      "keyFiles": []
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "proxy/proxyServer.js",
+      "accessCount": 9,
+      "lastAccessed": 1777366656922,
+      "type": "file"
+    },
+    {
+      "path": ".env",
+      "accessCount": 5,
+      "lastAccessed": 1777330922161,
+      "type": "directory"
+    },
+    {
+      "path": "providers/registry.js",
+      "accessCount": 4,
+      "lastAccessed": 1777368148907,
+      "type": "file"
+    },
+    {
+      "path": "providers/huerust.js",
+      "accessCount": 3,
+      "lastAccessed": 1777367762214,
+      "type": "file"
+    },
+    {
+      "path": "proxy",
+      "accessCount": 2,
+      "lastAccessed": 1777327107095,
+      "type": "directory"
+    },
+    {
+      "path": "huerust/src/providers/vixsrc.rs",
+      "accessCount": 2,
+      "lastAccessed": 1777331140982,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 2,
+      "lastAccessed": 1777366652613,
+      "type": "directory"
+    },
+    {
+      "path": "huerust/src/providers/sflix.rs",
+      "accessCount": 2,
+      "lastAccessed": 1777367368725,
+      "type": "file"
+    },
+    {
+      "path": "providers/vixsrc.js",
+      "accessCount": 2,
+      "lastAccessed": 1777368073125,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src",
+      "accessCount": 2,
+      "lastAccessed": 1777368132171,
+      "type": "directory"
+    },
+    {
+      "path": "utils/server.js",
+      "accessCount": 1,
+      "lastAccessed": 1777326766958,
+      "type": "file"
+    },
+    {
+      "path": "utils/config.js",
+      "accessCount": 1,
+      "lastAccessed": 1777326790892,
+      "type": "file"
+    },
+    {
+      "path": "routes",
+      "accessCount": 1,
+      "lastAccessed": 1777326820921,
+      "type": "directory"
+    },
+    {
+      "path": "routes/streams.js",
+      "accessCount": 1,
+      "lastAccessed": 1777326842398,
+      "type": "file"
+    },
+    {
+      "path": "providers",
+      "accessCount": 1,
+      "lastAccessed": 1777330468813,
+      "type": "directory"
+    },
+    {
+      "path": "huerust/src/routes",
+      "accessCount": 1,
+      "lastAccessed": 1777330862711,
+      "type": "directory"
+    },
+    {
+      "path": "huerust/src/providers",
+      "accessCount": 1,
+      "lastAccessed": 1777331146793,
+      "type": "directory"
+    },
+    {
+      "path": "apiServer.js",
+      "accessCount": 1,
+      "lastAccessed": 1777366946094,
+      "type": "directory"
+    },
+    {
+      "path": "huerust/src/providers/dramacool.rs",
+      "accessCount": 1,
+      "lastAccessed": 1777367368821,
+      "type": "file"
+    },
+    {
+      "path": "docker-compose.yml",
+      "accessCount": 1,
+      "lastAccessed": 1777367368936,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/routes/streams.rs",
+      "accessCount": 1,
+      "lastAccessed": 1777368114506,
+      "type": "file"
+    },
+    {
+      "path": "providers/autoembed.js",
+      "accessCount": 1,
+      "lastAccessed": 1777368118188,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/registry.rs",
+      "accessCount": 1,
+      "lastAccessed": 1777368138751,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/mod.rs",
+      "accessCount": 1,
+      "lastAccessed": 1777368154316,
+      "type": "directory"
+    }
+  ],
+  "userDirectives": []
+}

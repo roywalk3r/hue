@@ -10,7 +10,7 @@ use reqwest::{Client, header::{HeaderMap, HeaderValue, REFERER, USER_AGENT, ORIG
 use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use tracing::{info, warn};
-use crate::models::StreamResult;
+use crate::models::{StreamResult, Subtitle};
 
 const BASE_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff";
 const DEFAULT_X_USER: &str = r#"{"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjc1NjEyMzU2Nzc1NjA4NTMyODAsImF0cCI6MywiZXh0IjoiMTc3MTE0NDQ4MiIsImV4cCI6MTc3ODkyMDQ4MiwiaWF0IjoxNzcxMTQxNDk1fQ.BF7r1K_npeKWjkjuIxqZMTvUDxJ8oBjvSBc3glWcqtU","userId":"7561235677560853280","userType":0,"appType":2}"#;
@@ -201,6 +201,32 @@ impl MovieBoxClient {
         Ok(None)
     }
 
+    pub async fn get_captions(&self, subject_id: &str, detail_path: &str, stream_id: &str) -> Result<Vec<Subtitle>> {
+        let url = format!("{}/subject/caption?format=MP4&id={}&subjectId={}&detailPath={}",
+            BASE_URL, stream_id, subject_id, urlencoding::encode(detail_path));
+
+        let resp = self.client.get(&url)
+            .headers(self.get_base_headers())
+            .send()
+            .await?;
+
+        let data: serde_json::Value = resp.json().await?;
+        let captions = data["data"]["captions"].as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|c| {
+                        let url = c["url"].as_str()?.to_string();
+                        let lang = c["lan"].as_str().unwrap_or("en").to_string();
+                        let label = c["lanName"].as_str().unwrap_or("English").to_string();
+                        Some(Subtitle { url, lang, label })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(captions)
+    }
+
     pub async fn get_streams_normalized(&self, title: &str, media_type: &str, year: Option<u32>, season: u32, episode: u32) -> Result<Vec<StreamResult>> {
         info!("[MovieBox Rust] Searching for: \"{}\" ({:?}) S{} E{}", title, year, season, episode);
 
@@ -254,6 +280,29 @@ impl MovieBoxClient {
                 mb_headers.insert("x-user".to_string(), crate::user_config::HueUserConfig::get_live().moviebox_x_user_or_env(DEFAULT_X_USER));
                 mb_headers.insert("Referer".to_string(), format!("https://{}/", self.host));
 
+                // Fetch captions using the first available stream id
+                let first_stream_id = data.streams.as_ref()
+                    .and_then(|s| s.first())
+                    .and_then(|s| s.id.as_ref())
+                    .or_else(|| data.hls.as_ref().and_then(|h| h.first()).and_then(|s| s.id.as_ref()))
+                    .cloned();
+
+                let subtitles = if let Some(stream_id) = first_stream_id {
+                    match self.get_captions(&best_match.id, &detail_path, &stream_id).await {
+                        Ok(subs) if !subs.is_empty() => {
+                            info!("[MovieBox Rust] Fetched {} captions", subs.len());
+                            Some(subs)
+                        }
+                        Ok(_) => None,
+                        Err(e) => {
+                            warn!("[MovieBox Rust] Caption fetch failed: {}", e);
+                            None
+                        }
+                    }
+                } else {
+                    None
+                };
+
                 if let Some(streams) = data.streams {
                     for s in streams {
                         results.push(StreamResult {
@@ -262,8 +311,9 @@ impl MovieBoxClient {
                             quality: s.quality.as_deref().unwrap_or("Auto").to_string(),
                             provider: "Cinema".to_string(),
                             format: "mp4".to_string(),
-                            subtitles: None,
+                            subtitles: subtitles.clone(),
                             headers: Some(mb_headers.clone()),
+                            extra_metadata: None,
                         });
                     }
                 }
@@ -276,8 +326,9 @@ impl MovieBoxClient {
                             quality: "Auto".to_string(),
                             provider: "Cinema".to_string(),
                             format: "hls".to_string(),
-                            subtitles: None,
+                            subtitles: subtitles.clone(),
                             headers: Some(mb_headers.clone()),
+                            extra_metadata: None,
                         });
                     }
                 }

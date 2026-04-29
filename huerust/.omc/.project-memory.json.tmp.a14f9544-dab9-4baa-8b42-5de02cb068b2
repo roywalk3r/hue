@@ -1,0 +1,230 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1777460955347,
+  "projectRoot": "/home/rseann/projects/Misc/hue/huerust",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Rust",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "Cargo.toml"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "axum",
+        "version": null,
+        "category": "backend"
+      }
+    ],
+    "packageManager": "cargo",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "cargo build",
+    "testCommand": "cargo test",
+    "lintCommand": "cargo clippy",
+    "devCommand": "cargo run",
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "src",
+      "tests"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 16,
+      "lastAccessed": 1777460955155,
+      "keyFiles": [
+        "cache.rs",
+        "circuit_breaker.rs",
+        "coalesce.rs",
+        "config.rs",
+        "filters.rs"
+      ]
+    },
+    "target": {
+      "path": "target",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1777460955160,
+      "keyFiles": [
+        "CACHEDIR.TAG"
+      ]
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 0,
+      "lastAccessed": 1777460955345,
+      "keyFiles": []
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/proxy/mod.rs",
+      "accessCount": 46,
+      "lastAccessed": 1777406491701,
+      "type": "directory"
+    },
+    {
+      "path": "src/providers/sflix.rs",
+      "accessCount": 20,
+      "lastAccessed": 1777374636228,
+      "type": "file"
+    },
+    {
+      "path": "src",
+      "accessCount": 14,
+      "lastAccessed": 1777377518131,
+      "type": "directory"
+    },
+    {
+      "path": "src/routes/streams.rs",
+      "accessCount": 9,
+      "lastAccessed": 1777375030953,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/sflix_provider.rs",
+      "accessCount": 7,
+      "lastAccessed": 1777374601007,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/vixsrc.rs",
+      "accessCount": 7,
+      "lastAccessed": 1777405730347,
+      "type": "file"
+    },
+    {
+      "path": "src/moviebox.rs",
+      "accessCount": 5,
+      "lastAccessed": 1777369945385,
+      "type": "file"
+    },
+    {
+      "path": "src/providers",
+      "accessCount": 4,
+      "lastAccessed": 1777369999491,
+      "type": "directory"
+    },
+    {
+      "path": "src/config.rs",
+      "accessCount": 4,
+      "lastAccessed": 1777377521950,
+      "type": "file"
+    },
+    {
+      "path": "src/tmdb.rs",
+      "accessCount": 3,
+      "lastAccessed": 1777369994275,
+      "type": "directory"
+    },
+    {
+      "path": "src/models.rs",
+      "accessCount": 3,
+      "lastAccessed": 1777374452836,
+      "type": "directory"
+    },
+    {
+      "path": "src/main.rs",
+      "accessCount": 3,
+      "lastAccessed": 1777405744434,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/dramacool.rs",
+      "accessCount": 2,
+      "lastAccessed": 1777370176317,
+      "type": "file"
+    },
+    {
+      "path": "src/cache.rs",
+      "accessCount": 2,
+      "lastAccessed": 1777374444564,
+      "type": "directory"
+    },
+    {
+      "path": "src/proxy",
+      "accessCount": 2,
+      "lastAccessed": 1777375049712,
+      "type": "directory"
+    },
+    {
+      "path": "src/providers/moviebox_provider.rs",
+      "accessCount": 1,
+      "lastAccessed": 1777369704793,
+      "type": "file"
+    },
+    {
+      "path": "src/user_config.rs",
+      "accessCount": 1,
+      "lastAccessed": 1777373237924,
+      "type": "file"
+    },
+    {
+      "path": "src/filters.rs",
+      "accessCount": 1,
+      "lastAccessed": 1777374068949,
+      "type": "file"
+    },
+    {
+      "path": "src/registry.rs",
+      "accessCount": 1,
+      "lastAccessed": 1777374173256,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 1,
+      "lastAccessed": 1777374243880,
+      "type": "directory"
+    },
+    {
+      "path": "src/coalesce.rs",
+      "accessCount": 1,
+      "lastAccessed": 1777374429024,
+      "type": "file"
+    },
+    {
+      "path": "src/security.rs",
+      "accessCount": 1,
+      "lastAccessed": 1777375064326,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/sse.rs",
+      "accessCount": 1,
+      "lastAccessed": 1777377404468,
+      "type": "file"
+    },
+    {
+      "path": "Cargo.toml",
+      "accessCount": 1,
+      "lastAccessed": 1777405750977,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

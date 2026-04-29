@@ -1,0 +1,514 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1777455377068,
+  "projectRoot": "/home/rseann/projects/Misc/hue",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": ">=14.0.0",
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "express",
+        "version": "4.21.2",
+        "category": "backend"
+      },
+      {
+        "name": "playwright",
+        "version": "1.58.0",
+        "category": "testing"
+      }
+    ],
+    "packageManager": "pnpm",
+    "runtime": "Node.js 14.0.0"
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": "pnpm lint",
+    "devCommand": "pnpm start",
+    "scripts": {
+      "start": "node setup-browser.js && node apiServer.js",
+      "start:scraper": "node setup-browser.js && node scraperServer.js",
+      "start:rust": "cd huerust && cargo run --release",
+      "start:dev": "node setup-browser.js && nodemon --watch restart.trigger --ignore providers/.cache --ignore **/cache apiServer.js",
+      "postinstall": "npx playwright install chromium",
+      "lint": "eslint . --ext .js",
+      "setup-browser": "node setup-browser.js",
+      "key:generate": "node scripts/generate-key.js",
+      "check:hianime-imports": "node scripts/check-hianime-imports.js"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "public",
+      "scripts"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "huerust": {
+      "path": "huerust",
+      "purpose": null,
+      "fileCount": 8,
+      "lastAccessed": 1777455377004,
+      "keyFiles": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "Dockerfile",
+        "embed_test.html",
+        "fresh_embed.html"
+      ]
+    },
+    "providers": {
+      "path": "providers",
+      "purpose": null,
+      "fileCount": 30,
+      "lastAccessed": 1777455377007,
+      "keyFiles": [
+        "4khdhub.js",
+        "9anime.js",
+        "MP4Hydra.js",
+        "Showbox.js",
+        "VidZee.js"
+      ]
+    },
+    "proxy": {
+      "path": "proxy",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1777455377014,
+      "keyFiles": [
+        "proxy.log",
+        "proxyServer.js"
+      ]
+    },
+    "public": {
+      "path": "public",
+      "purpose": "Public files",
+      "fileCount": 11,
+      "lastAccessed": 1777455377015,
+      "keyFiles": [
+        "config.html",
+        "docs.html",
+        "index.html",
+        "index.js",
+        "login.js"
+      ]
+    },
+    "routes": {
+      "path": "routes",
+      "purpose": "Route handlers",
+      "fileCount": 11,
+      "lastAccessed": 1777455377015,
+      "keyFiles": [
+        "anime.js",
+        "drama.js",
+        "hitv.js",
+        "livetv.js",
+        "moviebox.js"
+      ]
+    },
+    "screenshots": {
+      "path": "screenshots",
+      "purpose": null,
+      "fileCount": 8,
+      "lastAccessed": 1777455377016,
+      "keyFiles": [
+        "Screenshot 2025-09-16 174931.png",
+        "Screenshot 2025-09-16 175002.png",
+        "Screenshot 2025-09-16 175008.png",
+        "Screenshot 2025-09-16 175013.png",
+        "Screenshot 2025-09-16 175020.png"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 3,
+      "lastAccessed": 1777455377016,
+      "keyFiles": [
+        "check-hianime-imports.js",
+        "generate-key.js",
+        "publish-docker.ps1"
+      ]
+    },
+    "services": {
+      "path": "services",
+      "purpose": "Business logic services",
+      "fileCount": 6,
+      "lastAccessed": 1777455377016,
+      "keyFiles": [
+        "hianime.js",
+        "hianimeApp.js",
+        "livetvScraper.js",
+        "rustCircuitSync.js",
+        "tokenWorker.js"
+      ]
+    },
+    "utils": {
+      "path": "utils",
+      "purpose": "Utility functions",
+      "fileCount": 28,
+      "lastAccessed": 1777455377017,
+      "keyFiles": [
+        "aisports-api.js",
+        "auth-users.json",
+        "auth.js",
+        "browserConfig.js",
+        "browserManager.js"
+      ]
+    },
+    "vendor": {
+      "path": "vendor",
+      "purpose": "Third-party code",
+      "fileCount": 0,
+      "lastAccessed": 1777455377017,
+      "keyFiles": []
+    },
+    "web-scraper": {
+      "path": "web-scraper",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1777455377017,
+      "keyFiles": [
+        "api-server.js",
+        "index.html",
+        "package.json",
+        "vercel.json"
+      ]
+    },
+    "huerust/src": {
+      "path": "huerust/src",
+      "purpose": "Source code",
+      "fileCount": 16,
+      "lastAccessed": 1777455377018,
+      "keyFiles": [
+        "cache.rs",
+        "circuit_breaker.rs",
+        "coalesce.rs"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "routes/streams.js",
+      "accessCount": 42,
+      "lastAccessed": 1777456587973,
+      "type": "file"
+    },
+    {
+      "path": "proxy/proxyServer.js",
+      "accessCount": 29,
+      "lastAccessed": 1777457174474,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/proxy/mod.rs",
+      "accessCount": 16,
+      "lastAccessed": 1777456573405,
+      "type": "file"
+    },
+    {
+      "path": "providers/huerust.js",
+      "accessCount": 13,
+      "lastAccessed": 1777455459036,
+      "type": "file"
+    },
+    {
+      "path": "docker-compose.yml",
+      "accessCount": 11,
+      "lastAccessed": 1777388629020,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/config.rs",
+      "accessCount": 11,
+      "lastAccessed": 1777455859623,
+      "type": "file"
+    },
+    {
+      "path": "utils/providerCircuitBreaker.js",
+      "accessCount": 10,
+      "lastAccessed": 1777388595155,
+      "type": "file"
+    },
+    {
+      "path": "providers/registry.js",
+      "accessCount": 10,
+      "lastAccessed": 1777403927131,
+      "type": "file"
+    },
+    {
+      "path": "ecosystem.config.js",
+      "accessCount": 10,
+      "lastAccessed": 1777454865742,
+      "type": "file"
+    },
+    {
+      "path": ".env",
+      "accessCount": 10,
+      "lastAccessed": 1777455555740,
+      "type": "directory"
+    },
+    {
+      "path": "huerust/src/routes/streams.rs",
+      "accessCount": 10,
+      "lastAccessed": 1777455753050,
+      "type": "file"
+    },
+    {
+      "path": "Dockerfile",
+      "accessCount": 8,
+      "lastAccessed": 1777388628677,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/vixsrc.rs",
+      "accessCount": 8,
+      "lastAccessed": 1777389801785,
+      "type": "file"
+    },
+    {
+      "path": "utils/security.js",
+      "accessCount": 8,
+      "lastAccessed": 1777456325267,
+      "type": "file"
+    },
+    {
+      "path": "utils/cache.js",
+      "accessCount": 7,
+      "lastAccessed": 1777388581481,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/main.rs",
+      "accessCount": 7,
+      "lastAccessed": 1777455579940,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/proxy/sanitize.rs",
+      "accessCount": 5,
+      "lastAccessed": 1777387412470,
+      "type": "file"
+    },
+    {
+      "path": "utils/server.js",
+      "accessCount": 5,
+      "lastAccessed": 1777455634341,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/security.rs",
+      "accessCount": 5,
+      "lastAccessed": 1777456407606,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/sflix.rs",
+      "accessCount": 4,
+      "lastAccessed": 1777384082343,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/coalesce.rs",
+      "accessCount": 4,
+      "lastAccessed": 1777387333876,
+      "type": "file"
+    },
+    {
+      "path": "utils/config.js",
+      "accessCount": 4,
+      "lastAccessed": 1777388292102,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 4,
+      "lastAccessed": 1777455543502,
+      "type": "directory"
+    },
+    {
+      "path": "huerust/src/circuit_breaker.rs",
+      "accessCount": 3,
+      "lastAccessed": 1777384336192,
+      "type": "file"
+    },
+    {
+      "path": "apiServer.js",
+      "accessCount": 3,
+      "lastAccessed": 1777387311356,
+      "type": "directory"
+    },
+    {
+      "path": "huerust/src",
+      "accessCount": 3,
+      "lastAccessed": 1777388606411,
+      "type": "directory"
+    },
+    {
+      "path": "providers/vixsrc.js",
+      "accessCount": 3,
+      "lastAccessed": 1777389640664,
+      "type": "file"
+    },
+    {
+      "path": "proxy",
+      "accessCount": 2,
+      "lastAccessed": 1777327107095,
+      "type": "directory"
+    },
+    {
+      "path": "huerust/src/providers/dramacool.rs",
+      "accessCount": 2,
+      "lastAccessed": 1777384137255,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/sflix_provider.rs",
+      "accessCount": 2,
+      "lastAccessed": 1777384670192,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/moviebox_provider.rs",
+      "accessCount": 2,
+      "lastAccessed": 1777384671000,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers",
+      "accessCount": 2,
+      "lastAccessed": 1777387328092,
+      "type": "directory"
+    },
+    {
+      "path": "huerust/src/registry.rs",
+      "accessCount": 2,
+      "lastAccessed": 1777387333475,
+      "type": "file"
+    },
+    {
+      "path": "utils/tmdb.js",
+      "accessCount": 2,
+      "lastAccessed": 1777388522134,
+      "type": "file"
+    },
+    {
+      "path": "routes",
+      "accessCount": 2,
+      "lastAccessed": 1777388606753,
+      "type": "directory"
+    },
+    {
+      "path": "providers",
+      "accessCount": 2,
+      "lastAccessed": 1777388606846,
+      "type": "directory"
+    },
+    {
+      "path": "utils/streamFilters.js",
+      "accessCount": 2,
+      "lastAccessed": 1777454854374,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/proxy/adsurgery.rs",
+      "accessCount": 2,
+      "lastAccessed": 1777455421839,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/routes",
+      "accessCount": 1,
+      "lastAccessed": 1777330862711,
+      "type": "directory"
+    },
+    {
+      "path": "providers/autoembed.js",
+      "accessCount": 1,
+      "lastAccessed": 1777368118188,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 1,
+      "lastAccessed": 1777369540702,
+      "type": "file"
+    },
+    {
+      "path": "providers/sflix.js",
+      "accessCount": 1,
+      "lastAccessed": 1777374459918,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/moviebox.rs",
+      "accessCount": 1,
+      "lastAccessed": 1777384090077,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/mp4hydra_provider.rs",
+      "accessCount": 1,
+      "lastAccessed": 1777384097053,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/mp4hydra.rs",
+      "accessCount": 1,
+      "lastAccessed": 1777384100468,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/routes/mod.rs",
+      "accessCount": 1,
+      "lastAccessed": 1777384111967,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/routes/sse.rs",
+      "accessCount": 1,
+      "lastAccessed": 1777384115133,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/kisskh.rs",
+      "accessCount": 1,
+      "lastAccessed": 1777384125835,
+      "type": "file"
+    },
+    {
+      "path": "utils/tmdbKey.js",
+      "accessCount": 1,
+      "lastAccessed": 1777387297832,
+      "type": "file"
+    },
+    {
+      "path": "utils/logger.js",
+      "accessCount": 1,
+      "lastAccessed": 1777387300855,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

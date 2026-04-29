@@ -6,9 +6,9 @@
 //! @license MIT
 
 use aes::Aes256;
-use cbc::{Decryptor, Encryptor}; // Note: Typo in 'Encryptor' often occurs, check correct trait
+use cbc::{Decryptor, Encryptor};
 use cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
-use scrypt::{scrypt, Params};
+use sha2::{Digest, Sha256};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use rand::RngCore;
@@ -27,9 +27,9 @@ pub struct DecryptedToken {
 }
 
 fn get_key(secret: &str) -> [u8; 32] {
+    let hash = Sha256::digest(secret.as_bytes());
     let mut key = [0u8; 32];
-    let params = Params::new(14, 8, 1, 32).unwrap();
-    scrypt(secret.as_bytes(), b"salt", &params, &mut key).unwrap();
+    key.copy_from_slice(&hash);
     key
 }
 

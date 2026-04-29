@@ -132,6 +132,7 @@ impl DramacoolClient {
                             format: "hls".to_string(),
                             subtitles: None,
                             headers: Some(headers),
+                            extra_metadata: None,
                         });
                         return Ok(results);
                     }

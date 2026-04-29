@@ -19,6 +19,7 @@ const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const { encryptUrl, decryptUrl } = require('../utils/security');
+const { resolveServerUrl } = require('../utils/server');
 let cryptoJs;
 
 // Force persistent connections for proxy requests to avoid latency
@@ -26,21 +27,21 @@ const httpAgent = new http.Agent({
     keepAlive: true, 
     maxSockets: 1000, // Increased for 16GB VPS
     maxFreeSockets: 128,
-    timeout: 30000, 
-    family: 4 
+    timeout: 40000,
+    family: 4
 });
-const httpsAgent = new https.Agent({ 
-    keepAlive: true, 
+const httpsAgent = new https.Agent({
+    keepAlive: true,
     maxSockets: 1000, // Increased for 16GB VPS
     maxFreeSockets: 128,
-    timeout: 30000, 
-    family: 4 
+    timeout: 40000,
+    family: 4
 });
 
 // Retry configuration for fetch operations
 const MAX_RETRIES = 1; // Reduced for faster failure detection
 const RETRY_DELAY_MS = 100;
-const FETCH_TIMEOUT_MS = 30000; // 30s is enough for segments
+const FETCH_TIMEOUT_MS = 40000; // Match rust engine timeout (40s)
 
 // Helper function to fetch with retry logic
 async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
@@ -330,6 +331,7 @@ function sanitizeDownloadFilename(rawName, fallback = 'video.mp4') {
     const value = typeof rawName === 'string' ? rawName.trim() : '';
     const cleaned = value
         .replace(/[\r\n]/g, ' ')
+        // eslint-disable-next-line no-control-regex
         .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
         .replace(/\s+/g, ' ')
         .trim();
@@ -574,6 +576,7 @@ function decodeVidzeeToken(token) {
         }
         
         // Aggressive sanitization of non-printable and control characters
+        // eslint-disable-next-line no-control-regex
         raw = raw.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
         
         // Make sure we still have a valid structure after sanitization
@@ -735,6 +738,7 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers, options = {}) {
     const lines = content.split('\n');
     const out = []; const segmentUrls = [];
     let nextLineIsStreamUrl = false;
+    let nextLineIsSegment = false;
     const vixsrcMode = isVixsrcTarget(targetUrl, headers);
     const urlMode = options.urlMode === true;
     const useUrlMode = vixsrcMode || urlMode;
@@ -784,6 +788,10 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers, options = {}) {
                 // The URL for EXT-X-STREAM-INF is on the next line
                 nextLineIsStreamUrl = true;
                 out.push(line);
+            } else if (line.startsWith('#EXTINF:')) {
+                // The URL for a media segment is on the next line
+                nextLineIsSegment = true;
+                out.push(line);
             } else out.push(line);
         } else if (line.trim()) {
             try {
@@ -819,11 +827,14 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers, options = {}) {
                 }
 
                 const isMp3WrappedTs = /\.mp3(\?|$)/i.test(abs);
-                if (/\.(ts|mp4|png|jpg|jpeg|bmp)(\?|$)/i.test(abs) || isMp3WrappedTs) {
+                const isKnownSegment = nextLineIsSegment || /\.(ts|mp4|png|jpg|jpeg|bmp)(\?|$)/i.test(abs) || isMp3WrappedTs;
+                nextLineIsSegment = false;
+                nextLineIsStreamUrl = false;
+                if (isKnownSegment) {
                     segmentUrls.push(abs);
                     const forceTypeParam = isMp3WrappedTs ? '&forceType=video%2Fmp2t' : '';
                     const segmentExtraParams = '&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0';
-                    
+
                     out.push(
                         useUrlMode
                             ? `${baseProxyUrl}/ts-proxy?url=${encodeURIComponent(abs)}${headerPart}${segmentExtraParams}${forceTypeParam}`
@@ -834,13 +845,13 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers, options = {}) {
                     const proxyUrl = useUrlMode
                         ? `${baseProxyUrl}/m3u8-proxy?url=${encodeURIComponent(abs)}${headerPart}${modePart}`
                         : `${baseProxyUrl}/m3u8-proxy?h_token=${encodeURIComponent(encryptUrl(abs, null, headers))}`;
-                    out.push(nextLineIsStreamUrl ? proxyUrl : proxyUrl);
-                    nextLineIsStreamUrl = false;
+                    out.push(proxyUrl);
                 }
             } catch { out.push(line); }
         } else {
             out.push(line);
             nextLineIsStreamUrl = false;
+            nextLineIsSegment = false;
         }
     }
 
@@ -941,12 +952,19 @@ function createProxyRoutes(app) {
             
             const contentType = response.headers.get('content-type') || '';
             let isHls = contentType.includes('mpegURL') || contentType.includes('x-mpegURL') || targetUrl.includes('.m3u8');
-            
-            // Buffer body to check signature if content-type is ambiguous
-            let body = await response.text();
-            if (!isHls && body.trim().startsWith('#EXTM3U')) {
-                if (debug) console.log('[m3u8-proxy] Detected HLS content via signature');
-                isHls = true;
+            const isBinary = /video\/|audio\/|application\/octet-stream/i.test(contentType);
+
+            // For known binary content skip text decode entirely — text() corrupts TS segments
+            let body = null;
+            let rawBuf = null;
+            if (!isHls && isBinary) {
+                rawBuf = Buffer.from(await response.arrayBuffer());
+            } else {
+                body = await response.text();
+                if (!isHls && body.trim().startsWith('#EXTM3U')) {
+                    if (debug) console.log('[m3u8-proxy] Detected HLS content via signature');
+                    isHls = true;
+                }
             }
 
             if (isHls) {
@@ -960,8 +978,7 @@ function createProxyRoutes(app) {
                     body = cleaned;
                 }
 
-                const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-                const baseProxyUrl = `${protocol}://${req.get('host')}`;
+                const baseProxyUrl = resolveServerUrl(req);
 
                 // Prevent recursive rewriting base
                 let rewriteBase = response.url;
@@ -977,14 +994,15 @@ function createProxyRoutes(app) {
                 res.setHeader('Access-Control-Allow-Origin', '*');
                 res.send(rewritten);
             } else {
-                // Not HLS, send raw body
-                if (debug) console.log('[m3u8-proxy] Sending raw body (not HLS)', { contentType });
+                // Not HLS — send raw binary or text body
+                if (debug) console.log('[m3u8-proxy] Sending raw body (not HLS)', { contentType, binary: !!rawBuf });
                 res.status(response.status);
                 ['content-type', 'content-length', 'accept-ranges', 'content-range'].forEach(h => {
                     if (response.headers.has(h)) res.setHeader(h, response.headers.get(h));
                 });
+                if (rawBuf) res.setHeader('Content-Length', rawBuf.length);
                 res.setHeader('Access-Control-Allow-Origin', '*');
-                res.send(body);
+                res.send(rawBuf || body);
             }
         } catch (e) {
             console.error('[m3u8-proxy] error', e);
@@ -1317,7 +1335,7 @@ function createProxyRoutes(app) {
             const streamTimeout = setTimeout(() => {
                 if (!res.headersSent) res.status(504).json({ error: 'Upstream stream timeout' });
                 resp.body.destroy(new Error('Stream timeout'));
-            }, 30000);
+            }, 40000);
 
             // Optional TS sanitization (buffer mode — adds latency, use sparingly)
             const sanitize = req.query.sanitize === '1' || process.env.SANITIZE_STREAMS === 'true';
@@ -1367,7 +1385,7 @@ function createProxyRoutes(app) {
         if (!targetUrl) return res.status(400).json({ error: 'url parameter required' });
         
         let headers = {}; 
-        try { headers = JSON.parse(req.query.headers || '{}'); } catch {}
+        try { headers = JSON.parse(req.query.headers || '{}'); } catch (e) { void e; }
         if (decryptedHeaders) headers = { ...decryptedHeaders, ...headers };
 
         try {
@@ -1391,7 +1409,12 @@ function createProxyRoutes(app) {
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Cache-Control', 'public, max-age=3600');
             res.send(body);
-        } catch (e) { res.status(500).json({ error: e.message }); }
+        } catch (e) {
+            console.warn('[sub-proxy] fetch error:', e.message);
+            res.setHeader('Content-Type', 'text/vtt');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.send('WEBVTT\n\n');
+        }
     });
 }
 
@@ -1401,7 +1424,7 @@ function processStreamsForProxy(streams, serverUrl) {
     let serverHost = '';
     try {
         serverHost = new URL(serverUrl).host;
-    } catch {}
+    } catch (e) { void e; }
 
     return streams.map(s => {
         if (!s || !s.url || typeof s.url !== 'string') return s;
@@ -1419,14 +1442,14 @@ function processStreamsForProxy(streams, serverUrl) {
             if (isProxyPath && u.host === serverHost) {
                 return s;
             }
-        } catch {}
+        } catch (e) { void e; }
         
         const original = extractOriginalUrl(s.url);
         
         let host = '';
         try {
             host = new URL(original).hostname.toLowerCase();
-        } catch {}
+        } catch (e) { void e; }
         const isVixsrc = host.includes('vixsrc.to');
         const isMovieBoxCDN = host.includes('hakunaymatata.com') || host.includes('aisports.mobi') || host.includes('poocloud.in');
         const isHlsManifest = s.format === 'hls' || /\.m3u8(\?|$)/i.test(original);
@@ -1438,7 +1461,7 @@ function processStreamsForProxy(streams, serverUrl) {
                 const u = new URL(s.url, 'http://localhost');
                 const hJson = u.searchParams.get('headers');
                 if (hJson) headers = JSON.parse(hJson);
-            } catch {}
+            } catch (e) { void e; }
         }
 
         const token = encodeURIComponent(encryptUrl(original, null, headers));

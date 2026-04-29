@@ -58,7 +58,7 @@ module.exports = function(metrics) {
             }
 
             // 1. Check Cache First (Fastest)
-            let streams = getCachedStreams(type, tmdbId, season, episode);
+            let streams = await getCachedStreams(type, tmdbId, season, episode);
 
             // 2. Try Rust engine first via huerust provider
             if (!streams || streams.length === 0) {
@@ -166,6 +166,8 @@ module.exports = function(metrics) {
                 title: finalStream.title,
                 url: finalStream.url,
                 quality: finalStream.quality,
+                provider: finalStream.provider,
+                format: finalStream.format,
                 subtitles: finalStream.subtitles || [],
                 headers: finalStream.headers
             });

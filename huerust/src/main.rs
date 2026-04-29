@@ -128,6 +128,26 @@ struct AppState {
 #[tokio::main]
 async fn main() {
     dotenv().ok();
+
+    // CLI handling
+    let args: Vec<String> = env::args().collect();
+    if args.len() > 1 && args[1] == "--encrypt" {
+        if args.len() < 3 {
+            println!("Usage: huerust --encrypt <url> [referer]");
+            return;
+        }
+        let url = &args[2];
+        let referer = args.get(3).cloned();
+        let cfg = config::AppConfig::from_env();
+        let mut headers = std::collections::HashMap::new();
+        if let Some(r) = referer {
+            headers.insert("Referer".to_string(), r);
+        }
+        let token = security::encrypt_url(url, &cfg.secret, if headers.is_empty() { None } else { Some(headers) });
+        println!("{}", token);
+        return;
+    }
+
     tracing_subscriber::fmt::init();
 
     let cfg = config::AppConfig::from_env();

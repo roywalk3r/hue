@@ -9,8 +9,7 @@
 
 const logger = require('./logger');
 
-const FAILURE_THRESHOLD = 3; // Number of consecutive failures before tripping
-const COOLDOWN_DURATION = 10 * 60 * 1000; // 10 minutes cooldown
+const FAILURE_THRESHOLD = 2; // Number of consecutive failures before tripping
 
 const stats = {};
 
@@ -39,8 +38,11 @@ function recordFailure(name) {
     s.totalFailures++;
 
     if (s.consecutiveFailures >= FAILURE_THRESHOLD) {
-        s.disabledUntil = Date.now() + COOLDOWN_DURATION;
-        logger.warn(`[CircuitBreaker] Provider ${name} tripped! Disabled for ${COOLDOWN_DURATION / 60000} mins`);
+        // Exponential backoff: 3 min → 6 min → 12 min, capped at 15 min
+        const tripCount = Math.max(0, s.consecutiveFailures - FAILURE_THRESHOLD);
+        const backoffMs = Math.min(3 * 60 * 1000 * Math.pow(2, tripCount), 15 * 60 * 1000);
+        s.disabledUntil = Date.now() + backoffMs;
+        logger.warn(`[CircuitBreaker] Provider ${name} tripped! Cooldown ${Math.round(backoffMs / 60000)}min`);
     }
 }
 

@@ -31,7 +31,7 @@ ENV NODE_ENV=production \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     BROWSER_EXECUTABLE_PATH=/usr/bin/chromium \
-    BROWSER_ARGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --no-zygote --single-process --disable-gpu"
+    BROWSER_ARGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --no-zygote --disable-gpu"
 
 # Install a system Chromium so automation providers keep working
 RUN apt-get update && apt-get install -y --no-install-recommends \

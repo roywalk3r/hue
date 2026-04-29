@@ -156,10 +156,12 @@ function createFetchFunction(providerInfo) {
   return async function(ctx) {
     const mediaType = ctx.type === 'movie' ? 'movie' : 'tv';
     
+    // Providers whose stream URLs contain short-lived tokens — never read from cache
+    const NO_CACHE_PROVIDERS = ['livesport', 'aisports', 'streamed', 'livetv', 'ppv', 'autoembed', 'vixsrc', 'moviebox', 'huerust', 'sflix'];
     // Check cache first (skip for complex providers like livesport/livetv/ppv that rely on 'req')
-    if (providerInfo.name !== 'livesport' && providerInfo.name !== 'aisports' && providerInfo.name !== 'streamed' && providerInfo.name !== 'livetv' && providerInfo.name !== 'ppv') {
+    if (!NO_CACHE_PROVIDERS.includes(providerInfo.name)) {
         const cacheKeyType = `${providerInfo.name}:${mediaType}`;
-        const cached = getCachedStreams(cacheKeyType, ctx.tmdbId, ctx.season, ctx.episode);
+        const cached = await getCachedStreams(cacheKeyType, ctx.tmdbId, ctx.season, ctx.episode);
         if (cached) {
             console.log(`[registry] ${providerInfo.name} returned from cache`);
             return cached;
@@ -241,10 +243,10 @@ function createFetchFunction(providerInfo) {
           };
       });
       
-      // Cache success result (skip livesport/aisports/livetv/ppv)
-      if (providerInfo.realName !== 'livesport' && providerInfo.realName !== 'aisports' && providerInfo.realName !== 'livetv' && providerInfo.realName !== 'ppv' && finalResult.length > 0) {
+      // Cache success result (skip providers with short-lived tokens)
+      if (!NO_CACHE_PROVIDERS.includes(providerInfo.realName) && finalResult.length > 0) {
           const cacheKeyType = `${providerInfo.realName}:${mediaType}`;
-          setCachedStreams(cacheKeyType, ctx.tmdbId, ctx.season, ctx.episode, finalResult);
+          await setCachedStreams(cacheKeyType, ctx.tmdbId, ctx.season, ctx.episode, finalResult);
       }
 
       return finalResult;

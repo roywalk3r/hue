@@ -164,7 +164,7 @@ module.exports = function(metrics) {
 
             // Check cache first
             if (!noCache) {
-                const cached = getCachedStreams(type, tmdbId, season, episode);
+                const cached = await getCachedStreams(type, tmdbId, season, episode);
                 if (cached && cached.length > 0) {
                     let streams = applyFilters(cached, 'aggregate', config.minQualities, config.excludeCodecs);
                     if (config.enableProxy) {
@@ -214,7 +214,9 @@ module.exports = function(metrics) {
 
                         if (results.length > 0) {
                             recordSuccess(prov.realName);
-                            addCachedStreams(type, tmdbId, season, episode, results);
+                            const NO_CACHE_STREAM_PROVIDERS = ['Blaze', 'Aura', 'Cinema', 'Nova', 'Huerust'];
+                            const cacheableResults = results.filter(s => !NO_CACHE_STREAM_PROVIDERS.includes(s.provider));
+                            if (cacheableResults.length > 0) await addCachedStreams(type, tmdbId, season, episode, cacheableResults);
                             rawResults.push(...results);
 
                             // Huerust returns streams with per-provider names — emit one event per group
@@ -281,7 +283,7 @@ module.exports = function(metrics) {
             const imdbId = await resolveImdbId(tmdbType, tmdbId);
             if (imdbId && metrics) metrics.tmdbToImdbLookups++;
             
-            const cachedStreams = noCache ? null : getCachedStreams(type, tmdbId, season, episode);
+            const cachedStreams = noCache ? null : await getCachedStreams(type, tmdbId, season, episode);
             if (cachedStreams && cachedStreams.length > 0) {
                 let streams = applyFilters(cachedStreams, 'aggregate', config.minQualities, config.excludeCodecs);
                 if (config.enableProxy) {
@@ -336,14 +338,16 @@ module.exports = function(metrics) {
                         const t0 = Date.now();
                         const r = await Promise.race([
                             prov.fetch({ tmdbId, type, season, episode, imdbId, tmdbData, filters:{ } }),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('Provider timeout')), isFast ? 15000 : 60000))
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Provider timeout')), name === 'huerust' ? 40000 : (isFast ? 15000 : 60000)))
                         ]);
                         providerTimings[name] = Date.now()-t0;
                         const results = Array.isArray(r) ? r : [];
                         
                         if (results.length > 0) {
                             recordSuccess(prov.realName);
-                            addCachedStreams(type, tmdbId, season, episode, results);
+                            const NO_CACHE_STREAM_PROVIDERS = ['Blaze', 'Aura', 'Cinema', 'Nova', 'Huerust'];
+                            const cacheableResults = results.filter(s => !NO_CACHE_STREAM_PROVIDERS.includes(s.provider));
+                            if (cacheableResults.length > 0) await addCachedStreams(type, tmdbId, season, episode, cacheableResults);
                             streamsResults.push(...results);
                         } else {
                             // Empty results count as a failure for the circuit breaker
@@ -366,8 +370,8 @@ module.exports = function(metrics) {
             // 2. If we have results, return.
             // 3. Otherwise wait for the remaining providers up to the deadline.
             
-            const fastDeadline = new Promise(resolve => setTimeout(() => resolve('FAST_DEADLINE'), 5000));
-            const slowDeadline = new Promise(resolve => setTimeout(() => resolve('DEADLINE'), 15000));
+            const fastDeadline = new Promise(resolve => setTimeout(() => resolve('FAST_DEADLINE'), 10000));
+            const slowDeadline = new Promise(resolve => setTimeout(() => resolve('DEADLINE'), 35000));
             
             await Promise.race([ Promise.all(fastProviderPromises), fastDeadline ]);
             
@@ -376,8 +380,10 @@ module.exports = function(metrics) {
                 await Promise.race([ Promise.all([...fastProviderPromises, ...slowProviderPromises]), slowDeadline ]);
             }
 
-            const cachedAtEnd = getCachedStreams(type, tmdbId, season, episode);
-            const finalStreams = (cachedAtEnd && cachedAtEnd.length > 0) ? cachedAtEnd : streamsResults;
+            // Prefer live streamsResults (includes no-cache providers like Huerust/Cinema/Aura).
+            // Only fall back to cache if the live fetch returned nothing at all.
+            const cachedAtEnd = streamsResults.length === 0 ? await getCachedStreams(type, tmdbId, season, episode) : null;
+            const finalStreams = streamsResults.length > 0 ? streamsResults : (cachedAtEnd || []);
             const totalDuration = Date.now() - tStart;
 
             // Resolve coalesced waiters and clean up
@@ -400,7 +406,7 @@ module.exports = function(metrics) {
                 providerTimings, 
                 streams,
                 totalDurationMs: totalDuration,
-                status: Date.now() - tStart > 14000 ? "Partial" : "Complete"
+                status: Date.now() - tStart > 34000 ? "Partial" : "Complete"
             });
         } catch (e) {
             if (metrics) metrics.lastError = e.message;

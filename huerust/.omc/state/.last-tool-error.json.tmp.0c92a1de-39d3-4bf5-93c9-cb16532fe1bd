@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"pm2 logs hue-rust --lines 50 --no-colors\",\"description\":\"Check hue-rust logs\"}",
+  "error": "Exit code 1\n\n  error: unknown option `--no-colors'",
+  "timestamp": "2026-04-28T19:40:52.203Z",
+  "retry_count": 2
+}

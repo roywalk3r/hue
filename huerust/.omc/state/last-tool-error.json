@@ -1,7 +1,7 @@
 {
-  "tool_name": "Glob",
-  "tool_input_preview": "{\"pattern\":\"**/docker-compose.yml\",\"path\":\"/home/rseann/projects/Misc/hue\"}",
-  "error": "Ripgrep search timed out after 20 seconds. The search may have matched files but did not complete in time. Try searching a more specific path or pattern.",
-  "timestamp": "2026-04-27T18:12:06.834Z",
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cargo run --quiet -- --title \\\"Apex\\\" --year 2021 --type movie --no-hitv-builder\",\"description\":\"Search for Apex (2021) without waiting for HiTV library build\"}",
+  "error": "Exit code 101\nwarning: field `show_title` is never read\n  --> src/providers/mp4hydra.rs:28:5\n   |\n25 | struct HydraItem {\n   |        --------- field in this struct\n...\n28 |     show_title: Option<String>,\n   |     ^^^^^^^^^^\n   |\n   = note: `HydraItem` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis\n   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\nwarning: field `sflix_user_agent` is never read\n  --> src/user_config...",
+  "timestamp": "2026-04-29T12:26:35.333Z",
   "retry_count": 1
 }

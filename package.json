@@ -41,6 +41,7 @@
     "hono": "^4.11.1",
     "hono-rate-limiter": "^0.4.2",
     "https-proxy-agent": "^7.0.6",
+    "ioredis": "^5.10.1",
     "jsdom": "^26.1.0",
     "node-fetch": "^2.7.0",
     "p-limit": "^6.2.0",

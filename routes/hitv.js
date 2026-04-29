@@ -243,7 +243,7 @@ module.exports = function(metrics) {
         }
 
         try {
-            const cached = getCachedStreams('hitv', id, 1, episode);
+            const cached = await getCachedStreams('hitv', id, 1, episode);
             if (cached && cached.length > 0) {
                 let finalStreams = cached;
                 if (config.enableProxy) {
@@ -276,7 +276,7 @@ module.exports = function(metrics) {
             ]);
 
             let streams = [...kissStreams, ...sflixStreams, ...movieboxStreams];
-            if (streams.length > 0) addCachedStreams('hitv', id, 1, episode, streams);
+            if (streams.length > 0) await addCachedStreams('hitv', id, 1, episode, streams);
             if (config.enableProxy) {
                 const serverUrl = resolveServerUrl(req);
                 streams = processStreamsForProxy(streams, serverUrl);

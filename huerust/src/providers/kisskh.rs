@@ -111,9 +111,32 @@ impl KissKhClient {
         let results = self.search(title).await?;
         if results.is_empty() { return Ok(vec![]); }
 
-        let mut sorted = results;
-        sorted.sort_by_key(|i| i.title.len());
-        let best_match = &sorted[0];
+        let normalize = |s: &str| -> String {
+            s.to_lowercase().chars().filter(|c| c.is_alphanumeric()).collect()
+        };
+        let target = normalize(title);
+        let mut best_match = None;
+        let mut best_score = -1;
+
+        for item in results {
+            let item_norm = normalize(&item.title);
+            let mut score = 0;
+            if item_norm == target {
+                score = 1000;
+            } else if item_norm.contains(&target) || target.contains(&item_norm) {
+                score = 500 - (item_norm.len() as i32 - target.len() as i32).abs();
+            }
+
+            if score > best_score {
+                best_score = score;
+                best_match = Some(item);
+            }
+        }
+
+        let best_match = match best_match {
+            Some(m) if best_score > 0 => m,
+            _ => return Ok(vec![]),
+        };
 
         let ep_id = match self.get_episode_id(best_match.id, ep_num).await? {
             Some(id) => id,
@@ -144,6 +167,7 @@ impl KissKhClient {
                         format: "hls".to_string(),
                         subtitles: subs,
                         headers: Some(headers),
+                        extra_metadata: None,
                     });
                 }
                 Ok(results)
