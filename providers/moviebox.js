@@ -50,10 +50,10 @@ async function getStreams(tmdbId, type, season = 1, episode = 1, tmdbDataProvide
             const itemTitle = (item.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
             const searchTitle = title.toLowerCase().replace(/[^a-z0-9]/g, '');
             return itemTitle === searchTitle && item.subjectType === targetType;
-        }) || searchResults.items[0]; 
+        });
 
         if (!bestMatch) {
-            console.log(`[MovieBox Provider] No best match found for: "${title}"`);
+            console.log(`[MovieBox Provider] No exact title/type match for: "${title}"; refusing fuzzy fallback`);
             return [];
         }
 
@@ -145,9 +145,12 @@ async function getStreamsDirect(title, episode, season = 1) {
             const itemTitle = (item.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
             const searchTitle = title.toLowerCase().replace(/[^a-z0-9]/g, '');
             return itemTitle === searchTitle && item.subjectType === targetType;
-        }) || searchResults.items[0];
+        });
 
-        if (!bestMatch) return [];
+        if (!bestMatch) {
+            console.log(`[MovieBox Provider] No exact title/type match for direct title: "${title}"; refusing fuzzy fallback`);
+            return [];
+        }
 
         // 3. Fetch streams
         const se = type === 'movie' ? 0 : (parseInt(season) || 1);

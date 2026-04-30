@@ -9,9 +9,63 @@
 
 const { getNewPage } = require("../utils/browserManager");
 const crypto = require('crypto');
+const axios = require('axios');
 
 const DOMAIN = 'https://vidrock.net';
 const PASSPHRASE = 'x7k9mPqT2rWvY8zA5bC3nF6hJ2lK4mN9';
+
+/**
+ * Fetch subtitles from VidRock's subtitle API (sub.vdrk.site)
+ */
+async function fetchSubtitles(type, tmdbId, season, episode) {
+    try {
+        // Construct subtitle API URL based on media type - using the correct sub.vdrk.site endpoint
+        const subtitleUrl = type === 'tv'
+            ? `https://sub.vdrk.site/v2/tv/${tmdbId}/${season}/${episode}`
+            : `https://sub.vdrk.site/v2/movie/${tmdbId}`;
+
+        console.log(`[VidRock] Fetching subtitles from: ${subtitleUrl}`);
+
+        const response = await axios.get(subtitleUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': `${DOMAIN}/${type === 'tv' ? 'tv' : 'movie'}/${tmdbId}`,
+            },
+            timeout: 10000,
+        });
+
+        if (response.data && Array.isArray(response.data)) {
+            return response.data.map(sub => ({
+                url: sub.url || sub.file,
+                label: sub.label || sub.language || 'Subtitle',
+                lang: sub.lang || sub.language || 'en',
+            })).filter(s => s.url);
+        }
+
+        // Handle object response format
+        if (response.data && typeof response.data === 'object') {
+            const subtitles = [];
+            Object.keys(response.data).forEach(key => {
+                const sub = response.data[key];
+                if (sub && sub.url) {
+                    subtitles.push({
+                        url: sub.url,
+                        label: sub.label || sub.language || key,
+                        lang: sub.language || sub.lang || 'en',
+                    });
+                }
+            });
+            if (subtitles.length > 0) {
+                return subtitles;
+            }
+        }
+
+        return [];
+    } catch (e) {
+        console.log(`[VidRock] Subtitle fetch failed: ${e.message}`);
+        return [];
+    }
+}
 
 /**
  * Encrypt item ID using AES-CBC with fixed passphrase
@@ -97,6 +151,49 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         }
 
         const streams = [];
+        let subtitles = [];
+
+        console.log(`[VidRock] Starting subtitle extraction, responseBody keys: ${Object.keys(responseBody).join(', ')}`);
+        console.log(`[VidRock] responseBody.tracks: ${responseBody.tracks ? 'exists' : 'missing'}, responseBody.subtitles: ${responseBody.subtitles ? 'exists' : 'missing'}`);
+
+        // Extract subtitles if present in response
+        if (responseBody.tracks || responseBody.subtitles) {
+            const tracks = responseBody.tracks || responseBody.subtitles;
+            if (Array.isArray(tracks)) {
+                subtitles = tracks
+                    .filter(t => t.file && (t.kind === 'captions' || t.kind === 'subtitles'))
+                    .map(t => ({
+                        url: t.file,
+                        label: t.label || t.language || 'Subtitle',
+                        lang: t.language || 'en'
+                    }));
+                console.log(`[VidRock] Found ${subtitles.length} subtitle tracks in API response`);
+            } else {
+                console.log(`[VidRock] tracks/subtitles is not an array, type: ${typeof tracks}`);
+            }
+        } else {
+            console.log(`[VidRock] No tracks/subtitles in responseBody, will fetch from API`);
+        }
+
+        // If no subtitles in response, try fetching from subtitle API
+        console.log(`[VidRock] Current subtitles count: ${subtitles.length}`);
+        if (subtitles.length === 0) {
+            const subtitleType = mediaType === 'tv' || mediaType === 'series' ? 'tv' : 'movie';
+            console.log(`[VidRock] Fetching subtitles for ${subtitleType} ${tmdbId}, season=${season}, episode=${episode}`);
+            try {
+                subtitles = await fetchSubtitles(subtitleType, tmdbId, season, episode);
+                if (subtitles.length > 0) {
+                    console.log(`[VidRock] Found ${subtitles.length} subtitles from subtitle API`);
+                } else {
+                    console.log(`[VidRock] Subtitle API returned empty result`);
+                }
+            } catch (subErr) {
+                console.error(`[VidRock] Subtitle fetch failed:`, subErr.message);
+            }
+        } else {
+            console.log(`[VidRock] Skipping API fetch, already have ${subtitles.length} subtitles`);
+        }
+
         Object.values(responseBody).forEach(source => {
             if (source && source.url) {
                 // Filter out problematic/incorrect domains
@@ -111,12 +208,13 @@ async function getStreams(tmdbId, mediaType, season, episode) {
                     url: source.url,
                     quality: 'Auto',
                     provider: 'VidRock',
-                    format: isHls ? 'hls' : 'mp4', // Explicit format hint
+                    format: isHls ? 'hls' : 'mp4',
                     headers: {
                         'Referer': refererUrl,
                         'Origin': DOMAIN,
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                    }
+                    },
+                    subtitles: subtitles.length > 0 ? subtitles : undefined
                 });
             }
         });
@@ -131,4 +229,4 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     }
 }
 
-module.exports = { getStreams };
+module.exports = { getStreams, fetchSubtitles };

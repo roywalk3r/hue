@@ -47,28 +47,31 @@ pub async fn sse_streams_handler(
 ) -> Sse<ReceiverStream<Result<Event, Infallible>>> {
     let season = params.get("season").and_then(|s| s.parse::<u32>().ok()).unwrap_or(1);
     let episode = params.get("episode").and_then(|e| e.parse::<u32>().ok()).unwrap_or(1);
+    let no_cache = params.get("nocache").map(|v| v == "1").unwrap_or(false);
 
     let (tx, rx) = mpsc::channel::<Result<Event, Infallible>>(64);
 
     tokio::spawn(async move {
         let cache_key = CacheKey::new(&m_type, &tmdb_id, season, episode);
 
-        // Serve from cache immediately if available
-        if let Some(cached) = state.cache.get(&cache_key).await {
-            let filtered = apply_filters(cached, &state.filter_config);
-            let streams = if state.config.enable_proxy {
-                wrap_with_proxy(filtered, &state.proxy_base_url, &state.secret)
-            } else {
-                filtered
-            };
-            let count = streams.len();
-            let _ = tx.send(Ok(Event::default().event("cached").data(
-                json!({"streams": streams, "count": count, "cached": true}).to_string()
-            ))).await;
-            let _ = tx.send(Ok(Event::default().event("done").data(
-                json!({"total": count, "cached": true}).to_string()
-            ))).await;
-            return;
+        // Serve from cache immediately if available (only if nocache is not set)
+        if !no_cache {
+            if let Some(cached) = state.cache.get(&cache_key).await {
+                let filtered = apply_filters(cached, &state.filter_config);
+                let streams = if state.config.enable_proxy {
+                    wrap_with_proxy(filtered, &state.proxy_base_url, &state.secret)
+                } else {
+                    filtered
+                };
+                let count = streams.len();
+                let _ = tx.send(Ok(Event::default().event("cached").data(
+                    json!({"streams": streams, "count": count, "cached": true}).to_string()
+                ))).await;
+                let _ = tx.send(Ok(Event::default().event("done").data(
+                    json!({"total": count, "cached": true}).to_string()
+                ))).await;
+                return;
+            }
         }
 
         // Fetch TMDB info

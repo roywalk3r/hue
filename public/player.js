@@ -76,7 +76,8 @@
     proxyAvailable: true,
     retryCount: 0,
     maxRetries: 3,
-    watchdog: null
+    watchdog: null,
+    playbackSeq: 0
   };
 
   function init() {
@@ -189,6 +190,9 @@
     els.streamCount.textContent = `${cleaned.length} available`;
     els.streamList.innerHTML = '';
     if (!cleaned.length) {
+      state.playbackSeq++;
+      resetPlayback();
+      state.currentSource = null;
       els.streamList.innerHTML = '<p class="muted">No streams found.</p>';
       els.nowPlaying.textContent = 'Nothing loaded';
       els.pillRow.innerHTML = '';
@@ -253,15 +257,20 @@
   async function playStream(idx) {
     const stream = state.streams[idx];
     if (!stream) return;
+    const playId = ++state.playbackSeq;
+    state.retryCount = 0;
+    resetPlayback();
     markActive(idx);
     setStatus('Resolving stream...');
     try {
       const resolved = await resolveUrl(stream);
+      if (playId !== state.playbackSeq) return;
       if (!resolved || !resolved.url) throw new Error('No usable URL in stream.');
-      loadIntoVideo(resolved, stream);
+      loadIntoVideo(resolved, stream, playId);
       updateNowPlaying(stream, resolved.url);
       setStatus(`Playing ${stream.provider || 'source'} (${stream.quality || '?'})`);
     } catch (e) {
+      if (playId !== state.playbackSeq) return;
       setStatus(e.message, true);
     }
   }
@@ -335,6 +344,18 @@
     }
   }
 
+  function resetPlayback() {
+    destroyHls();
+    destroyDash();
+    if (state.watchdog) {
+      clearTimeout(state.watchdog);
+      state.watchdog = null;
+    }
+    els.video.pause();
+    els.video.removeAttribute('src');
+    els.video.load();
+  }
+
   function isHlsUrl(url) {
     if (!url) return false;
     const u = String(url).toLowerCase();
@@ -355,19 +376,19 @@
     return isDirectVideoUrl(url) || isHlsUrl(url) || (stream && stream.format === 'mp4');
   }
 
-  function loadIntoVideo(resolved, stream) {
+  function loadIntoVideo(resolved, stream, playId = state.playbackSeq) {
+    if (playId !== state.playbackSeq) return;
     const url = resolved.url;
     state.currentSource = {
       usedProxy: resolved.usedProxy,
       originalUrl: resolved.originalUrl || url,
       raw: resolved.raw || url,
       fallbackTried: resolved.usedProxy ? false : true,
-      stream
+      stream,
+      playId
     };
     
-    destroyHls();
-    destroyDash();
-    if (state.watchdog) clearTimeout(state.watchdog);
+    resetPlayback();
     
     const isHls = isHlsUrl(url);
     const isDash = isDashUrl(url);
@@ -381,18 +402,19 @@
 
     // Start watchdog for initial load
     state.watchdog = setTimeout(() => {
+      if (playId !== state.playbackSeq) return;
       console.warn('[Player] Watchdog triggered: stream took too long to start');
       handleStreamError('Watchdog', { message: `Stream load timeout (${Math.round(watchdogMs / 1000)}s)` }, stream);
     }, watchdogMs);
     
     if (isHls && window.Hls && window.Hls.isSupported()) {
-      loadHlsStream(url, stream);
+      loadHlsStream(url, stream, playId);
     } else if (isHls && els.video.canPlayType('application/vnd.apple.mpegurl')) {
       console.log('[Player] Using native HLS support');
       els.video.src = url;
       els.video.play().catch(e => console.error('[Player] Play failed:', e));
     } else if (isDash && window.dashjs && window.dashjs.MediaPlayer) {
-      loadDashStream(url, stream);
+      loadDashStream(url, stream, playId);
     } else if (isDirect || (!isHls && !isDash)) {
       console.log('[Player] Loading direct video URL');
       els.video.src = url;
@@ -566,7 +588,8 @@
 
   init();
   
-  function loadHlsStream(url, stream) {
+  function loadHlsStream(url, stream, playId) {
+    if (playId !== state.playbackSeq) return;
     console.log('[Player] Loading HLS stream with hls.js');
     state.hls = new Hls({
       lowLatencyMode: true,
@@ -587,6 +610,7 @@
     state.hls.attachMedia(els.video);
     
     state.hls.on(Hls.Events.ERROR, (_, data) => {
+      if (playId !== state.playbackSeq) return;
       console.error('[Player] HLS Error:', data);
       
       if (data?.fatal) {
@@ -595,12 +619,14 @@
     });
     
     state.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      if (playId !== state.playbackSeq) return;
       console.log('[Player] HLS manifest parsed, starting playback');
       els.video.play().catch(e => console.error('[Player] Play failed:', e));
     });
   }
   
-  function loadDashStream(url, stream) {
+  function loadDashStream(url, stream, playId) {
+    if (playId !== state.playbackSeq) return;
     console.log('[Player] Loading DASH stream with dash.js');
     state.dash = window.dashjs.MediaPlayer().create();
     
@@ -626,6 +652,7 @@
     state.dash.initialize(els.video, url, false);
     
     state.dash.on(window.dashjs.MediaPlayer.events.ERROR, (e) => {
+      if (playId !== state.playbackSeq) return;
       console.error('[Player] DASH Error:', e);
       if (e.error && e.error.fatal) {
         handleStreamError('DASH', e.error, stream);
@@ -636,19 +663,20 @@
   }
   
   function handleStreamError(type, error, stream) {
+    if (!state.currentSource || state.currentSource.playId !== state.playbackSeq) return;
     console.error(`[Player] ${type} fatal error:`, error);
+    const playId = state.currentSource.playId;
     
     if (state.retryCount < state.maxRetries) {
       state.retryCount++;
       setStatus(`Stream failed, retrying... (${state.retryCount}/${state.maxRetries})`);
       
       setTimeout(() => {
+        if (!state.currentSource || state.currentSource.playId !== playId || playId !== state.playbackSeq) return;
         if (state.currentSource && state.currentSource.usedProxy && !state.currentSource.fallbackTried) {
           state.currentSource.fallbackTried = true;
           setStatus('Proxy failed; retrying direct URL...');
-          destroyHls();
-          destroyDash();
-          els.video.src = '';
+          resetPlayback();
           // Use the raw URL (undecoded token) for direct retry
           const directUrl = state.currentSource.raw || state.currentSource.originalUrl;
           loadIntoVideo({ 
@@ -656,7 +684,7 @@
             usedProxy: false, 
             originalUrl: directUrl, 
             raw: state.currentSource.raw 
-          }, stream);
+          }, stream, playId);
         } else {
           console.log(`[Player] Retrying same URL (attempt ${state.retryCount})`);
           // Ensure we're not retrying with a double-proxied URL
@@ -669,7 +697,7 @@
             usedProxy: false, // Don't use proxy on retry
             originalUrl: finalUrl,
             raw: state.currentSource.raw
-          }, stream);
+          }, stream, playId);
         }
       }, 1000 * state.retryCount);
       
@@ -679,15 +707,13 @@
     if (state.currentSource && state.currentSource.usedProxy && !state.currentSource.fallbackTried) {
       state.currentSource.fallbackTried = true;
       setStatus('Proxy failed; trying direct URL...');
-      destroyHls();
-      destroyDash();
-      els.video.src = '';
+      resetPlayback();
       loadIntoVideo({ 
         url: state.currentSource.originalUrl, 
         usedProxy: false, 
         originalUrl: state.currentSource.originalUrl, 
         raw: state.currentSource.raw 
-      }, stream);
+      }, stream, playId);
     } else if (!state.currentSource.usedProxy && els.useProxy.checked && state.proxyAvailable) {
       setStatus('Direct URL failed; trying with proxy...');
       const proxyUrl = buildProxyUrl(state.currentSource.originalUrl, stream.headers || {});
@@ -696,7 +722,7 @@
         usedProxy: true, 
         originalUrl: state.currentSource.originalUrl, 
         raw: state.currentSource.raw 
-      }, stream);
+      }, stream, playId);
     } else {
       if (state.watchdog) {
         clearTimeout(state.watchdog);
@@ -707,7 +733,9 @@
       if (nextIdx < state.streams.length) {
         setStatus(`Stream failed; trying next source (${nextIdx + 1}/${state.streams.length})...`, true);
         state.retryCount = 0;
-        setTimeout(() => playStream(nextIdx), 2000);
+        setTimeout(() => {
+          if (playId === state.playbackSeq) playStream(nextIdx);
+        }, 2000);
       } else {
         setStatus(`All streams failed: ${error.message || error.details || 'Unknown error'}`, true);
       }
@@ -726,12 +754,16 @@
       setStatus('Network error. Retrying...', true);
       if (state.retryCount < state.maxRetries) {
         state.retryCount++;
-        setTimeout(() => loadIntoVideo({
-          url: state.currentSource.originalUrl || state.currentSource.url,
-          usedProxy: state.currentSource.usedProxy,
-          originalUrl: state.currentSource.originalUrl,
-          raw: state.currentSource.raw
-        }, state.currentSource.stream), 2000);
+        const playId = state.currentSource?.playId;
+        setTimeout(() => {
+          if (!state.currentSource || state.currentSource.playId !== playId || playId !== state.playbackSeq) return;
+          loadIntoVideo({
+            url: state.currentSource.originalUrl || state.currentSource.url,
+            usedProxy: state.currentSource.usedProxy,
+            originalUrl: state.currentSource.originalUrl,
+            raw: state.currentSource.raw
+          }, state.currentSource.stream, playId);
+        }, 2000);
       }
     }
   });

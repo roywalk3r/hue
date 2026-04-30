@@ -150,69 +150,68 @@ impl SflixClient {
         let year = _year;
 
         info!("[SFlix Rust] Searching for: \"{}\" ({}) S{} E{} (Year: {:?})", title, media_type, season, episode, year);
-        
+
+        // Trigger token refresh on first call
+        crate::moviebox::trigger_token_refresh(&self.client).await;
+
         let items = self.search(title, media_type).await?;
         if items.is_empty() { return Ok(vec![]); }
 
-        // Fuzzy Matching Scoring
         let normalize = |s: &str| -> String {
             s.to_lowercase().chars().filter(|c| c.is_alphanumeric()).collect()
         };
         let target = normalize(title);
         let mut best_match = None;
-        let mut best_score = -10000;
+        let target_subject_type = if media_type == "tv" { 2 } else { 1 };
 
         for item in items {
             let item_title = item["title"].as_str().unwrap_or_default();
             let item_release = item["releaseDate"].as_str().unwrap_or_default();
             let item_year = item_release.split('-').next().and_then(|y| y.parse::<u32>().ok());
+            let subject_type = item["subjectType"].as_u64().unwrap_or_default();
+            if subject_type != target_subject_type {
+                continue;
+            }
             
             // Clean title (remove S1, Season 1, (2024) etc)
             let re_season = regex::Regex::new(r"(?i)S\d+(-S\d+)?|Season \d+|\(\d{4}\)").unwrap();
             let clean_title = re_season.replace_all(item_title, "").trim().to_string();
             let norm_clean = normalize(&clean_title);
-            
-            let mut current_score = 0;
-            
-            // Year matching
+
+            if norm_clean != target {
+                continue;
+            }
+
             if let Some(y) = year {
-                if let Some(iy) = item_year {
-                    let diff = (y as i32 - iy as i32).abs();
-                    if diff == 0 { current_score += 500; }
-                    else if diff <= 1 { current_score += 200; }
-                    else { current_score -= 5000; }
-                } else {
-                    current_score -= 50;
+                if item_year != Some(y) {
+                    continue;
                 }
             }
 
-            // Title matching
-            if norm_clean == target {
-                current_score += 1000;
-            }
-
-            // Season matching for TV
-            if media_type == "tv" && season > 0 {
-                let season_str = format!("S{}", season);
-                let season_word = format!("Season {}", season);
-                if item_title.contains(&season_str) || item_title.contains(&season_word) {
-                    current_score += 100;
-                }
-            }
-
-            if current_score > best_score {
-                best_score = current_score;
-                best_match = Some(item);
-            }
+            best_match = Some(item);
+            break;
         }
 
         let best_match = match best_match {
-            Some(m) if best_score > 0 => m,
-            _ => return Ok(vec![]),
+            Some(m) => m,
+            _ => {
+                info!(
+                    "[SFlix Rust] No exact title/type/year match for \"{}\" ({:?}); refusing fuzzy fallback",
+                    title,
+                    year
+                );
+                return Ok(vec![]);
+            }
         };
 
         let slug = best_match["detailPath"].as_str().unwrap_or_default();
         let subject_id = best_match["subjectId"].as_str().unwrap_or_default();
+        info!(
+            "[SFlix Rust] Selected exact match title=\"{}\" subjectId={} releaseDate={}",
+            best_match["title"].as_str().unwrap_or_default(),
+            subject_id,
+            best_match["releaseDate"].as_str().unwrap_or_default()
+        );
 
         match self.get_streams(slug, subject_id, media_type, season, episode).await? {
             Some(data) => {

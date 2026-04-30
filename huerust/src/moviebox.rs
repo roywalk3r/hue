@@ -11,6 +11,26 @@ use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use tracing::{info, warn};
 use crate::models::{StreamResult, Subtitle};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
+
+static REFRESH_TRIGGERED: AtomicBool = AtomicBool::new(false);
+static NODE_API_URL: OnceLock<String> = OnceLock::new();
+
+fn get_node_api_url() -> &'static str {
+    NODE_API_URL.get_or_init(|| std::env::var("NODE_API_URL").unwrap_or_else(|_| "http://127.0.0.1:24608".to_string()))
+}
+
+pub async fn trigger_token_refresh(client: &Client) {
+    if REFRESH_TRIGGERED.load(Ordering::Relaxed) {
+        return;
+    }
+    REFRESH_TRIGGERED.store(true, Ordering::Relaxed);
+
+    let url = format!("{}/api/refresh-tokens", get_node_api_url());
+    info!("[MovieBox] Triggering token refresh via Node.js");
+    let _ = client.post(&url).timeout(std::time::Duration::from_secs(30)).send().await;
+}
 
 const BASE_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff";
 const DEFAULT_X_USER: &str = r#"{"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjc1NjEyMzU2Nzc1NjA4NTMyODAsImF0cCI6MywiZXh0IjoiMTc3MTE0NDQ4MiIsImV4cCI6MTc3ODkyMDQ4MiwiaWF0IjoxNzcxMTQxNDk1fQ.BF7r1K_npeKWjkjuIxqZMTvUDxJ8oBjvSBc3glWcqtU","userId":"7561235677560853280","userType":0,"appType":2}"#;
@@ -53,6 +73,11 @@ pub struct MovieBoxStream {
 pub struct MovieBoxClient {
     client: Client,
     host: String,
+}
+
+struct MovieBoxStreamData {
+    data: StreamData,
+    headers: HashMap<String, String>,
 }
 
 impl MovieBoxClient {
@@ -146,7 +171,7 @@ impl MovieBoxClient {
         })
     }
 
-    pub async fn get_streams(&self, subject_id: &str, detail_path: &str, season: u32, episode: u32) -> Result<Option<StreamData>> {
+    async fn get_streams(&self, subject_id: &str, detail_path: &str, season: u32, episode: u32) -> Result<Option<MovieBoxStreamData>> {
         let is_movie = season == 0 && episode == 0;
         let type_label = if is_movie { "movie" } else { "series" };
 
@@ -185,7 +210,16 @@ impl MovieBoxClient {
 
                         let data: serde_json::Value = serde_json::from_str(&text)?;
                         if data["code"] == 0 {
-                            return Ok(serde_json::from_value(data["data"].clone()).ok());
+                            if let Ok(data) = serde_json::from_value(data["data"].clone()) {
+                                let mut stream_headers = HashMap::new();
+                                stream_headers.insert("Origin".to_string(), format!("https://{}", host));
+                                stream_headers.insert("Referer".to_string(), referer);
+                                stream_headers.insert("x-user".to_string(), crate::user_config::HueUserConfig::get_live().moviebox_x_user_or_env(DEFAULT_X_USER));
+                                return Ok(Some(MovieBoxStreamData {
+                                    data,
+                                    headers: stream_headers,
+                                }));
+                            }
                         }
 
                         if data["message"] == "invalid region" {
@@ -230,6 +264,9 @@ impl MovieBoxClient {
     pub async fn get_streams_normalized(&self, title: &str, media_type: &str, year: Option<u32>, season: u32, episode: u32) -> Result<Vec<StreamResult>> {
         info!("[MovieBox Rust] Searching for: \"{}\" ({:?}) S{} E{}", title, year, season, episode);
 
+        // Trigger token refresh on first call (Node.js tokenWorker handles periodic refresh)
+        trigger_token_refresh(&self.client).await;
+
         let subject_type = if media_type == "movie" { 1 } else { 2 };
         let items = self.search(title, 1, subject_type).await?;
         if items.is_empty() {
@@ -254,13 +291,17 @@ impl MovieBoxClient {
                 let type_match = item.subject_type == target_type;
                 item_title == normalized_title && type_match
             })
-        }).or_else(|| {
-            items.first()
         });
 
         let best_match = match best_match {
             Some(m) => m,
-            None => return Ok(vec![]),
+            None => {
+                info!(
+                    "[MovieBox Rust] No exact title/type match for \"{}\"; refusing fuzzy fallback",
+                    title
+                );
+                return Ok(vec![]);
+            },
         };
 
         info!(
@@ -273,12 +314,10 @@ impl MovieBoxClient {
         let detail_path = best_match.detail_path.clone().unwrap_or_default();
 
         match self.get_streams(&best_match.id, &detail_path, se, ep).await? {
-            Some(data) => {
+            Some(stream_data) => {
+                let data = stream_data.data;
                 let mut results = Vec::new();
-                let mut mb_headers = HashMap::new();
-                mb_headers.insert("Origin".to_string(), format!("https://{}", self.host));
-                mb_headers.insert("x-user".to_string(), crate::user_config::HueUserConfig::get_live().moviebox_x_user_or_env(DEFAULT_X_USER));
-                mb_headers.insert("Referer".to_string(), format!("https://{}/", self.host));
+                let mb_headers = stream_data.headers;
 
                 // Fetch captions using the first available stream id
                 let first_stream_id = data.streams.as_ref()

@@ -87,6 +87,9 @@ async function fetchWithRetry(url, options = {}, maxRetries = MAX_RETRIES) {
 const CACHE_MAX_SIZE = 5000; // Increased for 16GB RAM
 const CACHE_EXPIRY_MS = 4 * 60 * 60 * 1000; // 4 hours TTL
 const segmentCache = new Map();
+const segmentPrefetchInflight = new Map();
+const segmentNeighborMap = new Map();
+const ROLLING_PREFETCH_COUNT = Number(process.env.ROLLING_SEGMENT_PREFETCH_COUNT) || 4;
 // Track first open-ended (bytes=0-) range per target to clamp only once per TTL window
 const openRangeClampMap = new Map();
 const OPEN_RANGE_CLAMP_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -143,14 +146,52 @@ async function prefetchSegment(url, headers) {
     if (isCacheDisabled() || segmentCache.size >= CACHE_MAX_SIZE) return;
     const existing = segmentCache.get(url);
     if (existing && Date.now() - existing.timestamp <= CACHE_EXPIRY_MS) return;
-    try {
+
+    const inflight = segmentPrefetchInflight.get(url);
+    if (inflight) return inflight;
+
+    const task = (async () => {
         const resp = await fetchWithRetry(url, { headers: { 'User-Agent': DEFAULT_UA, ...headers } });
         if (!resp.ok) return;
         const data = new Uint8Array(await resp.arrayBuffer());
         const responseHeaders = {};
         resp.headers.forEach((v, k) => responseHeaders[k] = v);
         segmentCache.set(url, { data, headers: responseHeaders, timestamp: Date.now() });
-    } catch (_e) { /* ignore */ }
+    })()
+        .catch(() => undefined)
+        .finally(() => segmentPrefetchInflight.delete(url));
+
+    segmentPrefetchInflight.set(url, task);
+    return task;
+}
+
+function rememberSegmentOrder(segmentUrls) {
+    if (!Array.isArray(segmentUrls) || segmentUrls.length === 0) return;
+    for (let i = 0; i < segmentUrls.length; i++) {
+        const next = segmentUrls.slice(i + 1, i + 1 + ROLLING_PREFETCH_COUNT);
+        if (next.length) segmentNeighborMap.set(segmentUrls[i], next);
+    }
+}
+
+function prefetchNextSegments(currentUrl, headers) {
+    if (isCacheDisabled()) return;
+    const nextUrls = segmentNeighborMap.get(currentUrl);
+    if (!nextUrls?.length) return;
+    nextUrls.forEach(url => {
+        if (!segmentCache.has(url)) {
+            prefetchSegment(url, headers).catch(() => {});
+        }
+    });
+}
+
+async function waitForInflightSegment(url) {
+    const inflight = segmentPrefetchInflight.get(url);
+    if (!inflight) return null;
+    await Promise.race([
+        inflight,
+        new Promise(resolve => setTimeout(resolve, 5000))
+    ]);
+    return getCachedSegment(url);
 }
 
 const DEFAULT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -855,11 +896,13 @@ function rewriteM3u8(content, targetUrl, baseProxyUrl, headers, options = {}) {
         }
     }
 
-    // --- RAM TURBO: PREFETCH NEXT 5 SEGMENTS ---
+    rememberSegmentOrder(segmentUrls);
+
+    // --- RAM TURBO: PREFETCH INITIAL SEGMENTS ---
     if (segmentUrls.length > 0 && !isCacheDisabled()) {
         (async () => {
-            // We prefetch the first 5 segments of any playlist to make the initial load instant
-            const toPrefetch = segmentUrls.slice(0, 5);
+            // Warm the first few segments, then ts-proxy keeps warming the rolling window during playback.
+            const toPrefetch = segmentUrls.slice(0, Math.max(5, ROLLING_PREFETCH_COUNT + 1));
             for (const url of toPrefetch) {
                 if (!segmentCache.has(url)) {
                     prefetchSegment(url, headers).catch(() => {});
@@ -1123,8 +1166,12 @@ function createProxyRoutes(app) {
         }
         if (debug) console.log('[ts-proxy] incoming', { url: targetUrl, range, effectiveRange, appliedClamp, clampOpen, progressiveOpen, openChunkKB, noSynth, initChunkKB, force200, tailPrefetchEnabled, tailPrefetchKB });
         if (!isCacheDisabled()) {
-            const cached = getCachedSegment(targetUrl);
+            let cached = getCachedSegment(targetUrl);
+            if (!cached && !effectiveRange) {
+                cached = await waitForInflightSegment(targetUrl);
+            }
             if (cached) {
+                prefetchNextSegments(targetUrl, headers);
                 const ct = forceType || inferContentType(cached.headers['content-type'], targetUrl);
                 res.setHeader('Content-Type', ct);
                 res.setHeader('Cache-Control', 'public, max-age=3600');
@@ -1330,6 +1377,9 @@ function createProxyRoutes(app) {
             res.setHeader('Cache-Control', 'public, max-age=3600');
             res.setHeader('Access-Control-Allow-Origin', '*');
             if (debug) console.log('[ts-proxy] streaming body', { status: resp.status, ct: upstreamCT, cl, contentRange: force200 ? undefined : contentRange });
+            if (!effectiveRange && !isDownload) {
+                prefetchNextSegments(targetUrl, headers);
+            }
             
             // Add a timeout to the body stream to prevent hanging
             const streamTimeout = setTimeout(() => {

@@ -13,6 +13,7 @@ const { config, saveConfigPatch, OVERRIDE_PATH, CONFIG_SCHEMA_VERSION } = requir
 const { clearCache } = require('../utils/cache');
 const { getCookieStats, listProviders } = require('../providers/registry');
 const { updatePassword } = require('../utils/auth');
+const { runRefresh } = require('../services/tokenWorker');
 
 module.exports = function(metrics) {
     router.get('/config', (req, res) => {
@@ -69,6 +70,15 @@ module.exports = function(metrics) {
             nodeVersion: process.version,
             cookieStats
         });
+    });
+
+    router.post('/refresh-tokens', async (req, res) => {
+        try {
+            await runRefresh();
+            res.json({ success: true, message: 'Token refresh completed' });
+        } catch (e) {
+            res.status(500).json({ success: false, error: e.message });
+        }
     });
 
     router.post('/auth/password', async (req, res) => {

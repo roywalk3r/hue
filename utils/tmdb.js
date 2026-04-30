@@ -8,8 +8,25 @@
  */
 
 const axios = require('axios');
+const https = require('https');
 const { config } = require('./config');
 const { getTmdbApiKey } = require('./tmdbKey');
+
+// Connection pooling for TMDB API
+const tmdbAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 50,
+  maxFreeSockets: 20,
+  timeout: 10000,
+  scheduling: 'lifo'
+});
+
+const tmdbAxios = axios.create({
+  httpsAgent: tmdbAgent,
+  timeout: 15000,
+  maxRedirects: 5,
+  httpAgent: tmdbAgent
+});
 
 const cache = {
   imdbByTmdb: new Map(),
@@ -26,9 +43,8 @@ async function tmdbFetch(endpoint, params = {}) {
   if (!apiKey) throw new Error('TMDB_API_KEY missing');
 
   const url = `https://api.themoviedb.org/3${endpoint}`;
-  const response = await axios.get(url, {
-    params: { ...params, api_key: apiKey },
-    timeout: 15000
+  const response = await tmdbAxios.get(url, {
+    params: { ...params, api_key: apiKey }
   });
   return response.data;
 }

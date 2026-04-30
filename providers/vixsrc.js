@@ -130,34 +130,56 @@ function extractStreamFromPage(url, contentType, contentId, seasonNum, episodeNu
         });
 }
 
-// Helper function to get subtitles
-function getSubtitles(subtitleApiUrl) {
+// Helper function to get subtitles from sub.vdrk.site (fallback)
+function getSubtitlesFromVdrk(contentId, mediaType, season, episode) {
+    const url = mediaType === 'tv'
+        ? `https://sub.vdrk.site/v2/tv/${contentId}/${season}/${episode}`
+        : `https://sub.vdrk.site/v2/movie/${contentId}`;
+
+    return makeRequest(url)
+        .then(response => response.json())
+        .then(data => {
+            if (Array.isArray(data) && data.length > 0) {
+                // Return all subtitles formatted for the player
+                return data.map(sub => ({
+                    url: sub.url || sub.file,
+                    label: sub.label || sub.language || 'Subtitle',
+                    lang: sub.lang || sub.language || 'en'
+                })).filter(s => s.url);
+            }
+            return [];
+        })
+        .catch(() => []);
+}
+
+// Helper function to get subtitles from old API (primary)
+function getSubtitlesFromWyzie(subtitleApiUrl) {
     return makeRequest(subtitleApiUrl)
         .then(response => response.json())
         .then(subtitleData => {
             // Find English subtitle track (same logic as original)
             let subtitleTrack = subtitleData.find(track =>
-                track.display.includes('English') && (track.encoding === 'ASCII' || track.encoding === 'UTF-8')
+                track.display && track.display.includes('English') && (track.encoding === 'ASCII' || track.encoding === 'UTF-8')
             );
 
             if (!subtitleTrack) {
-                subtitleTrack = subtitleData.find(track => track.display.includes('English') && track.encoding === 'CP1252');
+                subtitleTrack = subtitleData.find(track => track.display && track.display.includes('English') && track.encoding === 'CP1252');
             }
 
             if (!subtitleTrack) {
-                subtitleTrack = subtitleData.find(track => track.display.includes('English') && track.encoding === 'CP1250');
+                subtitleTrack = subtitleData.find(track => track.display && track.display.includes('English') && track.encoding === 'CP1250');
             }
 
             if (!subtitleTrack) {
-                subtitleTrack = subtitleData.find(track => track.display.includes('English') && track.encoding === 'CP850');
+                subtitleTrack = subtitleData.find(track => track.display && track.display.includes('English') && track.encoding === 'CP850');
             }
 
-            const subtitles = subtitleTrack ? subtitleTrack.url : '';
-            console.log(subtitles ? `[Vixsrc] Found subtitles: ${subtitles}` : '[Vixsrc] No English subtitles found');
-            return subtitles;
+            const subtitleUrl = subtitleTrack ? subtitleTrack.url : '';
+            console.log(subtitleUrl ? `[Vixsrc] Found subtitles: ${subtitleUrl}` : '[Vixsrc] No English subtitles found');
+            return subtitleUrl;
         })
         .catch(error => {
-            console.log('[Vixsrc] Subtitle fetch failed:', error.message);
+            console.log('[Vixsrc] Wyzie API failed:', error.message);
             return '';
         });
 }
@@ -178,9 +200,20 @@ function getVixsrcStreams(tmdbId, mediaType = 'movie', seasonNum = null, episode
             // Return single master playlist with Auto quality
             console.log('[Vixsrc] Returning master playlist with Auto quality...');
 
-            // Get subtitles
-            return getSubtitles(subtitleApiUrl)
-                .then(subtitles => {
+            // Get subtitles - try Wyzie API first, then fallback to sub.vdrk.site
+            return getSubtitlesFromWyzie(subtitleApiUrl)
+                .then(wyzieSubtitleUrl => {
+                    if (wyzieSubtitleUrl) {
+                        return [{
+                            url: wyzieSubtitleUrl,
+                            label: 'English',
+                            lang: 'en'
+                        }];
+                    }
+                    // Fallback to sub.vdrk.site
+                    return getSubtitlesFromVdrk(tmdbId, mediaType, seasonNum, episodeNum);
+                })
+                .then(subtitleTracks => {
                     // Return single stream with master playlist
                     const tmdbStreams = [{
                         name: "Vixsrc",
@@ -192,10 +225,11 @@ function getVixsrcStreams(tmdbId, mediaType = 'movie', seasonNum = null, episode
                             'Referer': vixsrcUrl,
                             'Origin': 'https://vixsrc.to',
                             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-                        }
+                        },
+                        subtitles: subtitleTracks
                     }];
 
-                    console.log('[Vixsrc] Successfully processed 1 stream with Auto quality');
+                    console.log(`[Vixsrc] Successfully processed 1 stream with Auto quality${subtitleTracks.length > 0 ? ` and ${subtitleTracks.length} subtitle(s)` : ''}`);
                     return tmdbStreams;
                 });
         })

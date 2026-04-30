@@ -10,6 +10,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const path = require('path');
 const os = require('os');
 const { config, saveConfigPatch, OVERRIDE_PATH } = require('./utils/config');
@@ -53,6 +54,16 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(express.json());
+
+// --- Compression (Brotli preferred, gzip fallback) ---
+app.use(compression({
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) return false;
+    return compression.filter(req, res);
+  },
+  level: 6,
+  chunkSize: 16 * 1024,
+}));
 
 // --- Metrics & Logger ---
 const metrics = {

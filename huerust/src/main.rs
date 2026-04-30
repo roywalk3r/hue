@@ -35,7 +35,7 @@ use axum::{
 use reqwest::Client;
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
-use tracing::info;
+use tracing::{info, warn};
 use axum::body::Body;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -234,6 +234,7 @@ async fn main() {
         .route("/api/streams/:type/:tmdbId/live", get(routes::sse::sse_streams_handler))
         .route("/api/providers", get(routes::providers::providers_handler))
         .route("/api/admin/reload", axum::routing::post(admin_reload_handler))
+        .route("/api/admin/refresh-tokens", axum::routing::post(admin_refresh_tokens_handler))
         .route("/api/play/:type/:tmdbId", get(routes::play::play_handler))
         .route("/api/drama/kisskh/search", get(routes::drama::kisskh_search_handler))
         .route("/api/drama/kisskh/streams/:id/:episode", get(routes::drama::kisskh_streams_handler))
@@ -289,6 +290,11 @@ async fn shutdown_signal() {
 async fn health_check() -> &'static str { "Huerust is Alive" }
 
 async fn auth_middleware(State(_state): State<AppState>, req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
+    let path = req.uri().path();
+    // Proxy routes are self-authenticated via encrypted h_token — skip API key check
+    if path == "/ts-proxy" || path == "/m3u8-proxy" || path == "/sub-proxy" {
+        return Ok(next.run(req).await);
+    }
     let is_local = req.extensions().get::<SocketAddr>().map_or(false, |a| a.ip().is_loopback());
     if is_local { return Ok(next.run(req).await); }
     if let Ok(api_key) = env::var("API_KEY") {
@@ -328,6 +334,26 @@ async fn hitv_library_handler(State(state): State<AppState>) -> Response {
 async fn admin_reload_handler() -> Response {
     crate::user_config::HueUserConfig::invalidate();
     (StatusCode::OK, "{\"ok\":true,\"message\":\"Config cache invalidated — next request reloads from disk\"}").into_response()
+}
+
+async fn admin_refresh_tokens_handler(State(state): State<AppState>) -> Response {
+    let node_api_url = std::env::var("NODE_API_URL")
+        .unwrap_or_else(|_| "http://127.0.0.1:3003".to_string());
+    let url = format!("{}/system/refresh-tokens", node_api_url);
+
+    match state.client.post(&url).send().await {
+        Ok(resp) => {
+            crate::user_config::HueUserConfig::invalidate();
+            let status = if resp.status().is_success() { StatusCode::OK } else { StatusCode::BAD_GATEWAY };
+            let body = resp.text().await.unwrap_or_default();
+            info!("[admin] Token refresh response: status={}, body={}", status, body);
+            (status, format!("{{\"ok\":true,\"message\":\"Token refresh triggered\",\"node_response\":{}}}", body)).into_response()
+        }
+        Err(e) => {
+            warn!("[admin] refresh-tokens call to Node.js failed: {}", e);
+            (StatusCode::BAD_GATEWAY, format!("{{\"ok\":false,\"error\":\"Node.js unreachable: {}\"}}", e)).into_response()
+        }
+    }
 }
 
 // --- Handlers moved to src/routes/ ---

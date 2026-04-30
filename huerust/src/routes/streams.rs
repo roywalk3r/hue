@@ -113,7 +113,7 @@ pub async fn streams_handler(
         }
     };
 
-    // 3. Coalesce concurrent requests for the same content
+    // 3. Coalesce concurrent requests for the same content (skip if no_cache)
     let cache = state.cache.clone();
     let filter_config = state.filter_config.clone();
     let registry = state.registry.clone();
@@ -123,7 +123,48 @@ pub async fn streams_handler(
     let slow_deadline = state.config.slow_deadline();
     let metrics = state.metrics.clone();
 
-    let coalesced = state.coalescer.execute(&cache_key,
+    let coalesced = if no_cache {
+        // Bypass coalescer and cache - fetch fresh
+        let start = std::time::Instant::now();
+        let mut all_streams = Vec::new();
+
+        let (fast_streams, _) = crate::routes::streams::fetch_from_providers(
+            registry.clone(),
+            metrics.clone(),
+            &tmdb_info_c,
+            &m_type_c,
+            season,
+            episode,
+            true,
+            999,
+            fast_deadline,
+        ).await;
+        all_streams.extend(fast_streams);
+
+        let (slow_streams, _) = crate::routes::streams::fetch_from_providers(
+            registry.clone(),
+            metrics.clone(),
+            &tmdb_info_c,
+            &m_type_c,
+            season,
+            episode,
+            false,
+            999,
+            slow_deadline,
+        ).await;
+        all_streams.extend(slow_streams);
+
+        let mut seen_urls = std::collections::HashSet::new();
+        let mut unique = Vec::new();
+        for s in all_streams {
+            if seen_urls.insert(s.url.clone()) { unique.push(s); }
+        }
+
+        let filtered = apply_filters(unique, &filter_config);
+        info!("[api] No-cache fresh fetch: {} streams in {:?}", filtered.len(), start.elapsed());
+        Some(filtered)
+    } else {
+        state.coalescer.execute(&cache_key,
         &cache,
         || async move {
             let start = std::time::Instant::now();
@@ -165,8 +206,8 @@ pub async fn streams_handler(
             let filtered = apply_filters(unique, &filter_config);
             info!("[api] Coalesced fetch: {} streams in {:?}", filtered.len(), start.elapsed());
             filtered
-        }
-    ).await;
+        }).await
+    };
 
     let filtered = match coalesced {
         Some(v) => v,

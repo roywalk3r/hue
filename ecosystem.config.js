@@ -29,6 +29,7 @@ module.exports = {
     {
       name: 'hue-rust',
       script: './huerust/target/release/huerust',
+      cwd: __dirname,
       autorestart: true,
       max_restarts: 5,
       min_uptime: '10s',

@@ -91,10 +91,10 @@ fn inject_cdn_headers(mut req: reqwest::RequestBuilder, target_url: &str, token_
         Err(_) => return req,
     };
 
-    tracing::info!("[inject_cdn_headers] Host: {}, has_referer: {}", host, token_headers.as_ref().map(|h| h.contains_key("Referer")).unwrap_or(false));
+    tracing::info!("[inject_cdn_headers] Host: {}, has_referer: {}", host, has_header(token_headers, "referer"));
 
     // Only inject host-based Referer/Origin if the token doesn't already have them
-    let has_referer = token_headers.as_ref().map(|h| h.contains_key("Referer")).unwrap_or(false);
+    let has_referer = has_header(token_headers, "referer");
 
     if !has_referer {
         let referer = if host.contains("vixsrc.to") {
@@ -123,7 +123,7 @@ fn inject_cdn_headers(mut req: reqwest::RequestBuilder, target_url: &str, token_
         // We have a Referer from token, but maybe no Origin. Match its logic.
         if let Some(h) = token_headers {
             tracing::info!("[inject_cdn_headers] Has Referer, checking for Origin. Keys: {:?}", h.keys().collect::<Vec<_>>());
-            if !h.contains_key("Origin") && !h.contains_key("origin") {
+            if !has_header(token_headers, "origin") {
                 if let Some(r) = h.get("Referer").or_else(|| h.get("referer")) {
                     if let Ok(origin_url) = Url::parse(r) {
                         let mut origin = origin_url.origin().unicode_serialization();
@@ -140,16 +140,23 @@ fn inject_cdn_headers(mut req: reqwest::RequestBuilder, target_url: &str, token_
         }
     }
 
-    let has_ua = token_headers.as_ref().map(|h| h.contains_key("User-Agent")).unwrap_or(false);
+    let has_ua = has_header(token_headers, "user-agent");
     if !has_ua {
         req = req.header(
             "User-Agent",
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         );
     }
 
     req.header("Accept", "*/*")
         .header("Sec-Fetch-User", "?1")
+}
+
+fn has_header(headers: &Option<HashMap<String, String>>, name: &str) -> bool {
+    headers
+        .as_ref()
+        .map(|h| h.keys().any(|k| k.eq_ignore_ascii_case(name)))
+        .unwrap_or(false)
 }
 
 /// Build &headers= JSON query fragment for url mode
@@ -471,7 +478,9 @@ pub async fn sub_handler(
     match req.send().await {
         Ok(resp) => {
             let body = resp.text().await.unwrap_or_default();
-            let final_body = if target_url.to_lowercase().contains(".srt")
+            let final_body = if body.trim_start().starts_with("WEBVTT") {
+                normalize_vtt_timestamps(&body)
+            } else if target_url.to_lowercase().contains(".srt")
                 || body.trim().starts_with("1")
                 || body.contains(" --> ")
             {
@@ -652,7 +661,20 @@ fn convert_srt_to_vtt(srt: &str) -> String {
         }
     }
 
-    out
+    normalize_vtt_timestamps(&out)
+}
+
+fn normalize_vtt_timestamps(vtt: &str) -> String {
+    vtt.lines()
+        .map(|line| {
+            if line.contains("-->") {
+                line.replace(',', ".")
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn parse_srt_timing(line: &str) -> Option<(String, String)> {
@@ -699,6 +721,13 @@ Second cue"#;
         assert!(vtt.starts_with("WEBVTT\n\n"));
         assert!(vtt.contains("1\n00:00:01.500 --> 00:00:04.000\nHello world\n"));
         assert!(vtt.contains("2\n00:00:05.000 --> 00:00:07.000\nSecond cue\n"));
+    }
+
+    #[test]
+    fn test_normalize_vtt_timestamps() {
+        let vtt = "WEBVTT\n\n1\n00:00:01,500 --> 00:00:04,000\nHello\n";
+        let normalized = normalize_vtt_timestamps(vtt);
+        assert!(normalized.contains("00:00:01.500 --> 00:00:04.000"));
     }
 
     #[test]

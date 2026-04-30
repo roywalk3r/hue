@@ -48,4 +48,4 @@ function startTokenWorker() {
     setInterval(runRefresh, REFRESH_INTERVAL);
 }
 
-module.exports = { startTokenWorker };
+module.exports = { startTokenWorker, runRefresh };

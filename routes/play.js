@@ -138,9 +138,10 @@ module.exports = function(metrics) {
                     });
 
                     if (response.ok) {
+                        console.log(`[SmartPlay] Stream from ${s.provider} has ${s.subtitles?.length || 0} subtitles before proxy`);
                         const proxied = processStreamsForProxy([s], serverUrl);
                         finalStream = proxied[0];
-                        console.log(`[SmartPlay] Validated stream from ${s.provider}`);
+                        console.log(`[SmartPlay] Validated stream from ${s.provider}, ${finalStream.subtitles?.length || 0} subtitles after proxy`);
                         break;
                     }
                 } catch (e) {

@@ -17,12 +17,17 @@ const { listProviders, getProvider } = require('../providers/registry');
 const { applyFilters } = require('../utils/streamFilters');
 const { getDetails, resolveImdbId } = require('../utils/tmdb');
 const { getAnimeStream, getServers: getAnimeServers } = require('../services/hianime');
+const { limitConcurrency, coalescedFetch } = require('../utils/concurrency');
+const { fetchSubtitles } = require('../utils/subtitles');
 const logger = require('../utils/logger');
 
-// In-flight request coalescing: same key → same Promise
-const pendingFetches = new Map();
+// Max concurrent provider fetches (prevents resource exhaustion)
+const MAX_CONCURRENT_PROVIDERS = 8;
 
 module.exports = function(metrics) {
+    // Coalesce duplicate in-flight requests for the same content
+    const pendingFetches = new Map();
+
     // Shared Anime Proxy Payload Helper (if not in a common util)
     function proxyAnimeSuccessPayload(req, data) {
         if (!config.enableProxy || !data.stream || !data.stream.sources) return data;
@@ -315,15 +320,16 @@ module.exports = function(metrics) {
             const pendingPromise = new Promise(r => { resolvePending = r; });
             if (!noCache) pendingFetches.set(fetchKey, pendingPromise);
 
-            const fastProviderPromises = [];
-            const slowProviderPromises = [];
-
             const { isProviderHealthy, recordSuccess, recordFailure } = require('../utils/providerCircuitBreaker');
+
+            // Build provider list with metadata for concurrency-limited fetching
+            const fastProviders = [];
+            const slowProviders = [];
 
             selectedProviders.forEach(name => {
                 const prov = getProvider(name);
                 if (!prov || !prov.enabled) return;
-                
+
                 // Skip providers that are currently "tripped" (repeatedly failing)
                 if (!isProviderHealthy(prov.realName)) {
                     logger.info(`[api] Skipping unhealthy provider: ${name}`);
@@ -333,7 +339,7 @@ module.exports = function(metrics) {
                 const isFast = prov.isFast;
                 if (metrics) metrics.providerCalls[name] = (metrics.providerCalls[name]||0)+1;
 
-                const promise = (async () => {
+                const fetchFn = async () => {
                     try {
                         const t0 = Date.now();
                         const r = await Promise.race([
@@ -342,7 +348,7 @@ module.exports = function(metrics) {
                         ]);
                         providerTimings[name] = Date.now()-t0;
                         const results = Array.isArray(r) ? r : [];
-                        
+
                         if (results.length > 0) {
                             recordSuccess(prov.realName);
                             const NO_CACHE_STREAM_PROVIDERS = ['Blaze', 'Aura', 'Cinema', 'Nova', 'Huerust'];
@@ -359,25 +365,30 @@ module.exports = function(metrics) {
                         recordFailure(prov.realName);
                         return [];
                     }
-                })();
+                };
 
-                if (isFast) fastProviderPromises.push(promise);
-                else slowProviderPromises.push(promise);
+                if (isFast) fastProviders.push({ name, fetchFn });
+                else slowProviders.push({ name, fetchFn });
             });
 
-            // Strategy: 
-            // 1. Wait for all FAST providers (max 5s)
+            // Strategy:
+            // 1. Wait for all FAST providers (max 10s) with limited concurrency to prevent resource exhaustion
             // 2. If we have results, return.
             // 3. Otherwise wait for the remaining providers up to the deadline.
-            
+
             const fastDeadline = new Promise(resolve => setTimeout(() => resolve('FAST_DEADLINE'), 10000));
             const slowDeadline = new Promise(resolve => setTimeout(() => resolve('DEADLINE'), 35000));
-            
-            await Promise.race([ Promise.all(fastProviderPromises), fastDeadline ]);
-            
+
+            // Fetch fast providers with concurrency limit
+            await limitConcurrency(fastProviders, MAX_CONCURRENT_PROVIDERS, async ({ name, fetchFn }) => {
+                await fetchFn();
+            });
+
             if (streamsResults.length === 0) {
-                // If no fast results, wait longer for any results
-                await Promise.race([ Promise.all([...fastProviderPromises, ...slowProviderPromises]), slowDeadline ]);
+                // If no fast results, wait longer for slow providers
+                await limitConcurrency(slowProviders, MAX_CONCURRENT_PROVIDERS, async ({ name, fetchFn }) => {
+                    await fetchFn();
+                });
             }
 
             // Prefer live streamsResults (includes no-cache providers like Huerust/Cinema/Aura).
@@ -397,13 +408,27 @@ module.exports = function(metrics) {
                 const serverUrl = resolveServerUrl(req);
                 streams = processStreamsForProxy(streams, serverUrl);
             }
-            
-            res.json({ 
-                success: true, 
-                tmdbId, 
-                imdbId, 
-                count: streams.length, 
-                providerTimings, 
+
+            // Fetch subtitles if no provider returned them
+            const hasSubtitles = streams.some(s => s.subtitles?.length > 0);
+            if (!hasSubtitles && imdbId) {
+                try {
+                    const subtitles = await fetchSubtitles(type, tmdbId, season, episode);
+                    if (subtitles.length > 0) {
+                        // Attach subtitles to all streams
+                        streams = streams.map(s => ({ ...s, subtitles }));
+                    }
+                } catch (e) {
+                    console.warn('[streams] Subtitle fetch failed:', e.message);
+                }
+            }
+
+            res.json({
+                success: true,
+                tmdbId,
+                imdbId,
+                count: streams.length,
+                providerTimings,
                 streams,
                 totalDurationMs: totalDuration,
                 status: Date.now() - tStart > 34000 ? "Partial" : "Complete"

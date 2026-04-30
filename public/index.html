@@ -849,13 +849,22 @@
         }
 
         let hls = null;
+        function resetInlinePlayer(video) {
+            if(hls) { hls.destroy(); hls = null; }
+            if(video) {
+                video.pause();
+                video.removeAttribute('src');
+                video.load();
+            }
+        }
+
         function playStream(url) {
             const container = document.getElementById('playerContainer');
             const video = document.getElementById('videoPlayer');
             if (container) container.style.display = 'block';
             if (video) {
+                resetInlinePlayer(video);
                 if (Hls.isSupported() && url.includes('.m3u8')) {
-                    if(hls) hls.destroy();
                     const hlsConfig = {
                         maxBufferLength: 30,
                         maxMaxBufferLength: 60,
@@ -865,22 +874,25 @@
                         backBufferLength: 90
                     };
                     hls = new Hls(hlsConfig);
+                    const currentHls = hls;
                     hls.loadSource(url);
                     hls.attachMedia(video);
                     hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
                     hls.on(Hls.Events.ERROR, function (event, data) {
+                        if (hls !== currentHls) return;
                         if (data.fatal) {
                             switch (data.type) {
                                 case Hls.ErrorTypes.NETWORK_ERROR:
                                     console.log("Fatal network error encountered, try to recover");
-                                    hls.startLoad();
+                                    currentHls.startLoad();
                                     break;
                                 case Hls.ErrorTypes.MEDIA_ERROR:
                                     console.log("Fatal media error encountered, try to recover");
-                                    hls.recoverMediaError();
+                                    currentHls.recoverMediaError();
                                     break;
                                 default:
-                                    hls.destroy();
+                                    currentHls.destroy();
+                                    if (hls === currentHls) hls = null;
                                     break;
                             }
                         }
@@ -895,8 +907,7 @@
 
         window.closePlayer = function() {
             const video = document.getElementById('videoPlayer');
-            if (video) { video.pause(); video.src = ''; }
-            if(hls) { hls.destroy(); hls = null; }
+            resetInlinePlayer(video);
             const playerContainer = document.getElementById('playerContainer');
             if (playerContainer) playerContainer.style.display = 'none';
         }
