@@ -25,6 +25,7 @@ struct HydraResponse {
 struct HydraItem {
     title: String,
     #[serde(rename = "show_title")]
+    #[allow(dead_code)]
     show_title: Option<String>,
     src: String,
     quality: Option<String>,

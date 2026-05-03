@@ -19,6 +19,7 @@ const CACHE_TTL: Duration = Duration::from_secs(300);
 #[serde(rename_all = "camelCase")]
 pub struct HueUserConfig {
     pub sflix_cookie: Option<String>,
+    #[allow(dead_code)]
     pub sflix_user_agent: Option<String>,
     pub moviebox_cookie: Option<String>,
     pub moviebox_user_agent: Option<String>,
