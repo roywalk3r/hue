@@ -2,8 +2,21 @@ const crypto = require('crypto');
 
 const COOKIE_PROVIDERS = ['febbox', 'sflix', 'moviebox'];
 
-// In-memory cookie store (will be Redis-backed in Task 9)
+// In-memory cookie store
 const cookieStore = new Map();
+
+// Redis support (fallback to memory if Redis is unavailable)
+let redis = null;
+try {
+  const Redis = require('ioredis');
+  redis = new Redis(process.env.REDIS_URL || 'redis://127.0.0.1:6379');
+  redis.on('error', (e) => {
+    console.warn('[cookieWorker] Redis connection error, using memory fallback:', e.message);
+    redis = null;
+  });
+} catch (e) {
+  console.warn('[cookieWorker] ioredis not available, using memory store');
+}
 
 const LOGIN_FLOWS = {
   febbox: {
@@ -80,6 +93,15 @@ async function refreshCookiesForProvider(provider) {
     const entry = { cookies: cookieStrings, expires };
     cookieStore.set(provider, entry);
 
+    // Also save to Redis
+    if (redis) {
+      try {
+        await redis.setex(`cookies:${provider}`, 24 * 60 * 60, JSON.stringify(entry));
+      } catch (e) {
+        console.warn(`[cookieWorker] Redis write failed for ${provider}`);
+      }
+    }
+
     console.log(`[cookieWorker] Refreshed ${cookieStrings.length} cookies for ${provider}`);
     return entry;
   } catch (e) {
@@ -107,7 +129,20 @@ async function startCookieWorker() {
   }, 30 * 60 * 1000);
 }
 
-function getCookies(provider) {
+async function getCookies(provider) {
+  // Try Redis first
+  if (redis) {
+    try {
+      const data = await redis.get(`cookies:${provider}`);
+      if (data) {
+        const entry = JSON.parse(data);
+        if (Date.now() < entry.expires) return entry;
+      }
+    } catch (e) {
+      console.warn(`[cookieWorker] Redis read failed for ${provider}`);
+    }
+  }
+  // Fallback to memory
   const entry = cookieStore.get(provider);
   if (!entry) return null;
   if (Date.now() > entry.expires) {

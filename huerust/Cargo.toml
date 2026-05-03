@@ -37,7 +37,7 @@ thiserror = "1.0"
 # Caching & Concurrency
 moka = { version = "0.12", features = ["future"] }
 dashmap = "6.0"
-redis = { version = "0.24", features = ["tokio-comp"] }
+redis = { version = "0.25", features = ["tokio-comp"] }
 
 # Provider Trait
 async-trait = "0.1"
