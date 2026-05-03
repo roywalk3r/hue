@@ -31,7 +31,7 @@ const { getCookies } = require('../services/cookieWorker');
 // GET /internal/cookies/:provider
 router.get('/cookies/:provider', async (req, res) => {
   const { provider } = req.params;
-  const entry = getCookies(provider);
+  const entry = await getCookies(provider);
   if (!entry) {
     return res.status(503).json({
       error: 'Cookies not available',
