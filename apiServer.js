@@ -18,8 +18,6 @@ const { authenticate, issueSession, requireAuth, getSession, updatePassword } = 
 const logger = require('./utils/logger');
 const stealth = require('./utils/stealth');
 const { resolveServerUrl } = require('./utils/server');
-const { createProxyRoutes, processStreamsForProxy } = require('./proxy/proxyServer');
-const { getHianimeApp } = require('./services/hianimeApp');
 const TTLCache = require('ttl-cache');
 
 // Auto-generate key if missing
@@ -91,40 +89,7 @@ app.use((req, res, next) => {
 });
 
 // --- Modular Routes ---
-const hitvRoutes = require('./routes/hitv');
-const movieboxRoutes = require('./routes/moviebox');
-const streamsRoutes = require('./routes/streams');
-const sportsRoutes = require('./routes/sports');
-const dramaRoutes = require('./routes/drama');
-const systemRoutes = require('./routes/system');
-const proxyRoutes = require('./routes/proxy');
-const livetvRoutes = require('./routes/livetv');
-const playRoutes = require('./routes/play');
-const tmdbRoutes = require('./routes/tmdb');
-const animeRoutes = require('./routes/anime');
-
-// Mount API routes
-app.use('/api/tmdb', tmdbRoutes(metrics));
-app.use('/api/anime', animeRoutes(metrics));
-app.use('/api/hitv', hitvRoutes(metrics));
-app.use('/api/sflix', hitvRoutes(metrics)); // Alias for Sflix Discovery
-app.use('/api/moviebox', movieboxRoutes(metrics));
-app.use('/api/streams', streamsRoutes(metrics));
-app.use('/api/play', playRoutes(metrics));
-app.use('/api', sportsRoutes(metrics)); 
-app.use('/api', dramaRoutes(metrics)); 
-app.use('/api', systemRoutes(metrics));
-app.use('/api/proxy', proxyRoutes);
-app.use('/api/livetv', livetvRoutes);
-
-// Mount Legacy/Root routes
-app.use('/', sportsRoutes(metrics)); // /sports-stream, /livetv legacy
-
-// --- Proxy Configuration ---
-if (config.enableProxy) {
-  logger.info('[startup] enableProxy flag active: mounting proxy routes');
-  createProxyRoutes(app); // Registers /m3u8-proxy, /ts-proxy, /sub-proxy at root
-}
+// All API routes are now handled by the Rust engine
 app.post('/auth/login', (req,res) => {
   const { username, password } = req.body || {};
   if (!authenticate(username, password)) return res.status(401).json({ success:false, error:'INVALID_CREDENTIALS' });
