@@ -1,43 +1,46 @@
-# Contributing to Hue Stream API 🎥
+# Contributing to Hue Stream API
 
-First off, thank you for considering contributing to Hue Stream! It's people like you that make Hue such a great tool.
+## Getting Started
 
-## Code of Conduct
+```bash
+git clone https://github.com/roywalk3r/hue.git
+cd hue
+docker compose up -d
+```
 
-By participating in this project, you are expected to uphold our Code of Conduct. Please report unacceptable behavior to `roywalker440@gmail.com`.
+The Rust API serves on `:24609`, Node scraper on `:24610` (internal).
 
-## How Can I Contribute?
+## Architecture
 
-### Reporting Bugs
+- **huerust/** — Rust API server (public endpoints, HTTP providers, proxy, caching)
+- **node-scraper/** — Node.js scraping service (Playwright providers, cookie rotation, anime)
+- **providers/** — Node.js provider registry (browser-based providers only)
 
-This section guides you through submitting a bug report for Hue. Following these guidelines helps maintainers and the community understand your report, reproduce the behavior, and find related bugs.
+## Adding a Provider
 
-Before creating bug reports, please check this list as you might find out that you don't need to create one. When you are creating a bug report, please include as many details as possible.
+### HTTP-based (Rust)
+1. Implement `StreamProvider` trait in `huerust/src/providers/{name}.rs`
+2. Register in `huerust/src/main.rs`
+3. Add tests
 
-### Suggesting Enhancements
+### Browser-based (Node)
+1. Add provider to `node-scraper/src/providers/{name}.js`
+2. Export a scrape function
+3. Register in `node-scraper/src/routes/internal.js`
 
-This section guides you through submitting an enhancement suggestion for Hue, including completely new features and minor improvements to existing functionality. Following these guidelines helps maintainers and the community understand your suggestion and find related suggestions.
+## Commit Style
 
-### Pull Requests
+Use short imperative prefixes: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`
 
-The process which describes how to contribute to Hue:
+## Testing
 
-1. Fork the repo and create your branch from `main`.
-2. If you've added code that should be tested, add tests.
-3. If you've changed APIs, update the documentation.
-4. Ensure the test suite passes.
-5. Make sure your code lints.
-6. Issue that pull request!
+```bash
+# Rust
+cd huerust && cargo test
 
-## Styleguide
+# Node contract tests
+./tests/contract/test-node-scraper-api.sh
 
-### JavaScript Styleguide
-
-All JavaScript code should follow the project's `.eslintrc.cjs` and `.eslintignore` rules.
-
-## License
-
-By contributing, you agree that your contributions will be licensed under its MIT License.
-
----
-<sub>Maintained by roywalk3r</sub>
+# Lint
+npm run lint
+```
