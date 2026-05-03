@@ -19,6 +19,8 @@ pub struct AppConfig {
     pub api_key: Option<String>,
     #[allow(dead_code)]
     pub microservice_url: String,
+    #[allow(dead_code)]
+    pub scraper_url: String,
     pub cache_ttl_secs: u64,
     #[allow(dead_code)]
     pub cache_max_capacity: u64,
@@ -62,6 +64,8 @@ impl AppConfig {
             tmdb_api_keys,
             api_key: env::var("API_KEY").ok(),
             microservice_url: env::var("MICROSERVICE_URL")
+                .unwrap_or_else(|_| "http://127.0.0.1:24610".to_string()),
+            scraper_url: env::var("SCRAPER_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:24610".to_string()),
             cache_ttl_secs: env::var("CACHE_TTL_SECS")
                 .ok()
@@ -139,6 +143,7 @@ mod tests {
             tmdb_api_keys: vec!["k1".to_string()],
             api_key: None,
             microservice_url: "http://localhost:24610".to_string(),
+            scraper_url: "http://localhost:24610".to_string(),
             cache_ttl_secs: 3600,
             cache_max_capacity: 500,
             fast_provider_deadline_secs: 3,
