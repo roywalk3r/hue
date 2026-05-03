@@ -17,7 +17,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::timeout;
-use tracing::{info, warn};
+use tracing::{info, instrument, warn};
 
 use crate::{
     AppState,
@@ -82,7 +82,7 @@ pub async fn streams_handler(
         })).into_response();
     }
 
-    info!("[api] Rust Streams: {} {} S{} E{}", &m_type, tmdb_id, season, episode);
+    info!(m_type = %m_type, tmdb_id = %tmdb_id, season = season, episode = episode, "[api] stream request");
 
     let cache_key = CacheKey::new(&m_type, &tmdb_id, season, episode);
     let enable_proxy = state.config.enable_proxy;
@@ -175,7 +175,7 @@ pub async fn streams_handler(
         }
 
         let filtered = apply_filters(unique, &filter_config);
-        info!("[api] No-cache fresh fetch: {} streams in {:?}", filtered.len(), start.elapsed());
+        info!(count = filtered.len(), elapsed_ms = start.elapsed().as_millis() as u64, "[api] no-cache fresh fetch");
         Some(filtered)
     } else {
         state.coalescer.execute(&cache_key,
@@ -218,7 +218,7 @@ pub async fn streams_handler(
             }
 
             let filtered = apply_filters(unique, &filter_config);
-            info!("[api] Coalesced fetch: {} streams in {:?}", filtered.len(), start.elapsed());
+            info!(count = filtered.len(), elapsed_ms = start.elapsed().as_millis() as u64, "[api] coalesced fetch");
             filtered
         }).await
     };
@@ -250,6 +250,9 @@ pub async fn streams_handler(
     }).unwrap()).into_response()
 }
 
+#[instrument(skip(registry, metrics, tmdb_info, min_streams_threshold), fields(
+    deadline_ms = aggregate_deadline.as_millis() as u64,
+))]
 async fn fetch_from_providers(
     registry: Arc<ProviderRegistry>,
     metrics: Arc<Metrics>,
@@ -315,6 +318,7 @@ async fn fetch_from_providers(
                     cb.record_success(&real_name);
                     let latency = provider_start.elapsed().as_millis() as u64;
                     metrics_c.record_request(&provider_name, latency, true, false);
+                    metrics_c.record_latency(&provider_name, latency);
                     let new_count = count.fetch_add(streams.len(), Ordering::Relaxed) + streams.len();
                     if new_count >= min_streams_threshold {
                         cancel.store(true, Ordering::Relaxed);
@@ -326,6 +330,7 @@ async fn fetch_from_providers(
                     cb.record_failure(&real_name);
                     let latency = provider_start.elapsed().as_millis() as u64;
                     metrics_c.record_request(&provider_name, latency, false, false);
+                    metrics_c.record_latency(&provider_name, latency);
                     vec![]
                 }
                 Err(_) => {
@@ -333,6 +338,7 @@ async fn fetch_from_providers(
                     cb.record_failure(&real_name);
                     let latency = provider_start.elapsed().as_millis() as u64;
                     metrics_c.record_request(&provider_name, latency, false, true);
+                    metrics_c.record_latency(&provider_name, latency);
                     vec![]
                 }
             };
@@ -368,15 +374,16 @@ async fn fetch_from_providers(
 
     let total_elapsed = start.elapsed();
     info!(
-        "[api] Fetched {} streams from {} providers in {:?}",
-        all.len(),
-        timings.len(),
-        total_elapsed
+        count = all.len(),
+        provider_count = timings.len(),
+        elapsed_ms = total_elapsed.as_millis() as u64,
+        "[api] fetched streams from providers"
     );
 
     (all, timings)
 }
 
+#[instrument(skip(streams, secret), fields(count = streams.len()))]
 pub(crate) fn wrap_with_proxy(streams: Vec<StreamResult>, proxy_base: &str, secret: &str) -> Vec<StreamResult> {
     streams.into_iter().map(|mut s| {
         let is_hls = s.format == "hls" || s.url.contains(".m3u8") || s.provider == "Aura";

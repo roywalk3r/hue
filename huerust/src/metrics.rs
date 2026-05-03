@@ -32,10 +32,9 @@ impl Metrics {
         Self { providers }
     }
 
-    pub fn record_request(&self, provider: &str, latency_ms: u64, success: bool, timed_out: bool) {
+    pub fn record_request(&self, provider: &str, _latency_ms: u64, success: bool, timed_out: bool) {
         if let Some(m) = self.providers.get(provider) {
             m.total_requests.fetch_add(1, Ordering::Relaxed);
-            m.total_latency_ms.fetch_add(latency_ms, Ordering::Relaxed);
             if timed_out {
                 m.timeouts.fetch_add(1, Ordering::Relaxed);
                 m.failures.fetch_add(1, Ordering::Relaxed);
@@ -44,6 +43,12 @@ impl Metrics {
             } else {
                 m.failures.fetch_add(1, Ordering::Relaxed);
             }
+        }
+    }
+
+    pub fn record_latency(&self, provider: &str, latency_ms: u64) {
+        if let Some(m) = self.providers.get(provider) {
+            m.total_latency_ms.fetch_add(latency_ms, Ordering::Relaxed);
         }
     }
 
