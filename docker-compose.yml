@@ -1,105 +1,54 @@
+version: "3.9"
+
 services:
-  tmdb-embed-api:
-    build: .
-    container_name: tmdb-embed-api
-    deploy:
-      resources:
-        limits:
-          memory: 768M
-    environment:
-      # Provide at least one TMDB key (comma separated or override via UI later)
-      - TMDB_API_KEY=${TMDB_API_KEY:-}
-      # Alternative: supply JSON array
-      # - TMDB_API_KEYS=["key1","key2"]
-      - API_PORT=24608
-      - BIND_HOST=0.0.0.0
-      - USER_CONFIG_PATH=/app/data/user-config.json
-      # FebBox cookies (comma separated) if you want Showbox immediately functional
-      - FEBBOX_COOKIES=${FEBBOX_COOKIES:-}
-      - ENABLE_HUERUST_PROVIDER=true
-      - RUST_ENGINE_URL=http://huerust:24609
-    ports:
-      - "24608:24608"
-    volumes:
-      # Persist runtime overrides in a dedicated Docker volume.
-      - user_config_data:/app/data
-      # Allow restart trigger file (optional; stored in container FS)
-      # - restart_marker:/app/restart.trigger
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + (process.env.API_PORT || 24608) + '/api/health').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))"]
-      interval: 30s
-      timeout: 5s
-      start_period: 20s
-      retries: 3
-  huerust:
-    build: ./huerust
-    container_name: huerust-engine
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    ports:
-      - "24609:24609"
-    environment:
-      - RUST_HOST=0.0.0.0
-      - RUST_PORT=24609
-      - RUST_PROXY_URL=${RUST_PROXY_URL:-http://localhost:24609}
-      - ENABLE_PROXY=true
-      - TMDB_API_KEYS=${TMDB_API_KEYS:-}
-      - APP_SECRET=${APP_SECRET:-hue-streaming-stable-secret-2026}
-      - SFLIX_COOKIE=${SFLIX_COOKIE:-}
-      - MOVIEBOX_X_USER=${MOVIEBOX_X_USER:-}
-      - API_KEY=${API_KEY:-}
-      - MICROSERVICE_URL=http://scraper:24610
-      - CACHE_BACKEND=redis
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "sh", "-c", "curl -sf http://127.0.0.1:24609/health || exit 1"]
-      interval: 30s
-      timeout: 5s
-      start_period: 15s
-      retries: 3
-
-  scraper:
-    build: .
-    container_name: hue-scraper
-    command: node scraperServer.js
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-    ports:
-      - "24610:24610"
-    environment:
-      - SCRAPER_PORT=24610
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + (process.env.SCRAPER_PORT || 24610) + '/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
-      interval: 30s
-      timeout: 5s
-      start_period: 20s
-      retries: 3
-
   redis:
     image: redis:7-alpine
-    container_name: hue-redis
-    command: redis-server --save 900 1 --save 300 10 --maxmemory 256mb --maxmemory-policy allkeys-lru
-    deploy:
-      resources:
-        limits:
-          memory: 300M
-    ports:
-      - "6379:6379"
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
+      interval: 10s
       timeout: 3s
       retries: 3
 
+  rust-api:
+    build:
+      context: ./huerust
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:24609:24609"
+    environment:
+      - RUST_HOST=0.0.0.0
+      - RUST_PORT=24609
+      - REDIS_URL=redis://redis:6379
+      - SCRAPER_URL=http://node-scraper:24610
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      node-scraper:
+        condition: service_healthy
+
+  node-scraper:
+    build:
+      context: ./node-scraper
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:24610:24610"
+    environment:
+      - SCRAPER_PORT=24610
+      - REDIS_URL=redis://redis:6379
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+
 volumes:
-  user_config_data:
+  redis_data:
