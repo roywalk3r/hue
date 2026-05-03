@@ -65,9 +65,33 @@ router.post('/scrape/browser', async (req, res) => {
   }
 });
 
-// POST /internal/scrape/anime — stub (Task 6)
+const { getAnimeStream } = require('../providers/hianime');
+
+// POST /internal/scrape/anime
 router.post('/scrape/anime', async (req, res) => {
-  res.status(503).json({ error: 'Not yet implemented' });
+  const { slug, episode } = req.body;
+
+  if (!slug || !episode) {
+    return res.status(400).json({ success: false, error: 'Missing required fields: slug, episode' });
+  }
+
+  try {
+    const data = await getAnimeStream(slug, episode);
+    if (!data || !data.stream) {
+      return res.json({ success: false, error: 'No stream found' });
+    }
+    res.json({
+      success: true,
+      stream: {
+        url: data.stream.link?.file || data.stream.sources?.[0]?.url,
+        server: data.stream.server || 'unknown',
+        tracks: data.stream.tracks || [],
+      },
+    });
+  } catch (e) {
+    console.error(`[internal] Anime scrape failed:`, e.message);
+    res.json({ success: false, error: e.message });
+  }
 });
 
 module.exports = router;
