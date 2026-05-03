@@ -1,8 +1,0 @@
-{
-  "name": "hianime-vendor",
-  "private": true,
-  "type": "module",
-  "imports": {
-    "#*": "./src/*.js"
-  }
-}

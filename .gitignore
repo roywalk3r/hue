@@ -24,3 +24,14 @@ hitv_home_cache.json
 /playwright/.local-browsers/
 .omx/
 .worktrees/
+
+# Debug artifacts
+debug-*.js
+capture-*.js
+*-debug.js
+*-debug-*.js
+
+# Generated
+extracted-*.json
+gemini-conversation-*.json
+*.trigger
