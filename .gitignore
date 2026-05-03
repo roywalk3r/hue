@@ -23,3 +23,4 @@ hitv_home_cache.json
 /blob-report/
 /playwright/.local-browsers/
 .omx/
+.worktrees/
