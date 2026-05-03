@@ -10,15 +10,11 @@
     "url": "https://github.com/roywalk3r/hue.git"
   },
   "scripts": {
-    "start": "node setup-browser.js && node apiServer.js",
-    "start:scraper": "node setup-browser.js && node scraperServer.js",
+    "start": "echo 'Use: docker compose up -d'",
     "start:rust": "cd huerust && cargo run --release",
-    "start:dev": "node setup-browser.js && nodemon --watch restart.trigger --ignore providers/.cache --ignore **/cache apiServer.js",
-    "postinstall": "npx playwright install chromium",
-    "lint": "eslint . --ext .js",
-    "setup-browser": "node setup-browser.js",
-    "key:generate": "node scripts/generate-key.js",
-    "check:hianime-imports": "node scripts/check-hianime-imports.js"
+    "start:scraper": "cd node-scraper && npm start",
+    "start:dev": "cd node-scraper && npm run start:dev",
+    "lint": "eslint node-scraper/src/ --ext .js"
   },
   "dependencies": {
     "@definisi/vidsrc-scraper": "^1.0.3",
