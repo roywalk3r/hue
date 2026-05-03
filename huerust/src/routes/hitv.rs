@@ -70,6 +70,12 @@ pub async fn browse_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/hitv/search",
+    params(("q" = String, Query, description = "Search query")),
+    responses((status = 200, description = "Search results"))
+)]
 pub async fn search_handler(
     State(state): State<AppState>,
     Query(params): Query<HashMap<String, String>>,
