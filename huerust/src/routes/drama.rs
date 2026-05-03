@@ -9,10 +9,14 @@ use axum::{
     extract::{Query, State, Path},
     response::{IntoResponse, Response},
     http::StatusCode,
+    Json,
 };
 use serde::Deserialize;
 
-use crate::AppState;
+use crate::{
+    AppState,
+    models::ErrorResponse,
+};
 
 #[derive(Deserialize)]
 pub struct SearchQuery {
@@ -25,7 +29,11 @@ pub async fn kisskh_search_handler(
 ) -> Response {
     match state.kisskh.search(&params.q).await {
         Ok(items) => (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            success: false,
+            error: "INTERNAL_ERROR".to_string(),
+            message: Some(e.to_string()),
+        })).into_response(),
     }
 }
 
@@ -35,7 +43,11 @@ pub async fn kisskh_streams_handler(
 ) -> Response {
     match state.kisskh.get_streams_normalized(&id, 1, episode).await {
         Ok(streams) => (StatusCode::OK, serde_json::to_string(&streams).unwrap()).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            success: false,
+            error: "INTERNAL_ERROR".to_string(),
+            message: Some(e.to_string()),
+        })).into_response(),
     }
 }
 
@@ -45,7 +57,11 @@ pub async fn dramacool_search_handler(
 ) -> Response {
     match state.dramacool.search(&params.q).await {
         Ok(items) => (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            success: false,
+            error: "INTERNAL_ERROR".to_string(),
+            message: Some(e.to_string()),
+        })).into_response(),
     }
 }
 
@@ -55,6 +71,10 @@ pub async fn dramacool_streams_handler(
 ) -> Response {
     match state.dramacool.get_streams_normalized(&id, 1, episode).await {
         Ok(streams) => (StatusCode::OK, serde_json::to_string(&streams).unwrap()).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            success: false,
+            error: "INTERNAL_ERROR".to_string(),
+            message: Some(e.to_string()),
+        })).into_response(),
     }
 }

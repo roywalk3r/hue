@@ -30,3 +30,11 @@ pub struct Subtitle {
     pub lang: String,
     pub label: String,
 }
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ErrorResponse {
+    pub success: bool,
+    pub error: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}

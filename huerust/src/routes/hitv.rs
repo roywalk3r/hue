@@ -9,12 +9,14 @@ use axum::{
     extract::{Query, State, Path},
     response::{IntoResponse, Response},
     http::StatusCode,
+    Json,
 };
 use std::collections::HashMap;
 use serde::Serialize;
 use crate::{
     AppState,
     hitv::HiTvItem,
+    models::ErrorResponse,
 };
 use tracing::{info, warn};
 
@@ -77,7 +79,11 @@ pub async fn search_handler(
     let page_size = params.get("page_size").and_then(|s| s.parse::<u32>().ok()).unwrap_or(60);
 
     if query.is_empty() {
-        return (StatusCode::BAD_REQUEST, "Missing 'q' parameter").into_response();
+        return (StatusCode::BAD_REQUEST, Json(ErrorResponse {
+            success: false,
+            error: "MISSING_PARAM".to_string(),
+            message: Some("Missing 'q' parameter".to_string()),
+        })).into_response();
     }
 
     info!("[hitv] Search: q={} page={}", query, page);
@@ -243,14 +249,22 @@ pub async fn play_handler(
                     Ok(results) if !results.is_empty() => results[0].id.to_string(),
                     _ => {
                         warn!("[hitv] Could not map HiTV ID {} to TMDB", id);
-                        return (StatusCode::NOT_FOUND, "Could not resolve TMDB ID").into_response();
+                        return (StatusCode::NOT_FOUND, Json(ErrorResponse {
+                            success: false,
+                            error: "TMDB_RESOLVE_FAILED".to_string(),
+                            message: Some("Could not resolve TMDB ID".to_string()),
+                        })).into_response();
                     }
                 }
             }
         }
         _ => {
             warn!("[hitv] Could not get detail for HiTV ID {}", id);
-            return (StatusCode::NOT_FOUND, "HiTV item not found").into_response();
+            return (StatusCode::NOT_FOUND, Json(ErrorResponse {
+                success: false,
+                error: "ITEM_NOT_FOUND".to_string(),
+                message: Some("HiTV item not found".to_string()),
+            })).into_response();
         }
     };
 

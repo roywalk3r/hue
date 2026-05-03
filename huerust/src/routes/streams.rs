@@ -9,6 +9,7 @@ use axum::{
     extract::{Query, State, Path},
     response::{IntoResponse, Response},
     http::StatusCode,
+    Json,
 };
 use serde::Serialize;
 use utoipa::ToSchema;
@@ -23,7 +24,7 @@ use crate::{
     cache::CacheKey,
     filters::apply_filters,
     registry::ProviderRegistry,
-    models::StreamResult,
+    models::{StreamResult, ErrorResponse},
     security::encrypt_url,
     metrics::Metrics,
 };
@@ -72,6 +73,15 @@ pub async fn streams_handler(
     let episode = params.get("episode").and_then(|e| e.parse::<u32>().ok()).unwrap_or(1);
     let no_cache = params.get("nocache").map(|v| v == "1").unwrap_or(false);
 
+    // Validate content type
+    if m_type != "movie" && m_type != "tv" {
+        return (StatusCode::BAD_REQUEST, Json(ErrorResponse {
+            success: false,
+            error: "INVALID_TYPE".to_string(),
+            message: Some("Type must be 'movie' or 'tv'".to_string()),
+        })).into_response();
+    }
+
     info!("[api] Rust Streams: {} {} S{} E{}", &m_type, tmdb_id, season, episode);
 
     let cache_key = CacheKey::new(&m_type, &tmdb_id, season, episode);
@@ -109,7 +119,11 @@ pub async fn streams_handler(
         Ok(info) => info,
         Err(e) => {
             warn!("[api] TMDB lookup failed for {}: {}", tmdb_id, e);
-            return (StatusCode::NOT_FOUND, "TMDB info not found").into_response();
+            return (StatusCode::NOT_FOUND, Json(ErrorResponse {
+                success: false,
+                error: "TMDB_NOT_FOUND".to_string(),
+                message: Some("TMDB info not found".to_string()),
+            })).into_response();
         }
     };
 
@@ -211,7 +225,11 @@ pub async fn streams_handler(
 
     let filtered = match coalesced {
         Some(v) => v,
-        None => return (StatusCode::NOT_FOUND, "No streams found").into_response(),
+        None => return (StatusCode::NOT_FOUND, Json(ErrorResponse {
+            success: false,
+            error: "NO_STREAMS".to_string(),
+            message: Some("No streams found".to_string()),
+        })).into_response(),
     };
 
     let final_streams = if enable_proxy {

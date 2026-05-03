@@ -9,6 +9,7 @@ use axum::{
     extract::{Query, State, Path},
     response::{IntoResponse, Response},
     http::StatusCode,
+    Json,
 };
 use std::collections::HashMap;
 use std::time::Duration;
@@ -19,6 +20,7 @@ use crate::{
     AppState,
     cache::CacheKey,
     filters::{apply_filters, sort_by_quality},
+    models::ErrorResponse,
 };
 
 #[derive(serde::Serialize, ToSchema)]
@@ -90,7 +92,11 @@ pub async fn play_handler(
         Ok(info) => info,
         Err(e) => {
             warn!("[play] TMDB lookup failed: {}", e);
-            return (StatusCode::NOT_FOUND, "TMDB info not found").into_response();
+            return (StatusCode::NOT_FOUND, Json(ErrorResponse {
+                success: false,
+                error: "TMDB_NOT_FOUND".to_string(),
+                message: Some("TMDB info not found".to_string()),
+            })).into_response();
         }
     };
 
@@ -162,7 +168,11 @@ pub async fn play_handler(
     if let Some(best) = pick_best_stream(filtered, &state).await {
         (StatusCode::OK, serde_json::to_string(&best).unwrap()).into_response()
     } else {
-        (StatusCode::NOT_FOUND, "No playable streams found").into_response()
+        (StatusCode::NOT_FOUND, Json(ErrorResponse {
+            success: false,
+            error: "NO_STREAMS".to_string(),
+            message: Some("No playable streams found".to_string()),
+        })).into_response()
     }
 }
 

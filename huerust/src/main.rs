@@ -31,6 +31,7 @@ use axum::{
     Router,
     middleware::{self, Next},
     http::{StatusCode, Request},
+    Json,
 };
 use reqwest::Client;
 use std::net::SocketAddr;
@@ -41,6 +42,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use std::env;
 use dotenv::dotenv;
+use serde_json::json;
 use std::sync::Arc;
 use std::time::Duration;
 use dashmap::DashMap;
@@ -312,7 +314,10 @@ async fn rate_limit_middleware(State(state): State<AppState>, req: Request<Body>
         .unwrap_or_else(|| "unknown".to_string());
 
     if !state.rate_limiter.check(&ip) {
-        return Ok((StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded").into_response());
+        return Ok((StatusCode::TOO_MANY_REQUESTS,
+            [(axum::http::header::RETRY_AFTER, "60")],
+            Json(json!({"success": false, "error": "RATE_LIMITED", "message": "Rate limit exceeded"}))
+        ).into_response());
     }
     Ok(next.run(req).await)
 }
