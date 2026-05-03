@@ -1,0 +1,187 @@
+openapi: "3.1.0"
+info:
+  title: Hue Node Scraper Internal API
+  version: "1.0.0"
+  description: Internal API for browser-based scraping. Not exposed publicly.
+
+servers:
+  - url: http://127.0.0.1:24610
+    description: Local only
+
+paths:
+  /internal/health:
+    get:
+      summary: Health check + active providers
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  providers:
+                    type: array
+                    items:
+                      type: string
+                  uptime:
+                    type: number
+                required: [ok, providers]
+
+  /internal/cookies/{provider}:
+    get:
+      summary: Get fresh cookies for a provider
+      operationId: getCookies
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [febbox, sflix, moviebox]
+      responses:
+        "200":
+          description: Cookies available
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  provider:
+                    type: string
+                  cookies:
+                    type: array
+                    items:
+                      type: string
+                  expires:
+                    type: number
+                required: [provider, cookies]
+        "503":
+          description: Provider unavailable or cookie refresh in progress
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  provider:
+                    type: string
+
+  /internal/scrape/browser:
+    post:
+      summary: Scrape streams via headless browser
+      operationId: scrapeBrowser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                provider:
+                  type: string
+                tmdbId:
+                  type: string
+                type:
+                  type: string
+                  enum: [movie, tv]
+                season:
+                  type: integer
+                episode:
+                  type: integer
+              required: [provider, tmdbId, type]
+      responses:
+        "200":
+          description: Scraped streams
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  streams:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/StreamResult"
+                required: [success, streams]
+        "400":
+          description: Invalid request (unknown provider, missing fields)
+
+  /internal/scrape/anime:
+    post:
+      summary: Scrape anime episode stream
+      operationId: scrapeAnime
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                slug:
+                  type: string
+                episode:
+                  type: integer
+              required: [slug, episode]
+      responses:
+        "200":
+          description: Anime stream data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  stream:
+                    type: object
+                    properties:
+                      url:
+                        type: string
+                      server:
+                        type: string
+                      tracks:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            file:
+                              type: string
+                            label:
+                              type: string
+                            kind:
+                              type: string
+                required: [success]
+
+components:
+  schemas:
+    StreamResult:
+      type: object
+      properties:
+        url:
+          type: string
+        title:
+          type: string
+        quality:
+          type: string
+        provider:
+          type: string
+        format:
+          type: string
+        subtitles:
+          type: array
+          items:
+            type: object
+            properties:
+              url:
+                type: string
+              lang:
+                type: string
+              label:
+                type: string
+      required: [url, title, quality, provider, format]
