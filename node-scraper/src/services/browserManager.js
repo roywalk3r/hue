@@ -176,7 +176,7 @@ async function closeBrowser() {
 
 async function getNewContext(options = {}) {
     const browserType = options.browserType || 'chromium';
-    const { config } = require('./config');
+    const { config } = require('../utils/config');
     
     // Auto-proxy rotation
     let proxy = options.proxy;

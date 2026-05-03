@@ -1,7 +1,3 @@
-const crypto = require('crypto');
-
-const COOKIE_PROVIDERS = ['febbox', 'sflix', 'moviebox'];
-
 // In-memory cookie store
 const cookieStore = new Map();
 
@@ -18,112 +14,107 @@ try {
   console.warn('[cookieWorker] ioredis not available, using memory store');
 }
 
-const LOGIN_FLOWS = {
-  febbox: {
-    url: 'https://febbox.com/login',
-    selectors: {
-      username: 'input[name="email"]',
-      password: 'input[name="password"]',
-      submit: 'button[type="submit"]',
-    },
-    credentials: () => ({
-      username: process.env.FEBBOX_USERNAME,
-      password: process.env.FEBBOX_PASSWORD,
-    }),
-  },
+const COOKIE_TTL_SECS = 24 * 60 * 60; // 24h
+
+// Cookie refresh strategies — just visit the site, scripts set cookies automatically
+const COOKIE_FLOWS = {
   sflix: {
-    url: 'https://sflix.to/login',
-    selectors: {
-      username: 'input[name="email"]',
-      password: 'input[name="password"]',
-      submit: 'button[type="submit"]',
-    },
-    credentials: () => ({
-      username: process.env.SFLIX_USERNAME,
-      password: process.env.SFLIX_PASSWORD,
-    }),
+    url: 'https://sflix.film',
+    cookieNames: ['sflix_token'],
+    labelCookie: 'sflix_i18n_lang=en',
   },
   moviebox: {
-    url: 'https://moviebox.ph/login',
-    selectors: {
-      username: 'input[name="email"]',
-      password: 'input[name="password"]',
-      submit: 'button[type="submit"]',
-    },
-    credentials: () => ({
-      username: process.env.MOVIEBOX_USERNAME,
-      password: process.env.MOVIEBOX_PASSWORD,
-    }),
+    url: `https://${process.env.MOVIEBOX_HOST || 'moviebox.ph'}`,
+    cookieNames: ['mb_token', 'uuid'],
+    backupHosts: ['moviebox.ph', 'moviebox.id', 'moviebox.pk', 'movieboxapp.in'],
+  },
+  febbox: {
+    url: 'https://febbox.com',
+    cookieNames: [],
   },
 };
 
 async function refreshCookiesForProvider(provider) {
-  const flow = LOGIN_FLOWS[provider];
+  const flow = COOKIE_FLOWS[provider];
   if (!flow) return null;
 
-  const creds = flow.credentials();
-  if (!creds.username || !creds.password) {
-    console.warn(`[cookieWorker] No credentials for ${provider}, skipping`);
-    return null;
-  }
-
-  // Try Playwright; fall back to stored cookies
   let browser;
   try {
-    const { getBrowser } = require('./browserManager');
-    browser = await getBrowser();
+    const { getNewContext } = require('./browserManager');
+    browser = await getNewContext();
   } catch (e) {
-    console.warn(`[cookieWorker] Browser unavailable for ${provider}, using stored cookies only`);
+    console.warn(`[cookieWorker] Browser unavailable for ${provider}, using stored cookies`);
     return cookieStore.get(provider) || null;
   }
 
-  const page = await browser.newPage();
+  const hostsToTry = flow.backupHosts
+    ? [flow.url.replace('https://', ''), ...flow.backupHosts.filter(h => h !== flow.url.replace('https://', ''))]
+    : [flow.url.replace('https://', '')];
 
-  try {
-    await page.goto(flow.url, { waitUntil: 'networkidle', timeout: 30000 });
-    await page.fill(flow.selectors.username, creds.username);
-    await page.fill(flow.selectors.password, creds.password);
-    await page.click(flow.selectors.submit);
-    await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 15000 });
+  for (const host of hostsToTry) {
+    const url = host.startsWith('http') ? host : `https://${host}`;
+    let page;
+    try {
+      console.log(`[cookieWorker] ${provider}: trying ${url}`);
+      page = await browser.newPage();
 
-    const cookies = await page.context().cookies();
-    const cookieStrings = cookies.map(c => `${c.name}=${c.value}`);
+      // Block non-essential resources to speed up cookie acquisition
+      await page.route('**/*', (route) => {
+        const type = route.request().resourceType();
+        if (['document', 'script', 'xhr', 'fetch'].includes(type)) return route.continue();
+        return route.abort();
+      });
 
-    const expires = Date.now() + (24 * 60 * 60 * 1000); // 24h
-    const entry = { cookies: cookieStrings, expires };
-    cookieStore.set(provider, entry);
+      await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
+      await page.waitForTimeout(10000); // Let scripts set cookies
 
-    // Also save to Redis
-    if (redis) {
-      try {
-        await redis.setex(`cookies:${provider}`, 24 * 60 * 60, JSON.stringify(entry));
-      } catch (e) {
-        console.warn(`[cookieWorker] Redis write failed for ${provider}`);
+      const cookies = await page.context().cookies();
+      const foundCookies = cookies.filter(c => flow.cookieNames.includes(c.name));
+
+      if (foundCookies.length > 0 || flow.cookieNames.length === 0) {
+        let cookieArr = foundCookies.map(c => `${c.name}=${c.value}`);
+        if (flow.labelCookie) cookieArr.push(flow.labelCookie);
+        const cookieString = cookieArr.join('; ');
+
+        const expires = Date.now() + (COOKIE_TTL_SECS * 1000);
+        const entry = { cookies: [cookieString], expires, host };
+        cookieStore.set(provider, entry);
+
+        if (redis) {
+          try {
+            await redis.setex(`cookies:${provider}`, COOKIE_TTL_SECS, JSON.stringify(entry));
+          } catch (e) {
+            console.warn(`[cookieWorker] Redis write failed for ${provider}`);
+          }
+        }
+
+        console.log(`[cookieWorker] ${provider}: refreshed (${foundCookies.length} tokens) via ${host}`);
+        return entry;
       }
+    } catch (e) {
+      console.warn(`[cookieWorker] ${provider}: ${host} failed — ${e.message}`);
+    } finally {
+      if (page) await page.close();
     }
-
-    console.log(`[cookieWorker] Refreshed ${cookieStrings.length} cookies for ${provider}`);
-    return entry;
-  } catch (e) {
-    console.error(`[cookieWorker] Failed to refresh ${provider}:`, e.message);
-    const fallback = cookieStore.get(provider);
-    return fallback || null;
-  } finally {
-    await page.close();
   }
+
+  console.warn(`[cookieWorker] ${provider}: all hosts failed, using fallback`);
+  return cookieStore.get(provider) || null;
 }
 
 async function startCookieWorker() {
   console.log('[cookieWorker] Starting cookie rotation worker');
 
+  const providers = Object.keys(COOKIE_FLOWS);
+
   // Initial refresh — do one at a time to avoid resource contention
-  for (const provider of COOKIE_PROVIDERS) {
+  for (const provider of providers) {
     await refreshCookiesForProvider(provider);
   }
 
   // Rotate every 30 minutes
   setInterval(async () => {
-    for (const provider of COOKIE_PROVIDERS) {
+    for (const provider of providers) {
       await refreshCookiesForProvider(provider);
     }
   }, 30 * 60 * 1000);
