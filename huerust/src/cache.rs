@@ -83,6 +83,14 @@ impl StreamCache {
     }
 
     #[allow(dead_code)]
+    pub fn backend_name(&self) -> &'static str {
+        match &self.backend {
+            CacheBackend::Memory(_) => "memory",
+            CacheBackend::Redis(_) => "redis",
+        }
+    }
+
+    #[allow(dead_code)]
     pub fn new_with_capacity_ttl(max_capacity: u64, ttl: Duration) -> Self {
         Self::new_memory(max_capacity, ttl.as_secs())
     }

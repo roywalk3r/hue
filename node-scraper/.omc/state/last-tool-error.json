@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"grep \\\"utoipa\\\" huerust/Cargo.toml\",\"description\":\"Check utoipa version\"}",
+  "error": "Exit code 2\ngrep: huerust/Cargo.toml: No such file or directory",
+  "timestamp": "2026-05-03T19:12:50.933Z",
+  "retry_count": 1
+}

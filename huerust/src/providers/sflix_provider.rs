@@ -41,7 +41,7 @@ impl StreamProvider for SflixProvider {
     fn name(&self) -> &'static str { "Nova" }
     fn real_name(&self) -> &'static str { "sflix" }
     fn is_fast(&self) -> bool { true }
-    fn timeout_secs(&self) -> u64 { 30 }
+    fn timeout_secs(&self) -> u64 { 15 }
 
     async fn fetch(
         &self,

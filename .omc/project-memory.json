@@ -222,51 +222,69 @@
       "type": "file"
     },
     {
+      "path": "huerust/src/routes/streams.rs",
+      "accessCount": 41,
+      "lastAccessed": 1777836137852,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 34,
+      "lastAccessed": 1777836116886,
+      "type": "directory"
+    },
+    {
       "path": "huerust/src/proxy/mod.rs",
+      "accessCount": 31,
+      "lastAccessed": 1777834518983,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/config.rs",
+      "accessCount": 30,
+      "lastAccessed": 1777836178548,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src",
       "accessCount": 26,
-      "lastAccessed": 1777466374191,
+      "lastAccessed": 1777836158979,
+      "type": "directory"
+    },
+    {
+      "path": "providers/registry.js",
+      "accessCount": 23,
+      "lastAccessed": 1777834394452,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/main.rs",
+      "accessCount": 18,
+      "lastAccessed": 1777836109446,
       "type": "file"
     },
     {
       "path": "providers/huerust.js",
-      "accessCount": 14,
-      "lastAccessed": 1777459998658,
+      "accessCount": 15,
+      "lastAccessed": 1777830026447,
       "type": "file"
     },
     {
-      "path": "huerust/src/routes/streams.rs",
-      "accessCount": 14,
-      "lastAccessed": 1777466385333,
+      "path": "docker-compose.yml",
+      "accessCount": 15,
+      "lastAccessed": 1777834938900,
       "type": "file"
+    },
+    {
+      "path": ".env",
+      "accessCount": 13,
+      "lastAccessed": 1777830748397,
+      "type": "directory"
     },
     {
       "path": "ecosystem.config.js",
       "accessCount": 12,
       "lastAccessed": 1777459617701,
-      "type": "file"
-    },
-    {
-      "path": ".env",
-      "accessCount": 12,
-      "lastAccessed": 1777459695444,
-      "type": "directory"
-    },
-    {
-      "path": "huerust/src/config.rs",
-      "accessCount": 12,
-      "lastAccessed": 1777459698936,
-      "type": "file"
-    },
-    {
-      "path": "docker-compose.yml",
-      "accessCount": 11,
-      "lastAccessed": 1777388629020,
-      "type": "file"
-    },
-    {
-      "path": "providers/registry.js",
-      "accessCount": 11,
-      "lastAccessed": 1777459957179,
       "type": "file"
     },
     {
@@ -289,20 +307,14 @@
     },
     {
       "path": "Dockerfile",
-      "accessCount": 8,
-      "lastAccessed": 1777388628677,
+      "accessCount": 9,
+      "lastAccessed": 1777830404115,
       "type": "file"
     },
     {
       "path": "utils/cache.js",
       "accessCount": 7,
       "lastAccessed": 1777388581481,
-      "type": "file"
-    },
-    {
-      "path": "huerust/src/main.rs",
-      "accessCount": 7,
-      "lastAccessed": 1777455579940,
       "type": "file"
     },
     {
@@ -318,6 +330,12 @@
       "type": "file"
     },
     {
+      "path": "utils/config.js",
+      "accessCount": 6,
+      "lastAccessed": 1777829698446,
+      "type": "file"
+    },
+    {
       "path": "huerust/src/proxy/sanitize.rs",
       "accessCount": 5,
       "lastAccessed": 1777387412470,
@@ -330,9 +348,27 @@
       "type": "file"
     },
     {
-      "path": "utils/config.js",
+      "path": "huerust/src/moviebox.rs",
       "accessCount": 5,
-      "lastAccessed": 1777458553681,
+      "lastAccessed": 1777830017113,
+      "type": "file"
+    },
+    {
+      "path": "apiServer.js",
+      "accessCount": 5,
+      "lastAccessed": 1777830168769,
+      "type": "directory"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 5,
+      "lastAccessed": 1777834944645,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/sflix_provider.rs",
+      "accessCount": 5,
+      "lastAccessed": 1777836174937,
       "type": "file"
     },
     {
@@ -342,33 +378,27 @@
       "type": "file"
     },
     {
-      "path": "",
+      "path": "huerust/src/routes/mod.rs",
       "accessCount": 4,
-      "lastAccessed": 1777455543502,
-      "type": "directory"
-    },
-    {
-      "path": "huerust/src/moviebox.rs",
-      "accessCount": 4,
-      "lastAccessed": 1777466399254,
+      "lastAccessed": 1777836108629,
       "type": "file"
     },
     {
       "path": "huerust/src/circuit_breaker.rs",
-      "accessCount": 3,
-      "lastAccessed": 1777384336192,
+      "accessCount": 4,
+      "lastAccessed": 1777836114791,
       "type": "file"
     },
     {
-      "path": "apiServer.js",
-      "accessCount": 3,
-      "lastAccessed": 1777387311356,
-      "type": "directory"
+      "path": "huerust/src/routes/sse.rs",
+      "accessCount": 4,
+      "lastAccessed": 1777836148754,
+      "type": "file"
     },
     {
-      "path": "huerust/src",
-      "accessCount": 3,
-      "lastAccessed": 1777388606411,
+      "path": "huerust/src/providers",
+      "accessCount": 4,
+      "lastAccessed": 1777836151546,
       "type": "directory"
     },
     {
@@ -378,9 +408,39 @@
       "type": "file"
     },
     {
-      "path": "huerust/src/providers/sflix_provider.rs",
+      "path": "utils/tmdb.js",
       "accessCount": 3,
-      "lastAccessed": 1777458636665,
+      "lastAccessed": 1777829692432,
+      "type": "file"
+    },
+    {
+      "path": "providers",
+      "accessCount": 3,
+      "lastAccessed": 1777829978185,
+      "type": "directory"
+    },
+    {
+      "path": "huerust/src/providers/mp4hydra.rs",
+      "accessCount": 3,
+      "lastAccessed": 1777834400415,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/registry.rs",
+      "accessCount": 3,
+      "lastAccessed": 1777836114100,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/moviebox_provider.rs",
+      "accessCount": 3,
+      "lastAccessed": 1777836141588,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/mp4hydra_provider.rs",
+      "accessCount": 3,
+      "lastAccessed": 1777836145247,
       "type": "file"
     },
     {
@@ -396,39 +456,9 @@
       "type": "file"
     },
     {
-      "path": "huerust/src/providers/moviebox_provider.rs",
-      "accessCount": 2,
-      "lastAccessed": 1777384671000,
-      "type": "file"
-    },
-    {
-      "path": "huerust/src/providers",
-      "accessCount": 2,
-      "lastAccessed": 1777387328092,
-      "type": "directory"
-    },
-    {
-      "path": "huerust/src/registry.rs",
-      "accessCount": 2,
-      "lastAccessed": 1777387333475,
-      "type": "file"
-    },
-    {
-      "path": "utils/tmdb.js",
-      "accessCount": 2,
-      "lastAccessed": 1777388522134,
-      "type": "file"
-    },
-    {
       "path": "routes",
       "accessCount": 2,
       "lastAccessed": 1777388606753,
-      "type": "directory"
-    },
-    {
-      "path": "providers",
-      "accessCount": 2,
-      "lastAccessed": 1777388606846,
       "type": "directory"
     },
     {
@@ -451,44 +481,14 @@
     },
     {
       "path": "huerust/src/routes",
-      "accessCount": 1,
-      "lastAccessed": 1777330862711,
+      "accessCount": 2,
+      "lastAccessed": 1777834540421,
       "type": "directory"
     },
     {
       "path": "providers/autoembed.js",
       "accessCount": 1,
       "lastAccessed": 1777368118188,
-      "type": "file"
-    },
-    {
-      "path": "package.json",
-      "accessCount": 1,
-      "lastAccessed": 1777369540702,
-      "type": "file"
-    },
-    {
-      "path": "huerust/src/providers/mp4hydra_provider.rs",
-      "accessCount": 1,
-      "lastAccessed": 1777384097053,
-      "type": "file"
-    },
-    {
-      "path": "huerust/src/providers/mp4hydra.rs",
-      "accessCount": 1,
-      "lastAccessed": 1777384100468,
-      "type": "file"
-    },
-    {
-      "path": "huerust/src/routes/mod.rs",
-      "accessCount": 1,
-      "lastAccessed": 1777384111967,
-      "type": "file"
-    },
-    {
-      "path": "huerust/src/routes/sse.rs",
-      "accessCount": 1,
-      "lastAccessed": 1777384115133,
       "type": "file"
     },
     {

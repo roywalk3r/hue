@@ -59,11 +59,11 @@ impl AppConfig {
             fast_provider_deadline_secs: env::var("FAST_PROVIDER_DEADLINE_SECS")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(5),
+                .unwrap_or(8),
             slow_provider_deadline_secs: env::var("SLOW_PROVIDER_DEADLINE_SECS")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(25),
+                .unwrap_or(30),
             head_check_timeout_secs: env::var("HEAD_CHECK_TIMEOUT_SECS")
                 .ok()
                 .and_then(|s| s.parse().ok())
@@ -102,16 +102,16 @@ mod tests {
             tmdb_api_keys: vec!["k1".to_string()],
             cache_ttl_secs: 3600,
             cache_max_capacity: 500,
-            fast_provider_deadline_secs: 3,
-            slow_provider_deadline_secs: 10,
+            fast_provider_deadline_secs: 8,
+            slow_provider_deadline_secs: 30,
             head_check_timeout_secs: 2,
             enable_proxy: false,
             cache_backend: "memory".to_string(),
             redis_url: "redis://127.0.0.1:6379".to_string(),
         };
 
-        assert_eq!(cfg.fast_deadline(), Duration::from_secs(3));
-        assert_eq!(cfg.slow_deadline(), Duration::from_secs(10));
+        assert_eq!(cfg.fast_deadline(), Duration::from_secs(8));
+        assert_eq!(cfg.slow_deadline(), Duration::from_secs(30));
     }
 
     #[test]

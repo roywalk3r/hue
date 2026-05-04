@@ -334,12 +334,24 @@ async fn fetch_from_providers(
                     vec![]
                 }
                 Err(_) => {
-                    warn!("[api] Provider {} timed out after {}s", provider_name, timeout_secs);
-                    cb.record_failure(&real_name);
-                    let latency = provider_start.elapsed().as_millis() as u64;
-                    metrics_c.record_request(&provider_name, latency, false, true);
-                    metrics_c.record_latency(&provider_name, latency);
-                    vec![]
+                    warn!("[api] Provider {} timed out after {}s, retrying once", provider_name, timeout_secs);
+                    // Retry once on timeout
+                    match timeout(provider_timeout, provider.fetch(&tmdb, &mtype, season, episode)).await {
+                        Ok(Ok(streams)) => {
+                            cb.record_success(&real_name);
+                            let latency = provider_start.elapsed().as_millis() as u64;
+                            metrics_c.record_request(&provider_name, latency, true, true);
+                            metrics_c.record_latency(&provider_name, latency);
+                            streams
+                        }
+                        _ => {
+                            cb.record_failure(&real_name);
+                            let latency = provider_start.elapsed().as_millis() as u64;
+                            metrics_c.record_request(&provider_name, latency, false, true);
+                            metrics_c.record_latency(&provider_name, latency);
+                            vec![]
+                        }
+                    }
                 }
             };
 

@@ -289,7 +289,35 @@ async fn shutdown_signal() {
     info!("Shutdown signal received, starting graceful shutdown...");
 }
 
-async fn health_check() -> &'static str { "Huerust is Alive" }
+async fn health_check(State(state): State<AppState>) -> Response {
+    let scraper_ok = match state.client
+        .get(&format!("{}/internal/health", std::env::var("SCRAPER_URL").unwrap_or_else(|_| "http://127.0.0.1:24610".to_string())))
+        .timeout(std::time::Duration::from_secs(3))
+        .send()
+        .await
+    {
+        Ok(resp) => resp.status().is_success(),
+        Err(_) => false,
+    };
+
+    let providers: Vec<serde_json::Value> = state.registry.list_all_arc().iter().map(|p| {
+        let name = p.real_name();
+        let state_str = match state.registry.circuit_breaker().get_state(name) {
+            crate::circuit_breaker::CircuitState::Closed => "closed",
+            crate::circuit_breaker::CircuitState::HalfOpen => "half_open",
+            crate::circuit_breaker::CircuitState::Open => "open",
+        };
+        serde_json::json!({"name": name, "circuit": state_str})
+    }).collect();
+
+    let body = serde_json::json!({
+        "ok": true,
+        "scraper": scraper_ok,
+        "providers": providers,
+    });
+
+    (StatusCode::OK, Json(body)).into_response()
+}
 
 async fn auth_middleware(State(_state): State<AppState>, req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
     let path = req.uri().path();

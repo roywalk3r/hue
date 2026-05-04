@@ -130,6 +130,12 @@
       "type": "file"
     },
     {
+      "path": "src/cache.rs",
+      "accessCount": 6,
+      "lastAccessed": 1777840953453,
+      "type": "directory"
+    },
+    {
       "path": "src/config.rs",
       "accessCount": 5,
       "lastAccessed": 1777461643174,
@@ -176,12 +182,6 @@
       "accessCount": 3,
       "lastAccessed": 1777463819673,
       "type": "file"
-    },
-    {
-      "path": "src/cache.rs",
-      "accessCount": 2,
-      "lastAccessed": 1777374444564,
-      "type": "directory"
     },
     {
       "path": "src/proxy",

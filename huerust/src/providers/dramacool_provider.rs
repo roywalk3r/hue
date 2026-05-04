@@ -28,7 +28,7 @@ impl StreamProvider for DramacoolProvider {
     fn name(&self) -> &'static str { "Orient" }
     fn real_name(&self) -> &'static str { "dramacool" }
     fn is_fast(&self) -> bool { false }
-    fn timeout_secs(&self) -> u64 { 60 }
+    fn timeout_secs(&self) -> u64 { 45 }
 
     async fn fetch(
         &self,
