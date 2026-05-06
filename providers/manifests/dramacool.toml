@@ -1,0 +1,22 @@
+[provider]
+name = "orient"
+label = "DramaCool"
+runtime = "both"
+media_types = ["drama"]
+
+[capabilities]
+search = true
+streams = true
+episodes = true
+
+[behavior]
+timeout_ms = 15000
+max_retries = 2
+circuit_breaker = true
+priority = 75
+
+[test]
+fixture_id = "goblin"
+fixture_type = "drama"
+fixture_episode = 1
+expect_streams = true

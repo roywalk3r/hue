@@ -1,0 +1,22 @@
+[provider]
+name = "stadium"
+label = "Livesport"
+runtime = "node"
+media_types = ["sports"]
+
+[capabilities]
+search = false
+streams = true
+episodes = false
+
+[behavior]
+timeout_ms = 30000
+max_retries = 1
+circuit_breaker = false
+priority = 80
+
+[test]
+fixture_id = "premier-league"
+fixture_type = "sports"
+fixture_episode = 0
+expect_streams = false
