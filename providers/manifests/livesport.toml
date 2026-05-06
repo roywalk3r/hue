@@ -19,4 +19,4 @@ priority = 80
 fixture_id = "premier-league"
 fixture_type = "sports"
 fixture_episode = 0
-expect_streams = false
+expect_streams = true

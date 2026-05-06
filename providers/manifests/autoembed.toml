@@ -13,7 +13,7 @@ episodes = true
 timeout_ms = 15000
 max_retries = 2
 circuit_breaker = true
-priority = 72
+priority = 70
 
 [test]
 fixture_id = "27205"
