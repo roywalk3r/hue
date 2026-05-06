@@ -17,6 +17,12 @@ importers:
       '@hono/zod-openapi':
         specifier: ^1.2.0
         version: 1.2.0(hono@4.11.7)(zod@4.3.6)
+      '@iarna/toml':
+        specifier: ^2.2.5
+        version: 2.2.5
+      '@scalar/express-api-reference':
+        specifier: ^0.9.10
+        version: 0.9.14
       '@scalar/hono-api-reference':
         specifier: ^0.9.30
         version: 0.9.37(hono@4.11.7)
@@ -211,6 +217,9 @@ packages:
     resolution: {integrity: sha512-93zYdMES/c1D69yZiKDBj0V24vqNzB/koF26KPaagAfd3P/4gUlh3Dys5ogAK+Exi9QyzlD8x/08Zt7wIKcDcA==}
     deprecated: Use @eslint/object-schema instead
 
+  '@iarna/toml@2.2.5':
+    resolution: {integrity: sha512-trnsAYxU3xnS1gPHPyU961coFyLkh4gAD/0zQ5mymY4yOZ+CYvsPqUbOFSw0aDM4y0tV7tiFxL/1XfXPNC6IPg==}
+
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
     engines: {node: '>= 8'}
@@ -228,13 +237,25 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
+  '@scalar/client-side-rendering@0.1.7':
+    resolution: {integrity: sha512-IDzjKF93jrOljlvKBsLHXT1FPWgz56jFrMPC+iLihREp1qH8wF92mG8Zpakw8cURkEuw5WijRk0xNBP2moGyuw==}
+    engines: {node: '>=22'}
+
   '@scalar/core@0.3.34':
     resolution: {integrity: sha512-dZnpkrnjiPvPLa/sIdjoaxdVoYowWUqC5nCCXJI+29laMIII6dCze8ThxLPGN1b9gJ8cYcQwBrwr+RNCjqJgdQ==}
     engines: {node: '>=20'}
 
+  '@scalar/express-api-reference@0.9.14':
+    resolution: {integrity: sha512-OPhqH+OOPHjuka/4v6x+/sYU1aPB5xfAMeb1lNMallWZBok7ZmVicDVSfRC/9NQCHzOgpMzdRdo847qJJ6TTXw==}
+    engines: {node: '>=22'}
+
   '@scalar/helpers@0.2.9':
     resolution: {integrity: sha512-Y4ffJF0yELdwZ0BKgonqn3SumIgRn1WKyYCVHD+TDM7qRFChdGRypyt20+efHs26fmJeyBAIIv2laICj5uimiw==}
     engines: {node: '>=20'}
+
+  '@scalar/helpers@0.6.0':
+    resolution: {integrity: sha512-pfSamAgBxqFeE8IpEG6uGkHlnPhY1CLeOTttV9+vKQbrBk5b7vvyTsUXv0Hz4kNU1TFrxcTTPE+Akn5S+jlTtQ==}
+    engines: {node: '>=22'}
 
   '@scalar/hono-api-reference@0.9.37':
     resolution: {integrity: sha512-eprpFplQoirRmfC5fWo90jLQX5x01H7QS2XrRDmNES207eaEvtUZHyW9vPV7Bi9ltjrnqG8WK2oPMd/uZClptg==}
@@ -245,6 +266,10 @@ packages:
   '@scalar/types@0.5.10':
     resolution: {integrity: sha512-37qAHQC2J7O+Mt8u0HOZttTQPQ1OEWKWxo9SMbahYKTosL9k1KtTG2F3EB33EkW3WqEVQitkUKrM0+MVM2HeYQ==}
     engines: {node: '>=20'}
+
+  '@scalar/types@0.9.6':
+    resolution: {integrity: sha512-UaCQQcscFTJdxZREE8KhUdSJgaDlc44TZbmWcZffs4m1hzqOvEI7lEBS13iBpLq7/cxUXFgyJdecywvNqJ0PkA==}
+    engines: {node: '>=22'}
 
   '@scarf/scarf@1.4.0':
     resolution: {integrity: sha512-xxeapPiUXdZAE3che6f3xogoJPeZgig6omHEy1rIY5WVsB3H2BHNnZH+gHG6x91SCWyQCzWGsuL2Hh3ClO5/qQ==}
@@ -385,6 +410,7 @@ packages:
   basic-ftp@5.0.5:
     resolution: {integrity: sha512-4Bcg1P8xhUuqcii/S0Z9wiHIrQVPMermM1any+MX5GeGD7faD3/msQUDGLol9wOcz4/jbg/WJnGqoJF6LiBdtg==}
     engines: {node: '>=10.0.0'}
+    deprecated: Security vulnerability fixed in 5.2.1, please upgrade
 
   binary-extensions@2.3.0:
     resolution: {integrity: sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==}
@@ -1855,6 +1881,8 @@ snapshots:
 
   '@humanwhocodes/object-schema@2.0.3': {}
 
+  '@iarna/toml@2.2.5': {}
+
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
       '@nodelib/fs.stat': 2.0.5
@@ -1883,11 +1911,21 @@ snapshots:
       - supports-color
     optional: true
 
+  '@scalar/client-side-rendering@0.1.7':
+    dependencies:
+      '@scalar/types': 0.9.6
+
   '@scalar/core@0.3.34':
     dependencies:
       '@scalar/types': 0.5.10
 
+  '@scalar/express-api-reference@0.9.14':
+    dependencies:
+      '@scalar/client-side-rendering': 0.1.7
+
   '@scalar/helpers@0.2.9': {}
+
+  '@scalar/helpers@0.6.0': {}
 
   '@scalar/hono-api-reference@0.9.37(hono@4.11.7)':
     dependencies:
@@ -1897,6 +1935,13 @@ snapshots:
   '@scalar/types@0.5.10':
     dependencies:
       '@scalar/helpers': 0.2.9
+      nanoid: 5.1.6
+      type-fest: 5.4.2
+      zod: 4.3.6
+
+  '@scalar/types@0.9.6':
+    dependencies:
+      '@scalar/helpers': 0.6.0
       nanoid: 5.1.6
       type-fest: 5.4.2
       zod: 4.3.6
