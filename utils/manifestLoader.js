@@ -29,8 +29,9 @@ function getManifestByLabel(label) {
 
 function getBehaviorConfig(providerRealName) {
   const manifests = loadManifests();
+  const norm = s => s.toLowerCase().replace(/[\s-]/g, '');
   const manifest = Object.values(manifests).find(
-    m => m.provider.name === providerRealName || m.provider.label.toLowerCase() === providerRealName.toLowerCase()
+    m => m.provider.name === providerRealName || norm(m.provider.label) === norm(providerRealName)
   );
   return manifest ? manifest.behavior : { timeout_ms: 15000, max_retries: 2, circuit_breaker: true, priority: 50 };
 }

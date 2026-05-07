@@ -189,7 +189,8 @@ module.exports = function(metrics) {
 
             const dramaProviders = ['dramacool', 'orient'];
             const selectedProviders = (config.defaultProviders.length ? config.defaultProviders : listProviders().map(p=>p.name))
-                .filter(name => !dramaProviders.includes(name.toLowerCase()));
+                .filter(name => !dramaProviders.includes(name.toLowerCase()))
+                .sort((a, b) => (getProvider(b)?.priority || 50) - (getProvider(a)?.priority || 50));
 
             const { isProviderHealthy, recordSuccess, recordFailure } = require('../utils/providerCircuitBreaker');
             const rawResults = [];
@@ -207,7 +208,7 @@ module.exports = function(metrics) {
                         const t0 = Date.now();
                         const r = await Promise.race([
                             prov.fetch({ tmdbId, type, season, episode, imdbId, tmdbData, filters:{} }),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('Provider timeout')), prov.isFast ? 15000 : 60000))
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Provider timeout')), prov.timeoutMs || (prov.isFast ? 15000 : 60000)))
                         ]);
                         const elapsedMs = Date.now() - t0;
                         const results = Array.isArray(r) ? r : [];
@@ -293,7 +294,8 @@ module.exports = function(metrics) {
             
             const dramaProviders = ['dramacool', 'orient'];
             const selectedProviders = (config.defaultProviders.length ? config.defaultProviders : listProviders().map(p=>p.name))
-                .filter(name => !dramaProviders.includes(name.toLowerCase()));
+                .filter(name => !dramaProviders.includes(name.toLowerCase()))
+                .sort((a, b) => (getProvider(b)?.priority || 50) - (getProvider(a)?.priority || 50));
 
             // Coalesce duplicate in-flight requests for the same content
             const fetchKey = `${type}:${tmdbId}:${season || 0}:${episode || 0}`;
@@ -336,7 +338,7 @@ module.exports = function(metrics) {
                         const t0 = Date.now();
                         const r = await Promise.race([
                             prov.fetch({ tmdbId, type, season, episode, imdbId, tmdbData, filters:{ } }),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('Provider timeout')), isFast ? 15000 : 60000))
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Provider timeout')), prov.timeoutMs || (isFast ? 15000 : 60000)))
                         ]);
                         providerTimings[name] = Date.now()-t0;
                         const results = Array.isArray(r) ? r : [];

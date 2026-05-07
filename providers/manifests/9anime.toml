@@ -1,0 +1,22 @@
+[provider]
+name = "saber"
+label = "9anime"
+runtime = "node"
+media_types = ["anime"]
+
+[capabilities]
+search = true
+streams = true
+episodes = true
+
+[behavior]
+timeout_ms = 20000
+max_retries = 2
+circuit_breaker = true
+priority = 65
+
+[test]
+fixture_id = "21"
+fixture_type = "series"
+fixture_episode = 1
+expect_streams = true

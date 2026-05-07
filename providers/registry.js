@@ -10,6 +10,7 @@ const { config } = require('../utils/config');
 const fs = require('fs');
 const path = require('path');
 const { getCachedStreams, setCachedStreams } = require('../utils/cache');
+const { getBehaviorConfig } = require('../utils/manifestLoader');
 
 // Map real provider names to "special" names for the API response
 const PROVIDER_RENAME_MAP = {
@@ -280,18 +281,23 @@ for (const providerInfo of providerFiles) {
 
   if (enabled) {
     const publicName = getPublicName(providerInfo.name);
-    const isFast = isFastProvider(providerInfo.name) || 
-                   providerInfo.name === 'moviebox' || 
-                   providerInfo.name === 'autoembed' || 
+    const isFast = isFastProvider(providerInfo.name) ||
+                   providerInfo.name === 'moviebox' ||
+                   providerInfo.name === 'autoembed' ||
                    providerInfo.name === '4khdhub' ||
                    providerInfo.name === 'moviesmod' ||
                    providerInfo.name === 'uhdmovies';
+
+    const behavior = getBehaviorConfig(providerInfo.name);
 
     providers.push({
       name: publicName,
       realName: providerInfo.name,
       enabled: true,
       isFast: isFast,
+      timeoutMs: behavior.timeout_ms,
+      priority: behavior.priority,
+      circuitBreakerEnabled: behavior.circuit_breaker,
       fetch: createFetchFunction({ ...providerInfo, realName: providerInfo.name, publicName })
     });
     console.log(`[registry] ${providerInfo.name} provider enabled as "${publicName}"`);
