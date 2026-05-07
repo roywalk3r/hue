@@ -43,12 +43,30 @@ pub struct HiTvClient {
     pub mapping_cache: Arc<RwLock<HashMap<String, TmdbNormalizedInfo>>>,
 }
 
+impl Clone for HiTvClient {
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            tmdb: self.tmdb.clone(),
+            library_cache: self.library_cache.clone(),
+            mapping_cache: self.mapping_cache.clone(),
+        }
+    }
+}
+
 const BASE_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff";
 
 impl HiTvClient {
     pub fn new(tmdb: Arc<TmdbClient>) -> Self {
         Self {
-            client: Client::new(),
+            client: Client::builder()
+                .timeout(std::time::Duration::from_secs(15))
+                .connect_timeout(std::time::Duration::from_secs(8))
+                .tcp_keepalive(std::time::Duration::from_secs(60))
+                .pool_max_idle_per_host(4)
+                .pool_idle_timeout(std::time::Duration::from_secs(90))
+                .build()
+                .unwrap(),
             tmdb,
             library_cache: Arc::new(RwLock::new(Vec::new())),
             mapping_cache: Arc::new(RwLock::new(HashMap::new())),
@@ -61,32 +79,37 @@ impl HiTvClient {
 
     pub async fn build_library(&self) -> Result<()> {
         info!("[HiTV Rust] Starting Library Builder...");
+
+        let countries = ["Korea", "China", "Thailand", "Japan"];
+        let categories = ["Drama", "Movie", "Variety"];
+
+        // Fire all 60 page requests concurrently (4 countries × 3 categories × 5 pages).
+        let mut set = tokio::task::JoinSet::new();
+        for country in countries {
+            for category in categories {
+                for page in 1u32..=5 {
+                    let slf = self.clone();
+                    set.spawn(async move {
+                        slf.browse_hitv(page, 60, country, category, "All", "Hottest", None).await
+                    });
+                }
+            }
+        }
+
         let mut all_items = Vec::new();
         let mut seen_ids = HashSet::new();
-
-        let countries = vec!["Korea", "China", "Thailand", "Japan"];
-        let categories = vec!["Drama", "Movie", "Variety"];
-
-        for country in countries {
-            for category in categories.iter() {
-                info!("[HiTV Rust] Scanning {} {}...", country, category);
-                // Scan first 5 pages of each category
-                for page in 1..=5 {
-                    if let Ok(res) = self.browse_hitv(page, 60, country, category, "All", "Hottest", None).await {
-                        for item in res.items {
-                            if !seen_ids.contains(&item.id) {
-                                seen_ids.insert(item.id.clone());
-                                all_items.push(item);
-                            }
-                        }
+        while let Some(result) = set.join_next().await {
+            if let Ok(Ok(res)) = result {
+                for item in res.items {
+                    if seen_ids.insert(item.id.clone()) {
+                        all_items.push(item);
                     }
                 }
             }
         }
 
         let count = all_items.len();
-        let mut cache = self.library_cache.write().await;
-        *cache = all_items;
+        *self.library_cache.write().await = all_items;
         info!("[HiTV Rust] Library built successfully with {} items", count);
         Ok(())
     }

@@ -10,6 +10,8 @@ use reqwest::Client;
 use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
+use moka::future::Cache;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TmdbMovieInfo {
@@ -47,6 +49,7 @@ pub struct TmdbNormalizedInfo {
     pub overview: Option<String>,
     pub poster_path: Option<String>,
     pub backdrop_path: Option<String>,
+    pub release_date: Option<String>,
     pub year: Option<u32>,
     pub rating: Option<f64>,
     pub imdb_id: Option<String>,
@@ -56,14 +59,23 @@ pub struct TmdbClient {
     client: Client,
     api_keys: Vec<String>,
     key_index: AtomicUsize,
+    details_cache: Cache<(String, u64), TmdbNormalizedInfo>,
 }
 
 impl TmdbClient {
     pub fn new(api_keys: Vec<String>) -> Self {
         Self {
-            client: Client::new(),
+            client: Client::builder()
+                .timeout(Duration::from_secs(10))
+                .tcp_keepalive(Duration::from_secs(60))
+                .build()
+                .unwrap(),
             api_keys,
             key_index: AtomicUsize::new(0),
+            details_cache: Cache::builder()
+                .max_capacity(500)
+                .time_to_live(Duration::from_secs(3600))
+                .build(),
         }
     }
 
@@ -126,6 +138,7 @@ impl TmdbClient {
                     overview: info.overview,
                     poster_path: info.poster_path,
                     backdrop_path: info.backdrop_path,
+                    release_date: info.first_air_date.clone(),
                     year,
                     rating: info.vote_average,
                     imdb_id: None,
@@ -141,6 +154,7 @@ impl TmdbClient {
                     overview: info.overview,
                     poster_path: info.poster_path,
                     backdrop_path: info.backdrop_path,
+                    release_date: info.release_date.clone(),
                     year,
                     rating: info.vote_average,
                     imdb_id: None,
@@ -152,6 +166,16 @@ impl TmdbClient {
     }
 
     pub async fn get_details(&self, m_type: &str, tmdb_id: u64) -> Result<TmdbNormalizedInfo> {
+        let cache_key = (m_type.to_string(), tmdb_id);
+        if let Some(cached) = self.details_cache.get(&cache_key).await {
+            return Ok(cached);
+        }
+        let result = self.fetch_details(m_type, tmdb_id).await?;
+        self.details_cache.insert(cache_key, result.clone()).await;
+        Ok(result)
+    }
+
+    async fn fetch_details(&self, m_type: &str, tmdb_id: u64) -> Result<TmdbNormalizedInfo> {
         let endpoint = format!("/{}/{}", if m_type == "tv" { "tv" } else { "movie" }, tmdb_id);
         let mut params = HashMap::new();
 
@@ -168,6 +192,7 @@ impl TmdbClient {
                 overview: info.overview,
                 poster_path: info.poster_path,
                 backdrop_path: info.backdrop_path,
+                release_date: info.first_air_date.clone(),
                 year,
                 rating: info.vote_average,
                 imdb_id,
@@ -183,6 +208,7 @@ impl TmdbClient {
                 overview: info.overview,
                 poster_path: info.poster_path,
                 backdrop_path: info.backdrop_path,
+                release_date: info.release_date.clone(),
                 year,
                 rating: info.vote_average,
                 imdb_id: info.imdb_id,

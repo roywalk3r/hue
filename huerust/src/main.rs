@@ -35,7 +35,7 @@ use axum::{
 use reqwest::Client;
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
-use tracing::info;
+use tracing::{info, warn};
 use axum::body::Body;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -128,6 +128,26 @@ struct AppState {
 #[tokio::main]
 async fn main() {
     dotenv().ok();
+
+    // CLI handling
+    let args: Vec<String> = env::args().collect();
+    if args.len() > 1 && args[1] == "--encrypt" {
+        if args.len() < 3 {
+            println!("Usage: huerust --encrypt <url> [referer]");
+            return;
+        }
+        let url = &args[2];
+        let referer = args.get(3).cloned();
+        let cfg = config::AppConfig::from_env();
+        let mut headers = std::collections::HashMap::new();
+        if let Some(r) = referer {
+            headers.insert("Referer".to_string(), r);
+        }
+        let token = security::encrypt_url(url, &cfg.secret, if headers.is_empty() { None } else { Some(headers) });
+        println!("{}", token);
+        return;
+    }
+
     tracing_subscriber::fmt::init();
 
     let cfg = config::AppConfig::from_env();
@@ -148,6 +168,10 @@ async fn main() {
     let vixsrc_client = Arc::new(VixsrcClient::new(
         Client::builder()
             .tcp_keepalive(Duration::from_secs(60))
+            .connect_timeout(Duration::from_secs(8))
+            .pool_max_idle_per_host(2)
+            .pool_idle_timeout(Duration::from_secs(90))
+            .timeout(Duration::from_secs(15))
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
             .build()
             .unwrap(),
@@ -190,6 +214,18 @@ async fn main() {
         }
     });
 
+    // Background Task: Evict stale rate-limiter entries every 5 minutes
+    let rl_bg = state.rate_limiter.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(300));
+        loop {
+            interval.tick().await;
+            let now = Instant::now();
+            let window = Duration::from_secs(rl_bg.window_secs * 2);
+            rl_bg.store.retain(|_, (_, start)| now.duration_since(*start) < window);
+        }
+    });
+
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/metrics", get(metrics_handler))
@@ -214,6 +250,7 @@ async fn main() {
         .route("/api/streams/:type/:tmdbId/live", get(routes::sse::sse_streams_handler))
         .route("/api/providers", get(routes::providers::providers_handler))
         .route("/api/admin/reload", axum::routing::post(admin_reload_handler))
+        .route("/api/admin/refresh-tokens", axum::routing::post(admin_refresh_tokens_handler))
         .route("/api/play/:type/:tmdbId", get(routes::play::play_handler))
         .route("/api/drama/kisskh/search", get(routes::drama::kisskh_search_handler))
         .route("/api/drama/kisskh/streams/:id/:episode", get(routes::drama::kisskh_streams_handler))
@@ -269,6 +306,11 @@ async fn shutdown_signal() {
 async fn health_check() -> &'static str { "Huerust is Alive" }
 
 async fn auth_middleware(State(_state): State<AppState>, req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
+    let path = req.uri().path();
+    // Proxy routes are self-authenticated via encrypted h_token — skip API key check
+    if path == "/ts-proxy" || path == "/m3u8-proxy" || path == "/sub-proxy" {
+        return Ok(next.run(req).await);
+    }
     let is_local = req.extensions().get::<SocketAddr>().map_or(false, |a| a.ip().is_loopback());
     if is_local { return Ok(next.run(req).await); }
     if let Ok(api_key) = env::var("API_KEY") {
@@ -308,6 +350,26 @@ async fn hitv_library_handler(State(state): State<AppState>) -> Response {
 async fn admin_reload_handler() -> Response {
     crate::user_config::HueUserConfig::invalidate();
     (StatusCode::OK, "{\"ok\":true,\"message\":\"Config cache invalidated — next request reloads from disk\"}").into_response()
+}
+
+async fn admin_refresh_tokens_handler(State(state): State<AppState>) -> Response {
+    let node_api_url = std::env::var("NODE_API_URL")
+        .unwrap_or_else(|_| "http://127.0.0.1:3003".to_string());
+    let url = format!("{}/system/refresh-tokens", node_api_url);
+
+    match state.client.post(&url).send().await {
+        Ok(resp) => {
+            crate::user_config::HueUserConfig::invalidate();
+            let status = if resp.status().is_success() { StatusCode::OK } else { StatusCode::BAD_GATEWAY };
+            let body = resp.text().await.unwrap_or_default();
+            info!("[admin] Token refresh response: status={}, body={}", status, body);
+            (status, format!("{{\"ok\":true,\"message\":\"Token refresh triggered\",\"node_response\":{}}}", body)).into_response()
+        }
+        Err(e) => {
+            warn!("[admin] refresh-tokens call to Node.js failed: {}", e);
+            (StatusCode::BAD_GATEWAY, format!("{{\"ok\":false,\"error\":\"Node.js unreachable: {}\"}}", e)).into_response()
+        }
+    }
 }
 
 // --- Handlers moved to src/routes/ ---

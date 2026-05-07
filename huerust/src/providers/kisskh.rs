@@ -60,6 +60,10 @@ impl KissKhClient {
             client: Client::builder()
                 .user_agent(USER_AGENT)
                 .tcp_keepalive(std::time::Duration::from_secs(60))
+                .connect_timeout(std::time::Duration::from_secs(10))
+                .pool_max_idle_per_host(2)
+                .pool_idle_timeout(std::time::Duration::from_secs(90))
+                .timeout(std::time::Duration::from_secs(15))
                 .build()
                 .unwrap(),
         }
@@ -144,6 +148,7 @@ impl KissKhClient {
                         format: "hls".to_string(),
                         subtitles: subs,
                         headers: Some(headers),
+                    extra_metadata: None,
                     });
                 }
                 Ok(results)

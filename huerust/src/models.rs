@@ -20,6 +20,8 @@ pub struct StreamResult {
     pub subtitles: Option<Vec<Subtitle>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub headers: Option<HashMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra_metadata: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]

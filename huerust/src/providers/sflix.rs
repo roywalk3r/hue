@@ -27,10 +27,20 @@ impl SflixClient {
     pub fn new() -> Self {
         let scraper_url = std::env::var("MICROSERVICE_URL")
             .unwrap_or_else(|_| "http://127.0.0.1:24610".to_string());
+        // Warn once at startup if the fallback credential is expired
+        let cookie = crate::user_config::HueUserConfig::get_live()
+            .sflix_cookie_or_env(DEFAULT_COOKIE);
+        if cookie == DEFAULT_COOKIE && crate::security::jwt_is_expired(DEFAULT_COOKIE) {
+            warn!("[SFlix] Default JWT is expired. Set sflix_cookie in user-config.json to restore functionality.");
+        }
         Self {
             client: Client::builder()
                 .user_agent(DEFAULT_USER_AGENT)
                 .timeout(std::time::Duration::from_secs(30))
+                .connect_timeout(std::time::Duration::from_secs(10))
+                .tcp_keepalive(std::time::Duration::from_secs(60))
+                .pool_max_idle_per_host(2)
+                .pool_idle_timeout(std::time::Duration::from_secs(90))
                 .build()
                 .unwrap(),
             scraper_url,
@@ -113,7 +123,7 @@ impl SflixClient {
         Ok(None)
     }
 
-    pub async fn get_streams_normalized(&self, title: &str, media_type: &str, season: u32, episode: u32) -> Result<Vec<StreamResult>> {
+    pub async fn get_streams_normalized(&self, title: &str, media_type: &str, _year: Option<u32>, season: u32, episode: u32) -> Result<Vec<StreamResult>> {
         info!("[SFlix Rust] Searching for: \"{}\" ({}) S{} E{}", title, media_type, season, episode);
         
         let items = self.search(title, media_type).await?;
@@ -140,6 +150,7 @@ impl SflixClient {
                             format: "mp4".to_string(),
                             subtitles: None,
                             headers: Some(headers.clone()),
+                            extra_metadata: None,
                         });
                     }
                 }
@@ -154,6 +165,7 @@ impl SflixClient {
                             format: "hls".to_string(),
                             subtitles: None,
                             headers: Some(headers.clone()),
+                            extra_metadata: None,
                         });
                     }
                 }

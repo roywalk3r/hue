@@ -61,6 +61,10 @@ impl DramacoolClient {
             client: Client::builder()
                 .user_agent(USER_AGENT)
                 .timeout(std::time::Duration::from_secs(30))
+                .connect_timeout(std::time::Duration::from_secs(10))
+                .tcp_keepalive(std::time::Duration::from_secs(60))
+                .pool_max_idle_per_host(2)
+                .pool_idle_timeout(std::time::Duration::from_secs(90))
                 .build()
                 .unwrap(),
             scraper_url,
@@ -132,6 +136,7 @@ impl DramacoolClient {
                             format: "hls".to_string(),
                             subtitles: None,
                             headers: Some(headers),
+                        extra_metadata: None,
                         });
                         return Ok(results);
                     }

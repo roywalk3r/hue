@@ -58,11 +58,20 @@ pub struct MovieBoxClient {
 impl MovieBoxClient {
     pub fn new(host: Option<String>) -> Self {
         let default_host = host.unwrap_or_else(|| "moviebox.ph".to_string());
-        let host = crate::user_config::HueUserConfig::get_live()
-            .moviebox_host_or_env(&default_host);
+        let uc = crate::user_config::HueUserConfig::get_live();
+        // Warn once at startup if the fallback credential is expired
+        let x_user = uc.moviebox_x_user_or_env(DEFAULT_X_USER);
+        if x_user == DEFAULT_X_USER && crate::security::jwt_is_expired(DEFAULT_X_USER) {
+            warn!("[MovieBox] Default JWT is expired. Set moviebox_x_user in user-config.json to restore functionality.");
+        }
+        let host = uc.moviebox_host_or_env(&default_host);
         Self {
             client: Client::builder()
                 .timeout(std::time::Duration::from_secs(45))
+                .connect_timeout(std::time::Duration::from_secs(10))
+                .tcp_keepalive(std::time::Duration::from_secs(60))
+                .pool_max_idle_per_host(4)
+                .pool_idle_timeout(std::time::Duration::from_secs(90))
                 .build()
                 .unwrap(),
             host,
@@ -150,51 +159,68 @@ impl MovieBoxClient {
         let is_movie = season == 0 && episode == 0;
         let type_label = if is_movie { "movie" } else { "series" };
 
-        let hosts = vec!["moviebox.ph", "movibox.net", "123movienow.cc", "moviebox.to"];
-        let timezones = vec!["Pacific/Pago_Pago", "Asia/Hong_Kong", "Europe/London", "America/New_York"];
+        // Race all host×timezone combos simultaneously — return the first successful response.
+        let hosts: &[&str] = &["moviebox.ph", "movibox.net", "123movienow.cc", "moviebox.to"];
+        let timezones: &[&str] = &["Pacific/Pago_Pago", "Asia/Hong_Kong", "Europe/London", "America/New_York"];
 
-        for (h_idx, host) in hosts.iter().enumerate() {
+        let mut set = tokio::task::JoinSet::new();
+
+        for (h_idx, &host) in hosts.iter().enumerate() {
             let max_tz = if h_idx == 0 { 1 } else { 2 };
-            for tz in timezones.iter().take(max_tz) {
-                let play_url = format!("https://{}/wefeed-h5api-bff/subject/play", host);
+            for &tz in timezones.iter().take(max_tz) {
+                let client = self.client.clone();
+                let base_headers = self.get_base_headers();
+                let subject_id = subject_id.to_string();
+                let detail_path = detail_path.to_string();
+                let type_label = type_label.to_string();
+                let host = host.to_string();
+                let tz = tz.to_string();
+                let season = season;
+                let episode = episode;
 
-                let mut referer_path = detail_path.to_string();
-                if referer_path.starts_with('/') { referer_path.remove(0); }
-                referer_path = referer_path.replace("movies/detail/", "movies/").replace("series/detail/", "series/");
+                set.spawn(async move {
+                    let play_url = format!("https://{}/wefeed-h5api-bff/subject/play", host);
 
-                let referer = format!(
-                    "https://{}/spa/videoPlayPage/{}?id={}&type=/{}/detail&detailSe=&detailEp=&lang=en",
-                    host, referer_path, subject_id, type_label
-                );
+                    let mut referer_path = detail_path.clone();
+                    if referer_path.starts_with('/') { referer_path.remove(0); }
+                    referer_path = referer_path.replace("movies/detail/", "movies/").replace("series/detail/", "series/");
 
-                let url = format!("{}?subjectId={}&se={}&ep={}&detailPath={}",
-                    play_url, subject_id, season, episode, urlencoding::encode(detail_path));
+                    let referer = format!(
+                        "https://{}/spa/videoPlayPage/{}?id={}&type=/{}/detail&detailSe=&detailEp=&lang=en",
+                        host, referer_path, subject_id, type_label
+                    );
+                    let url = format!("{}?subjectId={}&se={}&ep={}&detailPath={}",
+                        play_url, subject_id, season, episode, urlencoding::encode(&detail_path));
 
-                if h_idx > 0 {
-                    info!("[MovieBox Rust] Retrying with host={} tz={}", host, tz);
-                }
-
-                let mut headers = self.get_base_headers();
-                headers.insert(REFERER, HeaderValue::from_str(&referer).unwrap());
-                headers.insert("x-client-info", HeaderValue::from_str(&format!(r#"{{"timezone":"{}"}}"#, tz)).unwrap());
-
-                match self.client.get(&url).headers(headers).send().await {
-                    Ok(resp) => {
-                        let text = resp.text().await?;
-                        if text.contains("<!DOCTYPE") { continue; }
-
-                        let data: serde_json::Value = serde_json::from_str(&text)?;
-                        if data["code"] == 0 {
-                            return Ok(serde_json::from_value(data["data"].clone()).ok());
-                        }
-
-                        if data["message"] == "invalid region" {
-                            warn!("[MovieBox Rust] Region Blocked on {}: id={}", host, subject_id);
-                            continue;
-                        }
+                    let mut headers = base_headers;
+                    if let Ok(v) = HeaderValue::from_str(&referer) { headers.insert(REFERER, v); }
+                    if let Ok(v) = HeaderValue::from_str(&format!(r#"{{"timezone":"{}"}}"#, tz)) {
+                        headers.insert("x-client-info", v);
                     }
-                    Err(_) => continue,
-                }
+
+                    match client.get(&url).headers(headers).send().await {
+                        Ok(resp) => {
+                            let text = resp.text().await.unwrap_or_default();
+                            if text.contains("<!DOCTYPE") { return None; }
+                            let data: serde_json::Value = serde_json::from_str(&text).ok()?;
+                            if data["code"] == 0 {
+                                return serde_json::from_value(data["data"].clone()).ok();
+                            }
+                            if data["message"] == "invalid region" {
+                                warn!("[MovieBox Rust] Region blocked on {}", host);
+                            }
+                            None
+                        }
+                        Err(_) => None,
+                    }
+                });
+            }
+        }
+
+        while let Some(result) = set.join_next().await {
+            if let Ok(Some(data)) = result {
+                set.abort_all();
+                return Ok(Some(data));
             }
         }
 
@@ -264,6 +290,7 @@ impl MovieBoxClient {
                             format: "mp4".to_string(),
                             subtitles: None,
                             headers: Some(mb_headers.clone()),
+                            extra_metadata: None,
                         });
                     }
                 }
@@ -278,6 +305,7 @@ impl MovieBoxClient {
                             format: "hls".to_string(),
                             subtitles: None,
                             headers: Some(mb_headers.clone()),
+                            extra_metadata: None,
                         });
                     }
                 }

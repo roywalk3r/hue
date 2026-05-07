@@ -6,11 +6,13 @@
 //! @license MIT
 
 use aes::Aes256;
-use cbc::{Decryptor, Encryptor}; // Note: Typo in 'Encryptor' often occurs, check correct trait
+use cbc::{Decryptor, Encryptor};
 use cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
 use scrypt::{scrypt, Params};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 use rand::RngCore;
 
 type Aes256CbcDec = Decryptor<Aes256>;
@@ -29,8 +31,66 @@ pub struct DecryptedToken {
 fn get_key(secret: &str) -> [u8; 32] {
     let mut key = [0u8; 32];
     let params = Params::new(14, 8, 1, 32).unwrap();
-    scrypt(secret.as_bytes(), b"salt", &params, &mut key).unwrap();
+    let salt: [u8; 16] = Sha256::digest(secret.as_bytes())[..16].try_into().unwrap();
+    scrypt(secret.as_bytes(), &salt, &params, &mut key).unwrap();
     key
+}
+
+// Memoize the expensive scrypt derivation — called once per unique secret per process.
+static KEY_CACHE: OnceLock<Mutex<HashMap<String, [u8; 32]>>> = OnceLock::new();
+
+fn get_key_memoized(secret: &str) -> [u8; 32] {
+    let cache = KEY_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    {
+        let map = cache.lock().unwrap();
+        if let Some(&k) = map.get(secret) {
+            return k;
+        }
+    }
+    let k = get_key(secret);
+    cache.lock().unwrap().insert(secret.to_string(), k);
+    k
+}
+
+/// Returns true if a raw string containing a JWT has an expired `exp` claim.
+/// Accepts raw JWTs, URL-encoded cookie strings, or JSON objects containing a JWT.
+pub fn jwt_is_expired(raw: &str) -> bool {
+    // All JWTs start with the base64url encoding of '{"' which is 'eyJ'
+    let start = match raw.find("eyJ") {
+        Some(i) => i,
+        None => return true,
+    };
+    let rest = &raw[start..];
+    // JWT ends at any character that cannot appear in a base64url-encoded JWT
+    let end = rest.find(|c: char| c == '%' || c == '"' || c == ';' || c == '\'')
+        .unwrap_or(rest.len());
+    let jwt_str = &rest[..end];
+
+    let parts: Vec<&str> = jwt_str.splitn(3, '.').collect();
+    if parts.len() < 2 { return true; }
+
+    let payload = parts[1];
+    let rem = payload.len() % 4;
+    let padded = if rem > 0 {
+        format!("{}{}", payload, "=".repeat(4 - rem))
+    } else {
+        payload.to_string()
+    };
+
+    use base64::{Engine as _, engine::general_purpose};
+    let bytes = match general_purpose::URL_SAFE.decode(&padded) {
+        Ok(b) => b,
+        Err(_) => return true,
+    };
+
+    let json: serde_json::Value = match serde_json::from_slice(&bytes) {
+        Ok(v) => v,
+        Err(_) => return true,
+    };
+
+    let exp = json["exp"].as_u64().unwrap_or(0);
+    let now = chrono::Utc::now().timestamp() as u64;
+    exp < now
 }
 
 pub fn encrypt_url(url: &str, secret: &str, headers: Option<HashMap<String, String>>) -> String {
@@ -44,7 +104,7 @@ pub fn encrypt_url(url: &str, secret: &str, headers: Option<HashMap<String, Stri
     let mut iv = [0u8; 16];
     rand::thread_rng().fill_bytes(&mut iv);
 
-    let key = get_key(secret);
+    let key = get_key_memoized(secret);
     let cipher = Aes256CbcEnc::new(&key.into(), &iv.into());
     let ct = cipher.encrypt_padded_vec_mut::<Pkcs7>(&payload);
 
@@ -58,7 +118,7 @@ pub fn decrypt_url(token: &str, secret: &str) -> Option<DecryptedToken> {
     let iv = hex::decode(parts[0]).ok()?;
     let encrypted_data = hex::decode(parts[1]).ok()?;
 
-    let key = get_key(secret);
+    let key = get_key_memoized(secret);
     let pt = Aes256CbcDec::new(&key.into(), iv.as_slice().into())
         .decrypt_padded_vec_mut::<Pkcs7>(&encrypted_data)
         .ok()?;

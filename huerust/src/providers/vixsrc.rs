@@ -84,6 +84,7 @@ impl VixsrcClient {
             format: "hls".to_string(),
             subtitles: if subs.is_empty() { None } else { Some(subs) },
             headers: Some(headers),
+extra_metadata: None,
         }])
     }
 
