@@ -64,5 +64,7 @@ function isStreamUrl(url) {
 
 module.exports = {
     attachBlocker,
-    isStreamUrl
+    isStreamUrl,
+    AD_DOMAINS,
+    BLOCKED_TYPES
 };

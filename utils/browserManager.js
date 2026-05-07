@@ -10,6 +10,7 @@
 const { chromium, firefox } = require("playwright-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const { buildLaunchOptions } = require("./browserConfig");
+const { AD_DOMAINS } = require("./interceptor");
 
 // Use stealth plugin for Chromium only
 chromium.use(StealthPlugin());
@@ -142,8 +143,7 @@ async function getNewPage(options = {}) {
                 if (['image', 'font', 'stylesheet'].includes(type)) return route.abort();
                 
                 // Block ads
-                const blacklisted = ['analytics', 'doubleclick', 'google-analytics', 'adsystem', 'carbon', 'popads', 'popcash', 'histats', 'acscdn'];
-                if (blacklisted.some(domain => url.includes(domain))) return route.abort();
+                if (AD_DOMAINS.some(domain => url.includes(domain))) return route.abort();
                 
                 route.continue();
             });
