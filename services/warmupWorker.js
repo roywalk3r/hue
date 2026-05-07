@@ -54,20 +54,16 @@ async function runWarmup() {
         const movies = await getPopular('movie', 1);
         const shows = await getPopular('tv', 1);
         
-        const currentYear = 2025; // Hard limit for VPS stability
+        const currentYear = new Date().getFullYear() - 1;
 
         // Stricter filter: Must have a release date AND it must be in the past
         const topItems = [
             ...movies.map(i => ({ ...i, type: 'movie' })),
             ...shows.map(i => ({ ...i, type: 'tv' }))
         ].filter(item => {
-            const title = (item.title || item.name || '').toLowerCase();
             const releaseStr = item.release_date || item.first_air_date;
 
-            // 1. Title Year Check (Fastest)
-            if (title.includes('2026') || title.includes('2027')) return false;
-
-            // 2. Metadata Date Check
+            // 1. Metadata Date Check
             if (!releaseStr) return false;
             const releaseDate = new Date(releaseStr);
             if (releaseDate.getFullYear() > currentYear) return false;

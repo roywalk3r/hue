@@ -8,8 +8,14 @@
 
 const crypto = require('crypto');
 
-// Use a persistent secret from ENV or generate a random one on startup
-const SECRET = process.env.APP_SECRET || 'super-secret-hue-key-change-me';
+// Use a persistent secret from ENV or fall back to insecure default
+const SECRET = process.env.APP_SECRET || (() => {
+    console.error('[SECURITY] APP_SECRET env var is not set. Using insecure default. Set APP_SECRET in production.');
+    return 'super-secret-hue-key-change-me';
+})();
+
+// Derive a unique salt from the secret so key material is deployment-specific
+const _saltBuf = crypto.createHash('sha256').update(SECRET).digest().slice(0, 16);
 
 // 1. Generate a Signed URL Token
 // Contains: Original URL, Expiry, IP (optional), Headers (optional)
@@ -18,7 +24,7 @@ function encryptUrl(url, ip = null, headers = null) {
     const payload = JSON.stringify({ u: url, e: expires, i: ip, h: headers });
     
     const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-cbc', crypto.scryptSync(SECRET, 'salt', 32), iv);
+    const cipher = crypto.createCipheriv('aes-256-cbc', crypto.scryptSync(SECRET, _saltBuf, 32), iv);
     let encrypted = cipher.update(payload);
     encrypted = Buffer.concat([encrypted, cipher.final()]);
     
@@ -45,7 +51,7 @@ function decryptUrl(token, reqIp = null) {
             return null;
         }
 
-        const decipher = crypto.createDecipheriv('aes-256-cbc', crypto.scryptSync(SECRET, 'salt', 32), iv);
+        const decipher = crypto.createDecipheriv('aes-256-cbc', crypto.scryptSync(SECRET, _saltBuf, 32), iv);
         let decrypted = decipher.update(encryptedText);
         decrypted = Buffer.concat([decrypted, decipher.final()]);
         

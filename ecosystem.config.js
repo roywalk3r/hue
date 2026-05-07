@@ -15,7 +15,7 @@ module.exports = {
       args: 'run --release',
       cwd: './huerust',
       env: {
-        RUST_PORT: 24608,
+        RUST_PORT: 24609,
       }
     },
     {
