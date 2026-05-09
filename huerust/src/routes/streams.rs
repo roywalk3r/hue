@@ -317,6 +317,14 @@ async fn fetch_from_providers(
 pub(crate) fn wrap_with_proxy(streams: Vec<StreamResult>, proxy_base: &str, secret: &str) -> Vec<StreamResult> {
     streams.into_iter().map(|mut s| {
         let is_hls = s.format == "hls" || s.url.contains(".m3u8") || s.provider == "Aura";
+
+        // Cinema (MovieBox) MP4 streams come from a CDN that IP-blocks server/datacenter
+        // ranges. Proxying them through our server always 403s. Return the raw URL with
+        // headers so the client (browser/player) fetches directly from its own IP.
+        if s.provider == "Cinema" && !is_hls {
+            return s;
+        }
+
         let use_url_mode = s.extra_metadata.as_ref()
             .map(|m| m.get("proxyMode").map(|v| v == "url").unwrap_or(false))
             .unwrap_or(false);
