@@ -153,10 +153,25 @@ app.use('/api/docs/swagger', swaggerUi.serve, swaggerUi.setup(null, { swaggerOpt
 const { apiReference } = require('@scalar/express-api-reference');
 app.use('/api/docs/scalar', apiReference({
     spec: { url: '/api/docs/openapi.json' },
-    theme: 'default',
+    theme: 'none',
     hideDownloadButton: true,
     favicon: '',
-    pageTitle: 'Hue Stream API Docs',
+    pageTitle: 'HUE ENGINE ⬢ API REFERENCE',
+    customCss: `
+:root {
+  --scalar-color-1: #E0E0E0;
+  --scalar-color-2: #aaa;
+  --scalar-color-3: #777;
+  --scalar-color-accent: #1A5E3A;
+  --scalar-background-1: #0A0A0A;
+  --scalar-background-2: #121212;
+  --scalar-background-3: #1a1a1a;
+  --scalar-border-color: #2A2A2A;
+  --scalar-font: 'JetBrains Mono', 'Fira Code', monospace;
+}
+.scalar-card { border: 1px solid var(--scalar-border-color) !important; }
+.sidebar { background: var(--scalar-background-2) !important; border-right: 1px solid var(--scalar-border-color) !important; }
+    `
 }));
 
 app.get('/api/docs', (req, res) => {
