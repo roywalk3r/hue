@@ -122,10 +122,12 @@ pub async fn streams_handler(
     let slow_deadline = state.config.slow_deadline();
     let metrics = state.metrics.clone();
 
+    let mut captured_timings: Vec<ProviderTiming> = vec![];
+
     let coalesced = if no_cache {
         // Bypass coalescer — start all providers simultaneously, per-provider timeouts apply.
         let start = std::time::Instant::now();
-        let (streams, _) = crate::routes::streams::fetch_from_providers(
+        let (streams, timings) = crate::routes::streams::fetch_from_providers(
             registry.clone(),
             metrics.clone(),
             &tmdb_info_c,
@@ -136,6 +138,7 @@ pub async fn streams_handler(
             999,
             slow_deadline,
         ).await;
+        captured_timings = timings;
         let mut seen_urls = std::collections::HashSet::new();
         let unique: Vec<_> = streams.into_iter().filter(|s| seen_urls.insert(s.url.clone())).collect();
         let filtered = apply_filters(unique, &filter_config);
@@ -183,7 +186,7 @@ pub async fn streams_handler(
         episode,
         count: final_streams.len(),
         streams: final_streams,
-        provider_timings: vec![],
+        provider_timings: captured_timings,
     }).unwrap()).into_response()
 }
 
