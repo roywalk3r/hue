@@ -1,48 +1,49 @@
 /*TMDB Embed Admin Panel Styles */
 :root {
-  --bg: #f7f9fc;
-  --bg-alt: #ffffff;
-  --bg-accent: #eef2f7;
-  --border: #d8e0ea;
-  --border-strong: #b6c2cf;
-  --text: #1f2933;
-  --text-dim: #5a6b7b;
-  --primary: #2563eb;
-  --primary-accent: #1d4ed8;
+  --bg: #050505;
+  --bg-alt: #0a0a0a;
+  --bg-accent: #121212;
+  --border: #1A5E3A;
+  --border-strong: #1A5E3A;
+  --text: #E0E0E0;
+  --text-dim: #888;
+  --primary: #1A5E3A;
+  --primary-accent: #2ecc71;
   --primary-fg: #ffffff;
-  --danger: #dc2626;
-  --warn: #b45309;
+  --danger: #e74c3c;
+  --warn: #FFBF00;
   --radius-sm: 4px;
   --radius: 8px;
   --shadow: 0 1px 2px rgba(0,0,0,.05), 0 4px 16px -4px rgba(0,0,0,.08);
-  --mono: "SFMono-Regular",Consolas,Menlo,monospace;
+  --mono: 'JetBrains Mono', monospace;
   --transition: .18s cubic-bezier(.4,0,.2,1);
 }
 :root[data-theme='dark'] {
-  --bg: #0f141a;
-  --bg-alt: #161d25;
-  --bg-accent: #1e2630;
-  --border: #29323d;
-  --border-strong: #3a4654;
-  --text: #e5edf3;
-  --text-dim: #a0b1c0;
-  --primary: #3b82f6;
-  --primary-accent: #1d4ed8;
-  --primary-fg: #f0f6ff;
-  --danger: #f87171;
-  --warn: #f59e0b;
+  --bg: #050505;
+  --bg-alt: #0a0a0a;
+  --bg-accent: #121212;
+  --border: #1A5E3A;
+  --border-strong: #1A5E3A;
+  --text: #E0E0E0;
+  --text-dim: #888;
+  --primary: #1A5E3A;
+  --primary-accent: #2ecc71;
+  --primary-fg: #ffffff;
+  --danger: #e74c3c;
+  --warn: #FFBF00;
   --shadow: 0 2px 4px rgba(0,0,0,.4), 0 8px 28px -6px rgba(0,0,0,.55);
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--mono);
   background: var(--bg);
   color: var(--text);
   display: flex;
   min-height: 100vh;
   overflow: hidden; /* Prevent body scroll; main will scroll */
+  border-top: 4px solid var(--primary);
 }
 .bmc-btn {
     min-width: 50px !important;
@@ -167,7 +168,11 @@ body {
   resize: vertical;
 }
 .field select { cursor: pointer; appearance: none; -webkit-appearance: none; line-height:1.2; padding-right: 36px; background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%), linear-gradient(135deg, var(--text-dim) 50%, transparent 50%); background-position: calc(100% - 20px) 16px, calc(100% - 14px) 16px; background-size: 6px 6px, 6px 6px; background-repeat: no-repeat; }
-.field input[type=text]:focus, .field input[type=password]:focus, .field textarea:focus, .field select:focus { border-color: var(--primary); outline: none; }
+.field input[type=text]:focus, .field input[type=password]:focus, .field textarea:focus, .field select:focus { 
+  border-color: var(--primary-accent); 
+  box-shadow: 0 0 0 2px rgba(46, 204, 113, 0.2);
+  outline: none; 
+}
 .field select:disabled { opacity:.55; cursor: not-allowed; }
 textarea { min-height: 110px; }
 .hint {

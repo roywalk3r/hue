@@ -23,7 +23,6 @@ mod user_config;
 mod coalesce;
 mod metrics;
 mod openapi;
-mod hianime;
 
 use axum::{
     extract::State,
@@ -118,7 +117,6 @@ struct AppState {
     hitv: Arc<HiTvClient>,
     kisskh: Arc<KissKhClient>,
     dramacool: Arc<DramacoolClient>,
-    hianime: Arc<crate::hianime::HianimeClient>,
     secret: String,
     proxy_base_url: String,
     config: Arc<crate::config::AppConfig>,
@@ -199,7 +197,6 @@ async fn main() {
         hitv: Arc::new(HiTvClient::new(tmdb.clone())),
         kisskh: kisskh_client,
         dramacool: dramacool_client,
-        hianime: Arc::new(crate::hianime::HianimeClient::new()),
         secret: cfg.secret.clone(),
         proxy_base_url: cfg.proxy_base_url.clone(),
         config: Arc::new(cfg.clone()),
@@ -259,12 +256,6 @@ async fn main() {
         .route("/api/drama/kisskh/streams/:id/:episode", get(routes::drama::kisskh_streams_handler))
         .route("/api/drama/dramacool/search", get(routes::drama::dramacool_search_handler))
         .route("/api/drama/dramacool/streams/:id/:episode", get(routes::drama::dramacool_streams_handler))
-        .route("/api/anime/search", get(routes::anime::search_handler))
-        .route("/api/anime/latest", get(routes::anime::latest_handler))
-        .route("/api/anime/category", get(routes::anime::category_handler))
-        .route("/api/anime/home", get(routes::anime::home_handler))
-        .route("/api/anime/servers", get(routes::anime::servers_handler))
-        .route("/api/anime/stream", get(routes::anime::stream_handler))
         .merge(SwaggerUi::new("/api/docs").url("/api/docs/openapi.json", openapi::ApiDoc::openapi()))
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit_middleware))
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))

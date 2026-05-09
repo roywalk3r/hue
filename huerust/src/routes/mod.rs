@@ -11,4 +11,3 @@ pub mod streams;
 pub mod drama;
 pub mod sse;
 pub mod providers;
-pub mod anime;
