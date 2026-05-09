@@ -1,51 +1,34 @@
-# Hue Stream API 🎥
+# HUE STREAM API ⬢
+### System Designation: The Architecture of Aggregation
+**Version:** 1.8.4 | **Status:** Nominal | **Engine:** Node.js v18+
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Node](https://img.shields.io/badge/node-v18%2B-green.svg) ![Status](https://img.shields.io/badge/status-stable-success.svg)
-
-> **The Ultimate Streaming Aggregator** for Movies, TV Shows, KDramas, and Live Sports.
-> Built for performance, stability, and ease of use.
-
----
-
-## 🌟 Overview
-
-**Hue Stream** is a unified backend that turns disparate streaming sources into a single, polished API. It combines the speed of HTTP-based providers with the resilience of headless browser automation to deliver content reliably.
-
-Whether you are building a **Netflix clone**, a **KDrama hub**, a **sports streaming platform**, or a personal media center, Hue provides the streams, metadata, and subtitles you need—securely and instantly.
+> [!IMPORTANT]
+> **Manual-First Backend Engine:** Hue is a high-performance streaming aggregator. It is engineered for modularity, resilience, and schema-strict data delivery. This is not a media player; it is the infrastructure that powers them.
 
 ---
 
-## ✨ Key Features
+## ⬢ System Specifications
 
-### 🎬 **Smart Aggregation**
-Fetch streams from multiple high-quality providers simultaneously. The system automatically races them and returns the best results first.
-*   **General Content:** Nova (SFlix), Aura (Vixsrc), Luna (Vidrock), Solar (Vidsrc-xyz).
-*   **Asian Drama:** Zenith (KissKH), Orient (Dramacool), Cinema (MovieBox).
-*   **Live Sports:** Stadium (Livesport), Field (AiSports), Arena (LiveTV), Event (PPV.to).
+### 01. Modular Provider Registry
+The Hue core operates as a central hub for independent provider nodes.
+*   **Nova (SFlix):** High-speed spectral aggregation.
+*   **Zenith (KissKH):** Focused regional drama telemetry.
+*   **Stadium (Livesport):** Real-time sports data streams.
+*   **Nova/Cinema/Luna:** Primary high-fidelity content sources.
 
-### 🌏 **Regional Discovery Engine**
-A dedicated subsystem for global content discovery.
-*   **HiTV & SFlix:** Explore thousands of KDramas and CDramas by Genre, Country, and Popularity.
-*   **MovieBox:** Full catalog of Western and Asian content with high-quality MP4/HLS streams.
-*   **Smart Play:** Automatically maps discovery IDs to playable streams from Zenith, Nova, or Cinema.
-*   **Metadata:** Rich details including ratings, cast, and trailers.
+### 02. Secure Blueprinting (Proxy)
+All outbound telemetry is encapsulated via an AES-256 HMAC signed proxy system.
+*   **Telemetry Locking:** Origin-restricted bandwidth management.
+*   **IPv4 Failover:** Automatic route switching for legacy CDNs.
 
-### 🛡️ **Fortress Security**
-Enterprise-grade protection for your streams.
-*   **Signed URLs:** All proxy links are encrypted with **AES-256 HMAC**. They are time-limited (4h) and tamper-proof.
-*   **Origin Locking:** Restrict API access to *your* frontend domains only.
-*   **Anti-Leech:** Prevents unauthorized bandwidth usage and open relay abuse.
-
-### 🚀 **Performance & Stability**
-*   **Hybrid Scrapers:** Uses lightweight HTTP requests where possible, falling back to optimized Headless Browsers (Playwright) only when necessary.
-*   **Ad-Blocking:** Built-in interceptors block ads and trackers at the network level, speeding up stream extraction by **300%**.
-*   **Resilient Proxy:** Automatic **IPv4 Failover** ensures streams play even on strict networks or IPv6-hostile CDNs.
+### 03. Discovery Schematic
+A multi-layered catalog engine mapping global content (HiTV/MovieBox) to playable provider nodes.
 
 ---
 
-## 📚 API Documentation
+## ⬢ Documentation Interface
 
-We offer beautiful, interactive documentation to help you integrate quickly.
+The system exposes technical documentation for rapid integration and schema validation.
 
 *   **Scalar Docs (Modern):** [`/api/docs`](http://localhost:24608/api/docs) - *Recommended*
 *   **Swagger UI (Classic):** [`/api/docs/swagger`](http://localhost:24608/api/docs/swagger)
@@ -53,13 +36,13 @@ We offer beautiful, interactive documentation to help you integrate quickly.
 
 ---
 
-## 🛠️ Installation & Setup
+## ⬢ Deployment Protocol
 
 ### Prerequisites
 *   Node.js v18+
-*   Chrome / Chromium (for Playwright)
+*   Chrome / Chromium (Engineered for Playwright)
 
-### Quick Start
+### Initial Initialization
 
 1.  **Clone the repository**
     ```bash
@@ -85,7 +68,7 @@ We offer beautiful, interactive documentation to help you integrate quickly.
     STRICT_SECURITY=true
     ```
 
-4.  **Launch!**
+4.  **Execute Start Sequence**
     ```bash
     npm start
     ```
@@ -93,7 +76,7 @@ We offer beautiful, interactive documentation to help you integrate quickly.
 
 ---
 
-## 📡 API Endpoints Guide
+## ⬢ Telemetry Endpoints
 
 ### 1. Unified Aggregation (TMDB)
 Aggregate streams for mainstream content.
@@ -148,9 +131,9 @@ POST /api/config                    # Update configuration patch
 
 ---
 
-## 🤝 Contributing
+## ⬢ System Contribution
 
-Contributions are welcome! Please check the `providers/` directory to see how to add new sources.
+Technical contributions are encouraged. Refer to the `providers/` directory for node implementation details.
 
 1.  Fork the Project
 2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
@@ -160,12 +143,12 @@ Contributions are welcome! Please check the `providers/` directory to see how to
 
 ---
 
-## 📄 License
+## ⬢ Licensing
 
 Distributed under the MIT License. See `LICENSE` for more information.
 
 ---
 
 <div align="center">
-  <sub>Built with ❤️ by roywalk3r</sub>
+  <sub>Engineered by roywalk3r</sub>
 </div>
