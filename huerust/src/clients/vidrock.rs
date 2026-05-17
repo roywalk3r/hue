@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /*
  * HUE ENGINE ❄
  * System Designation: The Architecture of Aggregation
