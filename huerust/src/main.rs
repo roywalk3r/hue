@@ -6,9 +6,7 @@
 //! @license MIT
 
 mod security;
-mod tmdb;
-mod moviebox;
-mod hitv;
+mod clients;
 mod providers;
 mod models;
 mod infra;
@@ -20,7 +18,6 @@ mod config;
 mod proxy;
 mod user_config;
 mod openapi;
-mod hianime;
 mod constants;
 
 use axum::{
@@ -45,9 +42,9 @@ use std::time::Duration;
 use dashmap::DashMap;
 use std::time::Instant;
 
-use crate::tmdb::TmdbClient;
-use crate::moviebox::MovieBoxClient;
-use crate::hitv::HiTvClient;
+use crate::clients::tmdb::TmdbClient;
+use crate::clients::moviebox::MovieBoxClient;
+use crate::clients::hitv::HiTvClient;
 use crate::infra::cache::StreamCache;
 use crate::infra::coalesce::FetchCoalescer;
 use crate::registry::ProviderRegistry;
@@ -117,7 +114,7 @@ struct AppState {
     kisskh: Arc<KissKhClient>,
     dramacool: Arc<DramacoolClient>,
     moviebox: Arc<MovieBoxClient>,
-    hianime: Arc<crate::hianime::HianimeClient>,
+    hianime: Arc<crate::clients::hianime::HianimeClient>,
     secret: String,
     proxy_base_url: String,
     config: Arc<crate::config::AppConfig>,
@@ -167,7 +164,7 @@ async fn main() {
     let kisskh_client = Arc::new(crate::providers::kisskh::KissKhClient::new());
     let sflix_client = Arc::new(crate::providers::sflix::SflixClient::new());
     let dramacool_client = Arc::new(crate::providers::dramacool::DramacoolClient::new());
-    let hianime_client = Arc::new(crate::hianime::HianimeClient::new());
+    let hianime_client = Arc::new(crate::clients::hianime::HianimeClient::new());
     let vixsrc_client = Arc::new(VixsrcClient::new(
         Client::builder()
             .tcp_keepalive(Duration::from_secs(60))

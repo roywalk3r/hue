@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use reqwest::Client;
 use anyhow::{Result, anyhow};
 use std::sync::Arc;
-use crate::tmdb::{TmdbClient, TmdbNormalizedInfo};
+use crate::clients::tmdb::{TmdbClient, TmdbNormalizedInfo};
 use tokio::sync::RwLock;
 use std::collections::{HashMap, HashSet};
 use tracing::info;

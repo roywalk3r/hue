@@ -10,7 +10,7 @@ use reqwest::{Client, header::{HeaderMap, HeaderValue, REFERER, CONTENT_TYPE}};
 use anyhow::Result;
 use std::collections::HashMap;
 use tracing::{info, warn};
-use crate::moviebox::StreamData;
+use crate::clients::moviebox::StreamData;
 use crate::models::StreamResult;
 
 const BASE_URL: &str = "https://sflix.film";

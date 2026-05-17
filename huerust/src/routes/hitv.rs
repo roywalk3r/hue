@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use serde::Serialize;
 use crate::{
     AppState,
-    hitv::HiTvItem,
+    clients::hitv::HiTvItem,
 };
 use tracing::{info, warn};
 

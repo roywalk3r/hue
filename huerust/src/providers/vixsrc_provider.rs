@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use crate::providers::StreamProvider;
 use crate::providers::vixsrc::VixsrcClient;
 use crate::models::StreamResult;
-use crate::tmdb::TmdbNormalizedInfo;
+use crate::clients::tmdb::TmdbNormalizedInfo;
 use anyhow::Result;
 use std::sync::Arc;
 

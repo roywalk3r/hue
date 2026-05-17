@@ -194,7 +194,7 @@ pub async fn streams_handler(
 async fn fetch_from_providers(
     registry: Arc<ProviderRegistry>,
     metrics: Arc<Metrics>,
-    tmdb_info: &crate::tmdb::TmdbNormalizedInfo,
+    tmdb_info: &crate::clients::tmdb::TmdbNormalizedInfo,
     media_type: &str,
     season: u32,
     episode: u32,

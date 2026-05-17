@@ -8,7 +8,7 @@
 use async_trait::async_trait;
 use crate::providers::StreamProvider;
 use crate::models::StreamResult;
-use crate::tmdb::TmdbNormalizedInfo;
+use crate::clients::tmdb::TmdbNormalizedInfo;
 use crate::providers::sflix::SflixClient;
 use anyhow::Result;
 use chrono::{NaiveDate, Utc};

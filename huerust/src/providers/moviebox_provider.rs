@@ -8,8 +8,8 @@
 use async_trait::async_trait;
 use crate::providers::StreamProvider;
 use crate::models::StreamResult;
-use crate::tmdb::TmdbNormalizedInfo;
-use crate::moviebox::MovieBoxClient;
+use crate::clients::tmdb::TmdbNormalizedInfo;
+use crate::clients::moviebox::MovieBoxClient;
 use anyhow::Result;
 use std::sync::Arc;
 

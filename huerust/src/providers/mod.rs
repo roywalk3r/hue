@@ -19,7 +19,7 @@ pub mod mp4hydra_provider;
 
 use async_trait::async_trait;
 use crate::models::StreamResult;
-use crate::tmdb::TmdbNormalizedInfo;
+use crate::clients::tmdb::TmdbNormalizedInfo;
 use anyhow::Result;
 
 #[async_trait]
