@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{info, warn};
 
-use crate::metrics::Metrics;
+use crate::infra::metrics::Metrics;
 
 const FAILURE_THRESHOLD: usize = 2;
 const MIN_RECOVERY_TIMEOUT: Duration = Duration::from_secs(180); // 3 min

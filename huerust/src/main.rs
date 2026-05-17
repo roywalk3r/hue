@@ -11,17 +11,14 @@ mod moviebox;
 mod hitv;
 mod providers;
 mod models;
-mod cache;
+mod infra;
 mod registry;
 mod filters;
-mod circuit_breaker;
 mod routes;
 mod microservice;
 mod config;
 mod proxy;
 mod user_config;
-mod coalesce;
-mod metrics;
 mod openapi;
 mod hianime;
 mod constants;
@@ -51,12 +48,12 @@ use std::time::Instant;
 use crate::tmdb::TmdbClient;
 use crate::moviebox::MovieBoxClient;
 use crate::hitv::HiTvClient;
-use crate::cache::StreamCache;
-use crate::coalesce::FetchCoalescer;
+use crate::infra::cache::StreamCache;
+use crate::infra::coalesce::FetchCoalescer;
 use crate::registry::ProviderRegistry;
 use crate::filters::FilterConfig;
-use crate::circuit_breaker::CircuitBreaker;
-use crate::metrics::Metrics;
+use crate::infra::circuit_breaker::CircuitBreaker;
+use crate::infra::metrics::Metrics;
 use crate::providers::{
 
     moviebox_provider::MovieBoxProvider,

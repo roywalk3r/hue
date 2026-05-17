@@ -21,12 +21,12 @@ use url::Url;
 
 use crate::{
     AppState,
-    cache::CacheKey,
+    infra::cache::CacheKey,
     filters::apply_filters,
     registry::ProviderRegistry,
     models::StreamResult,
     security::encrypt_url,
-    metrics::Metrics,
+    infra::metrics::Metrics,
 };
 
 #[derive(Serialize, ToSchema)]

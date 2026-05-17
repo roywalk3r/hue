@@ -31,9 +31,9 @@ pub async fn providers_handler(State(state): State<AppState>) -> Response {
     let cb = state.registry.circuit_breaker();
     let providers: Vec<ProviderInfo> = state.registry.list_all().iter().map(|p| {
         let state_str = match cb.get_state(p.real_name()) {
-            crate::circuit_breaker::CircuitState::Closed => "closed",
-            crate::circuit_breaker::CircuitState::Open => "open",
-            crate::circuit_breaker::CircuitState::HalfOpen => "half_open",
+            crate::infra::circuit_breaker::CircuitState::Closed => "closed",
+            crate::infra::circuit_breaker::CircuitState::Open => "open",
+            crate::infra::circuit_breaker::CircuitState::HalfOpen => "half_open",
         };
         ProviderInfo {
             name: p.name(),

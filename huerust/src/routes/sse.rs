@@ -20,7 +20,7 @@ use tracing::warn;
 
 use crate::{
     AppState,
-    cache::CacheKey,
+    infra::cache::CacheKey,
     filters::apply_filters,
     routes::streams::wrap_with_proxy,
 };

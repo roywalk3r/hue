@@ -8,9 +8,9 @@
 use std::sync::Arc;
 use dashmap::DashMap;
 use tokio::sync::Notify;
-use crate::cache::CacheKey;
+use crate::infra::cache::CacheKey;
 use crate::models::StreamResult;
-use crate::cache::StreamCache;
+use crate::infra::cache::StreamCache;
 
 /// Coalesces concurrent fetch requests for the same content.
 /// First request performs the fetch; subsequent requests wait and read from cache.

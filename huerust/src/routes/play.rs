@@ -17,7 +17,7 @@ use tracing::{info, warn};
 use utoipa::ToSchema;
 use crate::{
     AppState,
-    cache::CacheKey,
+    infra::cache::CacheKey,
     filters::{apply_filters, sort_by_quality},
 };
 

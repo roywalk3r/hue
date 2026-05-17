@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 use crate::providers::StreamProvider;
-use crate::circuit_breaker::CircuitBreaker;
+use crate::infra::circuit_breaker::CircuitBreaker;
 
 pub struct ProviderRegistry {
     providers: Vec<Arc<dyn StreamProvider>>,
