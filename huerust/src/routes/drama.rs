@@ -13,8 +13,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::AppState;
-use crate::models::StreamResult;
-use crate::routes::streams::wrap_with_proxy;
+use crate::proxy::wrap::wrap_with_proxy;
 
 #[derive(Deserialize)]
 pub struct SearchQuery {

@@ -20,6 +20,7 @@ use std::env;
 
 pub mod sanitize;
 pub mod adsurgery;
+pub mod wrap;
 
 // ── Query Types ──────────────────────────────────────────────────────────────
 

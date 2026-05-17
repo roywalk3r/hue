@@ -22,7 +22,7 @@ use crate::{
     AppState,
     infra::cache::CacheKey,
     filters::apply_filters,
-    routes::streams::wrap_with_proxy,
+    proxy::wrap::wrap_with_proxy,
 };
 
 #[utoipa::path(
