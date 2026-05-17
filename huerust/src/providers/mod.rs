@@ -5,6 +5,7 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
+pub mod registry;
 pub mod vixsrc;
 pub mod kisskh;
 pub mod sflix;

@@ -23,7 +23,7 @@ use crate::{
     AppState,
     infra::cache::CacheKey,
     filters::apply_filters,
-    registry::ProviderRegistry,
+    providers::registry::ProviderRegistry,
     models::StreamResult,
     security::encrypt_url,
     infra::metrics::Metrics,
