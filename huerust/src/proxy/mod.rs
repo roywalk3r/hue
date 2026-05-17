@@ -27,6 +27,7 @@ pub mod adsurgery;
 pub struct ProxyQuery {
     pub h_token: Option<String>,
     pub url: Option<String>,
+    pub headers: Option<String>, // JSON-encoded headers for url mode
     pub mode: Option<String>, // "url" for url+headers mode
     pub download: Option<String>,
     pub filename: Option<String>,
@@ -64,7 +65,10 @@ fn resolve_proxy_target(
     }
     // Fallback to url mode
     if let Some(url) = &params.url {
-        return Some((url.clone(), None));
+        let headers = params.headers.as_ref().and_then(|h| {
+            serde_json::from_str::<HashMap<String, String>>(h).ok()
+        });
+        return Some((url.clone(), headers));
     }
     None
 }
@@ -202,6 +206,10 @@ pub async fn m3u8_handler(
         None => return (StatusCode::FORBIDDEN, "Invalid or missing token/url").into_response(),
     };
 
+    if is_internal_host(&target_url) {
+        return (StatusCode::FORBIDDEN, "Blocked internal URL").into_response();
+    }
+
     let is_vix = is_vixsrc_target(&target_url, &headers);
     let use_url_mode = params.mode.as_deref() == Some("url") || is_vix;
 
@@ -302,6 +310,21 @@ pub async fn m3u8_handler(
 
 // ── TS / Segment Proxy ───────────────────────────────────────────────────────
 
+/// Block localhost/internal IPs for security
+fn is_internal_host(target_url: &str) -> bool {
+    if let Ok(u) = Url::parse(target_url) {
+        if let Some(host) = u.host_str() {
+            let h = host.to_lowercase();
+            return h == "localhost"
+                || h == "127.0.0.1"
+                || h == "0.0.0.0"
+                || h.starts_with("192.168.")
+                || h.starts_with("10.");
+        }
+    }
+    false
+}
+
 pub async fn ts_handler(
     State(state): State<AppState>,
     Query(params): Query<TsProxyQuery>,
@@ -313,31 +336,32 @@ pub async fn ts_handler(
         }
     };
 
+    if is_internal_host(&target_url) {
+        return (StatusCode::FORBIDDEN, "Blocked internal URL").into_response();
+    }
+
     let force_200 = params.force_200.unwrap_or(0) == 1;
     let _no_synth = params.no_synth.unwrap_or(0) == 1;
     let sanitize = params.sanitize.unwrap_or(0) == 1;
 
     let is_vix = is_vixsrc_target(&target_url, &headers);
 
-    // Debug logging for headers
     tracing::info!("[ts-proxy] Target: {}", target_url);
     tracing::info!("[ts-proxy] Token headers: {:?}", headers);
 
     let mut req = state.client.get(&target_url);
     req = inject_cdn_headers(req, &target_url, &headers);
 
-    // Inject headers from token (overrides defaults)
     let mut has_origin = false;
     let mut referer_value = None;
-    if let Some(h) = headers {
-        for (k, v) in &h {
+    if let Some(ref h) = headers {
+        for (k, v) in h {
             req = req.header(k, v);
             if k.eq_ignore_ascii_case("origin") { has_origin = true; }
             if k.eq_ignore_ascii_case("referer") { referer_value = Some(v.clone()); }
         }
     }
 
-    // Vixsrc Special: If it's Vixsrc, we MUST ensure the Referer is correct
     if is_vix && referer_value.is_none() {
         req = req.header("Referer", "https://vixsrc.to/");
         req = req.header("Origin", "https://vixsrc.to");
@@ -345,7 +369,6 @@ pub async fn ts_handler(
         has_origin = true;
     }
 
-    // Derive Origin from Referer if missing (matches Node.js proxy behavior)
     if !has_origin {
         if let Some(ref_url) = referer_value {
             if let Ok(origin_url) = Url::parse(&ref_url) {
@@ -354,7 +377,6 @@ pub async fn ts_handler(
                 req = req.header("Origin", origin);
             }
         } else {
-            // Fallback: derive Origin from the target host itself if Referer is missing
             if let Ok(target_u) = Url::parse(&target_url) {
                 let mut origin = target_u.origin().unicode_serialization();
                 if origin.ends_with('/') { origin.pop(); }
@@ -363,7 +385,6 @@ pub async fn ts_handler(
         }
     }
 
-    // Pass through Range header
     if let Some(range) = &params.range {
         req = req.header("Range", range);
     }
@@ -371,28 +392,48 @@ pub async fn ts_handler(
     match req.send().await {
         Ok(resp) => {
             let status = resp.status();
-            let mut builder = Response::builder();
 
-            // Map upstream status
+            // Handle redirects manually — block localhost destinations
+            if status.is_redirection() {
+                if let Some(loc) = resp.headers().get("location") {
+                    if let Ok(loc_str) = loc.to_str() {
+                        if is_internal_host(loc_str) {
+                            tracing::error!("[ts-proxy] Blocked redirect to localhost: {} from {}", loc_str, target_url);
+                            return (StatusCode::FORBIDDEN, "Blocked redirect to internal network").into_response();
+                        }
+                        // Follow redirect (one level)
+                        let follow = state.client.get(loc_str);
+                        if let Ok(resp2) = follow.send().await {
+                            let status2 = resp2.status();
+                            let mut builder = Response::builder().status(StatusCode::from_u16(status2.as_u16()).unwrap_or(StatusCode::OK));
+                            if let Some(ct) = resp2.headers().get("content-type") {
+                                if let Ok(ct_str) = ct.to_str() {
+                                    builder = builder.header("content-type", infer_content_type(ct_str, &target_url));
+                                }
+                            }
+                            builder = builder.header("Access-Control-Allow-Origin", "*");
+                            return builder.body(Body::from_stream(resp2.bytes_stream())).unwrap();
+                        }
+                    }
+                }
+            }
+
+            let mut builder = Response::builder();
             let mapped = StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::OK);
             builder = builder.status(mapped);
 
-            // Content-Type
             if let Some(ct) = resp.headers().get("content-type") {
                 if let Ok(ct_str) = ct.to_str() {
                     builder = builder.header("content-type", infer_content_type(ct_str, &target_url));
                 }
             }
 
-            // CORS
             builder = builder.header("Access-Control-Allow-Origin", "*");
 
-            // Force 200 override
             if force_200 && mapped == StatusCode::PARTIAL_CONTENT {
                 builder = builder.status(StatusCode::OK);
             }
 
-            // Optional: sanitize TS segments
             if sanitize {
                 match resp.bytes().await {
                     Ok(body) => {
@@ -411,26 +452,55 @@ pub async fn ts_handler(
                     Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
                 }
             } else {
-                // Content-Length (only when not sanitizing — streaming path)
                 if let Some(cl) = resp.headers().get("content-length") {
                     if let Ok(v) = cl.to_str() {
                         builder = builder.header("content-length", v);
                     }
                 }
-                // Content-Range
                 if let Some(cr) = resp.headers().get("content-range") {
                     if let Ok(v) = cr.to_str() {
                         builder = builder.header("content-range", v);
                     }
                 }
-                // Accept-Ranges
                 if resp.headers().contains_key("accept-ranges") {
                     builder = builder.header("accept-ranges", "bytes");
                 }
                 builder.body(Body::from_stream(resp.bytes_stream())).unwrap()
             }
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+        Err(e) => {
+            // Retry once without Range header if the error might be range-related
+            if params.range.is_some() {
+                tracing::warn!("[ts-proxy] Initial request failed ({}), retrying without Range", e);
+                let mut retry = state.client.get(&target_url);
+                retry = inject_cdn_headers(retry, &target_url, &headers);
+                if let Some(ref h) = headers {
+                    for (k, v) in h {
+                        retry = retry.header(k, v);
+                    }
+                }
+                if let Ok(resp) = retry.send().await {
+                    let status = resp.status();
+                    if status.is_success() || status == reqwest::StatusCode::PARTIAL_CONTENT {
+                        let mut builder = Response::builder().status(StatusCode::OK);
+                        if let Some(ct) = resp.headers().get("content-type") {
+                            if let Ok(ct_str) = ct.to_str() {
+                                builder = builder.header("content-type", infer_content_type(ct_str, &target_url));
+                            }
+                        }
+                        builder = builder.header("Access-Control-Allow-Origin", "*");
+                        if let Some(cl) = resp.headers().get("content-length") {
+                            if let Ok(v) = cl.to_str() { builder = builder.header("content-length", v); }
+                        }
+                        if let Some(cr) = resp.headers().get("content-range") {
+                            if let Ok(v) = cr.to_str() { builder = builder.header("content-range", v); }
+                        }
+                        return builder.body(Body::from_stream(resp.bytes_stream())).unwrap();
+                    }
+                }
+            }
+            (StatusCode::BAD_GATEWAY, e.to_string()).into_response()
+        }
     }
 }
 
@@ -520,7 +590,10 @@ fn rewrite_playlist(
     };
     let mode_part = if use_url_mode { "&mode=url" } else { "" };
 
-    content
+    // Collect segment URLs for prefetch after rewrite
+    let mut segment_urls: Vec<String> = Vec::new();
+
+    let rewritten = content
         .lines()
         .map(|line| {
             // Tags that carry a URI attribute
@@ -530,10 +603,7 @@ fn rewrite_playlist(
                     if parts.len() > 1 {
                         let uri_parts: Vec<&str> = parts[1].split('"').collect();
                         let relative_uri = uri_parts[0];
-                        let abs_url = base_url
-                            .join(relative_uri)
-                            .map(|u| u.to_string())
-                            .unwrap_or_else(|_| relative_uri.to_string());
+                        let abs_url = resolve_segment_url(&base_url, relative_uri);
 
                         let is_hls = abs_url.to_lowercase().contains(".m3u8");
                         let proxy_url = if use_url_mode {
@@ -548,7 +618,6 @@ fn rewrite_playlist(
                             )
                         } else {
                             let token = security::encrypt_url(&abs_url, secret, headers.clone());
-                            // Relative keys or sub-manifests must also be proxied through the same logic
                             let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
                             format!("{}/{}?h_token={}", proxy_base, route, token)
                         };
@@ -558,32 +627,89 @@ fn rewrite_playlist(
                 line.to_string()
             } else if !line.trim().is_empty() {
                 let line_trim = line.trim();
-                let abs_url = base_url
-                    .join(line_trim)
-                    .map(|u| u.to_string())
-                    .unwrap_or_else(|_| line_trim.to_string());
+                let abs_url = resolve_segment_url(&base_url, line_trim);
                 let is_hls = abs_url.to_lowercase().contains(".m3u8");
                 let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
 
+                // MP3-wrapped-TS detection
+                let is_mp3_wrapped_ts = abs_url.to_lowercase().contains(".mp3");
+                let force_type_param = if is_mp3_wrapped_ts { "&forceType=video%2Fmp2t" } else { "" };
+
+                // Track segment URLs for prefetch
+                if !is_hls {
+                    segment_urls.push(abs_url.clone());
+                }
+
                 if use_url_mode {
+                    let segment_extra = if is_hls { "" } else { "&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0" };
                     format!(
-                        "{}/{}?url={}{}{}",
+                        "{}/{}?url={}{}{}{}{}",
                         proxy_base,
                         route,
                         urlencoding::encode(&abs_url),
                         header_part,
-                        mode_part
+                        mode_part,
+                        segment_extra,
+                        force_type_param
                     )
                 } else {
                     let token = security::encrypt_url(&abs_url, secret, headers.clone());
-                    format!("{}/{}?h_token={}", proxy_base, route, token)
+                    let segment_extra = if is_hls { "" } else { "&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0" };
+                    format!("{}/{}?h_token={}{}{}", proxy_base, route, token, segment_extra, force_type_param)
                 }
             } else {
                 line.to_string()
             }
         })
         .collect::<Vec<_>>()
-        .join("\n")
+        .join("\n");
+
+    // RAM Turbo: prefetch first 5 segments asynchronously
+    if !segment_urls.is_empty() {
+        let client = reqwest::Client::new();
+        let headers_clone = headers.clone();
+        tokio::spawn(async move {
+            for url in segment_urls.into_iter().take(5) {
+                let mut req = client.get(&url);
+                if let Some(ref h) = headers_clone {
+                    for (k, v) in h {
+                        req = req.header(k, v);
+                    }
+                }
+                let _ = req.send().await;
+            }
+        });
+    }
+
+    rewritten
+}
+
+/// Resolve a segment URL relative to the base playlist URL, inheriting query params for signed URLs.
+fn resolve_segment_url(base: &Url, relative: &str) -> String {
+    let mut resolved = match base.join(relative) {
+        Ok(u) => u,
+        Err(_) => {
+            // Fallback for absolute-path-style URLs
+            if relative.starts_with('/') {
+                let origin = base.origin().unicode_serialization();
+                match Url::parse(&format!("{}{}", origin, relative)) {
+                    Ok(u) => u,
+                    Err(_) => return relative.to_string(),
+                }
+            } else {
+                return relative.to_string();
+            }
+        }
+    };
+
+    // Inherit query parameters from parent playlist URL (crucial for signed HLS like VixSrc)
+    for (key, value) in base.query_pairs() {
+        if !resolved.query_pairs().any(|(k, _)| k == key) {
+            resolved.query_pairs_mut().append_pair(&key, &value);
+        }
+    }
+
+    resolved.to_string()
 }
 
 // ── Content-Type Inference ─────────────────────────────────────────────────────

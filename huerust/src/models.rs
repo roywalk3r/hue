@@ -30,3 +30,5 @@ pub struct Subtitle {
     pub lang: String,
     pub label: String,
 }
+
+pub mod anime;

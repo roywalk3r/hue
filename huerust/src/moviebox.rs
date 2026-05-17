@@ -314,4 +314,267 @@ impl MovieBoxClient {
             None => Ok(vec![]),
         }
     }
+
+    pub async fn filter(&self, page: u32, per_page: u32, country: Option<&str>) -> Result<Vec<MovieBoxItem>> {
+        let url = format!("{}/subject/filter", BASE_URL);
+        let payload = serde_json::json!({
+            "page": page,
+            "perPage": per_page,
+            "channelId": 2,
+            "genre": "All",
+            "country": country.unwrap_or("All"),
+            "year": "All",
+            "sort": "ForYou",
+            "tabId": 0,
+            "classify": "All"
+        });
+
+        let resp = self.client.post(&url)
+            .headers(self.get_base_headers())
+            .json(&payload)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(anyhow!("MovieBox filter error: {}", resp.status()));
+        }
+
+        let data: serde_json::Value = resp.json().await?;
+        if data["code"] != 0 {
+            return Ok(vec![]);
+        }
+
+        let items = data["data"]["items"].as_array()
+            .or_else(|| data["data"]["subjectList"].as_array())
+            .map(|arr| arr.iter().filter_map(|v| self.map_item(v)).collect())
+            .unwrap_or_default();
+
+        Ok(items)
+    }
+
+    pub async fn browse_rails(&self, page: u32, per_page: u32, country: Option<&str>) -> Result<Vec<serde_json::Value>> {
+        if let Some(c) = country {
+            let items = self.filter(page, per_page, Some(c)).await?;
+            let rail = serde_json::json!({
+                "country": c,
+                "items": items
+            });
+            return Ok(vec![rail]);
+        }
+
+        let countries = vec!["Korea", "China", "Japan", "Thailand"];
+        let mut rails = Vec::new();
+
+        for c in countries {
+            match self.filter(page, per_page, Some(c)).await {
+                Ok(items) if !items.is_empty() => {
+                    rails.push(serde_json::json!({
+                        "country": c,
+                        "items": items
+                    }));
+                }
+                _ => {}
+            }
+        }
+
+        Ok(rails)
+    }
+
+    pub async fn get_detail(&self, detail_path: &str) -> Result<serde_json::Value> {
+        let url = format!("{}/detail?detailPath={}", BASE_URL, urlencoding::encode(detail_path));
+        let resp = self.client.get(&url)
+            .headers(self.get_base_headers())
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(anyhow!("MovieBox detail error: {}", resp.status()));
+        }
+
+        let data: serde_json::Value = resp.json().await?;
+        Ok(data)
+    }
+
+    // ── Browse / Discovery ───────────────────────────────────────────────────
+
+    pub async fn get_home(&self) -> Result<serde_json::Value> {
+        let url = format!("{}/home?host={}", BASE_URL, self.host);
+        let resp = self.client.get(&url)
+            .headers(self.get_base_headers())
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(anyhow!("MovieBox home error: {}", resp.status()));
+        }
+
+        let data: serde_json::Value = resp.json().await?;
+        if data["code"] != 0 {
+            return Ok(serde_json::json!({ "platforms": [], "sections": [] }));
+        }
+
+        let inner = &data["data"];
+        let sections = inner["operatingList"].as_array()
+            .map(|arr| arr.iter().filter_map(|s| {
+                let title = s["title"].as_str()?;
+                let items = s["subjects"].as_array()
+                    .or_else(|| s["subjectList"].as_array())
+                    .map(|list| list.iter().filter_map(|v| self.map_item(v)).collect::<Vec<_>>())
+                    .unwrap_or_default();
+                if items.is_empty() { return None; }
+                Some(serde_json::json!({ "title": title, "items": items }))
+            }).collect::<Vec<_>>())
+            .unwrap_or_default();
+
+        let platforms = inner["platformList"].as_array()
+            .map(|arr| arr.iter().cloned().collect::<Vec<_>>())
+            .unwrap_or_default();
+
+        Ok(serde_json::json!({ "platforms": platforms, "sections": sections }))
+    }
+
+    pub async fn get_trending(&self, page: u32) -> Result<Vec<MovieBoxItem>> {
+        let url = format!("{}/subject/trending?page={}&perPage=18", BASE_URL, page);
+        let resp = self.client.get(&url)
+            .headers(self.get_base_headers())
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(anyhow!("MovieBox trending error: {}", resp.status()));
+        }
+
+        let data: serde_json::Value = resp.json().await?;
+        if data["code"] != 0 {
+            return Ok(vec![]);
+        }
+
+        let items = data["data"]["items"].as_array()
+            .or_else(|| data["data"]["subjectList"].as_array())
+            .map(|arr| arr.iter().filter_map(|v| self.map_item(v)).collect())
+            .unwrap_or_default();
+
+        Ok(items)
+    }
+
+    pub async fn get_section(&self, title_query: &str) -> Result<Vec<MovieBoxItem>> {
+        let home = self.get_home().await?;
+        let sections = home["sections"].as_array().unwrap_or(&Vec::new()).clone();
+        let q = title_query.to_lowercase();
+        for s in sections {
+            if let Some(title) = s["title"].as_str() {
+                if title.to_lowercase().contains(&q) {
+                    return Ok(s["items"].as_array()
+                        .map(|arr| arr.iter().filter_map(|v| serde_json::from_value(v.clone()).ok()).collect())
+                        .unwrap_or_default());
+                }
+            }
+        }
+        Ok(vec![])
+    }
+
+    pub async fn get_discover(&self) -> Result<Vec<serde_json::Value>> {
+        let home = self.get_home().await?;
+        let sections = home["sections"].as_array().cloned().unwrap_or_default();
+
+        let targets: &[&str] = &[
+            "Popular Series", "Popular Movie", "Hot Short TV", "SA Drama",
+            "Thai-Drama", "Teen Romance", "Turkish Drama", "C-Drama",
+            "K-Drama", "Western TV", "Movie/TV Series", "Must-watch Black Shows",
+        ];
+
+        let matched: Vec<serde_json::Value> = sections.into_iter()
+            .filter(|s| {
+                if let Some(t) = s["title"].as_str() {
+                    let tl = t.to_lowercase();
+                    targets.iter().any(|target| tl.contains(&target.to_lowercase()))
+                } else { false }
+            })
+            .collect();
+
+        if matched.len() > 1 {
+            Ok(matched)
+        } else {
+            Ok(home["sections"].as_array().cloned().unwrap_or_default())
+        }
+    }
+
+    pub async fn get_indian_content(&self, media_type: &str, page: u32) -> Result<Vec<MovieBoxItem>> {
+        let channel_id = if media_type == "movie" { 1 } else { 2 };
+        self.filter_india(page, 28, channel_id).await
+    }
+
+    async fn filter_india(&self, page: u32, per_page: u32, channel_id: u32) -> Result<Vec<MovieBoxItem>> {
+        let url = format!("{}/subject/filter", BASE_URL);
+        let payload = serde_json::json!({
+            "page": page,
+            "perPage": per_page,
+            "channelId": channel_id,
+            "genre": "All",
+            "country": "India",
+            "year": "All",
+            "sort": "ForYou",
+            "tabId": 0,
+            "classify": "All"
+        });
+
+        let resp = self.client.post(&url)
+            .headers(self.get_base_headers())
+            .json(&payload)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(anyhow!("MovieBox India filter error: {}", resp.status()));
+        }
+
+        let data: serde_json::Value = resp.json().await?;
+        if data["code"] != 0 {
+            return Ok(vec![]);
+        }
+
+        let items = data["data"]["items"].as_array()
+            .or_else(|| data["data"]["subjectList"].as_array())
+            .map(|arr| arr.iter().filter_map(|v| self.map_item(v)).collect())
+            .unwrap_or_default();
+
+        Ok(items)
+    }
+
+    pub async fn get_shorts(&self, page: u32) -> Result<Vec<MovieBoxItem>> {
+        let url = format!("{}/subject/filter", BASE_URL);
+        let payload = serde_json::json!({
+            "page": page,
+            "perPage": 28,
+            "channelId": 7,
+            "genre": "All",
+            "country": "All",
+            "year": "All",
+            "sort": "ForYou",
+            "tabId": 0,
+            "classify": "All"
+        });
+
+        let resp = self.client.post(&url)
+            .headers(self.get_base_headers())
+            .json(&payload)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(anyhow!("MovieBox shorts error: {}", resp.status()));
+        }
+
+        let data: serde_json::Value = resp.json().await?;
+        if data["code"] != 0 {
+            return Ok(vec![]);
+        }
+
+        let items = data["data"]["items"].as_array()
+            .or_else(|| data["data"]["subjectList"].as_array())
+            .map(|arr| arr.iter().filter_map(|v| self.map_item(v)).collect())
+            .unwrap_or_default();
+
+        Ok(items)
+    }
 }

@@ -7,11 +7,14 @@
 
 use serde::{Deserialize, Serialize};
 use reqwest::Client;
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use base64::{Engine as _, engine::general_purpose};
-use tracing::info;
+use tracing::{info, warn};
 use crate::models::{StreamResult, Subtitle};
 use std::collections::HashMap;
+use std::process::Command;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 const API_BASE: &str = "https://kisskh.ovh/api";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -50,8 +53,15 @@ pub struct KissKhSubtitle {
     pub lang: Option<String>,
 }
 
+const KISSKH_APP_VER: &str = "2.8.10";
+const KISSKH_PLATFORM_VER: u64 = 4830201;
+const KISSKH_APP_NAME: &str = "kisskh";
+const KISSKH_STREAM_VIGUID: &str = "62f176f3bb1b5b8e70e39932ad34a0c7";
+const KISSKH_SUB_VIGUID: &str = "VgV52sWhwvBSf8BsM3BRY9weWiiCbtGp";
+
 pub struct KissKhClient {
     client: Client,
+    common_js_cache: Mutex<Option<(String, Instant)>>,
 }
 
 impl KissKhClient {
@@ -66,7 +76,78 @@ impl KissKhClient {
                 .timeout(std::time::Duration::from_secs(15))
                 .build()
                 .unwrap(),
+            common_js_cache: Mutex::new(None),
         }
+    }
+
+    /// Generate a kkey token for the given episode ID and viGuid.
+    /// Uses Node.js to execute the obfuscated _0x54b991 AES function from common.js.
+    async fn generate_kkey(&self, episode_id: u64, vi_guid: &str) -> Result<String> {
+        // Check cache (valid for 1 hour)
+        {
+            let cache = self.common_js_cache.lock().unwrap();
+            if let Some((ref js, ref time)) = *cache {
+                if time.elapsed() < Duration::from_secs(3600) {
+                    return Self::exec_kkey_js(js, episode_id, vi_guid);
+                }
+            }
+        }
+
+        // Fetch common.js
+        let js_code = reqwest::get("https://kisskh.ovh/common.js").await
+            .map_err(|e| anyhow!("Failed to fetch common.js: {}", e))?
+            .text().await
+            .map_err(|e| anyhow!("Failed to read common.js: {}", e))?;
+
+        // Cache it
+        {
+            let mut cache = self.common_js_cache.lock().unwrap();
+            *cache = Some((js_code.clone(), Instant::now()));
+        }
+
+        Self::exec_kkey_js(&js_code, episode_id, vi_guid)
+    }
+
+    fn exec_kkey_js(common_js: &str, episode_id: u64, vi_guid: &str) -> Result<String> {
+        let script = format!(
+            r#"{common_js}
+const episodeId = {episode_id};
+const appVer = "{app_ver}";
+const viGuid = "{vi_guid}";
+const platformVer = {platform_ver};
+const appName = "{app_name}";
+const token = _0x54b991(episodeId, null, appVer, viGuid, platformVer, appName, appName, appName, appName, appName, appName);
+console.log(token);
+"#,
+            common_js = common_js,
+            episode_id = episode_id,
+            app_ver = KISSKH_APP_VER,
+            vi_guid = vi_guid,
+            platform_ver = KISSKH_PLATFORM_VER,
+            app_name = KISSKH_APP_NAME,
+        );
+
+        let child = Command::new("node")
+            .arg("-e")
+            .arg(&script)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| anyhow!("Failed to spawn node for kkey generation: {}", e))?;
+
+        let output = child.wait_with_output()
+            .map_err(|e| anyhow!("Node kkey process failed: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(anyhow!("Node kkey generation error: {}", stderr));
+        }
+
+        let token = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if token.is_empty() {
+            return Err(anyhow!("Node returned empty kkey"));
+        }
+        Ok(token)
     }
 
     pub async fn search(&self, title: &str) -> Result<Vec<KissKhSearchItem>> {
@@ -86,9 +167,18 @@ impl KissKhClient {
     }
 
     pub async fn get_stream(&self, ep_id: u64) -> Result<Option<KissKhStreamPayload>> {
-        let url = format!("{}/DramaList/Episode/{}?kkey=0", API_BASE, ep_id);
+        // Generate a real kkey using the cracked algorithm
+        let kkey = match self.generate_kkey(ep_id, KISSKH_STREAM_VIGUID).await {
+            Ok(k) => k,
+            Err(e) => {
+                warn!("[KissKH] kkey generation failed: {}, falling back to kkey=0", e);
+                "0".to_string()
+            }
+        };
+
+        let url = format!("{}/DramaList/Episode/{}.png?err=false&ts=0&time=0&kkey={}", API_BASE, ep_id, kkey);
         let resp = self.client.get(&url).send().await?;
-        
+
         let text = resp.text().await?;
         if text.contains("<!DOCTYPE") {
             return Ok(None);
@@ -109,9 +199,44 @@ impl KissKhClient {
         Ok(None)
     }
 
+    /// Fetch subtitle list for an episode using the subtitle-specific kkey.
+    pub async fn get_subtitles(&self, ep_id: u64) -> Result<Vec<KissKhSubtitle>> {
+        let kkey = match self.generate_kkey(ep_id, KISSKH_SUB_VIGUID).await {
+            Ok(k) => k,
+            Err(e) => {
+                warn!("[KissKH] subtitle kkey generation failed: {}, falling back to kkey=0", e);
+                "0".to_string()
+            }
+        };
+
+        let url = format!("{}/Sub/{}?kkey={}", API_BASE, ep_id, kkey);
+        let resp = self.client.get(&url).send().await?;
+
+        let text = resp.text().await?;
+        if text.contains("<!DOCTYPE") {
+            return Ok(vec![]);
+        }
+
+        // Try direct JSON first
+        if let Ok(data) = serde_json::from_str::<Vec<KissKhSubtitle>>(&text) {
+            return Ok(data);
+        }
+
+        // Try base64-encoded JSON
+        if let Ok(decoded_bytes) = general_purpose::STANDARD.decode(&text) {
+            if let Ok(decoded_text) = String::from_utf8(decoded_bytes) {
+                if let Ok(data) = serde_json::from_str::<Vec<KissKhSubtitle>>(&decoded_text) {
+                    return Ok(data);
+                }
+            }
+        }
+
+        Ok(vec![])
+    }
+
     pub async fn get_streams_normalized(&self, title: &str, _season: u32, ep_num: u32) -> Result<Vec<StreamResult>> {
         info!("[KissKH Rust] Searching for: \"{}\" E{}", title, ep_num);
-        
+
         let results = self.search(title).await?;
         if results.is_empty() { return Ok(vec![]); }
 
@@ -119,9 +244,35 @@ impl KissKhClient {
         sorted.sort_by_key(|i| i.title.len());
         let best_match = &sorted[0];
 
-        let ep_id = match self.get_episode_id(best_match.id, ep_num).await? {
+        self.resolve_episode_streams(best_match.id, ep_num, title).await
+    }
+
+    pub async fn get_streams_direct(&self, id_or_title: &str, ep_num: u32) -> Result<Vec<StreamResult>> {
+        info!("[KissKH Rust] Smart Fetch for: \"{}\" E{}", id_or_title, ep_num);
+
+        let show_id = if let Ok(id) = id_or_title.parse::<u64>() {
+            id
+        } else {
+            let results = self.search(id_or_title).await?;
+            if results.is_empty() {
+                info!("[KissKH Rust] Title not found: {}", id_or_title);
+                return Ok(vec![]);
+            }
+            let mut sorted = results;
+            sorted.sort_by_key(|i| i.title.len());
+            sorted[0].id
+        };
+
+        self.resolve_episode_streams(show_id, ep_num, id_or_title).await
+    }
+
+    async fn resolve_episode_streams(&self, show_id: u64, ep_num: u32, title: &str) -> Result<Vec<StreamResult>> {
+        let ep_id = match self.get_episode_id(show_id, ep_num).await? {
             Some(id) => id,
-            None => return Ok(vec![]),
+            None => {
+                info!("[KissKH Rust] Episode {} not found for \"{}\"", ep_num, title);
+                return Ok(vec![]);
+            }
         };
 
         match self.get_stream(ep_id).await? {
@@ -139,6 +290,21 @@ impl KissKhClient {
                     }).collect()
                 });
 
+                // ── Prioritize ThirdParty over Video ─────────────────────────────
+                // KissKH's Video CDN (videodelivery1.shop) serves corrupt TS data
+                // that freezes playback at ~11 seconds. ThirdParty CDN works.
+                if let Some(third_party_url) = data.third_party {
+                    results.push(StreamResult {
+                        url: third_party_url,
+                        title: "Zenith - Auto (ThirdParty)".to_string(),
+                        quality: "Auto (ThirdParty)".to_string(),
+                        provider: "Zenith".to_string(),
+                        format: "hls".to_string(),
+                        subtitles: subs.clone(),
+                        headers: Some(headers.clone()),
+                        extra_metadata: None,
+                    });
+                }
                 if let Some(video_url) = data.video {
                     results.push(StreamResult {
                         url: video_url,
@@ -148,12 +314,50 @@ impl KissKhClient {
                         format: "hls".to_string(),
                         subtitles: subs,
                         headers: Some(headers),
-                    extra_metadata: None,
+                        extra_metadata: None,
                     });
                 }
                 Ok(results)
             }
             None => Ok(vec![])
         }
+    }
+
+    pub async fn get_show_list(&self) -> Result<Vec<serde_json::Value>> {
+        let url = format!("{}/DramaList/Show", API_BASE);
+        let resp = self.client.get(&url).send().await?;
+        let data = resp.json::<Vec<serde_json::Value>>().await?;
+        Ok(data)
+    }
+
+    pub async fn get_list(&self, page: u32, type_: u32, sub: u32, country: u32, status: u32, order: u32) -> Result<serde_json::Value> {
+        let url = format!(
+            "{}/DramaList/List?page={}&type={}&sub={}&country={}&status={}&order={}",
+            API_BASE, page, type_, sub, country, status, order
+        );
+        let resp = self.client.get(&url).send().await?;
+        let data = resp.json::<serde_json::Value>().await?;
+        Ok(data)
+    }
+
+    pub async fn get_upcoming(&self) -> Result<Vec<serde_json::Value>> {
+        let url = format!("{}/DramaList/upcoming", API_BASE);
+        let resp = self.client.get(&url).send().await?;
+        let data = resp.json::<Vec<serde_json::Value>>().await?;
+        Ok(data)
+    }
+
+    pub async fn get_top_rating(&self) -> Result<Vec<serde_json::Value>> {
+        let url = format!("{}/DramaList/TopRating?ispc=false", API_BASE);
+        let resp = self.client.get(&url).send().await?;
+        let data = resp.json::<Vec<serde_json::Value>>().await?;
+        Ok(data)
+    }
+
+    pub async fn get_detail(&self, id: u64) -> Result<serde_json::Value> {
+        let url = format!("{}/DramaList/Drama/{}?isq=false", API_BASE, id);
+        let resp = self.client.get(&url).send().await?;
+        let data = resp.json::<serde_json::Value>().await?;
+        Ok(data)
     }
 }

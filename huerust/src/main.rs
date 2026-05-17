@@ -23,6 +23,8 @@ mod user_config;
 mod coalesce;
 mod metrics;
 mod openapi;
+mod hianime;
+mod constants;
 
 use axum::{
     extract::State,
@@ -117,12 +119,15 @@ struct AppState {
     hitv: Arc<HiTvClient>,
     kisskh: Arc<KissKhClient>,
     dramacool: Arc<DramacoolClient>,
+    moviebox: Arc<MovieBoxClient>,
+    hianime: Arc<crate::hianime::HianimeClient>,
     secret: String,
     proxy_base_url: String,
     config: Arc<crate::config::AppConfig>,
     rate_limiter: RateLimitState,
     coalescer: Arc<FetchCoalescer>,
     metrics: Arc<Metrics>,
+    start_time: std::time::Instant,
 }
 
 #[tokio::main]
@@ -165,6 +170,7 @@ async fn main() {
     let kisskh_client = Arc::new(crate::providers::kisskh::KissKhClient::new());
     let sflix_client = Arc::new(crate::providers::sflix::SflixClient::new());
     let dramacool_client = Arc::new(crate::providers::dramacool::DramacoolClient::new());
+    let hianime_client = Arc::new(crate::hianime::HianimeClient::new());
     let vixsrc_client = Arc::new(VixsrcClient::new(
         Client::builder()
             .tcp_keepalive(Duration::from_secs(60))
@@ -197,12 +203,15 @@ async fn main() {
         hitv: Arc::new(HiTvClient::new(tmdb.clone())),
         kisskh: kisskh_client,
         dramacool: dramacool_client,
+        moviebox: moviebox_client.clone(),
+        hianime: hianime_client.clone(),
         secret: cfg.secret.clone(),
         proxy_base_url: cfg.proxy_base_url.clone(),
         config: Arc::new(cfg.clone()),
         rate_limiter: RateLimitState::new(120, 60),
         coalescer: Arc::new(FetchCoalescer::new()),
         metrics: metrics.clone(),
+        start_time: std::time::Instant::now(),
     };
 
     // Background Task: Build HiTV Library every 12 hours
@@ -253,9 +262,45 @@ async fn main() {
         .route("/api/admin/refresh-tokens", axum::routing::post(admin_refresh_tokens_handler))
         .route("/api/play/:type/:tmdbId", get(routes::play::play_handler))
         .route("/api/drama/kisskh/search", get(routes::drama::kisskh_search_handler))
+        .route("/api/drama/kisskh/show", get(routes::drama::kisskh_show_handler))
+        .route("/api/drama/kisskh/browse", get(routes::drama::kisskh_browse_handler))
+        .route("/api/drama/kisskh/upcoming", get(routes::drama::kisskh_upcoming_handler))
+        .route("/api/drama/kisskh/top-rating", get(routes::drama::kisskh_top_rating_handler))
         .route("/api/drama/kisskh/streams/:id/:episode", get(routes::drama::kisskh_streams_handler))
         .route("/api/drama/dramacool/search", get(routes::drama::dramacool_search_handler))
         .route("/api/drama/dramacool/streams/:id/:episode", get(routes::drama::dramacool_streams_handler))
+        .route("/api/drama/moviebox/browse", get(routes::drama::moviebox_browse_handler))
+        .route("/api/drama/moviebox/search", get(routes::drama::moviebox_search_handler))
+        .route("/api/drama/moviebox/streams/:title/:episode", get(routes::drama::moviebox_streams_handler))
+        .route("/api/drama/detail", get(routes::drama::drama_detail_handler))
+        .route("/api/moviebox/home", get(routes::moviebox::home_handler))
+        .route("/api/moviebox/discover", get(routes::moviebox::discover_handler))
+        .route("/api/moviebox/section", get(routes::moviebox::section_handler))
+        .route("/api/moviebox/trending", get(routes::moviebox::trending_handler))
+        .route("/api/moviebox/popular-movie", get(routes::moviebox::popular_movie_handler))
+        .route("/api/moviebox/popular-series", get(routes::moviebox::popular_series_handler))
+        .route("/api/moviebox/hot-shorts", get(routes::moviebox::hot_shorts_handler))
+        .route("/api/moviebox/sa", get(routes::moviebox::sa_handler))
+        .route("/api/moviebox/thai", get(routes::moviebox::thai_handler))
+        .route("/api/moviebox/turkish", get(routes::moviebox::turkish_handler))
+        .route("/api/moviebox/western", get(routes::moviebox::western_handler))
+        .route("/api/moviebox/animation", get(routes::moviebox::animation_handler))
+        .route("/api/moviebox/black-shows", get(routes::moviebox::black_shows_handler))
+        .route("/api/moviebox/hero", get(routes::moviebox::hero_handler))
+        .route("/api/moviebox/bollywood", get(routes::moviebox::bollywood_handler))
+        .route("/api/moviebox/shorts", get(routes::moviebox::shorts_handler))
+        .route("/api/moviebox/filter", get(routes::moviebox::filter_handler))
+        .route("/api/moviebox/info", get(routes::moviebox::info_handler))
+        .route("/api/moviebox/search", get(routes::moviebox::search_handler))
+        .route("/api/anime/search", get(routes::anime::search_handler))
+        .route("/api/anime/latest", get(routes::anime::latest_handler))
+        .route("/api/anime/category", get(routes::anime::category_handler))
+        .route("/api/anime/home", get(routes::anime::home_handler))
+        .route("/api/anime/detail/:slug", get(routes::anime::detail_handler))
+        .route("/api/anime/episodes/:id", get(routes::anime::episodes_handler))
+        .route("/api/anime/servers", get(routes::anime::servers_handler))
+        .route("/api/anime/stream", get(routes::anime::stream_handler))
+        .route("/api/status", get(status_handler))
         .merge(SwaggerUi::new("/api/docs").url("/api/docs/openapi.json", openapi::ApiDoc::openapi()))
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit_middleware))
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
@@ -321,6 +366,12 @@ async fn auth_middleware(State(_state): State<AppState>, req: Request<Body>, nex
 }
 
 async fn rate_limit_middleware(State(state): State<AppState>, req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
+    let path = req.uri().path();
+    // Proxy routes are self-authenticated via h_token and stream many segments — skip rate limiting
+    if path.starts_with("/m3u8-proxy") || path.starts_with("/ts-proxy") || path.starts_with("/sub-proxy") || path.starts_with("/storage/") {
+        return Ok(next.run(req).await);
+    }
+
     let ip = req.extensions()
         .get::<axum::extract::ConnectInfo<SocketAddr>>()
         .map(|c| c.0.ip().to_string())
@@ -370,6 +421,30 @@ async fn admin_refresh_tokens_handler(State(state): State<AppState>) -> Response
             (StatusCode::BAD_GATEWAY, format!("{{\"ok\":false,\"error\":\"Node.js unreachable: {}\"}}", e)).into_response()
         }
     }
+}
+
+async fn status_handler(State(state): State<AppState>) -> Response {
+    let uptime_secs = state.start_time.elapsed().as_secs();
+
+    let providers: Vec<serde_json::Value> = state.registry
+        .list_all_arc()
+        .iter()
+        .map(|p| {
+            serde_json::json!({
+                "name": p.real_name(),
+                "enabled": true
+            })
+        })
+        .collect();
+
+    let resp = serde_json::json!({
+        "success": true,
+        "version": "3.1.0",
+        "uptime": uptime_secs,
+        "metrics": {},
+        "providers": providers
+    });
+    (StatusCode::OK, serde_json::to_string(&resp).unwrap()).into_response()
 }
 
 // --- Handlers moved to src/routes/ ---
