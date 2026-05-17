@@ -6,6 +6,7 @@
 //! @license MIT
 
 pub mod registry;
+pub mod dispatch;
 pub mod vixsrc;
 pub mod kisskh;
 pub mod sflix;
