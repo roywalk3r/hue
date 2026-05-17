@@ -190,12 +190,12 @@ async fn main() {
     });
 
     let app = Router::new()
-        .route("/health", get(health_check))
-        .route("/metrics", get(metrics_handler))
+        .route("/health", get(routes::system::health_check))
+        .route("/metrics", get(routes::system::metrics_handler))
         .route("/m3u8-proxy", get(proxy::m3u8_handler))
         .route("/ts-proxy", get(proxy::ts_handler))
         .route("/sub-proxy", get(proxy::sub_handler))
-        .route("/api/hitv/library", get(hitv_library_handler))
+        .route("/api/hitv/library", get(routes::system::hitv_library_handler))
         .route("/api/hitv/browse", get(routes::hitv::browse_handler))
         .route("/api/hitv/search", get(routes::hitv::search_handler))
         .route("/api/hitv/latest", get(routes::hitv::latest_handler))
@@ -212,8 +212,8 @@ async fn main() {
         .route("/api/streams/:type/:tmdbId", get(routes::streams::streams_handler))
         .route("/api/streams/:type/:tmdbId/live", get(routes::sse::sse_streams_handler))
         .route("/api/providers", get(routes::providers::providers_handler))
-        .route("/api/admin/reload", axum::routing::post(admin_reload_handler))
-        .route("/api/admin/refresh-tokens", axum::routing::post(admin_refresh_tokens_handler))
+        .route("/api/admin/reload", axum::routing::post(routes::system::admin_reload_handler))
+        .route("/api/admin/refresh-tokens", axum::routing::post(routes::system::admin_refresh_tokens_handler))
         .route("/api/play/:type/:tmdbId", get(routes::play::play_handler))
         .route("/api/drama/kisskh/search", get(routes::drama::kisskh_search_handler))
         .route("/api/drama/kisskh/show", get(routes::drama::kisskh_show_handler))
@@ -254,7 +254,7 @@ async fn main() {
         .route("/api/anime/episodes/:id", get(routes::anime::episodes_handler))
         .route("/api/anime/servers", get(routes::anime::servers_handler))
         .route("/api/anime/stream", get(routes::anime::stream_handler))
-        .route("/api/status", get(status_handler))
+        .route("/api/status", get(routes::system::status_handler))
         .merge(SwaggerUi::new("/api/docs").url("/api/docs/openapi.json", openapi::ApiDoc::openapi()))
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit_middleware))
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
@@ -302,8 +302,6 @@ async fn shutdown_signal() {
     info!("Shutdown signal received, starting graceful shutdown...");
 }
 
-async fn health_check() -> &'static str { "Huerust is Alive" }
-
 async fn auth_middleware(State(_state): State<AppState>, req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
     let path = req.uri().path();
     // Proxy routes are self-authenticated via encrypted h_token — skip API key check
@@ -337,68 +335,3 @@ async fn rate_limit_middleware(State(state): State<AppState>, req: Request<Body>
     }
     Ok(next.run(req).await)
 }
-
-async fn metrics_handler(State(state): State<AppState>) -> Response {
-    let body = state.metrics.render_prometheus();
-    (
-        StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-        body,
-    ).into_response()
-}
-
-async fn hitv_library_handler(State(state): State<AppState>) -> Response {
-    let items = state.hitv.get_library().await;
-    (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response()
-}
-
-async fn admin_reload_handler() -> Response {
-    crate::user_config::HueUserConfig::invalidate();
-    (StatusCode::OK, "{\"ok\":true,\"message\":\"Config cache invalidated — next request reloads from disk\"}").into_response()
-}
-
-async fn admin_refresh_tokens_handler(State(state): State<AppState>) -> Response {
-    let node_api_url = std::env::var("NODE_API_URL")
-        .unwrap_or_else(|_| "http://127.0.0.1:3003".to_string());
-    let url = format!("{}/system/refresh-tokens", node_api_url);
-
-    match state.client.post(&url).send().await {
-        Ok(resp) => {
-            crate::user_config::HueUserConfig::invalidate();
-            let status = if resp.status().is_success() { StatusCode::OK } else { StatusCode::BAD_GATEWAY };
-            let body = resp.text().await.unwrap_or_default();
-            info!("[admin] Token refresh response: status={}, body={}", status, body);
-            (status, format!("{{\"ok\":true,\"message\":\"Token refresh triggered\",\"node_response\":{}}}", body)).into_response()
-        }
-        Err(e) => {
-            warn!("[admin] refresh-tokens call to Node.js failed: {}", e);
-            (StatusCode::BAD_GATEWAY, format!("{{\"ok\":false,\"error\":\"Node.js unreachable: {}\"}}", e)).into_response()
-        }
-    }
-}
-
-async fn status_handler(State(state): State<AppState>) -> Response {
-    let uptime_secs = state.start_time.elapsed().as_secs();
-
-    let providers: Vec<serde_json::Value> = state.registry
-        .list_all_arc()
-        .iter()
-        .map(|p| {
-            serde_json::json!({
-                "name": p.real_name(),
-                "enabled": true
-            })
-        })
-        .collect();
-
-    let resp = serde_json::json!({
-        "success": true,
-        "version": "3.1.0",
-        "uptime": uptime_secs,
-        "metrics": {},
-        "providers": providers
-    });
-    (StatusCode::OK, serde_json::to_string(&resp).unwrap()).into_response()
-}
-
-// --- Handlers moved to src/routes/ ---
