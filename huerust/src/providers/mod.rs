@@ -12,12 +12,17 @@ pub mod kisskh;
 pub mod sflix;
 pub mod dramacool;
 pub mod mp4hydra;
+pub mod vidzee;
+pub mod videasy;
 pub mod moviebox_provider;
 pub mod kisskh_provider;
 pub mod sflix_provider;
 pub mod dramacool_provider;
 pub mod vixsrc_provider;
 pub mod mp4hydra_provider;
+pub mod vidzee_provider;
+pub mod videasy_provider;
+pub mod vidrock_provider;
 
 use async_trait::async_trait;
 use crate::models::StreamResult;

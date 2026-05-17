@@ -857,8 +857,8 @@ Second cue"#;
         assert!(normalized.contains("00:00:01.500 --> 00:00:04.000"));
     }
 
-    #[test]
-    fn test_rewrite_playlist_token_mode() {
+    #[tokio::test]
+    async fn test_rewrite_playlist_token_mode() {
         let content = "#EXTM3U\n#EXTINF:10,\nsegment.ts\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"";
         let secret = "test-secret";
         let rewritten = rewrite_playlist(content, "https://example.com/playlist.m3u8", "http://proxy.local", secret, None, false);
@@ -866,8 +866,8 @@ Second cue"#;
         assert!(rewritten.contains("http://proxy.local/ts-proxy?h_token="));
     }
 
-    #[test]
-    fn test_rewrite_playlist_url_mode() {
+    #[tokio::test]
+    async fn test_rewrite_playlist_url_mode() {
         let content = "#EXTM3U\nsegment.ts";
         let rewritten = rewrite_playlist(content, "https://example.com/playlist.m3u8", "http://proxy.local", "secret", None, true);
         assert!(rewritten.contains("http://proxy.local/ts-proxy?url="));

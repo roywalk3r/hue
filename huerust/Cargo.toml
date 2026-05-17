@@ -20,6 +20,7 @@ hex = "0.4"
 
 # Security
 aes = "0.8"
+aes-gcm = "0.10"
 cbc = { version = "0.1", features = ["alloc"] }
 cipher = { version = "0.4", features = ["alloc"] }
 scrypt = { version = "0.11", default-features = false, features = ["simple"] }

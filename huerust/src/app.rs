@@ -34,9 +34,14 @@ use crate::providers::{
     dramacool_provider::DramacoolProvider,
     vixsrc_provider::VixsrcProvider,
     mp4hydra_provider::Mp4HydraProvider,
+    vidzee_provider::VidzeeProvider,
+    videasy_provider::VideasyProvider,
+    vidrock_provider::VidrockProvider,
     vixsrc::VixsrcClient,
     kisskh::KissKhClient,
     dramacool::DramacoolClient,
+    vidzee::VidzeeClient,
+    videasy::VideasyClient,
 };
 use crate::config::AppConfig;
 
@@ -52,6 +57,9 @@ pub struct AppState {
     pub dramacool: Arc<DramacoolClient>,
     pub moviebox: Arc<MovieBoxClient>,
     pub hianime: Arc<crate::clients::hianime::HianimeClient>,
+    pub vidrock: Arc<crate::clients::vidrock::VidRockClient>,
+    pub vidzee: Arc<VidzeeClient>,
+    pub videasy: Arc<VideasyClient>,
     pub secret: String,
     pub proxy_base_url: String,
     pub config: Arc<crate::config::AppConfig>,
@@ -65,7 +73,9 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let tmdb = Arc::new(TmdbClient::new(cfg.tmdb_api_keys.clone()));
     let cache = Arc::new(StreamCache::new_from_config(&cfg).await);
     let circuit_breaker = Arc::new(CircuitBreaker::new());
-    let metrics = Arc::new(Metrics::new(&["Cinema", "Nova", "Zenith", "Orient", "Aura", "Hydra"]));
+    let metrics = Arc::new(Metrics::new(
+        &["Cinema", "Nova", "Zenith", "Orient", "Aura", "Hydra", "Luna", "VidZee", "Vortex"],
+    ));
     circuit_breaker.set_metrics(metrics.clone());
     let filter_config = Arc::new(FilterConfig::default());
 
@@ -87,12 +97,27 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
             .unwrap(),
     ));
 
+    let vidrock_client = Arc::new(crate::clients::vidrock::VidRockClient::new());
+    let vidzee_client = Arc::new(VidzeeClient::new(
+        Client::builder()
+            .tcp_keepalive(Duration::from_secs(60))
+            .connect_timeout(Duration::from_secs(8))
+            .timeout(Duration::from_secs(20))
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            .build()
+            .unwrap(),
+    ));
+    let videasy_client = Arc::new(VideasyClient::new());
+
     registry.register(Arc::new(MovieBoxProvider::new(moviebox_client.clone())));
     registry.register(Arc::new(KissKhProvider::new(kisskh_client.clone())));
     registry.register(Arc::new(SflixProvider::new(sflix_client.clone())));
     registry.register(Arc::new(DramacoolProvider::new(dramacool_client.clone())));
     registry.register(Arc::new(VixsrcProvider::new(vixsrc_client)));
     registry.register(Arc::new(Mp4HydraProvider::new()));
+    registry.register(Arc::new(VidrockProvider::new(vidrock_client.clone())));
+    registry.register(Arc::new(VidzeeProvider::new(vidzee_client.clone())));
+    registry.register(Arc::new(VideasyProvider::new(videasy_client.clone())));
 
     AppState {
         client: Client::builder()
@@ -109,6 +134,9 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         dramacool: dramacool_client,
         moviebox: moviebox_client.clone(),
         hianime: hianime_client.clone(),
+        vidrock: vidrock_client,
+        vidzee: vidzee_client,
+        videasy: videasy_client,
         secret: cfg.secret.clone(),
         proxy_base_url: cfg.proxy_base_url.clone(),
         config: Arc::new(cfg.clone()),
@@ -293,6 +321,7 @@ pub struct DramaState {
     pub kisskh:         Arc<KissKhClient>,
     pub dramacool:      Arc<DramacoolClient>,
     pub moviebox:       Arc<MovieBoxClient>,
+    pub tmdb:           Arc<TmdbClient>,
     pub config:         Arc<AppConfig>,
     pub secret:         String,
     pub proxy_base_url: String,
@@ -304,6 +333,7 @@ impl FromRef<AppState> for DramaState {
             kisskh:         s.kisskh.clone(),
             dramacool:      s.dramacool.clone(),
             moviebox:       s.moviebox.clone(),
+            tmdb:           s.tmdb.clone(),
             config:         s.config.clone(),
             secret:         s.secret.clone(),
             proxy_base_url: s.proxy_base_url.clone(),
