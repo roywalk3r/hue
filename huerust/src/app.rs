@@ -38,6 +38,7 @@ use crate::providers::{
     kisskh::KissKhClient,
     dramacool::DramacoolClient,
 };
+use crate::config::AppConfig;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -247,4 +248,154 @@ async fn rate_limit_middleware(State(state): State<AppState>, req: Request<Body>
         return Ok((StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded").into_response());
     }
     Ok(next.run(req).await)
+}
+
+// ── Sub-state projections ───────────────────────────────────────────────────
+use axum::extract::FromRef;
+
+/// State for /api/streams and /api/streams/.../live (SSE)
+#[derive(Clone)]
+pub struct StreamState {
+    pub registry:      Arc<ProviderRegistry>,
+    pub cache:         Arc<StreamCache>,
+    pub tmdb:          Arc<TmdbClient>,
+    pub filter_config: Arc<FilterConfig>,
+    pub coalescer:     Arc<FetchCoalescer>,
+    pub metrics:       Arc<Metrics>,
+    pub config:        Arc<AppConfig>,
+    pub secret:        String,
+    pub proxy_base_url: String,
+    pub client:        Client,
+    pub hitv:          Arc<HiTvClient>,
+}
+
+impl FromRef<AppState> for StreamState {
+    fn from_ref(s: &AppState) -> Self {
+        Self {
+            registry:       s.registry.clone(),
+            cache:          s.cache.clone(),
+            tmdb:           s.tmdb.clone(),
+            filter_config:  s.filter_config.clone(),
+            coalescer:      s.coalescer.clone(),
+            metrics:        s.metrics.clone(),
+            config:         s.config.clone(),
+            secret:         s.secret.clone(),
+            proxy_base_url: s.proxy_base_url.clone(),
+            client:         s.client.clone(),
+            hitv:           s.hitv.clone(),
+        }
+    }
+}
+
+/// State for /api/drama/* routes
+#[derive(Clone)]
+pub struct DramaState {
+    pub kisskh:         Arc<KissKhClient>,
+    pub dramacool:      Arc<DramacoolClient>,
+    pub moviebox:       Arc<MovieBoxClient>,
+    pub config:         Arc<AppConfig>,
+    pub secret:         String,
+    pub proxy_base_url: String,
+}
+
+impl FromRef<AppState> for DramaState {
+    fn from_ref(s: &AppState) -> Self {
+        Self {
+            kisskh:         s.kisskh.clone(),
+            dramacool:      s.dramacool.clone(),
+            moviebox:       s.moviebox.clone(),
+            config:         s.config.clone(),
+            secret:         s.secret.clone(),
+            proxy_base_url: s.proxy_base_url.clone(),
+        }
+    }
+}
+
+/// State for /api/hitv/* routes
+#[derive(Clone)]
+pub struct HiTvState {
+    pub hitv:          Arc<HiTvClient>,
+    pub config:        Arc<AppConfig>,
+    pub tmdb:          Arc<TmdbClient>,
+    pub proxy_base_url: String,
+}
+
+impl FromRef<AppState> for HiTvState {
+    fn from_ref(s: &AppState) -> Self {
+        Self {
+            hitv: s.hitv.clone(),
+            config: s.config.clone(),
+            tmdb: s.tmdb.clone(),
+            proxy_base_url: s.proxy_base_url.clone(),
+        }
+    }
+}
+
+/// State for /api/anime/* routes
+#[derive(Clone)]
+pub struct AnimeState {
+    pub hianime:        Arc<crate::clients::hianime::HianimeClient>,
+    pub config:         Arc<AppConfig>,
+    pub secret:         String,
+    pub proxy_base_url: String,
+}
+
+impl FromRef<AppState> for AnimeState {
+    fn from_ref(s: &AppState) -> Self {
+        Self {
+            hianime:        s.hianime.clone(),
+            config:         s.config.clone(),
+            secret:         s.secret.clone(),
+            proxy_base_url: s.proxy_base_url.clone(),
+        }
+    }
+}
+
+/// State for /api/moviebox/* routes
+#[derive(Clone)]
+pub struct MovieBoxRouteState {
+    pub moviebox: Arc<MovieBoxClient>,
+    pub config:   Arc<AppConfig>,
+}
+
+impl FromRef<AppState> for MovieBoxRouteState {
+    fn from_ref(s: &AppState) -> Self {
+        Self { moviebox: s.moviebox.clone(), config: s.config.clone() }
+    }
+}
+
+/// State for /api/providers
+#[derive(Clone)]
+pub struct ProvidersState {
+    pub registry: Arc<ProviderRegistry>,
+}
+
+impl FromRef<AppState> for ProvidersState {
+    fn from_ref(s: &AppState) -> Self {
+        Self { registry: s.registry.clone() }
+    }
+}
+
+/// State for system routes (health, metrics, status, admin)
+#[derive(Clone)]
+pub struct SystemState {
+    pub metrics:    Arc<Metrics>,
+    pub hitv:       Arc<HiTvClient>,
+    pub registry:   Arc<ProviderRegistry>,
+    pub start_time: std::time::Instant,
+    pub client:     Client,
+    pub config:     Arc<AppConfig>,
+}
+
+impl FromRef<AppState> for SystemState {
+    fn from_ref(s: &AppState) -> Self {
+        Self {
+            metrics:    s.metrics.clone(),
+            hitv:       s.hitv.clone(),
+            registry:   s.registry.clone(),
+            start_time: s.start_time,
+            client:     s.client.clone(),
+            config:     s.config.clone(),
+        }
+    }
 }

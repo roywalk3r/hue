@@ -13,7 +13,7 @@ use axum::{
 use std::collections::HashMap;
 use serde::Serialize;
 use crate::{
-    app::AppState,
+    app::HiTvState,
     clients::hitv::HiTvItem,
 };
 use tracing::{info, warn};
@@ -38,7 +38,7 @@ struct StaticListResponse {
 }
 
 pub async fn browse_handler(
-    State(state): State<AppState>,
+    State(state): State<HiTvState>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
     let country = params.get("country").map(|s| s.as_str()).unwrap_or("All");
@@ -69,7 +69,7 @@ pub async fn browse_handler(
 }
 
 pub async fn search_handler(
-    State(state): State<AppState>,
+    State(state): State<HiTvState>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
     let query = params.get("q").map(|s| s.as_str()).unwrap_or("");
@@ -100,7 +100,7 @@ pub async fn search_handler(
 }
 
 pub async fn latest_handler(
-    State(state): State<AppState>,
+    State(state): State<HiTvState>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
     let country = params.get("country").map(|s| s.as_str()).unwrap_or("All");
@@ -127,7 +127,7 @@ pub async fn latest_handler(
 }
 
 pub async fn trending_handler(
-    State(state): State<AppState>,
+    State(state): State<HiTvState>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
     let country = params.get("country").map(|s| s.as_str()).unwrap_or("All");
@@ -153,7 +153,7 @@ pub async fn trending_handler(
     }
 }
 
-pub async fn hero_handler(State(state): State<AppState>) -> Response {
+pub async fn hero_handler(State(state): State<HiTvState>) -> Response {
     let library = state.hitv.get_library().await;
     let items: Vec<HiTvItem> = library.into_iter().take(10).collect();
 
@@ -165,7 +165,7 @@ pub async fn hero_handler(State(state): State<AppState>) -> Response {
 }
 
 pub async fn drama_handler(
-    State(state): State<AppState>,
+    State(state): State<HiTvState>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
     let country = params.get("country").map(|s| s.as_str()).unwrap_or("All");
@@ -192,7 +192,7 @@ pub async fn drama_handler(
 }
 
 pub async fn info_handler(
-    State(state): State<AppState>,
+    State(state): State<HiTvState>,
     Path(id): Path<String>,
 ) -> Response {
     info!("[hitv] Info: id={}", id);
@@ -217,7 +217,7 @@ pub async fn info_handler(
 }
 
 pub async fn play_handler(
-    State(state): State<AppState>,
+    State(state): State<HiTvState>,
     Path((id, episode)): Path<(String, u32)>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
@@ -299,7 +299,7 @@ pub async fn sorts_handler() -> Response {
 }
 
 pub async fn dynamic_browse_handler(
-    State(state): State<AppState>,
+    State(state): State<HiTvState>,
     Path((country, sort, genre)): Path<(String, String, String)>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {

@@ -12,7 +12,7 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::app::AppState;
+use crate::app::MovieBoxRouteState;
 
 #[derive(Deserialize)]
 pub struct SectionQuery {
@@ -59,14 +59,14 @@ pub struct ShortsQuery {
 
 // ── Home / Discover ──────────────────────────────────────────────────────────
 
-pub async fn home_handler(State(state): State<AppState>) -> Response {
+pub async fn home_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_home().await {
         Ok(data) => (StatusCode::OK, serde_json::to_string(&data).unwrap()).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
-pub async fn discover_handler(State(state): State<AppState>) -> Response {
+pub async fn discover_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_discover().await {
         Ok(sections) => {
             let resp = serde_json::json!({ "success": true, "sections": sections });
@@ -77,7 +77,7 @@ pub async fn discover_handler(State(state): State<AppState>) -> Response {
 }
 
 pub async fn section_handler(
-    State(state): State<AppState>,
+    State(state): State<MovieBoxRouteState>,
     Query(params): Query<SectionQuery>,
 ) -> Response {
     let title = params.title.as_deref().unwrap_or("");
@@ -93,7 +93,7 @@ pub async fn section_handler(
     }
 }
 
-pub async fn trending_handler(State(state): State<AppState>) -> Response {
+pub async fn trending_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_trending(1).await {
         Ok(items) => {
             let resp = serde_json::json!({ "success": true, "items": items });
@@ -105,7 +105,7 @@ pub async fn trending_handler(State(state): State<AppState>) -> Response {
 
 // ── Named Sections (thin wrappers around get_section) ────────────────────────
 
-pub async fn popular_movie_handler(State(state): State<AppState>) -> Response {
+pub async fn popular_movie_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("Popular Movie").await {
         Ok(items) => {
             let resp = serde_json::json!({ "success": true, "items": items });
@@ -115,7 +115,7 @@ pub async fn popular_movie_handler(State(state): State<AppState>) -> Response {
     }
 }
 
-pub async fn popular_series_handler(State(state): State<AppState>) -> Response {
+pub async fn popular_series_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("Popular Series").await {
         Ok(items) => {
             let resp = serde_json::json!({ "success": true, "items": items });
@@ -125,7 +125,7 @@ pub async fn popular_series_handler(State(state): State<AppState>) -> Response {
     }
 }
 
-pub async fn hot_shorts_handler(State(state): State<AppState>) -> Response {
+pub async fn hot_shorts_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("Hot Short TV").await {
         Ok(items) => {
             let resp = serde_json::json!({ "success": true, "items": items });
@@ -135,7 +135,7 @@ pub async fn hot_shorts_handler(State(state): State<AppState>) -> Response {
     }
 }
 
-pub async fn sa_handler(State(state): State<AppState>) -> Response {
+pub async fn sa_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("SA Drama").await {
         Ok(items) => {
             let resp = serde_json::json!({ "success": true, "items": items });
@@ -145,7 +145,7 @@ pub async fn sa_handler(State(state): State<AppState>) -> Response {
     }
 }
 
-pub async fn thai_handler(State(state): State<AppState>) -> Response {
+pub async fn thai_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("Thai-Drama").await {
         Ok(items) => {
             let resp = serde_json::json!({ "success": true, "items": items });
@@ -155,7 +155,7 @@ pub async fn thai_handler(State(state): State<AppState>) -> Response {
     }
 }
 
-pub async fn turkish_handler(State(state): State<AppState>) -> Response {
+pub async fn turkish_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("Turkish Drama").await {
         Ok(items) => {
             let resp = serde_json::json!({ "success": true, "items": items });
@@ -165,7 +165,7 @@ pub async fn turkish_handler(State(state): State<AppState>) -> Response {
     }
 }
 
-pub async fn western_handler(State(state): State<AppState>) -> Response {
+pub async fn western_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("Western TV").await {
         Ok(items) => {
             let resp = serde_json::json!({ "success": true, "items": items });
@@ -175,7 +175,7 @@ pub async fn western_handler(State(state): State<AppState>) -> Response {
     }
 }
 
-pub async fn animation_handler(State(state): State<AppState>) -> Response {
+pub async fn animation_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("Animation Collection").await {
         Ok(items) => {
             let resp = serde_json::json!({ "success": true, "items": items });
@@ -185,7 +185,7 @@ pub async fn animation_handler(State(state): State<AppState>) -> Response {
     }
 }
 
-pub async fn black_shows_handler(State(state): State<AppState>) -> Response {
+pub async fn black_shows_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("Must-watch Black Shows").await {
         Ok(items) => {
             let resp = serde_json::json!({ "success": true, "items": items });
@@ -197,7 +197,7 @@ pub async fn black_shows_handler(State(state): State<AppState>) -> Response {
 
 // ── Hero ─────────────────────────────────────────────────────────────────────
 
-pub async fn hero_handler(State(state): State<AppState>) -> Response {
+pub async fn hero_handler(State(state): State<MovieBoxRouteState>) -> Response {
     // Simplified hero: combine trending + K-Drama + C-Drama, dedupe, sort by rating
     let (trending, kdrama, cdrama) = tokio::join!(
         state.moviebox.get_trending(1),
@@ -235,7 +235,7 @@ pub async fn hero_handler(State(state): State<AppState>) -> Response {
 // ── Bollywood / Shorts ───────────────────────────────────────────────────────
 
 pub async fn bollywood_handler(
-    State(state): State<AppState>,
+    State(state): State<MovieBoxRouteState>,
     Query(params): Query<BollywoodQuery>,
 ) -> Response {
     let media_type = params.r#type.as_deref().unwrap_or("movie");
@@ -250,7 +250,7 @@ pub async fn bollywood_handler(
 }
 
 pub async fn shorts_handler(
-    State(state): State<AppState>,
+    State(state): State<MovieBoxRouteState>,
     Query(params): Query<ShortsQuery>,
 ) -> Response {
     let page = params.page.unwrap_or(1);
@@ -266,7 +266,7 @@ pub async fn shorts_handler(
 // ── Filter ───────────────────────────────────────────────────────────────────
 
 pub async fn filter_handler(
-    State(state): State<AppState>,
+    State(state): State<MovieBoxRouteState>,
     Query(params): Query<FilterQuery>,
 ) -> Response {
     let page = params.page.unwrap_or(1);
@@ -284,7 +284,7 @@ pub async fn filter_handler(
 // ── Info / Search ────────────────────────────────────────────────────────────
 
 pub async fn info_handler(
-    State(state): State<AppState>,
+    State(state): State<MovieBoxRouteState>,
     Query(params): Query<InfoQuery>,
 ) -> Response {
     match state.moviebox.get_detail(&params.path).await {
@@ -297,7 +297,7 @@ pub async fn info_handler(
 }
 
 pub async fn search_handler(
-    State(state): State<AppState>,
+    State(state): State<MovieBoxRouteState>,
     Query(params): Query<SearchQuery>,
 ) -> Response {
     let page = params.page.unwrap_or(1);

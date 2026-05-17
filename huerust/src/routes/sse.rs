@@ -19,7 +19,7 @@ use tokio::time::timeout;
 use tracing::warn;
 
 use crate::{
-    app::AppState,
+    app::StreamState,
     infra::cache::CacheKey,
     filters::apply_filters,
     proxy::wrap::wrap_with_proxy,
@@ -41,7 +41,7 @@ use crate::{
     ),
 )]
 pub async fn sse_streams_handler(
-    State(state): State<AppState>,
+    State(state): State<StreamState>,
     Path((m_type, tmdb_id)): Path<(String, String)>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Sse<ReceiverStream<Result<Event, Infallible>>> {

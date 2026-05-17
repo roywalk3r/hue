@@ -6,11 +6,11 @@ use axum::{
     http::StatusCode,
 };
 use tracing::{info, warn};
-use crate::app::AppState;
+use crate::app::SystemState;
 
 pub async fn health_check() -> &'static str { "Huerust is Alive" }
 
-pub async fn metrics_handler(State(state): State<AppState>) -> Response {
+pub async fn metrics_handler(State(state): State<SystemState>) -> Response {
     let body = state.metrics.render_prometheus();
     (
         StatusCode::OK,
@@ -19,7 +19,7 @@ pub async fn metrics_handler(State(state): State<AppState>) -> Response {
     ).into_response()
 }
 
-pub async fn hitv_library_handler(State(state): State<AppState>) -> Response {
+pub async fn hitv_library_handler(State(state): State<SystemState>) -> Response {
     let items = state.hitv.get_library().await;
     (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response()
 }
@@ -29,7 +29,7 @@ pub async fn admin_reload_handler() -> Response {
     (StatusCode::OK, "{\"ok\":true,\"message\":\"Config cache invalidated — next request reloads from disk\"}").into_response()
 }
 
-pub async fn admin_refresh_tokens_handler(State(state): State<AppState>) -> Response {
+pub async fn admin_refresh_tokens_handler(State(state): State<SystemState>) -> Response {
     let node_api_url = std::env::var("NODE_API_URL")
         .unwrap_or_else(|_| "http://127.0.0.1:3003".to_string());
     let url = format!("{}/system/refresh-tokens", node_api_url);
@@ -49,7 +49,7 @@ pub async fn admin_refresh_tokens_handler(State(state): State<AppState>) -> Resp
     }
 }
 
-pub async fn status_handler(State(state): State<AppState>) -> Response {
+pub async fn status_handler(State(state): State<SystemState>) -> Response {
     let uptime_secs = state.start_time.elapsed().as_secs();
 
     let providers: Vec<serde_json::Value> = state.registry

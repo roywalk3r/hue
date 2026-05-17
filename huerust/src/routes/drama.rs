@@ -6,13 +6,14 @@
 //! @license MIT
 
 use axum::{
-    extract::{Query, State, Path},
-    response::{IntoResponse, Response},
+    extract::{Path, Query, State},
     http::StatusCode,
+    response::{IntoResponse, Response},
 };
 use serde::Deserialize;
 
-use crate::app::AppState;
+use crate::app::DramaState;
+use crate::providers::kisskh::choose_best_search_match;
 use crate::proxy::wrap::wrap_with_proxy;
 
 #[derive(Deserialize)]
@@ -47,13 +48,14 @@ pub struct MovieBoxSearchQuery {
 
 #[derive(Deserialize)]
 pub struct DetailQuery {
-    pub q: String,
+    pub q: Option<String>,
+    pub id: Option<u64>,
 }
 
 // ── KissKH ─────────────────────────────────────────────────────────
 
 pub async fn kisskh_search_handler(
-    State(state): State<AppState>,
+    State(state): State<DramaState>,
     Query(params): Query<SearchQuery>,
 ) -> Response {
     match state.kisskh.search(&params.q).await {
@@ -67,12 +69,20 @@ pub struct KissKhStreamsQuery {
     pub title: Option<String>,
 }
 
+fn kisskh_stream_lookup<'a>(id: &'a str, title: Option<&'a str>) -> &'a str {
+    if id.parse::<u64>().is_ok() {
+        id
+    } else {
+        title.unwrap_or(id)
+    }
+}
+
 pub async fn kisskh_streams_handler(
-    State(state): State<AppState>,
+    State(state): State<DramaState>,
     Path((id, episode)): Path<(String, u32)>,
     Query(params): Query<KissKhStreamsQuery>,
 ) -> Response {
-    let lookup = params.title.as_ref().map(|t| t.as_str()).unwrap_or(&id);
+    let lookup = kisskh_stream_lookup(&id, params.title.as_deref());
 
     match state.kisskh.get_streams_direct(lookup, episode).await {
         Ok(streams) if !streams.is_empty() => {
@@ -83,9 +93,7 @@ pub async fn kisskh_streams_handler(
     }
 }
 
-pub async fn kisskh_show_handler(
-    State(state): State<AppState>,
-) -> Response {
+pub async fn kisskh_show_handler(State(state): State<DramaState>) -> Response {
     match state.kisskh.get_show_list().await {
         Ok(items) => (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
@@ -93,7 +101,7 @@ pub async fn kisskh_show_handler(
 }
 
 pub async fn kisskh_browse_handler(
-    State(state): State<AppState>,
+    State(state): State<DramaState>,
     Query(params): Query<KissKhBrowseQuery>,
 ) -> Response {
     let page = params.page.unwrap_or(1);
@@ -104,24 +112,24 @@ pub async fn kisskh_browse_handler(
     let status = params.status.unwrap_or(0);
     let order = params.order.unwrap_or(2);
 
-    match state.kisskh.get_list(page, content_type, sub, country, status, order).await {
+    match state
+        .kisskh
+        .get_list(page, content_type, sub, country, status, order)
+        .await
+    {
         Ok(data) => (StatusCode::OK, serde_json::to_string(&data).unwrap()).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
-pub async fn kisskh_upcoming_handler(
-    State(state): State<AppState>,
-) -> Response {
+pub async fn kisskh_upcoming_handler(State(state): State<DramaState>) -> Response {
     match state.kisskh.get_upcoming().await {
         Ok(items) => (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
-pub async fn kisskh_top_rating_handler(
-    State(state): State<AppState>,
-) -> Response {
+pub async fn kisskh_top_rating_handler(State(state): State<DramaState>) -> Response {
     match state.kisskh.get_top_rating().await {
         Ok(items) => (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
@@ -131,7 +139,7 @@ pub async fn kisskh_top_rating_handler(
 // ── Dramacool ──────────────────────────────────────────────────────
 
 pub async fn dramacool_search_handler(
-    State(state): State<AppState>,
+    State(state): State<DramaState>,
     Query(params): Query<SearchQuery>,
 ) -> Response {
     match state.dramacool.search(&params.q).await {
@@ -141,10 +149,14 @@ pub async fn dramacool_search_handler(
 }
 
 pub async fn dramacool_streams_handler(
-    State(state): State<AppState>,
+    State(state): State<DramaState>,
     Path((id, episode)): Path<(String, u32)>,
 ) -> Response {
-    match state.dramacool.get_streams_normalized(&id, 1, episode).await {
+    match state
+        .dramacool
+        .get_streams_normalized(&id, 1, episode)
+        .await
+    {
         Ok(streams) => {
             let proxied = wrap_with_proxy(streams, &state.proxy_base_url, &state.secret);
             (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
@@ -156,19 +168,23 @@ pub async fn dramacool_streams_handler(
 // ── MovieBox ───────────────────────────────────────────────────────
 
 pub async fn moviebox_browse_handler(
-    State(state): State<AppState>,
+    State(state): State<DramaState>,
     Query(params): Query<MovieBoxBrowseQuery>,
 ) -> Response {
     let page = params.page.unwrap_or(1);
     let per_page = params.per_page.unwrap_or(28);
-    match state.moviebox.browse_rails(page, per_page, params.country.as_deref()).await {
+    match state
+        .moviebox
+        .browse_rails(page, per_page, params.country.as_deref())
+        .await
+    {
         Ok(rails) => (StatusCode::OK, serde_json::to_string(&rails).unwrap()).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
 pub async fn moviebox_search_handler(
-    State(state): State<AppState>,
+    State(state): State<DramaState>,
     Query(params): Query<MovieBoxSearchQuery>,
 ) -> Response {
     let page = params.page.unwrap_or(1);
@@ -180,10 +196,14 @@ pub async fn moviebox_search_handler(
 }
 
 pub async fn moviebox_streams_handler(
-    State(state): State<AppState>,
+    State(state): State<DramaState>,
     Path((title, episode)): Path<(String, u32)>,
 ) -> Response {
-    match state.moviebox.get_streams_normalized(&title, "tv", None, 1, episode).await {
+    match state
+        .moviebox
+        .get_streams_normalized(&title, "tv", None, 1, episode)
+        .await
+    {
         Ok(streams) => {
             let proxied = wrap_with_proxy(streams, &state.proxy_base_url, &state.secret);
             (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
@@ -195,53 +215,77 @@ pub async fn moviebox_streams_handler(
 // ── Unified Detail ─────────────────────────────────────────────────
 
 pub async fn drama_detail_handler(
-    State(state): State<AppState>,
+    State(state): State<DramaState>,
     Query(params): Query<DetailQuery>,
 ) -> Response {
-    // Try KissKH first
-    match state.kisskh.search(&params.q).await {
-        Ok(results) if !results.is_empty() => {
-            let best = &results[0];
-            match state.kisskh.get_detail(best.id).await {
-                Ok(detail) => {
-                    let episodes = detail["episodes"].as_array()
-                        .map(|arr| arr.iter().filter_map(|e| {
-                            let id = e["id"].as_u64()?.to_string();
-                            let number = e["number"].as_f64()? as u32;
-                            let title = format!("Episode {}", number);
-                            Some(serde_json::json!({
-                                "id": id,
-                                "number": number,
-                                "title": title
-                            }))
-                        }).collect::<Vec<_>>())
-                        .unwrap_or_default();
-
-                    let episode_count = episodes.len();
-                    let response = serde_json::json!({
-                        "success": true,
-                        "provider": "kisskh",
-                        "id": best.id.to_string(),
-                        "title": best.title,
-                        "cover": detail["cover"].as_str().unwrap_or(""),
-                        "description": detail["description"].as_str().unwrap_or(""),
-                        "year": detail["year"].as_u64().map(|y| y as u32),
-                        "country": detail["country"].as_str().unwrap_or(""),
-                        "status": detail["status"].as_str().unwrap_or(""),
-                        "genre": detail["genre"].as_str().unwrap_or(""),
-                        "episodes": episodes,
-                        "episode_count": episode_count
-                    });
-                    return (StatusCode::OK, serde_json::to_string(&response).unwrap()).into_response();
-                }
-                _ => {}
-            }
+    let kisskh_match = if let Some(id) = params.id {
+        Some((id, None))
+    } else if let Some(query) = params.q.as_deref() {
+        match state.kisskh.search(query).await {
+            Ok(results) if !results.is_empty() => choose_best_search_match(query, &results)
+                .map(|best| (best.id, Some(best.title.clone()))),
+            _ => None,
         }
-        _ => {}
+    } else {
+        None
+    };
+
+    // Try KissKH first
+    if let Some((kisskh_id, matched_title)) = kisskh_match {
+        match state.kisskh.get_detail(kisskh_id).await {
+            Ok(detail) => {
+                let episodes = detail["episodes"]
+                    .as_array()
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|e| {
+                                let id = e["id"].as_u64()?.to_string();
+                                let number = e["number"].as_f64()? as u32;
+                                let title = format!("Episode {}", number);
+                                Some(serde_json::json!({
+                                    "id": id,
+                                    "number": number,
+                                    "title": title
+                                }))
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+
+                let episode_count = episodes.len();
+                let response = serde_json::json!({
+                    "success": true,
+                    "provider": "kisskh",
+                    "id": kisskh_id.to_string(),
+                    "title": matched_title
+                        .or_else(|| detail["title"].as_str().map(|s| s.to_string()))
+                        .or_else(|| detail["name"].as_str().map(|s| s.to_string()))
+                        .unwrap_or_else(|| params.q.clone().unwrap_or_default()),
+                    "cover": detail["cover"].as_str().unwrap_or(""),
+                    "description": detail["description"].as_str().unwrap_or(""),
+                    "year": detail["year"].as_u64().map(|y| y as u32),
+                    "country": detail["country"].as_str().unwrap_or(""),
+                    "status": detail["status"].as_str().unwrap_or(""),
+                    "genre": detail["genre"].as_str().unwrap_or(""),
+                    "episodes": episodes,
+                    "episode_count": episode_count
+                });
+                return (StatusCode::OK, serde_json::to_string(&response).unwrap()).into_response();
+            }
+            _ => {}
+        }
     }
 
     // Fallback to MovieBox
-    match state.moviebox.search(&params.q, 1, 0).await {
+    let Some(query) = params.q.as_deref() else {
+        return (
+            StatusCode::NOT_FOUND,
+            r#"{"success":false,"error":"No detail found"}"#,
+        )
+            .into_response();
+    };
+
+    match state.moviebox.search(query, 1, 0).await {
         Ok(items) if !items.is_empty() => {
             let best = &items[0];
             let response = serde_json::json!({
@@ -263,5 +307,30 @@ pub async fn drama_detail_handler(
         _ => {}
     }
 
-    (StatusCode::NOT_FOUND, r#"{"success":false,"error":"No detail found"}"#).into_response()
+    (
+        StatusCode::NOT_FOUND,
+        r#"{"success":false,"error":"No detail found"}"#,
+    )
+        .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::kisskh_stream_lookup;
+
+    #[test]
+    fn kisskh_stream_lookup_prefers_numeric_id_over_title() {
+        assert_eq!(
+            kisskh_stream_lookup("10583", Some("Zhan Zhao Adventures")),
+            "10583"
+        );
+    }
+
+    #[test]
+    fn kisskh_stream_lookup_uses_title_for_non_numeric_slug() {
+        assert_eq!(
+            kisskh_stream_lookup("zhan-zhao-adventures", Some("Zhan Zhao Adventures")),
+            "Zhan Zhao Adventures"
+        );
+    }
 }

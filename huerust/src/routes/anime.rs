@@ -16,7 +16,7 @@ use serde::Deserialize;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-use crate::app::AppState;
+use crate::app::AnimeState;
 #[allow(unused_imports)]
 use crate::models::anime::{
     AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse,
@@ -154,7 +154,7 @@ fn hianime_stream_to_payload(
     ),
 )]
 pub async fn search_handler(
-    State(state): State<AppState>,
+    State(state): State<AnimeState>,
     Query(params): Query<SearchQuery>,
 ) -> Response {
     info!("[anime] search: {}", params.q);
@@ -178,7 +178,7 @@ pub async fn search_handler(
         (status = 500, description = "Internal error"),
     ),
 )]
-pub async fn latest_handler(State(state): State<AppState>) -> Response {
+pub async fn latest_handler(State(state): State<AnimeState>) -> Response {
     match state.hianime.get_latest(1).await {
         Ok(raw) => {
             let structured = crate::clients::hianime::transform_category_results(raw);
@@ -205,7 +205,7 @@ pub async fn latest_handler(State(state): State<AppState>) -> Response {
     ),
 )]
 pub async fn category_handler(
-    State(state): State<AppState>,
+    State(state): State<AnimeState>,
     Query(params): Query<CategoryQuery>,
 ) -> Response {
     let typ = params.r#type.as_deref().unwrap_or("tv");
@@ -231,7 +231,7 @@ pub async fn category_handler(
         (status = 500, description = "Internal error"),
     ),
 )]
-pub async fn home_handler(State(state): State<AppState>) -> Response {
+pub async fn home_handler(State(state): State<AnimeState>) -> Response {
     match state.hianime.get_home().await {
         Ok(raw) => {
             let structured = crate::clients::hianime::transform_home_feed(raw);
@@ -257,7 +257,7 @@ pub async fn home_handler(State(state): State<AppState>) -> Response {
     ),
 )]
 pub async fn detail_handler(
-    State(state): State<AppState>,
+    State(state): State<AnimeState>,
     Path(slug): Path<String>,
 ) -> Response {
     info!("[anime] detail: {}", slug);
@@ -290,7 +290,7 @@ pub async fn detail_handler(
     ),
 )]
 pub async fn episodes_handler(
-    State(state): State<AppState>,
+    State(state): State<AnimeState>,
     Path(id): Path<String>,
     Query(params): Query<EpisodesQuery>,
 ) -> Response {
@@ -339,7 +339,7 @@ pub async fn episodes_handler(
     ),
 )]
 pub async fn servers_handler(
-    State(state): State<AppState>,
+    State(state): State<AnimeState>,
     Query(params): Query<ServersQuery>,
 ) -> Response {
     info!("[anime] servers for: {}", params.id);
@@ -372,7 +372,7 @@ pub async fn servers_handler(
     ),
 )]
 pub async fn stream_handler(
-    State(state): State<AppState>,
+    State(state): State<AnimeState>,
     Query(params): Query<StreamQuery>,
 ) -> Response {
     let episode = params.episode.unwrap_or(1);

@@ -9,7 +9,7 @@ use axum::{extract::State, response::{IntoResponse, Response}, http::StatusCode}
 use serde::Serialize;
 use utoipa::ToSchema;
 
-use crate::app::AppState;
+use crate::app::ProvidersState;
 
 #[derive(Serialize, ToSchema)]
 struct ProviderInfo {
@@ -27,7 +27,7 @@ struct ProviderInfo {
         (status = 200, description = "List of registered providers with circuit state"),
     ),
 )]
-pub async fn providers_handler(State(state): State<AppState>) -> Response {
+pub async fn providers_handler(State(state): State<ProvidersState>) -> Response {
     let cb = state.registry.circuit_breaker();
     let providers: Vec<ProviderInfo> = state.registry.list_all().iter().map(|p| {
         let state_str = match cb.get_state(p.real_name()) {

@@ -15,11 +15,11 @@ use axum::{
     http::StatusCode,
 };
 use std::collections::HashMap;
-use crate::app::AppState;
+use crate::app::StreamState;
 use tracing::{info, warn};
 
 pub async fn streams_handler(
-    State(state): State<AppState>,
+    State(state): State<StreamState>,
     Path((media_type, tmdb_id)): Path<(String, String)>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {

@@ -16,7 +16,7 @@ use tokio::time::timeout;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 use crate::{
-    app::AppState,
+    app::StreamState,
     infra::cache::CacheKey,
     filters::{apply_filters, sort_by_quality},
 };
@@ -52,7 +52,7 @@ pub struct PlayResponse {
     ),
 )]
 pub async fn play_handler(
-    State(state): State<AppState>,
+    State(state): State<StreamState>,
     Path((m_type, tmdb_id)): Path<(String, String)>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
@@ -141,7 +141,7 @@ pub async fn play_handler(
     }
 }
 
-async fn pick_best_stream(streams: Vec<crate::models::StreamResult>, state: &AppState) -> Option<PlayResponse> {
+async fn pick_best_stream(streams: Vec<crate::models::StreamResult>, state: &StreamState) -> Option<PlayResponse> {
     let client = state.client.clone();
     let timeout_secs = state.config.head_check_timeout_secs;
 
