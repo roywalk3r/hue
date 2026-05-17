@@ -19,7 +19,7 @@ use tokio::time::timeout;
 use tracing::warn;
 
 use crate::{
-    AppState,
+    app::AppState,
     infra::cache::CacheKey,
     filters::apply_filters,
     proxy::wrap::wrap_with_proxy,

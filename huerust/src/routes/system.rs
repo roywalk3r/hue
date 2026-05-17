@@ -6,7 +6,7 @@ use axum::{
     http::StatusCode,
 };
 use tracing::{info, warn};
-use crate::AppState;
+use crate::app::AppState;
 
 pub async fn health_check() -> &'static str { "Huerust is Alive" }
 

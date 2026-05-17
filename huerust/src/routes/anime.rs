@@ -16,7 +16,7 @@ use serde::Deserialize;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-use crate::AppState;
+use crate::app::AppState;
 #[allow(unused_imports)]
 use crate::models::anime::{
     AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse,

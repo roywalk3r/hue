@@ -16,7 +16,7 @@ use tokio::time::timeout;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 use crate::{
-    AppState,
+    app::AppState,
     infra::cache::CacheKey,
     filters::{apply_filters, sort_by_quality},
 };

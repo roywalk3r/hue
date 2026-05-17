@@ -9,7 +9,7 @@ use axum::{extract::State, response::{IntoResponse, Response}, http::StatusCode}
 use serde::Serialize;
 use utoipa::ToSchema;
 
-use crate::AppState;
+use crate::app::AppState;
 
 #[derive(Serialize, ToSchema)]
 struct ProviderInfo {

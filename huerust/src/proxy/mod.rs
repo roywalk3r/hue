@@ -15,7 +15,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use url::Url;
 
-use crate::{security, AppState};
+use crate::{security, app::AppState};
 use std::env;
 
 pub mod sanitize;

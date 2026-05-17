@@ -13,7 +13,7 @@ use axum::{
 use std::collections::HashMap;
 use serde::Serialize;
 use crate::{
-    AppState,
+    app::AppState,
     clients::hitv::HiTvItem,
 };
 use tracing::{info, warn};

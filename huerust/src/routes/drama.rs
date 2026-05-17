@@ -12,7 +12,7 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::AppState;
+use crate::app::AppState;
 use crate::proxy::wrap::wrap_with_proxy;
 
 #[derive(Deserialize)]
