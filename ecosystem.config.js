@@ -10,6 +10,14 @@
 module.exports = {
   apps: [
     {
+      name: 'hue',
+      script: 'pnpm',
+      args: 'run start',
+      env: {
+        PORT: 24608,
+      }
+    },
+    {
       name: 'hue-rust-api',
       script: 'cargo',
       args: 'run --release',
@@ -24,6 +32,6 @@ module.exports = {
       env: {
         SCRAPER_PORT: 24610
       }
-    }
+    },
   ]
 };

@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hue — Stream Everything</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --purple: #a855f7;
+      --cyan: #06b6d4;
+      --card-bg: #111118;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: #f1f1f1;
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    /* ─── NAVBAR ─── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 200;
+      height: 68px;
+      padding: 0 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(10,10,15,0.55);
+      backdrop-filter: blur(28px) saturate(180%);
+      -webkit-backdrop-filter: blur(28px) saturate(180%);
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+
+    .logo-icon {
+      width: 34px; height: 34px;
+      background: linear-gradient(135deg, var(--purple) 0%, var(--cyan) 100%);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      box-shadow: 0 0 20px rgba(168,85,247,0.4);
+    }
+
+    .logo-text {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      font-size: 24px;
+      background: linear-gradient(90deg, #e0aaff 0%, var(--cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.5px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 36px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: rgba(255,255,255,0.65);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+      position: relative;
+    }
+
+    .nav-links a.active {
+      color: #fff;
+    }
+
+    .nav-links a.active::after {
+      content: '';
+      position: absolute;
+      bottom: -4px; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--purple), var(--cyan));
+      border-radius: 2px;
+    }
+
+    .nav-links a:hover { color: #fff; }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .icon-btn {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.04);
+      color: rgba(255,255,255,0.7);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      transition: all 0.2s;
+    }
+
+    .icon-btn:hover {
+      border-color: var(--purple);
+      background: rgba(168,85,247,0.12);
+      color: var(--purple);
+    }
+
+    .avatar {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--purple), var(--cyan));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700;
+      cursor: pointer;
+      border: 2px solid rgba(168,85,247,0.4);
+    }
+
+    /* ─── HERO ─── */
+    .hero {
+      position: relative;
+      height: 100vh;
+      min-height: 640px;
+      display: flex;
+      align-items: flex-end;
+    }
+
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      background-image: url('https://image.tmdb.org/t/p/original/xOMo8BRK7PfcJv9JCnx7s5hj0NX.jpg');
+      background-size: cover;
+      background-position: center 25%;
+      background-color: #1a0630;
+    }
+
+    /* Multi-layer gradient overlay for cinema feel */
+    .hero-bg::before {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        linear-gradient(105deg, rgba(10,10,15,0.96) 30%, rgba(10,10,15,0.5) 58%, rgba(10,10,15,0.12) 100%),
+        linear-gradient(to top, rgba(10,10,15,1) 0%, rgba(10,10,15,0.75) 25%, rgba(10,10,15,0.2) 55%, transparent 80%),
+        linear-gradient(to bottom, rgba(10,10,15,0.7) 0%, transparent 18%);
+    }
+
+    /* subtle color vignette for mood */
+    .hero-bg::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 70% 40%, rgba(88,28,135,0.18) 0%, transparent 60%);
+    }
+
+    .hero-body {
+      position: relative;
+      z-index: 2;
+      padding: 0 80px 96px;
+      max-width: 640px;
+    }
+
+    .hero-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 14px;
+      border-radius: 20px;
+      background: rgba(168,85,247,0.12);
+      border: 1px solid rgba(168,85,247,0.28);
+      font-size: 11px;
+      font-weight: 700;
+      color: #c084fc;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+
+    .pulse-dot {
+      width: 7px; height: 7px;
+      background: var(--purple);
+      border-radius: 50%;
+      animation: gdot 2s ease-in-out infinite;
+      box-shadow: 0 0 8px var(--purple);
+    }
+
+    @keyframes gdot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.75); }
+    }
+
+    .hero-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 76px;
+      font-weight: 900;
+      line-height: 0.92;
+      letter-spacing: -0.04em;
+      color: #fff;
+      margin-bottom: 20px;
+      text-shadow: 0 4px 60px rgba(0,0,0,0.9);
+    }
+
+    .hero-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex-wrap: wrap;
+      margin-bottom: 22px;
+    }
+
+    .meta-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.65);
+      font-weight: 500;
+      padding: 0 12px;
+      border-right: 1px solid rgba(255,255,255,0.15);
+    }
+
+    .meta-chip:first-child { padding-left: 0; }
+    .meta-chip:last-child { border-right: none; }
+
+    .star-icon { color: #fbbf24; }
+    .rating-val { color: #fff; font-weight: 700; }
+
+    .hd-tag {
+      background: rgba(6,182,212,0.15);
+      border: 1px solid rgba(6,182,212,0.3);
+      color: var(--cyan);
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 4px;
+      letter-spacing: 0.08em;
+    }
+
+    .hero-desc {
+      font-size: 15px;
+      line-height: 1.75;
+      color: rgba(255,255,255,0.65);
+      margin-bottom: 36px;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      max-width: 540px;
+    }
+
+    .hero-cta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 15px 34px;
+      background: linear-gradient(135deg, #9333ea, #7c3aed);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 0 0 1px rgba(147,51,234,0.3), 0 8px 40px rgba(124,58,237,0.5);
+      transition: all 0.22s;
+      letter-spacing: -0.01em;
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #a855f7, #8b5cf6);
+      box-shadow: 0 0 0 1px rgba(168,85,247,0.5), 0 12px 50px rgba(168,85,247,0.65);
+      transform: translateY(-2px);
+    }
+
+    .play-icon {
+      width: 20px; height: 20px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px;
+    }
+
+    .btn-ghost {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 15px 28px;
+      background: rgba(255,255,255,0.07);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 12px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      backdrop-filter: blur(12px);
+      transition: all 0.2s;
+    }
+
+    .btn-ghost:hover {
+      background: rgba(255,255,255,0.13);
+      border-color: rgba(255,255,255,0.28);
+    }
+
+    .btn-round {
+      width: 50px; height: 50px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.7);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 19px;
+      backdrop-filter: blur(12px);
+      transition: all 0.2s;
+    }
+
+    .btn-round:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      background: rgba(6,182,212,0.12);
+      box-shadow: 0 0 16px rgba(6,182,212,0.25);
+    }
+
+    /* slide dots */
+    .slide-dots {
+      position: absolute;
+      right: 56px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .sdot {
+      width: 3px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.3s;
+      background: rgba(255,255,255,0.2);
+      height: 22px;
+    }
+
+    .sdot.on {
+      background: var(--purple);
+      height: 40px;
+      box-shadow: 0 0 14px rgba(168,85,247,0.7);
+    }
+
+    /* ─── LIVE STRIP ─── */
+    .live-strip {
+      margin: -16px 56px 0;
+      position: relative;
+      z-index: 3;
+      background: rgba(10,10,20,0.85);
+      border: 1px solid rgba(6,182,212,0.16);
+      border-radius: 16px;
+      backdrop-filter: blur(20px);
+      padding: 18px 24px;
+    }
+
+    .live-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .live-blink {
+      width: 8px; height: 8px;
+      background: #ef4444;
+      border-radius: 50%;
+      box-shadow: 0 0 10px rgba(239,68,68,0.9);
+      animation: blink 1.4s ease infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.5); }
+    }
+
+    .live-head-label {
+      font-size: 11px;
+      font-weight: 800;
+      color: #ef4444;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .live-head-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      margin-left: 4px;
+    }
+
+    .live-matches {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .live-matches::-webkit-scrollbar { display: none; }
+
+    .match {
+      flex: 0 0 200px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 10px;
+      padding: 11px 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .match:hover {
+      background: rgba(6,182,212,0.07);
+      border-color: rgba(6,182,212,0.25);
+      transform: translateY(-1px);
+    }
+
+    .match-sport {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--cyan);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 7px;
+    }
+
+    .match-teams {
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 6px;
+      line-height: 1.3;
+    }
+
+    .match-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: rgba(255,255,255,0.45);
+    }
+
+    .badge-live {
+      background: rgba(239,68,68,0.18);
+      color: #f87171;
+      border: 1px solid rgba(239,68,68,0.28);
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 5px;
+      letter-spacing: 0.08em;
+    }
+
+    .badge-soon {
+      background: rgba(168,85,247,0.18);
+      color: #c084fc;
+      border: 1px solid rgba(168,85,247,0.3);
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 5px;
+      letter-spacing: 0.08em;
+    }
+
+    .badge-ft {
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.35);
+      border: 1px solid rgba(255,255,255,0.1);
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 5px;
+    }
+
+    /* ─── CONTENT ROWS ─── */
+    .section {
+      padding: 44px 56px 0;
+    }
+
+    .row-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+
+    .row-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .row-title em {
+      font-style: normal;
+      color: var(--purple);
+    }
+
+    .row-see-all {
+      font-size: 13px;
+      color: var(--cyan);
+      cursor: pointer;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      opacity: 0.85;
+      transition: opacity 0.2s;
+    }
+
+    .row-see-all:hover { opacity: 1; }
+
+    .poster-row {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .poster-row::-webkit-scrollbar { display: none; }
+
+    .pcard {
+      flex: 0 0 148px;
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+      scroll-snap-align: start;
+      background: #13131f;
+      transition: transform 0.24s ease, box-shadow 0.24s ease;
+    }
+
+    .pcard:hover {
+      transform: scale(1.06) translateY(-5px);
+      box-shadow: 0 24px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(168,85,247,0.35);
+      z-index: 20;
+    }
+
+    .pcard img {
+      width: 100%;
+      aspect-ratio: 2/3;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* gradient fallback for missing posters */
+    .pcard img[src=""] {
+      min-height: 222px;
+    }
+
+    .pcard-info {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(10,10,15,0.98) 0%, rgba(10,10,15,0.4) 45%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.24s;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 12px 10px;
+    }
+
+    .pcard:hover .pcard-info { opacity: 1; }
+
+    .pcard-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 3px;
+      line-height: 1.3;
+    }
+
+    .pcard-meta {
+      font-size: 11px;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 8px;
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+
+    .pcard-star { color: #fbbf24; font-size: 10px; }
+
+    .pcard-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 6px 8px;
+      background: linear-gradient(135deg, var(--purple), #7c3aed);
+      border-radius: 7px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(124,58,237,0.5);
+    }
+
+    .spacer { height: 64px; }
+  </style>
+</head>
+<body>
+
+<!-- ─── NAV ─── -->
+<nav>
+  <a class="brand" href="#">
+    <div class="logo-icon">▶</div>
+    <span class="logo-text">hue</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#" class="active">Home</a></li>
+    <li><a href="#">Movies</a></li>
+    <li><a href="#">Series</a></li>
+    <li><a href="#">Drama</a></li>
+    <li><a href="#">Live</a></li>
+    <li><a href="#">Saved</a></li>
+  </ul>
+  <div class="nav-right">
+    <button class="icon-btn" title="Search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    </button>
+    <button class="icon-btn" title="Notifications">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    </button>
+    <div class="avatar">R</div>
+  </div>
+</nav>
+
+<!-- ─── HERO ─── -->
+<section class="hero">
+  <div class="hero-bg"></div>
+
+  <div class="hero-body">
+    <div class="hero-label">
+      <span class="pulse-dot"></span>
+      #1 Trending This Week
+    </div>
+
+    <h1 class="hero-title">Dune:<br>Part Two</h1>
+
+    <div class="hero-meta-row">
+      <span class="meta-chip">
+        <span class="star-icon">★</span>
+        <span class="rating-val">8.4</span>
+        &nbsp;/ 10
+      </span>
+      <span class="meta-chip">2024</span>
+      <span class="meta-chip">2h 46m</span>
+      <span class="meta-chip">Sci-Fi · Adventure</span>
+      <span class="meta-chip"><span class="hd-tag">4K</span></span>
+    </div>
+
+    <p class="hero-desc">
+      Paul Atreides unites with Chani and the Fremen on a path of revenge against the conspirators who destroyed his family. Facing a choice between the love of his life and the fate of the known universe, he endeavors to prevent a terrible future only he can foresee.
+    </p>
+
+    <div class="hero-cta">
+      <button class="btn-primary">
+        <span class="play-icon">▶</span>
+        Watch Now
+      </button>
+      <button class="btn-ghost">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        More Info
+      </button>
+      <button class="btn-round" title="Add to Watchlist">+</button>
+    </div>
+  </div>
+
+  <div class="slide-dots">
+    <div class="sdot on"></div>
+    <div class="sdot"></div>
+    <div class="sdot"></div>
+    <div class="sdot"></div>
+  </div>
+</section>
+
+<!-- ─── LIVE STRIP ─── -->
+<div class="live-strip">
+  <div class="live-head">
+    <div class="live-blink"></div>
+    <span class="live-head-label">Live Now</span>
+    <span class="live-head-title">Sports &amp; Events</span>
+  </div>
+  <div class="live-matches">
+    <div class="match">
+      <div class="match-sport">NBA Playoffs</div>
+      <div class="match-teams">Celtics vs Lakers</div>
+      <div class="match-foot"><span>Q3 · 84–79</span><span class="badge-live">LIVE</span></div>
+    </div>
+    <div class="match">
+      <div class="match-sport">UEFA Champions League</div>
+      <div class="match-teams">Real Madrid vs Arsenal</div>
+      <div class="match-foot"><span>67' · 2–1</span><span class="badge-live">LIVE</span></div>
+    </div>
+    <div class="match">
+      <div class="match-sport">Formula 1</div>
+      <div class="match-teams">Monaco Grand Prix</div>
+      <div class="match-foot"><span>Lap 42 / 78</span><span class="badge-live">LIVE</span></div>
+    </div>
+    <div class="match">
+      <div class="match-sport">UFC 299</div>
+      <div class="match-teams">O'Malley vs Vera</div>
+      <div class="match-foot"><span>Starts in 45m</span><span class="badge-soon">SOON</span></div>
+    </div>
+    <div class="match">
+      <div class="match-sport">Premier League</div>
+      <div class="match-teams">Man City vs Liverpool</div>
+      <div class="match-foot"><span>FT · 2–2</span><span class="badge-ft">ENDED</span></div>
+    </div>
+    <div class="match">
+      <div class="match-sport">Tennis · Wimbledon</div>
+      <div class="match-teams">Djokovic vs Alcaraz</div>
+      <div class="match-foot"><span>Set 2 · 6–4, 3–2</span><span class="badge-live">LIVE</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── TRENDING ROW ─── -->
+<div class="section" style="margin-top: 48px;">
+  <div class="row-head">
+    <h2 class="row-title">Trending <em>Now</em></h2>
+    <span class="row-see-all">See all →</span>
+  </div>
+  <div class="poster-row">
+    <div class="pcard">
+      <img src="https://image.tmdb.org/t/p/w342/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg" alt="Dune 2" onerror="this.parentElement.style.background='linear-gradient(160deg,#1a0635,#2d1269)'">
+      <div class="pcard-info">
+        <div class="pcard-title">Dune: Part Two</div>
+        <div class="pcard-meta"><span class="pcard-star">★</span> 8.4 · 2024</div>
+        <div class="pcard-btn">▶ Watch</div>
+      </div>
+    </div>
+    <div class="pcard">
+      <img src="https://image.tmdb.org/t/p/w342/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg" alt="Oppenheimer" onerror="this.parentElement.style.background='linear-gradient(160deg,#1a1000,#3d2800)'">
+      <div class="pcard-info">
+        <div class="pcard-title">Oppenheimer</div>
+        <div class="pcard-meta"><span class="pcard-star">★</span> 8.3 · 2023</div>
+        <div class="pcard-btn">▶ Watch</div>
+      </div>
+    </div>
+    <div class="pcard">
+      <img src="https://image.tmdb.org/t/p/w342/74xTEgt7R36Fpocon6TC1PO7E47.jpg" alt="The Batman" onerror="this.parentElement.style.background='linear-gradient(160deg,#060612,#18103a)'">
+      <div class="pcard-info">
+        <div class="pcard-title">The Batman</div>
+        <div class="pcard-meta"><span class="pcard-star">★</span> 7.8 · 2022</div>
+        <div class="pcard-btn">▶ Watch</div>
+      </div>
+    </div>
+    <div class="pcard">
+      <img src="https://image.tmdb.org/t/p/w342/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg" alt="Interstellar" onerror="this.parentElement.style.background='linear-gradient(160deg,#000814,#001428)'">
+      <div class="pcard-info">
+        <div class="pcard-title">Interstellar</div>
+        <div class="pcard-meta"><span class="pcard-star">★</span> 8.7 · 2014</div>
+        <div class="pcard-btn">▶ Watch</div>
+      </div>
+    </div>
+    <div class="pcard">
+      <img src="https://image.tmdb.org/t/p/w342/t6HIqrRAclMCA60NsSmeqe9RmNV.jpg" alt="Avatar 2" onerror="this.parentElement.style.background='linear-gradient(160deg,#001a1a,#003030)'">
+      <div class="pcard-info">
+        <div class="pcard-title">Avatar: WoW</div>
+        <div class="pcard-meta"><span class="pcard-star">★</span> 7.6 · 2022</div>
+        <div class="pcard-btn">▶ Watch</div>
+      </div>
+    </div>
+    <div class="pcard">
+      <img src="https://image.tmdb.org/t/p/w342/sv1xJUazXoQuIDQqQp8CyPWTSfy.jpg" alt="Black Panther" onerror="this.parentElement.style.background='linear-gradient(160deg,#0a0a1e,#1a1a40)'">
+      <div class="pcard-info">
+        <div class="pcard-title">Black Panther: WF</div>
+        <div class="pcard-meta"><span class="pcard-star">★</span> 7.3 · 2022</div>
+        <div class="pcard-btn">▶ Watch</div>
+      </div>
+    </div>
+    <div class="pcard">
+      <img src="https://image.tmdb.org/t/p/w342/r2J02Z2OpNTctfOSN1Ydgii51I3.jpg" alt="Guardians 3" onerror="this.parentElement.style.background='linear-gradient(160deg,#1a001a,#330033)'">
+      <div class="pcard-info">
+        <div class="pcard-title">Guardians Vol. 3</div>
+        <div class="pcard-meta"><span class="pcard-star">★</span> 8.0 · 2023</div>
+        <div class="pcard-btn">▶ Watch</div>
+      </div>
+    </div>
+    <div class="pcard">
+      <img src="https://image.tmdb.org/t/p/w342/A81kBthe9IKAIq5FW8TOClM0GaU.jpg" alt="Poor Things" onerror="this.parentElement.style.background='linear-gradient(160deg,#1a0505,#3a1010)'">
+      <div class="pcard-info">
+        <div class="pcard-title">Poor Things</div>
+        <div class="pcard-meta"><span class="pcard-star">★</span> 7.9 · 2023</div>
+        <div class="pcard-btn">▶ Watch</div>
+      </div>
+    </div>
+    <div class="pcard">
+      <img src="https://image.tmdb.org/t/p/w342/9cqNxx0GxF0bAY5UoF5GKYNu2m7.jpg" alt="Barbie" onerror="this.parentElement.style.background='linear-gradient(160deg,#2a0a2a,#4a1a4a)'">
+      <div class="pcard-info">
+        <div class="pcard-title">Barbie</div>
+        <div class="pcard-meta"><span class="pcard-star">★</span> 7.0 · 2023</div>
+        <div class="pcard-btn">▶ Watch</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── KDRAMA ROW ─── -->
+<div class="section" style="margin-top: 44px;">
+  <div class="row-head">
+    <h2 class="row-title">KDrama <em>Spotlight</em></h2>
+    <span class="row-see-all">See all →</span>
+  </div>
+  <div class="poster-row">
+    <div class="pcard">
+      <img src="https://image.tmdb.org/t/p/w342/dDlEmu3EZ0Pgg93K2SVNLCjCSvE.jpg" alt="Squid Game" onerror="this.parentElement.style.background='linear-gradient(160deg,#0f1a0a,#1a3010)'">
+      <div class="pcard-info">
+        <div class="pcard-title">Squid Game</div>
+        <div class="pcard-meta"><span class="pcard-star">★</span> 8.0 · Thriller</div>
+        <div class="pcard-btn">▶ Watch</div>
+      </div>
+    </div>
+    <div class="pcard">
+      <img src="https://image.tmdb.org/t/p/w342/mTkSEid74CaWjPDKnDsH1KG0S9p.jpg" alt="Crash Landing" onerror="this.parentElement.style.background='linear-gradient(160deg,#0a0a20,#1a1a40)'">
+      <div class="pcard-info">
+        <div class="pcard-title">Crash Landing on You</div>
+        <div class="pcard-meta"><span class="pcard-star">★</span> 8.5 · Romance</div>
+        <div class="pcard-btn">▶ Watch</div>
+      </div>
+    </div>
+    <div class="pcard">
+      <img src="https://image.tmdb.org/t/p/w342/7WJjFviFBffEJvkAms4uWwbcVUk.jpg" alt="Vincenzo" onerror="this.parentElement.style.background='linear-gradient(160deg,#1a0a0a,#3a1010)'">
+      <div class="pcard-info">
+        <div class="pcard-title">Vincenzo</div>
+        <div class="pcard-meta"><span class="pcard-star">★</span> 8.4 · Crime</div>
+        <div class="pcard-btn">▶ Watch</div>
+      </div>
+    </div>
+    <div class="pcard">
+      <img src="https://image.tmdb.org/t/p/w342/9TXzHDEYfR9ZrHKlCNJbzDrSuDk.jpg" alt="My Demon" onerror="this.parentElement.style.background='linear-gradient(160deg,#0a0a1a,#20103a)'">
+      <div class="pcard-info">
+        <div class="pcard-title">My Demon</div>
+        <div class="pcard-meta"><span class="pcard-star">★</span> 7.8 · Fantasy</div>
+        <div class="pcard-btn">▶ Watch</div>
+      </div>
+    </div>
+    <div class="pcard">
+      <img src="https://image.tmdb.org/t/p/w342/3jRAmafkQXrFf9uVNMWqJfCzAfq.jpg" alt="Business Proposal" onerror="this.parentElement.style.background='linear-gradient(160deg,#001a10,#003020)'">
+      <div class="pcard-info">
+        <div class="pcard-title">Business Proposal</div>
+        <div class="pcard-meta"><span class="pcard-star">★</span> 8.0 · Romance</div>
+        <div class="pcard-btn">▶ Watch</div>
+      </div>
+    </div>
+    <div class="pcard">
+      <img src="https://image.tmdb.org/t/p/w342/iLBnGaVmHZNmgNlpSTiV3PaFEbK.jpg" alt="Moving" onerror="this.parentElement.style.background='linear-gradient(160deg,#0a1020,#101a30)'">
+      <div class="pcard-info">
+        <div class="pcard-title">Moving</div>
+        <div class="pcard-meta"><span class="pcard-star">★</span> 8.6 · Action</div>
+        <div class="pcard-btn">▶ Watch</div>
+      </div>
+    </div>
+    <div class="pcard">
+      <img src="https://image.tmdb.org/t/p/w342/vxFYiMNwEpJdWCmS3VVaVMexHGS.jpg" alt="The Glory" onerror="this.parentElement.style.background='linear-gradient(160deg,#0a0a0a,#1a1a1a)'">
+      <div class="pcard-info">
+        <div class="pcard-title">The Glory</div>
+        <div class="pcard-meta"><span class="pcard-star">★</span> 8.1 · Thriller</div>
+        <div class="pcard-btn">▶ Watch</div>
+      </div>
+    </div>
+    <div class="pcard">
+      <img src="https://image.tmdb.org/t/p/w342/4Df9UZgFYfRZWBKgplmRgbCbRjb.jpg" alt="Hellbound" onerror="this.parentElement.style.background='linear-gradient(160deg,#1a0505,#300a0a)'">
+      <div class="pcard-info">
+        <div class="pcard-title">Hellbound</div>
+        <div class="pcard-meta"><span class="pcard-star">★</span> 7.4 · Horror</div>
+        <div class="pcard-btn">▶ Watch</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="spacer"></div>
+
+</body>
+</html>

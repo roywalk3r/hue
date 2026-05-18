@@ -8,7 +8,7 @@
 use axum::{
     body::Body,
     extract::{Query, State},
-    http::{StatusCode, header::CONTENT_TYPE},
+    http::{header::CONTENT_TYPE, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
 use serde::Deserialize;
@@ -265,10 +265,38 @@ pub async fn m3u8_handler(
                 Err(_) => return (StatusCode::BAD_GATEWAY, "Upstream body unreadable").into_response(),
             };
 
+            let body_trim = body.trim_start_matches('\u{feff}').trim_start();
             let is_hls = ct.contains("mpegurl")
                 || ct.contains("x-mpegurl")
                 || ct.contains("vnd.apple.mpegurl")
-                || body.trim().starts_with("#EXTM3U");
+                || body_trim.starts_with("#EXTM3U")
+                || (ct.is_empty() && body_trim.starts_with("#EXTM3U"));
+
+            // m3u8-proxy was requested but upstream didn't return a valid M3U8 —
+            // don't forward HTML error pages as 200; that causes HLS.js manifestParsingError
+            let looks_like_html = body_trim.starts_with("<!DOCTYPE")
+                || body_trim.starts_with("<html")
+                || body_trim.starts_with("<HTML")
+                || body_trim.starts_with("<?xml");
+            let looks_like_json = body_trim.starts_with("{") || body_trim.starts_with("[");
+            if !is_hls && (looks_like_html || looks_like_json) {
+                tracing::warn!(
+                    "[m3u8-proxy] Upstream returned non-HLS (status={}, ct={}, body_preview={:?}) for {}",
+                    status.as_u16(),
+                    ct,
+                    body.chars().take(80).collect::<String>(),
+                    target_url
+                );
+                return (
+                    StatusCode::BAD_GATEWAY,
+                    format!(
+                        "Upstream returned non-HLS content (status={}, ct={})",
+                        status.as_u16(),
+                        ct
+                    ),
+                )
+                    .into_response();
+            }
 
             let mut body = body;
 
@@ -329,6 +357,7 @@ fn is_internal_host(target_url: &str) -> bool {
 pub async fn ts_handler(
     State(state): State<AppState>,
     Query(params): Query<TsProxyQuery>,
+    request_headers: HeaderMap,
 ) -> Response {
     let (target_url, headers) = match resolve_ts_target(&params, &state.secret) {
         Some(t) => t,
@@ -387,6 +416,8 @@ pub async fn ts_handler(
     }
 
     if let Some(range) = &params.range {
+        req = req.header("Range", range);
+    } else if let Some(range) = request_headers.get("range").and_then(|v| v.to_str().ok()) {
         req = req.header("Range", range);
     }
 
@@ -594,9 +625,18 @@ fn rewrite_playlist(
     // Collect segment URLs for prefetch after rewrite
     let mut segment_urls: Vec<String> = Vec::new();
 
-    let rewritten = content
-        .lines()
-        .map(|line| {
+    let mut rewritten_lines: Vec<String> = Vec::new();
+    let mut pending_byte_range: Option<String> = None;
+    let mut next_byte_offset: Option<u64> = None;
+
+    for line in content.lines() {
+            let trimmed = line.trim();
+            if let Some(range_spec) = trimmed.strip_prefix("#EXT-X-BYTERANGE:") {
+                pending_byte_range = parse_hls_byte_range(range_spec, &mut next_byte_offset);
+                rewritten_lines.push(line.to_string());
+                continue;
+            }
+
             // Tags that carry a URI attribute
             if line.starts_with("#") {
                 if line.contains("URI=\"") {
@@ -622,10 +662,11 @@ fn rewrite_playlist(
                             let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
                             format!("{}/{}?h_token={}", proxy_base, route, token)
                         };
-                        return line.replace(&format!("\"{}\"", relative_uri), &format!("\"{}\"", proxy_url));
+                        rewritten_lines.push(line.replace(&format!("\"{}\"", relative_uri), &format!("\"{}\"", proxy_url)));
+                        continue;
                     }
                 }
-                line.to_string()
+                rewritten_lines.push(line.to_string());
             } else if !line.trim().is_empty() {
                 let line_trim = line.trim();
                 let abs_url = resolve_segment_url(&base_url, line_trim);
@@ -643,7 +684,12 @@ fn rewrite_playlist(
 
                 if use_url_mode {
                     let segment_extra = if is_hls { "" } else { "&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0" };
-                    format!(
+                    let range_part = pending_byte_range
+                        .take()
+                        .filter(|_| !is_hls)
+                        .map(|range| format!("&range={}", urlencoding::encode(&range)))
+                        .unwrap_or_default();
+                    rewritten_lines.push(format!(
                         "{}/{}?url={}{}{}{}{}",
                         proxy_base,
                         route,
@@ -652,21 +698,26 @@ fn rewrite_playlist(
                         mode_part,
                         segment_extra,
                         force_type_param
-                    )
+                    ) + &range_part);
                 } else {
                     let token = security::encrypt_url(&abs_url, secret, headers.clone());
                     let segment_extra = if is_hls { "" } else { "&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0" };
-                    format!("{}/{}?h_token={}{}{}", proxy_base, route, token, segment_extra, force_type_param)
+                    let range_part = pending_byte_range
+                        .take()
+                        .filter(|_| !is_hls)
+                        .map(|range| format!("&range={}", urlencoding::encode(&range)))
+                        .unwrap_or_default();
+                    rewritten_lines.push(format!("{}/{}?h_token={}{}{}{}", proxy_base, route, token, segment_extra, force_type_param, range_part));
                 }
             } else {
-                line.to_string()
+                rewritten_lines.push(line.to_string());
             }
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
+    }
+
+    let rewritten = rewritten_lines.join("\n");
 
     // RAM Turbo: prefetch first 5 segments asynchronously
-    if !segment_urls.is_empty() {
+    if !cfg!(test) && !segment_urls.is_empty() {
         let client = reqwest::Client::new();
         let headers_clone = headers.clone();
         tokio::spawn(async move {
@@ -683,6 +734,20 @@ fn rewrite_playlist(
     }
 
     rewritten
+}
+
+fn parse_hls_byte_range(range_spec: &str, next_byte_offset: &mut Option<u64>) -> Option<String> {
+    let spec = range_spec.trim();
+    let (length_part, offset_part) = spec.split_once('@').unwrap_or((spec, ""));
+    let length = length_part.trim().parse::<u64>().ok()?;
+    let start = if offset_part.trim().is_empty() {
+        (*next_byte_offset)?
+    } else {
+        offset_part.trim().parse::<u64>().ok()?
+    };
+    let end = start.checked_add(length)?.checked_sub(1)?;
+    *next_byte_offset = end.checked_add(1);
+    Some(format!("bytes={}-{}", start, end))
 }
 
 /// Resolve a segment URL relative to the base playlist URL, inheriting query params for signed URLs.
@@ -872,6 +937,21 @@ Second cue"#;
         let rewritten = rewrite_playlist(content, "https://example.com/playlist.m3u8", "http://proxy.local", "secret", None, true);
         assert!(rewritten.contains("http://proxy.local/ts-proxy?url="));
         assert!(rewritten.contains("&mode=url"));
+    }
+
+    #[tokio::test]
+    async fn test_rewrite_playlist_preserves_explicit_byte_ranges() {
+        let content = "#EXTM3U\n#EXTINF:1.0,\n#EXT-X-BYTERANGE:759708@5590180\nindex0.ts";
+        let rewritten = rewrite_playlist(
+            content,
+            "https://cdn.example.com/show/playlist.m3u8",
+            "http://proxy.local",
+            "secret",
+            None,
+            false,
+        );
+
+        assert!(rewritten.contains("range=bytes%3D5590180-6349887"));
     }
 
     #[test]

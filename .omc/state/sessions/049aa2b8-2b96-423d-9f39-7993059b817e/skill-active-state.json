@@ -1,0 +1,10 @@
+{
+  "active": false,
+  "skill_name": "sciomc",
+  "session_id": "049aa2b8-2b96-423d-9f39-7993059b817e",
+  "started_at": "2026-05-07T10:24:37.972Z",
+  "completed_at": "2026-05-07T10:52:00.000Z",
+  "reinforcement_count": 4,
+  "max_reinforcements": 5,
+  "stale_ttl_ms": 900000
+}

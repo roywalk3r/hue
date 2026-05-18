@@ -1,154 +1,74 @@
-# HUE STREAM API ⬢
-### System Designation: The Architecture of Aggregation
-**Version:** 1.8.4 | **Status:** Nominal | **Engine:** Node.js v18+
+# Hue Streaming Platform
 
-> [!IMPORTANT]
-> **Manual-First Backend Engine:** Hue is a high-performance streaming aggregator. It is engineered for modularity, resilience, and schema-strict data delivery. This is not a media player; it is the infrastructure that powers them.
+A multi-backend streaming aggregator powering the Hue UI. The platform consists of a **Rust backend** (primary engine) and a **Node.js backend** (legacy fallback for auth, live TV, and sports).
 
----
+## Repositories
 
-## ⬢ System Specifications
+- **Rust Engine** (`huerust/`) — Stream aggregation, proxying, drama/anime/movie browse. See `huerust/README.md`.
+- **Node.js Backend** (`/`) — Auth, live TV, sports, scraper fallback. Documented below.
+- **Nuxt 4 Frontend** (`hue-ui/`) — SPA streaming UI. See `hue-ui/README.md`.
 
-### 01. Modular Provider Registry
-The Hue core operates as a central hub for independent provider nodes.
-*   **Nova (SFlix):** High-speed spectral aggregation.
-*   **Zenith (KissKH):** Focused regional drama telemetry.
-*   **Stadium (Livesport):** Real-time sports data streams.
-*   **Nova/Cinema/Luna:** Primary high-fidelity content sources.
+## Node.js Backend
 
-### 02. Secure Blueprinting (Proxy)
-All outbound telemetry is encapsulated via an AES-256 HMAC signed proxy system.
-*   **Telemetry Locking:** Origin-restricted bandwidth management.
-*   **IPv4 Failover:** Automatic route switching for legacy CDNs.
+### What it still handles
 
-### 03. Discovery Schematic
-A multi-layered catalog engine mapping global content (HiTV/MovieBox) to playable provider nodes.
+| Domain | Routes | Status |
+|--------|--------|--------|
+| Auth | `/auth/login`, `/auth/password` | Active |
+| Live TV | `/api/livetv/*` | Active |
+| Sports | `/api/sports/*` | Active |
+| TMDB Proxy | `/api/tmdb/*` | Active (partial) |
+| Scraper | `/scrape/*` (port 24610) | Active (SFlix/Dramacool fallback) |
 
----
+### What has moved to Rust
 
-## ⬢ Documentation Interface
-
-The system exposes technical documentation for rapid integration and schema validation.
-
-*   **Scalar Docs (Modern):** [`/api/docs`](http://localhost:24608/api/docs) - *Recommended*
-*   **Swagger UI (Classic):** [`/api/docs/swagger`](http://localhost:24608/api/docs/swagger)
-*   **OpenAPI Spec:** [`/api/docs/swagger.json`](http://localhost:24608/api/docs/swagger.json)
-
----
-
-## ⬢ Deployment Protocol
+| Domain | Rust Routes | Status |
+|--------|-------------|--------|
+| Stream aggregation | `/api/streams/*`, `/api/play/*` | **Rust** |
+| Proxy | `/m3u8-proxy`, `/ts-proxy`, `/sub-proxy` | **Rust** |
+| Drama | `/api/drama/*`, `/api/hitv/*` | **Rust** |
+| Anime | `/api/anime/*` | **Rust** |
+| MovieBox | `/api/moviebox/*` | **Rust** |
 
 ### Prerequisites
-*   Node.js v18+
-*   Chrome / Chromium (Engineered for Playwright)
 
-### Initial Initialization
+- Node.js v18+
+- Chrome/Chromium (for Playwright scraper)
 
-1.  **Clone the repository**
-    ```bash
-    git clone https://github.com/roywalk3r/hue.git
-    cd hue
-    ```
+### Start
 
-2.  **Install dependencies**
-    ```bash
-    npm install
-    # or
-    pnpm install
-    ```
-
-3.  **Setup the Environment**
-    The system will automatically generate a secure `APP_SECRET` on the first run.
-    Optionally, create a `.env` file to customize:
-    ```bash
-    # .env
-    PORT=24608
-    TMDB_API_KEY=your_tmdb_key_here
-    ALLOWED_ORIGINS=https://your-frontend.com,http://localhost:3000
-    STRICT_SECURITY=true
-    ```
-
-4.  **Execute Start Sequence**
-    ```bash
-    npm start
-    ```
-    Access the UI at `http://localhost:24608`.
-
----
-
-## ⬢ Telemetry Endpoints
-
-### 1. Unified Aggregation (TMDB)
-Aggregate streams for mainstream content.
-```http
-GET /api/streams/movie/{tmdbId}
-GET /api/streams/series/{tmdbId}?season=1&episode=1
+```bash
+npm install
+npm start
 ```
 
-### 2. Anime (HiAnime)
-Discover servers and fetch streams for anime episodes.
-```http
-GET /api/streams/anime/{id}
-GET /api/streams/anime/{id}?server=hd-1&type=sub
-GET /api/streams/anime/{id}?serversOnly=true
+Node.js runs on port `24608` by default. The Rust backend runs on `24609`.
+
+### Environment Variables
+
+```bash
+PORT=24608
+TMDB_API_KEY=your_key
+APP_SECRET=your_secret
+ALLOWED_ORIGINS=http://localhost:3000
 ```
 
-### 3. Regional Discovery (HiTV / MovieBox)
-Browse and search the global content library.
-```http
-# HiTV
-GET /api/hitv/browse?sort=Hottest&genre=Romance
-GET /api/hitv/search?q=Squid Game
-GET /api/hitv/play/{id}/{episode}
+### PM2 (Production)
 
-# MovieBox
-GET /api/moviebox/hero               # Get trending/hero items
-GET /api/moviebox/search?keyword=...  # Search catalog
-GET /api/moviebox/play/{id}/{path}    # Extract direct streams
+```bash
+pm2 start ecosystem.config.js
 ```
 
-### 4. Live Sports Streaming
-Watch live sports from multiple sources.
-```http
-# Smart Resolver (Multi-Source)
-GET /sports-stream/{matchName}
+Runs Node.js API + Rust backend + scraper server together.
 
-# PPV.to (Event)
-GET /api/ppv/streams/{matchName}
+## Documentation
 
-# AiSports (Field)
-GET /api/aisports/list/0            # List live matches
-GET /api/aisports/play/{id}         # Get direct streams
-```
+- **Rust API:** `huerust/API.md`
+- **Rust Architecture:** `huerust/ARCHITECTURE.md`
+- **Rust Providers:** `huerust/PROVIDERS.md`
+- **Node.js Dead Code Audit:** `DEAD_CODE.md`
+- **Frontend Docs:** `hue-ui/docs/`
 
-### 5. System & Metrics
-Monitor and configure your instance.
-```http
-GET /api/status                     # Stats, providers, and endpoints
-GET /api/config                     # Get current configuration
-POST /api/config                    # Update configuration patch
-```
+## License
 
----
-
-## ⬢ System Contribution
-
-Technical contributions are encouraged. Refer to the `providers/` directory for node implementation details.
-
-1.  Fork the Project
-2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3.  Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4.  Push to the Branch (`git push origin feature/AmazingFeature`)
-5.  Open a Pull Request
-
----
-
-## ⬢ Licensing
-
-Distributed under the MIT License. See `LICENSE` for more information.
-
----
-
-<div align="center">
-  <sub>Engineered by roywalk3r</sub>
-</div>
+MIT

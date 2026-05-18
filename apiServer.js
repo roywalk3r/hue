@@ -18,7 +18,6 @@ const logger = require('./utils/logger');
 const stealth = require('./utils/stealth');
 const { resolveServerUrl } = require('./utils/server');
 const { createProxyRoutes, processStreamsForProxy } = require('./proxy/proxyServer');
-const { getHianimeApp } = require('./services/hianimeApp');
 const TTLCache = require('ttl-cache');
 
 // Auto-generate key if missing

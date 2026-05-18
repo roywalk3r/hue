@@ -13,18 +13,13 @@ use axum::{
 use serde::Serialize;
 use utoipa::ToSchema;
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::time::timeout;
 use tracing::{info, warn};
 
 use crate::{
     app::StreamState,
     infra::cache::CacheKey,
     filters::apply_filters,
-    providers::registry::ProviderRegistry,
     models::StreamResult,
-    infra::metrics::Metrics,
 };
 use crate::providers::dispatch::{fetch_from_providers, ProviderTiming};
 use crate::proxy::wrap::wrap_with_proxy;

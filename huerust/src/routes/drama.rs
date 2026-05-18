@@ -74,7 +74,12 @@ pub async fn kisskh_streams_handler(
     Path((id, episode)): Path<(String, u32)>,
     Query(params): Query<KissKhStreamsQuery>,
 ) -> Response {
-    let lookup = params.title.as_ref().map(|t| t.as_str()).unwrap_or(&id);
+    // Prefer numeric ID from path; only fall back to title search when ID is not numeric.
+    let lookup = if id.parse::<u64>().is_ok() {
+        id.as_str()
+    } else {
+        params.title.as_ref().map(|t| t.as_str()).unwrap_or(&id)
+    };
 
     match state.kisskh.get_streams_direct(lookup, episode).await {
         Ok(streams) if !streams.is_empty() => {
@@ -250,11 +255,18 @@ pub async fn drama_detail_handler(
             .to_string();
 
         if cover.is_empty() {
-            if let Ok(tmdb_results) = state.tmdb.search(&params.q, "multi", None).await {
-                if let Some(first) = tmdb_results.first() {
-                    if let Some(poster) = first.poster_path.as_deref() {
-                        cover = format!("https://image.tmdb.org/t/p/w500{}", poster);
+            match state.tmdb.search(&params.q, "multi", None).await {
+                Ok(tmdb_results) => {
+                    tracing::info!("[drama_detail] TMDB search for '{}' returned {} results", params.q, tmdb_results.len());
+                    if let Some(first) = tmdb_results.first() {
+                        tracing::info!("[drama_detail] First result poster_path: {:?}", first.poster_path);
+                        if let Some(poster) = first.poster_path.as_deref() {
+                            cover = format!("https://image.tmdb.org/t/p/w500{}", poster);
+                        }
                     }
+                }
+                Err(e) => {
+                    tracing::warn!("[drama_detail] TMDB search for '{}' failed: {}", params.q, e);
                 }
             }
         }

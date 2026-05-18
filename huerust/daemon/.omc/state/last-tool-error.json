@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"kill $(pgrep -f \\\"node daemon.js\\\") 2>/dev/null; echo \\\"stopped\\\"\",\"description\":\"Stop the daemon process\"}",
+  "error": "Exit code 144",
+  "timestamp": "2026-05-09T20:50:53.090Z",
+  "retry_count": 1
+}

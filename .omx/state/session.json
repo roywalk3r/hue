@@ -1,0 +1,10 @@
+{
+  "session_id": "019dd9af-175c-74a1-9f7a-0a24788515c3",
+  "native_session_id": "019dd9af-175c-74a1-9f7a-0a24788515c3",
+  "started_at": "2026-04-29T14:44:58.162Z",
+  "cwd": "/home/rseann/projects/Misc/hue",
+  "pid": 298421,
+  "platform": "linux",
+  "pid_start_ticks": 1830055,
+  "pid_cmdline": "codex resume"
+}

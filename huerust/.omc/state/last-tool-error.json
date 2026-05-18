@@ -1,7 +1,7 @@
 {
-  "tool_name": "Glob",
-  "tool_input_preview": "{\"pattern\":\"**/docker-compose.yml\",\"path\":\"/home/rseann/projects/Misc/hue\"}",
-  "error": "Ripgrep search timed out after 20 seconds. The search may have matched files but did not complete in time. Try searching a more specific path or pattern.",
-  "timestamp": "2026-04-27T18:12:06.834Z",
-  "retry_count": 1
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"git -C /mnt/devdrive/projects/Misc/hue worktree remove .worktrees/architecture-cleanup 2>&1\",\"description\":\"Remove old git worktree\"}",
+  "error": "Exit code 128\nfatal: '.worktrees/architecture-cleanup' contains modified or untracked files, use --force to delete it",
+  "timestamp": "2026-05-18T11:25:49.804Z",
+  "retry_count": 2
 }

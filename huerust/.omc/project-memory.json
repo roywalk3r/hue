@@ -1,0 +1,404 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1779011096448,
+  "projectRoot": "/mnt/devdrive/projects/Misc/hue/huerust",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Rust",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "Cargo.toml"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "axum",
+        "version": null,
+        "category": "backend"
+      }
+    ],
+    "packageManager": "cargo",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "cargo build",
+    "testCommand": "cargo test",
+    "lintCommand": "cargo clippy",
+    "devCommand": "cargo run",
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "src",
+      "tests"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "daemon": {
+      "path": "daemon",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1779011096444,
+      "keyFiles": [
+        "daemon.js",
+        "package-lock.json",
+        "package.json"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 19,
+      "lastAccessed": 1779011096445,
+      "keyFiles": [
+        "cache.rs",
+        "circuit_breaker.rs",
+        "coalesce.rs",
+        "config.rs",
+        "constants.rs"
+      ]
+    },
+    "target": {
+      "path": "target",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1779011096446,
+      "keyFiles": [
+        "CACHEDIR.TAG"
+      ]
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 0,
+      "lastAccessed": 1779011096446,
+      "keyFiles": []
+    },
+    "daemon/node_modules": {
+      "path": "daemon/node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 1,
+      "lastAccessed": 1779011096446,
+      "keyFiles": []
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/main.rs",
+      "accessCount": 98,
+      "lastAccessed": 1779030638308,
+      "type": "file"
+    },
+    {
+      "path": "src/proxy/mod.rs",
+      "accessCount": 85,
+      "lastAccessed": 1779045445764,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/drama.rs",
+      "accessCount": 67,
+      "lastAccessed": 1779045948794,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/streams.rs",
+      "accessCount": 46,
+      "lastAccessed": 1779031245577,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/kisskh.rs",
+      "accessCount": 40,
+      "lastAccessed": 1779047081934,
+      "type": "file"
+    },
+    {
+      "path": "src/moviebox.rs",
+      "accessCount": 35,
+      "lastAccessed": 1779011238378,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/anime.rs",
+      "accessCount": 23,
+      "lastAccessed": 1779030605539,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/mod.rs",
+      "accessCount": 17,
+      "lastAccessed": 1779032092499,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/sse.rs",
+      "accessCount": 15,
+      "lastAccessed": 1779030597371,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/play.rs",
+      "accessCount": 14,
+      "lastAccessed": 1779030735385,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/hitv.rs",
+      "accessCount": 13,
+      "lastAccessed": 1779030633870,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/mod.rs",
+      "accessCount": 12,
+      "lastAccessed": 1779100198353,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/providers.rs",
+      "accessCount": 11,
+      "lastAccessed": 1779030605909,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/moviebox.rs",
+      "accessCount": 10,
+      "lastAccessed": 1779030605277,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/system.rs",
+      "accessCount": 9,
+      "lastAccessed": 1779030605386,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/vidrock.rs",
+      "accessCount": 8,
+      "lastAccessed": 1779100147193,
+      "type": "file"
+    },
+    {
+      "path": "src/proxy/sanitize.rs",
+      "accessCount": 7,
+      "lastAccessed": 1779012479749,
+      "type": "file"
+    },
+    {
+      "path": "src/registry.rs",
+      "accessCount": 6,
+      "lastAccessed": 1779019633586,
+      "type": "file"
+    },
+    {
+      "path": "src/infra/mod.rs",
+      "accessCount": 6,
+      "lastAccessed": 1779030619842,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/mod.rs",
+      "accessCount": 6,
+      "lastAccessed": 1779031938571,
+      "type": "file"
+    },
+    {
+      "path": "src/models.rs",
+      "accessCount": 6,
+      "lastAccessed": 1779031985408,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/vidrock.rs",
+      "accessCount": 6,
+      "lastAccessed": 1779032244330,
+      "type": "file"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-05-17-architecture-refactor.md",
+      "accessCount": 5,
+      "lastAccessed": 1779018255865,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/kisskh_provider.rs",
+      "accessCount": 5,
+      "lastAccessed": 1779031176187,
+      "type": "file"
+    },
+    {
+      "path": "src/config.rs",
+      "accessCount": 4,
+      "lastAccessed": 1779030620044,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/vidzee_provider.rs",
+      "accessCount": 4,
+      "lastAccessed": 1779032243944,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/videasy_provider.rs",
+      "accessCount": 4,
+      "lastAccessed": 1779032254601,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/tmdb.rs",
+      "accessCount": 4,
+      "lastAccessed": 1779032449519,
+      "type": "file"
+    },
+    {
+      "path": "src/security.rs",
+      "accessCount": 4,
+      "lastAccessed": 1779044859655,
+      "type": "file"
+    },
+    {
+      "path": "src/filters.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779008512098,
+      "type": "file"
+    },
+    {
+      "path": "src/infra/coalesce.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779018761867,
+      "type": "file"
+    },
+    {
+      "path": "src/infra/circuit_breaker.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779018762291,
+      "type": "file"
+    },
+    {
+      "path": "src/infra/rate_limit.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779020197841,
+      "type": "file"
+    },
+    {
+      "path": "src/proxy/wrap.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779020575309,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/moviebox_provider.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779030619974,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/vixsrc_provider.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779031176030,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/sflix.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779045734272,
+      "type": "file"
+    },
+    {
+      "path": "src/proxy/adsurgery.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779012479583,
+      "type": "file"
+    },
+    {
+      "path": "docs/superpowers/specs/2026-05-17-architecture-refactor-design.md",
+      "accessCount": 2,
+      "lastAccessed": 1779017804813,
+      "type": "file"
+    },
+    {
+      "path": "src/circuit_breaker.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779018345160,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/hitv.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779018881844,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/mp4hydra_provider.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779018923970,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/sflix_provider.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779018926355,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/dramacool_provider.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779018927138,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/ppvto_provider.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779018929564,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/dispatch.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779030595693,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/dramacool.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779009975731,
+      "type": "file"
+    },
+    {
+      "path": "src/metrics.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779011189412,
+      "type": "file"
+    },
+    {
+      "path": "src/cache.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779016592900,
+      "type": "file"
+    },
+    {
+      "path": "src/coalesce.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779018345552,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

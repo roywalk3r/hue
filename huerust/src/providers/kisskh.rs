@@ -282,29 +282,29 @@ console.log(token);
                 headers.insert("Referer".to_string(), "https://kisskh.ovh".to_string());
                 headers.insert("User-Agent".to_string(), USER_AGENT.to_string());
 
-                let subs = data.subtitles.map(|s_list| {
-                    s_list.into_iter().map(|s| Subtitle {
+                // Subtitles may come from the stream payload or a separate endpoint
+                let subs = if let Some(s_list) = data.subtitles {
+                    Some(s_list.into_iter().map(|s| Subtitle {
                         url: s.src,
                         lang: s.lang.unwrap_or_else(|| "en".to_string()),
                         label: s.label.unwrap_or_else(|| "English".to_string()),
-                    }).collect()
-                });
+                    }).collect())
+                } else {
+                    match self.get_subtitles(ep_id).await {
+                        Ok(s_list) if !s_list.is_empty() => {
+                            Some(s_list.into_iter().map(|s| Subtitle {
+                                url: s.src,
+                                lang: s.lang.unwrap_or_else(|| "en".to_string()),
+                                label: s.label.unwrap_or_else(|| "English".to_string()),
+                            }).collect())
+                        }
+                        _ => None,
+                    }
+                };
 
-                // ── Prioritize ThirdParty over Video ─────────────────────────────
-                // KissKH's Video CDN (videodelivery1.shop) serves corrupt TS data
-                // that freezes playback at ~11 seconds. ThirdParty CDN works.
-                if let Some(third_party_url) = data.third_party {
-                    results.push(StreamResult {
-                        url: third_party_url,
-                        title: "Zenith - Auto (ThirdParty)".to_string(),
-                        quality: "Auto (ThirdParty)".to_string(),
-                        provider: "Zenith".to_string(),
-                        format: "hls".to_string(),
-                        subtitles: subs.clone(),
-                        headers: Some(headers.clone()),
-                        extra_metadata: None,
-                    });
-                }
+                // ── Video CDN first ──────────────────────────────────────────────
+                // ThirdParty URLs (e.g. dwish.pro) now require browser fingerprinting
+                // and return HTML instead of HLS. Video CDN works reliably.
                 if let Some(video_url) = data.video {
                     results.push(StreamResult {
                         url: video_url,
@@ -312,10 +312,25 @@ console.log(token);
                         quality: "Auto".to_string(),
                         provider: "Zenith".to_string(),
                         format: "hls".to_string(),
-                        subtitles: subs,
-                        headers: Some(headers),
+                        subtitles: subs.clone(),
+                        headers: Some(headers.clone()),
                         extra_metadata: None,
                     });
+                }
+                // Only include ThirdParty if it's from a known-good CDN (not dwish.pro)
+                if let Some(third_party_url) = data.third_party {
+                    if !third_party_url.contains("dwish.pro") {
+                        results.push(StreamResult {
+                            url: third_party_url,
+                            title: "Zenith - Auto (ThirdParty)".to_string(),
+                            quality: "Auto (ThirdParty)".to_string(),
+                            provider: "Zenith".to_string(),
+                            format: "hls".to_string(),
+                            subtitles: subs,
+                            headers: Some(headers),
+                            extra_metadata: None,
+                        });
+                    }
                 }
                 Ok(results)
             }
@@ -361,3 +376,7 @@ console.log(token);
         Ok(data)
     }
 }
+
+
+
+

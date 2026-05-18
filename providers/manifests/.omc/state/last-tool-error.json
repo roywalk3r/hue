@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd /mnt/devdrive/projects/Misc/hue/huerust && cargo build 2>&1\",\"timeout\":120000,\"description\":\"Build Rust project with new provider registrations\"}",
+  "error": "Exit code 101\n   Compiling huerust v0.1.0 (/mnt/devdrive/projects/Misc/hue/huerust)\nerror[E0433]: cannot find module or crate `aes_gcm` in this scope\n  --> src/providers/vidzee.rs:15:5\n   |\n15 | use aes_gcm::{\n   |     ^^^^^^^ use of unresolved module or unlinked crate `aes_gcm`\n   |\n   = help: if you wanted to use a crate named `aes_gcm`, use `cargo add aes_gcm` to add it to your `Cargo.toml`\n\nerror[E0432]: unresolved import `crate::constants`\n  --> src/providers/ppvto.rs:19:12\n   |\n19 | use cr...",
+  "timestamp": "2026-05-10T10:01:19.362Z",
+  "retry_count": 1
+}

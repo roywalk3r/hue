@@ -8,7 +8,6 @@ use axum::{
 };
 use reqwest::Client;
 use tower_http::cors::CorsLayer;
-use tracing::{info, warn};
 use axum::body::Body;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -57,9 +56,6 @@ pub struct AppState {
     pub dramacool: Arc<DramacoolClient>,
     pub moviebox: Arc<MovieBoxClient>,
     pub hianime: Arc<crate::clients::hianime::HianimeClient>,
-    pub vidrock: Arc<crate::clients::vidrock::VidRockClient>,
-    pub vidzee: Arc<VidzeeClient>,
-    pub videasy: Arc<VideasyClient>,
     pub secret: String,
     pub proxy_base_url: String,
     pub config: Arc<crate::config::AppConfig>,
@@ -134,9 +130,6 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         dramacool: dramacool_client,
         moviebox: moviebox_client.clone(),
         hianime: hianime_client.clone(),
-        vidrock: vidrock_client,
-        vidzee: vidzee_client,
-        videasy: videasy_client,
         secret: cfg.secret.clone(),
         proxy_base_url: cfg.proxy_base_url.clone(),
         config: Arc::new(cfg.clone()),
@@ -322,7 +315,6 @@ pub struct DramaState {
     pub dramacool:      Arc<DramacoolClient>,
     pub moviebox:       Arc<MovieBoxClient>,
     pub tmdb:           Arc<TmdbClient>,
-    pub config:         Arc<AppConfig>,
     pub secret:         String,
     pub proxy_base_url: String,
 }
@@ -334,7 +326,6 @@ impl FromRef<AppState> for DramaState {
             dramacool:      s.dramacool.clone(),
             moviebox:       s.moviebox.clone(),
             tmdb:           s.tmdb.clone(),
-            config:         s.config.clone(),
             secret:         s.secret.clone(),
             proxy_base_url: s.proxy_base_url.clone(),
         }
@@ -345,7 +336,6 @@ impl FromRef<AppState> for DramaState {
 #[derive(Clone)]
 pub struct HiTvState {
     pub hitv:          Arc<HiTvClient>,
-    pub config:        Arc<AppConfig>,
     pub tmdb:          Arc<TmdbClient>,
     pub proxy_base_url: String,
 }
@@ -354,7 +344,6 @@ impl FromRef<AppState> for HiTvState {
     fn from_ref(s: &AppState) -> Self {
         Self {
             hitv: s.hitv.clone(),
-            config: s.config.clone(),
             tmdb: s.tmdb.clone(),
             proxy_base_url: s.proxy_base_url.clone(),
         }
@@ -385,12 +374,11 @@ impl FromRef<AppState> for AnimeState {
 #[derive(Clone)]
 pub struct MovieBoxRouteState {
     pub moviebox: Arc<MovieBoxClient>,
-    pub config:   Arc<AppConfig>,
 }
 
 impl FromRef<AppState> for MovieBoxRouteState {
     fn from_ref(s: &AppState) -> Self {
-        Self { moviebox: s.moviebox.clone(), config: s.config.clone() }
+        Self { moviebox: s.moviebox.clone() }
     }
 }
 
@@ -414,7 +402,6 @@ pub struct SystemState {
     pub registry:   Arc<ProviderRegistry>,
     pub start_time: std::time::Instant,
     pub client:     Client,
-    pub config:     Arc<AppConfig>,
 }
 
 impl FromRef<AppState> for SystemState {
@@ -425,7 +412,6 @@ impl FromRef<AppState> for SystemState {
             registry:   s.registry.clone(),
             start_time: s.start_time,
             client:     s.client.clone(),
-            config:     s.config.clone(),
         }
     }
 }
