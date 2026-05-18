@@ -148,16 +148,17 @@ app.get('/api/docs/swagger.json', (req, res) => {
 
 app.use('/api/docs/swagger', swaggerUi.serve, swaggerUi.setup(null, { swaggerOptions: { url: '/api/docs/swagger.json' } }));
 
-// Scalar modern API reference UI
+// Scalar modern API reference UI + Server Start
 (async () => {
-  const { apiReference } = await import('@scalar/express-api-reference');
-  app.use('/api/docs/scalar', apiReference({
-      spec: { url: '/api/docs/openapi.json' },
-      theme: 'none',
-      hideDownloadButton: true,
-      favicon: '',
-      pageTitle: 'HUE ENGINE ⬢ API REFERENCE',
-      customCss: `
+  try {
+    const { apiReference } = await import('@scalar/express-api-reference');
+    app.use('/api/docs/scalar', apiReference({
+        spec: { url: '/api/docs/openapi.json' },
+        theme: 'none',
+        hideDownloadButton: true,
+        favicon: '',
+        pageTitle: 'HUE ENGINE ⬢ API REFERENCE',
+        customCss: `
 :root {
   --scalar-color-1: #E0E0E0;
   --scalar-color-2: #aaa;
@@ -171,38 +172,41 @@ app.use('/api/docs/swagger', swaggerUi.serve, swaggerUi.setup(null, { swaggerOpt
 }
 .scalar-card { border: 1px solid var(--scalar-border-color) !important; }
 .sidebar { background: var(--scalar-background-2) !important; border-right: 1px solid var(--scalar-border-color) !important; }
-    `
-  }));
+      `
+    }));
+  } catch (e) {
+    console.warn('[startup] Scalar API docs unavailable:', e.message);
+  }
+
+  app.get('/api/docs', (req, res) => {
+    res.redirect(302, '/api/docs/scalar');
+  });
+
+  // --- Error Handling ---
+  app.use((req, res) => {
+      logger.warn(`[404] Not Found: ${req.method} ${req.url}`);
+      res.status(404).json({ success: false, error: 'NOT_FOUND', path: req.url });
+  });
+
+  // Server Start (after all middleware is registered)
+  if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+    const PORT = config.port;
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Hue Stream API listening on http://0.0.0.0:${PORT}`);
+
+      // Start background token worker to keep "Fast Paths" warm
+      try {
+        const { startTokenWorker } = require('./services/tokenWorker');
+        startTokenWorker();
+
+        const { startWarmupWorker } = require('./services/warmupWorker');
+        startWarmupWorker();
+      } catch (e) {
+        console.error('[startup] Failed to start background workers:', e.message);
+      }
+    });
+  }
 })();
 
-app.get('/api/docs', (req, res) => {
-  res.redirect(302, '/api/docs/scalar');
-});
-
-// --- Error Handling ---
-app.use((req, res) => {
-    logger.warn(`[404] Not Found: ${req.method} ${req.url}`);
-    res.status(404).json({ success: false, error: 'NOT_FOUND', path: req.url });
-});
-
-// For Vercel deployment: export the app
+// For Vercel deployment: export the app immediately
 module.exports = app;
-
-// Server Start
-if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-  const PORT = config.port;
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Hue Stream API listening on http://0.0.0.0:${PORT}`);
-    
-    // Start background token worker to keep "Fast Paths" warm
-    try {
-      const { startTokenWorker } = require('./services/tokenWorker');
-      startTokenWorker();
-      
-      const { startWarmupWorker } = require('./services/warmupWorker');
-      startWarmupWorker();
-    } catch (e) {
-      console.error('[startup] Failed to start background workers:', e.message);
-    }
-  });
-}
