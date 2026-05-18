@@ -149,14 +149,15 @@ app.get('/api/docs/swagger.json', (req, res) => {
 app.use('/api/docs/swagger', swaggerUi.serve, swaggerUi.setup(null, { swaggerOptions: { url: '/api/docs/swagger.json' } }));
 
 // Scalar modern API reference UI
-const { apiReference } = require('@scalar/express-api-reference');
-app.use('/api/docs/scalar', apiReference({
-    spec: { url: '/api/docs/openapi.json' },
-    theme: 'none',
-    hideDownloadButton: true,
-    favicon: '',
-    pageTitle: 'HUE ENGINE ⬢ API REFERENCE',
-    customCss: `
+(async () => {
+  const { apiReference } = await import('@scalar/express-api-reference');
+  app.use('/api/docs/scalar', apiReference({
+      spec: { url: '/api/docs/openapi.json' },
+      theme: 'none',
+      hideDownloadButton: true,
+      favicon: '',
+      pageTitle: 'HUE ENGINE ⬢ API REFERENCE',
+      customCss: `
 :root {
   --scalar-color-1: #E0E0E0;
   --scalar-color-2: #aaa;
@@ -171,7 +172,8 @@ app.use('/api/docs/scalar', apiReference({
 .scalar-card { border: 1px solid var(--scalar-border-color) !important; }
 .sidebar { background: var(--scalar-background-2) !important; border-right: 1px solid var(--scalar-border-color) !important; }
     `
-}));
+  }));
+})();
 
 app.get('/api/docs', (req, res) => {
   res.redirect(302, '/api/docs/scalar');
