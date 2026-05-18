@@ -228,6 +228,121 @@
       ]
     }
   },
-  "hotPaths": [],
+  "hotPaths": [
+    {
+      "path": "huerust/src/providers/vixsrc.rs",
+      "accessCount": 7,
+      "lastAccessed": 1779110058619,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/proxy/mod.rs",
+      "accessCount": 7,
+      "lastAccessed": 1779116795663,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/vidzee.rs",
+      "accessCount": 5,
+      "lastAccessed": 1779110005033,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/sflix.rs",
+      "accessCount": 5,
+      "lastAccessed": 1779110078566,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/kisskh_provider.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779109951577,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/vixsrc_provider.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779109910674,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/vidzee_provider.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779109910856,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/clients/moviebox.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779109932939,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/clients/vidrock.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779111317561,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/moviebox_provider.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779109801329,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/kisskh.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779109801829,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/sflix_provider.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779109802213,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/app.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779109835971,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/routes/streams.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779109840445,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/routes/play.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779109840594,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/registry.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779109840748,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/dispatch.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779109840914,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/filters.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779109852208,
+      "type": "file"
+    },
+    {
+      "path": "huerust/Cargo.toml",
+      "accessCount": 1,
+      "lastAccessed": 1779116720913,
+      "type": "file"
+    }
+  ],
   "userDirectives": []
 }

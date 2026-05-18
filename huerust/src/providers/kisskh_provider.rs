@@ -33,10 +33,14 @@ impl StreamProvider for KissKhProvider {
     async fn fetch(
         &self,
         tmdb_info: &TmdbNormalizedInfo,
-        _media_type: &str,
+        media_type: &str,
         season: u32,
         episode: u32,
     ) -> Result<Vec<StreamResult>> {
+        // KissKH is a drama-only provider; skip for movie/tv to avoid wrong matches
+        if media_type == "movie" || media_type == "tv" {
+            return Ok(vec![]);
+        }
         self.client.get_streams_normalized(&tmdb_info.title, season, episode).await
     }
 }

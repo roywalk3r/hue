@@ -185,18 +185,21 @@ impl VidRockClient {
                         Ok(r) if r.status().is_success() => {
                             match r.json::<Vec<PlaylistEntry>>().await {
                                 Ok(playlist) => {
-                                    playlist.into_iter().map(move |p| VidRockStream {
-                                        url: p.url,
-                                        title: format!("VidRock {} - {}p - {}", name, p.resolution, lang),
-                                        quality: format!("{}p", p.resolution),
-                                        format: fmt.clone(),
-                                        provider: format!("VidRock/{}", name),
-                                        headers: serde_json::json!({
-                                            "Referer": referer,
-                                            "Origin": API_BASE,
-                                            "User-Agent": UA_DESKTOP
-                                        }),
-                                        subtitles: None,
+                                    playlist.into_iter().map(move |p| {
+                                        let is_hls = p.url.contains(".m3u8") || fmt == "hls";
+                                        VidRockStream {
+                                            url: p.url,
+                                            title: format!("VidRock {} - {}p - {}", name, p.resolution, lang),
+                                            quality: format!("{}p", p.resolution),
+                                            format: if is_hls { "hls".to_string() } else { fmt.clone() },
+                                            provider: format!("VidRock/{}", name),
+                                            headers: serde_json::json!({
+                                                "Referer": referer,
+                                                "Origin": API_BASE,
+                                                "User-Agent": UA_DESKTOP
+                                            }),
+                                            subtitles: None,
+                                        }
                                     }).collect::<Vec<_>>()
                                 }
                                 Err(_) => vec![]

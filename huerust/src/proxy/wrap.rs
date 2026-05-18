@@ -10,7 +10,13 @@ pub(crate) fn wrap_with_proxy(streams: Vec<StreamResult>, proxy_base: &str, secr
             return s;
         }
 
-        let is_hls = s.format == "hls" || s.url.contains(".m3u8") || s.provider == "Aura";
+        // Browser-native embeds must remain direct iframe URLs. Proxying them as HLS/TS
+        // turns a playable embed document into an invalid media manifest.
+        if s.format == "iframe" {
+            return s;
+        }
+
+        let is_hls = s.format == "hls" || s.url.contains(".m3u8");
 
         // Cinema (MovieBox) MP4 streams come from a CDN that IP-blocks server/datacenter
         // ranges. Proxying them through our server always 403s. Return the raw URL with

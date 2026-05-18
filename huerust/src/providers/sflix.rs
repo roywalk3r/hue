@@ -11,7 +11,7 @@ use anyhow::Result;
 use std::collections::HashMap;
 use tracing::{info, warn};
 use crate::clients::moviebox::StreamData;
-use crate::models::StreamResult;
+use crate::models::{StreamResult, Subtitle};
 
 const BASE_URL: &str = "https://sflix.film";
 const API_BASE: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff";
@@ -21,6 +21,25 @@ const DEFAULT_COOKIE: &str = "sflix_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ
 pub struct SflixClient {
     client: Client,
     scraper_url: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct CaptionResponse {
+    code: i32,
+    data: Option<CaptionData>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CaptionData {
+    captions: Option<Vec<SflixCaption>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SflixCaption {
+    url: Option<String>,
+    lan: Option<String>,
+    #[serde(rename = "lanName")]
+    lan_name: Option<String>,
 }
 
 impl SflixClient {
@@ -123,6 +142,62 @@ impl SflixClient {
         Ok(None)
     }
 
+    async fn get_captions(
+        &self,
+        subject_id: &str,
+        detail_path: &str,
+        stream_id: Option<&str>,
+        format: &str,
+    ) -> Result<Vec<Subtitle>> {
+        let effective_id = stream_id
+            .filter(|id| !id.is_empty())
+            .unwrap_or(subject_id);
+
+        if stream_id.is_none() || stream_id.unwrap().is_empty() {
+            warn!("[SFlix] stream_id missing for subject_id={}, using subject_id as fallback", subject_id);
+        }
+
+        let url = format!(
+            "{}/subject/caption?format={}&id={}&subjectId={}&detailPath={}",
+            API_BASE,
+            urlencoding::encode(format),
+            urlencoding::encode(effective_id),
+            urlencoding::encode(subject_id),
+            urlencoding::encode(detail_path),
+        );
+
+        let resp = self.client
+            .get(&url)
+            .headers(self.get_base_headers())
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Ok(vec![]);
+        }
+
+        let data = resp.json::<CaptionResponse>().await?;
+        if data.code != 0 {
+            return Ok(vec![]);
+        }
+
+        Ok(data
+            .data
+            .and_then(|d| d.captions)
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|caption| {
+                let url = caption.url?;
+                if url.is_empty() {
+                    return None;
+                }
+                let lang = caption.lan.unwrap_or_else(|| "en".to_string());
+                let label = caption.lan_name.unwrap_or_else(|| lang.clone());
+                Some(Subtitle { url, lang, label })
+            })
+            .collect())
+    }
+
     pub async fn get_streams_normalized(&self, title: &str, media_type: &str, _year: Option<u32>, season: u32, episode: u32) -> Result<Vec<StreamResult>> {
         info!("[SFlix Rust] Searching for: \"{}\" ({}) S{} E{}", title, media_type, season, episode);
         
@@ -142,13 +217,17 @@ impl SflixClient {
 
                 if let Some(streams) = data.streams {
                     for s in streams {
+                        let subtitles = self
+                            .get_captions(subject_id, slug, s.id.as_deref(), "MP4")
+                            .await
+                            .unwrap_or_default();
                         results.push(StreamResult {
                             url: s.url,
                             title: format!("Nova - {}p (MP4)", s.resolutions.unwrap_or_else(|| "Auto".to_string())),
                             quality: s.quality.unwrap_or_else(|| "Auto".to_string()),
                             provider: "Nova".to_string(),
                             format: "mp4".to_string(),
-                            subtitles: None,
+                            subtitles: if subtitles.is_empty() { None } else { Some(subtitles) },
                             headers: Some(headers.clone()),
                             extra_metadata: None,
                         });
@@ -157,13 +236,17 @@ impl SflixClient {
 
                 if let Some(hls) = data.hls {
                     for s in hls {
+                        let subtitles = self
+                            .get_captions(subject_id, slug, s.id.as_deref(), "HLS")
+                            .await
+                            .unwrap_or_default();
                         results.push(StreamResult {
                             url: s.url,
                             title: "Nova - Auto (HLS)".to_string(),
                             quality: "Auto".to_string(),
                             provider: "Nova".to_string(),
                             format: "hls".to_string(),
-                            subtitles: None,
+                            subtitles: if subtitles.is_empty() { None } else { Some(subtitles) },
                             headers: Some(headers.clone()),
                             extra_metadata: None,
                         });

@@ -25,6 +25,14 @@ use crate::{
     proxy::wrap::wrap_with_proxy,
 };
 
+fn is_generic_movie_tv_provider_allowed(media_type: &str, real_name: &str) -> bool {
+    if media_type != "movie" && media_type != "tv" {
+        return true;
+    }
+
+    real_name != "kisskh" && real_name != "dramacool"
+}
+
 #[utoipa::path(
     get,
     path = "/api/streams/{type}/{tmdbId}/live",
@@ -57,7 +65,13 @@ pub async fn sse_streams_handler(
         // Serve from cache immediately if available (only if nocache is not set)
         if !no_cache {
             if let Some(cached) = state.cache.get(&cache_key).await {
-                let filtered = apply_filters(cached, &state.filter_config);
+                let filtered = apply_filters(cached, &state.filter_config)
+                    .into_iter()
+                    .filter(|s| {
+                        let provider = s.provider.to_lowercase();
+                        provider != "zenith" && provider != "orient"
+                    })
+                    .collect();
                 let streams = if state.config.enable_proxy {
                     wrap_with_proxy(filtered, &state.proxy_base_url, &state.secret)
                 } else {
@@ -85,7 +99,11 @@ pub async fn sse_streams_handler(
 
         // Fire each provider independently, emitting results as they arrive
         let registry = state.registry.clone();
-        let providers = registry.list_all_arc();
+        let providers: Vec<_> = registry
+            .list_all_arc()
+            .into_iter()
+            .filter(|provider| is_generic_movie_tv_provider_allowed(&m_type, provider.real_name()))
+            .collect();
         let cb = registry.circuit_breaker().clone();
         let mut raw_all: Vec<crate::models::StreamResult> = Vec::new();
 

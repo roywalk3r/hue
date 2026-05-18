@@ -178,39 +178,50 @@ impl VidzeeClient {
     }
 
     /// Decrypt a single VidZee link token using AES-256-CBC.
+    /// Validates the result is a direct stream URL (m3u8/mp4), not an iframe embed.
     fn decrypt_link(token: &str, key: &str) -> Option<String> {
-        if token.starts_with("http") {
-            return Some(token.to_string());
-        }
+        let candidate = if token.starts_with("http") {
+            token.to_string()
+        } else {
+            // Outer base64 → ivB64:cipherB64
+            let raw_bytes = base64::engine::general_purpose::STANDARD
+                .decode(token)
+                .ok()?;
+            let raw = String::from_utf8(raw_bytes).ok()?;
+            let (iv_b64, ct_b64) = raw.split_once(':')?;
 
-        // Outer base64 → ivB64:cipherB64
-        let raw_bytes = base64::engine::general_purpose::STANDARD
-            .decode(token)
-            .ok()?;
-        let raw = String::from_utf8(raw_bytes).ok()?;
-        let (iv_b64, ct_b64) = raw.split_once(':')?;
+            let iv = base64::engine::general_purpose::STANDARD
+                .decode(iv_b64.trim())
+                .ok()?;
+            let ct = base64::engine::general_purpose::STANDARD
+                .decode(ct_b64.trim())
+                .ok()?;
 
-        let iv = base64::engine::general_purpose::STANDARD
-            .decode(iv_b64.trim())
-            .ok()?;
-        let ct = base64::engine::general_purpose::STANDARD
-            .decode(ct_b64.trim())
-            .ok()?;
+            // Key: UTF-8 bytes, padded to 32 bytes with nulls
+            let mut key_bytes = [0u8; 32];
+            let key_utf8 = key.as_bytes();
+            let copy_len = key_utf8.len().min(32);
+            key_bytes[..copy_len].copy_from_slice(&key_utf8[..copy_len]);
 
-        // Key: UTF-8 bytes, padded to 32 bytes with nulls
-        let mut key_bytes = [0u8; 32];
-        let key_utf8 = key.as_bytes();
-        let copy_len = key_utf8.len().min(32);
-        key_bytes[..copy_len].copy_from_slice(&key_utf8[..copy_len]);
+            let mut buf = ct.clone();
+            let plaintext = Aes256Cbc::new(key_bytes.as_slice().into(), iv.as_slice().into())
+                .decrypt_padded_mut::<Pkcs7>(&mut buf)
+                .ok()?;
 
-        let mut buf = ct.clone();
-        let plaintext = Aes256Cbc::new(key_bytes.as_slice().into(), iv.as_slice().into())
-            .decrypt_padded_mut::<Pkcs7>(&mut buf)
-            .ok()?;
+            String::from_utf8(plaintext.to_vec()).ok()?
+        };
 
-        let decoded = String::from_utf8(plaintext.to_vec()).ok()?;
-        if decoded.starts_with("http") {
-            Some(decoded.trim().to_string())
+        let trimmed = candidate.trim();
+        // Reject iframe/embed pages; only accept direct stream URLs
+        if trimmed.starts_with("http")
+            && !trimmed.contains("/embed/")
+            && (trimmed.ends_with(".m3u8")
+                || trimmed.ends_with(".mp4")
+                || trimmed.contains(".m3u8?")
+                || trimmed.contains("playlist")
+                || trimmed.contains("master"))
+        {
+            Some(trimmed.to_string())
         } else {
             None
         }

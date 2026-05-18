@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1779011096448,
+  "lastScanned": 1779110855338,
   "projectRoot": "/mnt/devdrive/projects/Misc/hue/huerust",
   "techStack": {
     "languages": [
@@ -40,8 +40,9 @@
     "isMonorepo": false,
     "workspaces": [],
     "mainDirectories": [
-      "src",
-      "tests"
+      "docs",
+      "examples",
+      "src"
     ],
     "gitBranches": {
       "defaultBranch": "main",
@@ -54,48 +55,62 @@
       "path": "daemon",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1779011096444,
+      "lastAccessed": 1779110855328,
       "keyFiles": [
         "daemon.js",
         "package-lock.json",
         "package.json"
       ]
     },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 0,
+      "lastAccessed": 1779110855332,
+      "keyFiles": []
+    },
+    "examples": {
+      "path": "examples",
+      "purpose": "Example code",
+      "fileCount": 0,
+      "lastAccessed": 1779110855333,
+      "keyFiles": []
+    },
     "src": {
       "path": "src",
       "purpose": "Source code",
-      "fileCount": 19,
-      "lastAccessed": 1779011096445,
+      "fileCount": 10,
+      "lastAccessed": 1779110855333,
       "keyFiles": [
-        "cache.rs",
-        "circuit_breaker.rs",
-        "coalesce.rs",
+        "app.rs",
         "config.rs",
-        "constants.rs"
+        "constants.rs",
+        "filters.rs",
+        "main.rs"
       ]
     },
     "target": {
       "path": "target",
       "purpose": null,
-      "fileCount": 3,
-      "lastAccessed": 1779011096446,
-      "keyFiles": [
-        "CACHEDIR.TAG"
-      ]
-    },
-    "tests": {
-      "path": "tests",
-      "purpose": "Test files",
-      "fileCount": 0,
-      "lastAccessed": 1779011096446,
+      "fileCount": 2,
+      "lastAccessed": 1779110855334,
       "keyFiles": []
     },
     "daemon/node_modules": {
       "path": "daemon/node_modules",
       "purpose": "Dependencies",
       "fileCount": 1,
-      "lastAccessed": 1779011096446,
+      "lastAccessed": 1779110855335,
       "keyFiles": []
+    },
+    "src/models": {
+      "path": "src/models",
+      "purpose": "Data models",
+      "fileCount": 1,
+      "lastAccessed": 1779110855336,
+      "keyFiles": [
+        "anime.rs"
+      ]
     }
   },
   "hotPaths": [
@@ -107,8 +122,8 @@
     },
     {
       "path": "src/proxy/mod.rs",
-      "accessCount": 85,
-      "lastAccessed": 1779045445764,
+      "accessCount": 86,
+      "lastAccessed": 1779115850695,
       "type": "file"
     },
     {
@@ -119,8 +134,8 @@
     },
     {
       "path": "src/routes/streams.rs",
-      "accessCount": 46,
-      "lastAccessed": 1779031245577,
+      "accessCount": 47,
+      "lastAccessed": 1779115795270,
       "type": "file"
     },
     {
@@ -184,6 +199,12 @@
       "type": "file"
     },
     {
+      "path": "src/clients/vidrock.rs",
+      "accessCount": 10,
+      "lastAccessed": 1779116385490,
+      "type": "file"
+    },
+    {
       "path": "src/routes/system.rs",
       "accessCount": 9,
       "lastAccessed": 1779030605386,
@@ -226,9 +247,9 @@
       "type": "file"
     },
     {
-      "path": "src/clients/vidrock.rs",
+      "path": "src/config.rs",
       "accessCount": 6,
-      "lastAccessed": 1779032244330,
+      "lastAccessed": 1779116851911,
       "type": "file"
     },
     {
@@ -241,12 +262,6 @@
       "path": "src/providers/kisskh_provider.rs",
       "accessCount": 5,
       "lastAccessed": 1779031176187,
-      "type": "file"
-    },
-    {
-      "path": "src/config.rs",
-      "accessCount": 4,
-      "lastAccessed": 1779030620044,
       "type": "file"
     },
     {
@@ -274,6 +289,18 @@
       "type": "file"
     },
     {
+      "path": "src/proxy/wrap.rs",
+      "accessCount": 4,
+      "lastAccessed": 1779115795457,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/vixsrc_provider.rs",
+      "accessCount": 4,
+      "lastAccessed": 1779116874654,
+      "type": "file"
+    },
+    {
       "path": "src/filters.rs",
       "accessCount": 3,
       "lastAccessed": 1779008512098,
@@ -298,21 +325,9 @@
       "type": "file"
     },
     {
-      "path": "src/proxy/wrap.rs",
-      "accessCount": 3,
-      "lastAccessed": 1779020575309,
-      "type": "file"
-    },
-    {
       "path": "src/providers/moviebox_provider.rs",
       "accessCount": 3,
       "lastAccessed": 1779030619974,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/vixsrc_provider.rs",
-      "accessCount": 3,
-      "lastAccessed": 1779031176030,
       "type": "file"
     },
     {

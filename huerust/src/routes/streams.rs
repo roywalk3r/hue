@@ -36,6 +36,20 @@ pub struct StreamsResponse {
     pub provider_timings: Vec<ProviderTiming>,
 }
 
+fn filter_generic_movie_tv_streams(media_type: &str, streams: Vec<StreamResult>) -> Vec<StreamResult> {
+    if media_type != "movie" && media_type != "tv" {
+        return streams;
+    }
+
+    streams
+        .into_iter()
+        .filter(|s| {
+            let provider = s.provider.to_lowercase();
+            provider != "zenith" && provider != "orient"
+        })
+        .collect()
+}
+
 #[utoipa::path(
     get,
     path = "/api/streams/{type}/{tmdbId}",
@@ -70,7 +84,10 @@ pub async fn streams_handler(
     // 1. Check cache
     if !no_cache {
         if let Some(cached) = state.cache.get(&cache_key).await {
-            let filtered = apply_filters(cached, &state.filter_config);
+            let filtered = filter_generic_movie_tv_streams(
+                &m_type,
+                apply_filters(cached, &state.filter_config),
+            );
             
             // Proxy wrap even on cache hits
             let final_streams = if enable_proxy {
@@ -129,7 +146,10 @@ pub async fn streams_handler(
         captured_timings = timings;
         let mut seen_urls = std::collections::HashSet::new();
         let unique: Vec<_> = streams.into_iter().filter(|s| seen_urls.insert(s.url.clone())).collect();
-        let filtered = apply_filters(unique, &filter_config);
+        let filtered = filter_generic_movie_tv_streams(
+            &m_type_c,
+            apply_filters(unique, &filter_config),
+        );
         info!("[api] No-cache fresh fetch: {} streams in {:?}", filtered.len(), start.elapsed());
         Some(filtered)
     } else {
@@ -149,7 +169,10 @@ pub async fn streams_handler(
             ).await;
             let mut seen_urls = std::collections::HashSet::new();
             let unique: Vec<_> = streams.into_iter().filter(|s| seen_urls.insert(s.url.clone())).collect();
-            let filtered = apply_filters(unique, &filter_config);
+            let filtered = filter_generic_movie_tv_streams(
+                &m_type_c,
+                apply_filters(unique, &filter_config),
+            );
             info!("[api] Coalesced fetch: {} streams in {:?}", filtered.len(), start.elapsed());
             filtered
         }).await
@@ -177,5 +200,4 @@ pub async fn streams_handler(
         provider_timings: captured_timings,
     }).unwrap()).into_response()
 }
-
 

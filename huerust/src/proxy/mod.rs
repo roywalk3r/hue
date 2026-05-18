@@ -639,32 +639,9 @@ fn rewrite_playlist(
 
             // Tags that carry a URI attribute
             if line.starts_with("#") {
-                if line.contains("URI=\"") {
-                    let parts: Vec<&str> = line.split("URI=\"").collect();
-                    if parts.len() > 1 {
-                        let uri_parts: Vec<&str> = parts[1].split('"').collect();
-                        let relative_uri = uri_parts[0];
-                        let abs_url = resolve_segment_url(&base_url, relative_uri);
-
-                        let is_hls = abs_url.to_lowercase().contains(".m3u8");
-                        let proxy_url = if use_url_mode {
-                            let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
-                            format!(
-                                "{}/{}?url={}{}{}&clampOpen=0&progressiveOpen=0&noSynth=1&force200=1&tailPrefetch=0",
-                                proxy_base,
-                                route,
-                                urlencoding::encode(&abs_url),
-                                header_part,
-                                mode_part
-                            )
-                        } else {
-                            let token = security::encrypt_url(&abs_url, secret, headers.clone());
-                            let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
-                            format!("{}/{}?h_token={}", proxy_base, route, token)
-                        };
-                        rewritten_lines.push(line.replace(&format!("\"{}\"", relative_uri), &format!("\"{}\"", proxy_url)));
-                        continue;
-                    }
+                if let Some(rewritten_line) = rewrite_hls_tag_uri(line, proxy_base, secret, &base_url, &headers, use_url_mode) {
+                    rewritten_lines.push(rewritten_line);
+                    continue;
                 }
                 rewritten_lines.push(line.to_string());
             } else if !line.trim().is_empty() {
@@ -734,6 +711,47 @@ fn rewrite_playlist(
     }
 
     rewritten
+}
+
+/// Extract URI value from an HLS tag line like `#EXT-X-KEY:METHOD=AES-128,URI="value"`
+/// Handles double quotes, single quotes, and unquoted values.
+/// Returns `(full_line_replacement, extracted_uri)` if a URI is found.
+fn rewrite_hls_tag_uri(line: &str, proxy_base: &str, secret: &str, base_url: &Url, headers: &Option<HashMap<String, String>>, use_url_mode: bool) -> Option<String> {
+    let uri_pos = line.find("URI=")?;
+    let prefix = &line[..uri_pos + 4];
+    let rest = &line[uri_pos + 4..];
+    if rest.is_empty() { return None; }
+
+    let first = rest.chars().next()?;
+    let (value, suffix) = if first == '"' || first == '\'' {
+        let end = rest[1..].find(first)?;
+        (&rest[1..1 + end], &rest[1 + end + 1..])
+    } else {
+        let end = rest.find(',').unwrap_or(rest.len());
+        (&rest[..end], &rest[end..])
+    };
+
+    let abs_url = resolve_segment_url(base_url, value);
+    let is_hls = abs_url.to_lowercase().contains(".m3u8");
+    let proxy_url = if use_url_mode {
+        let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
+        let header_part = build_headers_query(headers);
+        let mode_part = if use_url_mode { "&mode=url" } else { "" };
+        format!(
+            "{}/{}?url={}{}{}&clampOpen=0&progressiveOpen=0&noSynth=1&force200=1&tailPrefetch=0",
+            proxy_base,
+            route,
+            urlencoding::encode(&abs_url),
+            header_part,
+            mode_part
+        )
+    } else {
+        let token = security::encrypt_url(&abs_url, secret, headers.clone());
+        let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
+        format!("{}/{}?h_token={}", proxy_base, route, token)
+    };
+
+    Some(format!("{}\"{}\"{}", prefix, proxy_url, suffix))
 }
 
 fn parse_hls_byte_range(range_spec: &str, next_byte_offset: &mut Option<u64>) -> Option<String> {
