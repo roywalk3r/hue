@@ -7,6 +7,22 @@
  * @license MIT
  */
 
+// Polyfill: undici 7.x requires global File (Node.js v20+). We run v18.
+if (typeof global.File === 'undefined') {
+  global.File = class File {
+    constructor(bits, name, options = {}) {
+      this.name = name;
+      this.size = 0;
+      this.type = options.type || '';
+      this.lastModified = options.lastModified || Date.now();
+    }
+    text() { return Promise.resolve(''); }
+    arrayBuffer() { return Promise.resolve(new ArrayBuffer(0)); }
+    stream() { return new ReadableStream(); }
+    slice() { return new Blob([]); }
+  };
+}
+
 const express = require('express');
 const sflixProvider = require('./providers/sflix');
 const dramacoolProvider = require('./providers/dramacool');
