@@ -21,7 +21,10 @@ function buildOpenApiSpec() {
       description: 'Technical Manual for the Hue Stream Aggregation Engine. Engineered for high-performance stream telemetry across decentralized providers. Authorized access only. Secure HMAC signing enforced on all proxy egress.',
       contact: { name: 'System Administrator' },
     },
-    servers: [{ url: '/', description: 'Default Server' }],
+    servers: [
+      { url: 'http://187.124.19.247:24609', description: 'Rust Backend (Streams & Proxy)' },
+      { url: 'http://187.124.19.247:24608', description: 'Node.js Backend (Auth, Sports, Docs)' },
+    ],
     tags: [
       { name: 'Telemetry', description: 'Real-time stream aggregation and resolution.' },
       { name: 'Registry', description: 'Provider node management and status.' },
