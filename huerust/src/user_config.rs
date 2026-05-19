@@ -163,7 +163,11 @@ impl HueUserConfig {
         let user_id = json.get("uid")
             .or_else(|| json.get("sub"))
             .or_else(|| json.get("userId"))
-            .and_then(|v| v.as_str())?;
+            .and_then(|v| {
+                v.as_str().map(|s| s.to_string())
+                    .or_else(|| v.as_u64().map(|n| n.to_string()))
+                    .or_else(|| v.as_i64().map(|n| n.to_string()))
+            })?;
 
         let x_user = serde_json::json!({
             "token": token,
