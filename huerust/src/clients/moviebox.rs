@@ -315,12 +315,12 @@ impl MovieBoxClient {
         }
     }
 
-    pub async fn filter(&self, page: u32, per_page: u32, country: Option<&str>, sort: Option<&str>) -> Result<Vec<MovieBoxItem>> {
+    pub async fn filter(&self, page: u32, per_page: u32, country: Option<&str>, sort: Option<&str>, channel_id: Option<u32>) -> Result<Vec<MovieBoxItem>> {
         let url = format!("{}/subject/filter", BASE_URL);
         let payload = serde_json::json!({
             "page": page,
             "perPage": per_page,
-            "channelId": 2,
+            "channelId": channel_id.unwrap_or(2),
             "genre": "All",
             "country": country.unwrap_or("All"),
             "year": "All",
@@ -352,9 +352,9 @@ impl MovieBoxClient {
         Ok(items)
     }
 
-    pub async fn browse_rails(&self, page: u32, per_page: u32, country: Option<&str>, sort: Option<&str>) -> Result<Vec<serde_json::Value>> {
+    pub async fn browse_rails(&self, page: u32, per_page: u32, country: Option<&str>, sort: Option<&str>, channel_id: Option<u32>) -> Result<Vec<serde_json::Value>> {
         if let Some(c) = country {
-            let items = self.filter(page, per_page, Some(c), sort).await?;
+            let items = self.filter(page, per_page, Some(c), sort, channel_id).await?;
             let rail = serde_json::json!({
                 "country": c,
                 "items": items
@@ -366,7 +366,7 @@ impl MovieBoxClient {
         let mut rails = Vec::new();
 
         for c in countries {
-            match self.filter(page, per_page, Some(c), sort).await {
+            match self.filter(page, per_page, Some(c), sort, channel_id).await {
                 Ok(items) if !items.is_empty() => {
                     rails.push(serde_json::json!({
                         "country": c,

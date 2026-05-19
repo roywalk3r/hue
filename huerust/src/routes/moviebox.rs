@@ -23,7 +23,6 @@ pub struct SectionQuery {
 pub struct FilterQuery {
     pub page: Option<u32>,
     pub per_page: Option<u32>,
-    #[allow(dead_code)]
     pub channel_id: Option<u32>,
     #[allow(dead_code)]
     pub genre: Option<String>,
@@ -272,7 +271,8 @@ pub async fn filter_handler(
     let per_page = params.per_page.unwrap_or(28);
     let country = params.country.as_deref();
     let sort = params.sort.as_deref();
-    match state.moviebox.filter(page, per_page, country, sort).await {
+    let channel_id = params.channel_id;
+    match state.moviebox.filter(page, per_page, country, sort, channel_id).await {
         Ok(items) => {
             let resp = serde_json::json!({ "success": true, "page": page, "items": items });
             (StatusCode::OK, serde_json::to_string(&resp).unwrap()).into_response()

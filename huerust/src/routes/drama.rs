@@ -38,6 +38,7 @@ pub struct MovieBoxBrowseQuery {
     pub per_page: Option<u32>,
     pub country: Option<String>,
     pub sort: Option<String>,
+    pub channel_id: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -220,7 +221,7 @@ pub async fn moviebox_browse_handler(
     let page = params.page.unwrap_or(1);
     let per_page = params.per_page.unwrap_or(28);
     tracing::info!("[drama] moviebox_browse: page={} per_page={}", page, per_page);
-    match state.moviebox.browse_rails(page, per_page, params.country.as_deref(), params.sort.as_deref()).await {
+    match state.moviebox.browse_rails(page, per_page, params.country.as_deref(), params.sort.as_deref(), params.channel_id).await {
         Ok(rails) => {
             tracing::info!("[drama] moviebox_browse: {} rails", rails.len());
             (StatusCode::OK, serde_json::to_string(&rails).unwrap()).into_response()

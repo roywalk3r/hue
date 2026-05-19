@@ -266,6 +266,12 @@
       "type": "file"
     },
     {
+      "path": "nginx-vexli.conf",
+      "accessCount": 8,
+      "lastAccessed": 1779201659380,
+      "type": "file"
+    },
+    {
       "path": "huerust/src/providers/vixsrc.rs",
       "accessCount": 7,
       "lastAccessed": 1779110058619,
@@ -275,12 +281,6 @@
       "path": "huerust/src/proxy/mod.rs",
       "accessCount": 7,
       "lastAccessed": 1779116795663,
-      "type": "file"
-    },
-    {
-      "path": "nginx-vexli.conf",
-      "accessCount": 7,
-      "lastAccessed": 1779189192203,
       "type": "file"
     },
     {
