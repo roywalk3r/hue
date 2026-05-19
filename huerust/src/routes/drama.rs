@@ -130,7 +130,7 @@ pub async fn kisskh_browse_handler(
     tracing::info!("[drama] kisskh_browse: page={}", page);
     match state.kisskh.get_list(page, content_type, sub, country, status, order).await {
         Ok(data) => {
-            tracing::info!("[drama] kisskh_browse: {} items", data.len());
+            tracing::info!("[drama] kisskh_browse: got data");
             (StatusCode::OK, serde_json::to_string(&data).unwrap()).into_response()
         }
         Err(e) => {
