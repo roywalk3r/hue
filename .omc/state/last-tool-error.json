@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"node -e \\\"const spec = require('./utils/openapi-spec'); console.log(JSON.stringify(spec.buildOpenApiSpec().servers, null, 2))\\\"\",\"description\":\"Verify OpenAPI servers array update\"}",
+  "error": "Exit code 1\n[eval]:1\nconst spec = require('./utils/openapi-spec'); console.log(JSON.stringify(spec.buildOpenApiSpec().servers, null, 2))\n                                                                              ^\n\nTypeError: spec.buildOpenApiSpec is not a function\n    at [eval]:1:79\n    at runScriptInThisContext (node:internal/vm:219:10)\n    at node:internal/process/execution:483:12\n    at [eval]-wrapper:6:24\n    at runScriptInContext (node:internal/process/execution:481:60)\n    at evalFunct...",
+  "timestamp": "2026-05-18T15:54:27.201Z",
+  "retry_count": 1
+}

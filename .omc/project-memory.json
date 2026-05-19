@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1779034902913,
+  "lastScanned": 1779131496245,
   "projectRoot": "/mnt/devdrive/projects/Misc/hue",
   "techStack": {
     "languages": [
@@ -71,28 +71,28 @@
       "path": "archive",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1779034902902,
+      "lastAccessed": 1779131496229,
       "keyFiles": []
     },
     "daemon": {
       "path": "daemon",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1779034902903,
+      "lastAccessed": 1779131496230,
       "keyFiles": []
     },
     "docs": {
       "path": "docs",
       "purpose": "Documentation",
       "fileCount": 0,
-      "lastAccessed": 1779034902909,
+      "lastAccessed": 1779131496236,
       "keyFiles": []
     },
     "huerust": {
       "path": "huerust",
       "purpose": null,
-      "fileCount": 10,
-      "lastAccessed": 1779034902910,
+      "fileCount": 11,
+      "lastAccessed": 1779131496238,
       "keyFiles": [
         "API.md",
         "ARCHITECTURE.md",
@@ -105,7 +105,7 @@
       "path": "logs",
       "purpose": null,
       "fileCount": 7,
-      "lastAccessed": 1779034902910,
+      "lastAccessed": 1779131496238,
       "keyFiles": [
         "app.log",
         "hianimes.log",
@@ -118,7 +118,7 @@
       "path": "providers",
       "purpose": null,
       "fileCount": 20,
-      "lastAccessed": 1779034902910,
+      "lastAccessed": 1779131496238,
       "keyFiles": [
         "MP4Hydra.js",
         "aisports.js",
@@ -131,7 +131,7 @@
       "path": "proxy",
       "purpose": null,
       "fileCount": 2,
-      "lastAccessed": 1779034902910,
+      "lastAccessed": 1779131496239,
       "keyFiles": [
         "proxy.log",
         "proxyServer.js"
@@ -141,7 +141,7 @@
       "path": "public",
       "purpose": "Public files",
       "fileCount": 11,
-      "lastAccessed": 1779034902911,
+      "lastAccessed": 1779131496239,
       "keyFiles": [
         "config.html",
         "docs.html",
@@ -154,7 +154,7 @@
       "path": "routes",
       "purpose": "Route handlers",
       "fileCount": 11,
-      "lastAccessed": 1779034902911,
+      "lastAccessed": 1779131496239,
       "keyFiles": [
         "anime.js",
         "drama.js",
@@ -167,7 +167,7 @@
       "path": "scripts",
       "purpose": "Build/utility scripts",
       "fileCount": 3,
-      "lastAccessed": 1779034902911,
+      "lastAccessed": 1779131496240,
       "keyFiles": [
         "check-hianime-imports.js",
         "generate-key.js",
@@ -178,7 +178,7 @@
       "path": "services",
       "purpose": "Business logic services",
       "fileCount": 4,
-      "lastAccessed": 1779034902911,
+      "lastAccessed": 1779131496240,
       "keyFiles": [
         "hianime.js",
         "livetvScraper.js",
@@ -190,7 +190,7 @@
       "path": "tests",
       "purpose": "Test files",
       "fileCount": 1,
-      "lastAccessed": 1779034902911,
+      "lastAccessed": 1779131496241,
       "keyFiles": [
         "unit.js"
       ]
@@ -199,7 +199,7 @@
       "path": "utils",
       "purpose": "Utility functions",
       "fileCount": 33,
-      "lastAccessed": 1779034902911,
+      "lastAccessed": 1779131496242,
       "keyFiles": [
         "aisports-api.js",
         "auth-users.json",
@@ -212,14 +212,14 @@
       "path": "vendor",
       "purpose": "Third-party code",
       "fileCount": 0,
-      "lastAccessed": 1779034902911,
+      "lastAccessed": 1779131496243,
       "keyFiles": []
     },
     "web-scraper": {
       "path": "web-scraper",
       "purpose": null,
       "fileCount": 4,
-      "lastAccessed": 1779034902912,
+      "lastAccessed": 1779131496244,
       "keyFiles": [
         "api-server.js",
         "index.html",
@@ -229,6 +229,12 @@
     }
   },
   "hotPaths": [
+    {
+      "path": "apiServer.js",
+      "accessCount": 9,
+      "lastAccessed": 1779118681003,
+      "type": "file"
+    },
     {
       "path": "huerust/src/providers/vixsrc.rs",
       "accessCount": 7,
@@ -260,6 +266,18 @@
       "type": "file"
     },
     {
+      "path": "scraperServer.js",
+      "accessCount": 3,
+      "lastAccessed": 1779118668117,
+      "type": "file"
+    },
+    {
+      "path": "utils/openapi-spec.js",
+      "accessCount": 3,
+      "lastAccessed": 1779119671659,
+      "type": "file"
+    },
+    {
       "path": "huerust/src/providers/vixsrc_provider.rs",
       "accessCount": 2,
       "lastAccessed": 1779109910674,
@@ -284,6 +302,12 @@
       "type": "file"
     },
     {
+      "path": "huerust/src/app.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779181884547,
+      "type": "file"
+    },
+    {
       "path": "huerust/src/providers/moviebox_provider.rs",
       "accessCount": 1,
       "lastAccessed": 1779109801329,
@@ -299,12 +323,6 @@
       "path": "huerust/src/providers/sflix_provider.rs",
       "accessCount": 1,
       "lastAccessed": 1779109802213,
-      "type": "file"
-    },
-    {
-      "path": "huerust/src/app.rs",
-      "accessCount": 1,
-      "lastAccessed": 1779109835971,
       "type": "file"
     },
     {
@@ -341,6 +359,12 @@
       "path": "huerust/Cargo.toml",
       "accessCount": 1,
       "lastAccessed": 1779116720913,
+      "type": "file"
+    },
+    {
+      "path": "nginx-vexli.conf",
+      "accessCount": 1,
+      "lastAccessed": 1779181957845,
       "type": "file"
     }
   ],
