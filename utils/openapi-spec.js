@@ -22,8 +22,8 @@ function buildOpenApiSpec(req) {
     openapi: '3.1.0',
     info: {
       title: 'HUE ENGINE ⬢',
-      version: pkg.version,
-      description: 'Unified API Gateway — nginx routes requests to Rust (streams, proxy, browse) or Node.js (sports, auth, docs).',
+      version: 'v1.1.1',
+      description: 'OpenAPI 3.1.0 — Unified API Gateway: nginx routes requests to Rust (streams, proxy, browse) or Node.js (sports, auth, docs).',
       contact: { name: 'System Administrator' },
     },
     servers: [
