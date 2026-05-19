@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"git add src/proxy/wrap.rs && git commit -m \\\"$(cat <<'EOF'\\nfix(proxy): restore Cinema MP4 direct-play bypass in wrap_with_proxy\\n\\nMovieBox CDN (hakunaymatata.com) IP-blocks server/datace...",
-  "error": "Exit code 1\nOn branch feat/branding\nYour branch is up to date with 'origin/feat/branding'.\n\nChanges not staged for commit:\n  (use \"git add <file>...\" to update what will be committed)\n  (use \"git restore <file>...\" to discard changes in working directory)\n\tmodified:   .omc/project-memory.json\n\tmodified:   .omc/state/agent-replay-c524dd05-6f95-4789-93ec-2d0f510f0604.jsonl\n\tmodified:   .omc/state/idle-notif-cooldown.json\n\tmodified:   .omc/state/last-tool-error.json\n\tmodified:   .omc/state/mission-...",
-  "timestamp": "2026-05-19T20:12:15.154Z",
+  "tool_input_preview": "{\"command\":\"grep -n \\\"fn rewrite_playlist\\\" huerust/src/proxy/mod.rs\",\"description\":\"Find rewrite_playlist function definition in proxy/mod.rs\"}",
+  "error": "Exit code 2\ngrep: huerust/src/proxy/mod.rs: No such file or directory",
+  "timestamp": "2026-05-19T21:17:46.765Z",
   "retry_count": 1
 }

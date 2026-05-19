@@ -3,6 +3,23 @@ use url::Url;
 use crate::models::StreamResult;
 use crate::security::encrypt_url;
 
+fn looks_like_hls_playlist_url(target_url: &str) -> bool {
+    let lower = target_url.to_lowercase();
+    if lower.contains(".m3u8") {
+        return true;
+    }
+
+    if let Ok(url) = Url::parse(target_url) {
+        let host = url.host_str().unwrap_or("").to_lowercase();
+        let path = url.path().to_lowercase();
+        if host.contains("vixsrc.to") && path.starts_with("/playlist/") {
+            return true;
+        }
+    }
+
+    false
+}
+
 pub(crate) fn wrap_with_proxy(streams: Vec<StreamResult>, proxy_base: &str, secret: &str) -> Vec<StreamResult> {
     streams.into_iter().map(|mut s| {
         // Skip if already proxied by this same server
@@ -16,7 +33,7 @@ pub(crate) fn wrap_with_proxy(streams: Vec<StreamResult>, proxy_base: &str, secr
             return s;
         }
 
-        let is_hls = s.format == "hls" || s.url.contains(".m3u8");
+        let is_hls = s.format == "hls" || looks_like_hls_playlist_url(&s.url);
 
         // Determine host for special provider routing
         let host = match Url::parse(&s.url) {

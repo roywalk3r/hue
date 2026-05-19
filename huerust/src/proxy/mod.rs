@@ -200,6 +200,27 @@ fn is_vixsrc_target(target_url: &str, headers: &Option<HashMap<String, String>>)
     false
 }
 
+fn looks_like_hls_playlist_url(target_url: &str) -> bool {
+    let lower = target_url.to_lowercase();
+    if lower.contains(".m3u8") {
+        return true;
+    }
+
+    if let Ok(url) = Url::parse(target_url) {
+        let host = url.host_str().unwrap_or("").to_lowercase();
+        let path = url.path().to_lowercase();
+
+        // VixSrc serves HLS playlists from extensionless /playlist/... URLs.
+        // Treating those as TS makes HLS.js receive an un-rewritten child
+        // playlist, which then leaks raw vix-content.net segment URLs.
+        if host.contains("vixsrc.to") && path.starts_with("/playlist/") {
+            return true;
+        }
+    }
+
+    false
+}
+
 // ── M3U8 Proxy ───────────────────────────────────────────────────────────────
 
 pub async fn m3u8_handler(
@@ -651,7 +672,7 @@ fn rewrite_playlist(
             } else if !line.trim().is_empty() {
                 let line_trim = line.trim();
                 let abs_url = resolve_segment_url(&base_url, line_trim);
-                let is_hls = abs_url.to_lowercase().contains(".m3u8");
+                let is_hls = looks_like_hls_playlist_url(&abs_url);
                 let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
 
                 // MP3-wrapped-TS detection
@@ -736,7 +757,7 @@ fn rewrite_hls_tag_uri(line: &str, proxy_base: &str, secret: &str, base_url: &Ur
     };
 
     let abs_url = resolve_segment_url(base_url, value);
-    let is_hls = abs_url.to_lowercase().contains(".m3u8");
+    let is_hls = looks_like_hls_playlist_url(&abs_url);
     let proxy_url = if use_url_mode {
         let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
         let header_part = build_headers_query(headers);
