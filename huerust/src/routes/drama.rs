@@ -277,12 +277,36 @@ pub async fn drama_detail_handler(
     State(state): State<DramaState>,
     Query(params): Query<DetailQuery>,
 ) -> Response {
-    // ── Try KissKH first ──
-    // If a numeric id is provided, use it directly; otherwise search by title
+    // ── Try MovieBox first (reliable, no Cloudflare block) ──
+    match state.moviebox.search(&params.q, 1, 0).await {
+        Ok(items) if !items.is_empty() => {
+            let best = &items[0];
+            let response = serde_json::json!({
+                "success": true,
+                "provider": "moviebox",
+                "id": best.id,
+                "title": best.title,
+                "cover": best.cover.as_deref().unwrap_or(""),
+                "description": best.description.as_deref().unwrap_or(""),
+                "year": best.release_date.as_ref().and_then(|d| d.split('-').next()).and_then(|y| y.parse::<u32>().ok()),
+                "country": best.genre.as_deref().unwrap_or(""),
+                "status": "",
+                "genre": best.genre.as_deref().unwrap_or(""),
+                "episodes": [],
+                "episode_count": 1
+            });
+            return (StatusCode::OK, serde_json::to_string(&response).unwrap()).into_response();
+        }
+        Err(e) => {
+            tracing::warn!("[drama_detail] MovieBox search for '{}' failed: {}", params.q, e);
+        }
+        _ => {}
+    }
+
+    // ── Fallback to KissKH (Cloudflare-challenged, may fail on blocked IPs) ──
     let kisskh_show_id = params.id.as_ref().and_then(|id| id.parse::<u64>().ok());
 
     let kisskh_result = if let Some(id) = kisskh_show_id {
-        // Direct ID path: get detail without searching
         match state.kisskh.get_detail(id).await {
             Ok(detail) => Some((id, detail)),
             Err(e) => {
@@ -291,7 +315,6 @@ pub async fn drama_detail_handler(
             }
         }
     } else {
-        // Search path
         match state.kisskh.search(&params.q).await {
             Ok(results) if !results.is_empty() => {
                 let best = &results[0];
@@ -323,7 +346,6 @@ pub async fn drama_detail_handler(
 
         let episode_count = episodes.len();
 
-        // Resolve cover: try "cover", then "thumbnail", then TMDB enrichment
         let mut cover = detail["cover"].as_str()
             .filter(|s| !s.is_empty())
             .or_else(|| detail["thumbnail"].as_str().filter(|s| !s.is_empty()))
@@ -333,9 +355,7 @@ pub async fn drama_detail_handler(
         if cover.is_empty() {
             match state.tmdb.search(&params.q, "multi", None).await {
                 Ok(tmdb_results) => {
-                    tracing::info!("[drama_detail] TMDB search for '{}' returned {} results", params.q, tmdb_results.len());
                     if let Some(first) = tmdb_results.first() {
-                        tracing::info!("[drama_detail] First result poster_path: {:?}", first.poster_path);
                         if let Some(poster) = first.poster_path.as_deref() {
                             cover = format!("https://image.tmdb.org/t/p/w500{}", poster);
                         }
@@ -367,29 +387,6 @@ pub async fn drama_detail_handler(
             "episode_count": episode_count
         });
         return (StatusCode::OK, serde_json::to_string(&response).unwrap()).into_response();
-    }
-
-    // ── Fallback to MovieBox ──
-    match state.moviebox.search(&params.q, 1, 0).await {
-        Ok(items) if !items.is_empty() => {
-            let best = &items[0];
-            let response = serde_json::json!({
-                "success": true,
-                "provider": "moviebox",
-                "id": best.id,
-                "title": best.title,
-                "cover": best.cover.as_deref().unwrap_or(""),
-                "description": best.description.as_deref().unwrap_or(""),
-                "year": best.release_date.as_ref().and_then(|d| d.split('-').next()).and_then(|y| y.parse::<u32>().ok()),
-                "country": best.genre.as_deref().unwrap_or(""),
-                "status": "",
-                "genre": best.genre.as_deref().unwrap_or(""),
-                "episodes": [],
-                "episode_count": 1
-            });
-            return (StatusCode::OK, serde_json::to_string(&response).unwrap()).into_response();
-        }
-        _ => {}
     }
 
     (StatusCode::NOT_FOUND, r#"{"success":false,"error":"No detail found"}"#).into_response()
