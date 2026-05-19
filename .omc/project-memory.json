@@ -308,6 +308,12 @@
       "type": "file"
     },
     {
+      "path": "nginx-vexli.conf",
+      "accessCount": 2,
+      "lastAccessed": 1779183438711,
+      "type": "file"
+    },
+    {
       "path": "huerust/src/providers/moviebox_provider.rs",
       "accessCount": 1,
       "lastAccessed": 1779109801329,
@@ -359,12 +365,6 @@
       "path": "huerust/Cargo.toml",
       "accessCount": 1,
       "lastAccessed": 1779116720913,
-      "type": "file"
-    },
-    {
-      "path": "nginx-vexli.conf",
-      "accessCount": 1,
-      "lastAccessed": 1779181957845,
       "type": "file"
     }
   ],
