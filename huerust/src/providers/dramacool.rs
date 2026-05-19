@@ -23,7 +23,7 @@ pub struct XyraResponse<T> {
     pub message: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct XyraSearchItem {
     pub id: String,
     pub title: String,
@@ -95,6 +95,19 @@ impl DramacoolClient {
     pub async fn get_stream(&self, episode_id: &str) -> Result<Option<XyraStreamData>> {
         let res = self.make_request::<XyraStreamData>("/stream", vec![("episode_id", episode_id)]).await?;
         Ok(res.data)
+    }
+
+    /// Search + info for drama detail page.
+    /// Returns (show_id, title, release_year, episodes).
+    pub async fn get_detail(&self, title: &str) -> Result<Option<(XyraSearchItem, XyraDramaInfo)>> {
+        let search_results = self.search(title).await?;
+        if search_results.is_empty() { return Ok(None); }
+        let best = &search_results[0];
+        let info = match self.get_info(&best.id).await? {
+            Some(i) => i,
+            None => return Ok(None),
+        };
+        Ok(Some((best.clone(), info)))
     }
 
     pub async fn get_streams_normalized(&self, title: &str, _season: u32, episode: u32) -> Result<Vec<StreamResult>> {
