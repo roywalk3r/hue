@@ -99,6 +99,7 @@ impl DramacoolClient {
 
     /// Search + info for drama detail page.
     /// Returns (show_id, title, release_year, episodes).
+    #[allow(dead_code)]
     pub async fn get_detail(&self, title: &str) -> Result<Option<(XyraSearchItem, XyraDramaInfo)>> {
         let search_results = self.search(title).await?;
         if search_results.is_empty() { return Ok(None); }

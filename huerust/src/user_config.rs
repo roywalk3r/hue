@@ -121,12 +121,81 @@ impl HueUserConfig {
     }
 
     pub fn moviebox_x_user_or_env(&self, fallback: &str) -> String {
-        self.moviebox_x_user
-            .clone()
-            .or_else(|| std::env::var("MOVIEBOX_X_USER").ok())
-            .unwrap_or_else(|| {
-                warn!("[HueConfig] moviebox_x_user not configured; using fallback JWT. Set it in utils/user-config.json or MOVIEBOX_X_USER env.");
-                fallback.to_string()
-            })
+        // 1. Direct config
+        if let Some(xu) = self.moviebox_x_user.clone() {
+            if !xu.is_empty() && xu != fallback {
+                return xu;
+            }
+        }
+
+        // 2. Env override
+        if let Ok(env) = std::env::var("MOVIEBOX_X_USER") {
+            if !env.is_empty() {
+                return env;
+            }
+        }
+
+        // 3. Extract JWT from movieboxCookie and synthesize x-user
+        if let Some(cookie) = self.moviebox_cookie.as_ref() {
+            if let Some(x_user) = Self::build_x_user_from_cookie(cookie) {
+                return x_user;
+            }
+        }
+
+        // 4. Fallback
+        warn!("[HueConfig] moviebox_x_user not configured and could not extract from cookie; using fallback JWT. Set movieboxXUser in utils/user-config.json.");
+        fallback.to_string()
+    }
+
+    /// Try to extract a JWT from the cookie string, decode its payload for uid/sub,
+    /// and construct the x-user JSON that MovieBox expects.
+    fn build_x_user_from_cookie(cookie: &str) -> Option<String> {
+        let token = Self::extract_jwt_from_string(cookie)?;
+
+        let parts: Vec<&str> = token.split('.').collect();
+        if parts.len() != 3 {
+            return None;
+        }
+
+        let payload = Self::base64url_decode(parts[1]).ok()?;
+        let json: serde_json::Value = serde_json::from_slice(&payload).ok()?;
+
+        let user_id = json.get("uid")
+            .or_else(|| json.get("sub"))
+            .or_else(|| json.get("userId"))
+            .and_then(|v| v.as_str())?;
+
+        let x_user = serde_json::json!({
+            "token": token,
+            "userId": user_id,
+            "userType": 0,
+            "appType": 2
+        });
+
+        Some(x_user.to_string())
+    }
+
+    fn extract_jwt_from_string(s: &str) -> Option<String> {
+        // Strip URL-encoded quotes and literal quotes
+        let cleaned = s.replace("%22", "").replace('"', "");
+
+        for word in cleaned.split(|c: char| c == ' ' || c == ';' || c == '=' || c == ',') {
+            let w = word.trim();
+            // JWT signature: starts with eyJ, has exactly 2 dots, reasonable length
+            if w.starts_with("eyJ") && w.matches('.').count() == 2 && w.len() > 50 {
+                return Some(w.to_string());
+            }
+        }
+        None
+    }
+
+    fn base64url_decode(input: &str) -> Result<Vec<u8>, ()> {
+        use base64::{Engine as _, engine::general_purpose};
+
+        let mut padded = input.replace('-', "+").replace('_', "/");
+        let pad_len = (4 - padded.len() % 4) % 4;
+        padded.extend(std::iter::repeat('=').take(pad_len));
+
+        general_purpose::STANDARD.decode(&padded).map_err(|_| ())
     }
 }

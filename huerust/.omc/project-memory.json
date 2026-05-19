@@ -118,8 +118,8 @@
   "hotPaths": [
     {
       "path": "src/user_config.rs",
-      "accessCount": 20,
-      "lastAccessed": 1779217635186,
+      "accessCount": 22,
+      "lastAccessed": 1779218636171,
       "type": "file"
     },
     {
@@ -138,6 +138,12 @@
       "path": "src/proxy/mod.rs",
       "accessCount": 2,
       "lastAccessed": 1779215509901,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/dramacool.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779218724700,
       "type": "file"
     }
   ],
