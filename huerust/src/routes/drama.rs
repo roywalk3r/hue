@@ -279,21 +279,74 @@ pub async fn drama_detail_handler(
     State(state): State<DramaState>,
     Query(params): Query<DetailQuery>,
 ) -> Response {
-    // ── Try Dramacool first (curated drama content, reliable) ──
-    match state.dramacool.get_detail(&params.q).await {
-        Ok(Some((show, info))) => {
-            let episodes = info.episodes.iter().enumerate().map(|(idx, ep)| {
-                let number = (idx + 1) as u32;
-                serde_json::json!({
-                    "id": ep.episode_id.clone(),
-                    "number": number,
-                    "title": ep.title.clone()
-                })
-            }).collect::<Vec<_>>();
-            let episode_count = episodes.len();
+    // ── Curated source: MovieBox (primary drama content) ──
+    let moviebox_items = match state.moviebox.search(&params.q, 1, 2).await {
+        Ok(items) if !items.is_empty() => items,
+        Ok(_) => {
+            tracing::info!("[drama_detail] MovieBox no results for '{}'", params.q);
+            Vec::new()
+        }
+        Err(e) => {
+            tracing::warn!("[drama_detail] MovieBox search error for '{}': {}", params.q, e);
+            Vec::new()
+        }
+    };
 
-            // Enrich cover via TMDB since Dramacool doesn't provide images
-            let mut cover = String::new();
+    if !moviebox_items.is_empty() {
+        let best = &moviebox_items[0];
+        let mut cover = best.cover.clone().unwrap_or_default();
+        let detail_path = best.detail_path.clone().unwrap_or_default();
+
+        // Try to enrich episodes from MovieBox detail endpoint
+        let mut episodes: Vec<serde_json::Value> = Vec::new();
+        if !detail_path.is_empty() {
+            match state.moviebox.get_detail(&detail_path).await {
+                Ok(detail_data) => {
+                    let inner = &detail_data["data"];
+                    // Heuristic extraction — MovieBox uses various keys across versions
+                    let episode_arr = inner["episodes"].as_array()
+                        .or_else(|| inner["episodeList"].as_array())
+                        .or_else(|| inner["episodeVoList"].as_array())
+                        .or_else(|| inner["series"].as_array())
+                        .or_else(|| {
+                            inner["seasonList"].as_array().and_then(|seasons| {
+                                seasons.iter().find_map(|s| s["episodes"].as_array())
+                            })
+                        })
+                        .or_else(|| detail_data["episodes"].as_array())
+                        .or_else(|| detail_data["episodeList"].as_array());
+
+                    if let Some(arr) = episode_arr {
+                        episodes = arr.iter().enumerate().filter_map(|(idx, ep)| {
+                            let number = ep["number"].as_u64()
+                                .or_else(|| ep["episodeNumber"].as_u64())
+                                .or_else(|| ep["idx"].as_u64())
+                                .or_else(|| ep["index"].as_u64())
+                                .unwrap_or(idx as u64 + 1);
+                            let id = ep["id"].as_str()
+                                .or_else(|| ep["episodeId"].as_str())
+                                .unwrap_or(&number.to_string())
+                                .to_string();
+                            let title = ep["title"].as_str()
+                                .or_else(|| ep["name"].as_str())
+                                .unwrap_or(&format!("Episode {}", number))
+                                .to_string();
+                            Some(serde_json::json!({
+                                "id": id,
+                                "number": number,
+                                "title": title
+                            }))
+                        }).collect();
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("[drama_detail] MovieBox get_detail({}) failed: {}", detail_path, e);
+                }
+            }
+        }
+
+        // Fallback: if no cover, try TMDB
+        if cover.is_empty() {
             match state.tmdb.search(&params.q, "multi", None).await {
                 Ok(tmdb_results) => {
                     if let Some(first) = tmdb_results.first() {
@@ -306,34 +359,28 @@ pub async fn drama_detail_handler(
                     tracing::warn!("[drama_detail] TMDB search for '{}' failed: {}", params.q, e);
                 }
             }
+        }
 
-            let year = show.release_year.as_ref().and_then(|y| y.parse::<u32>().ok());
+        let episode_count = if episodes.is_empty() { 1 } else { episodes.len() };
 
-            let response = serde_json::json!({
-                "success": true,
-                "provider": "dramacool",
-                "id": show.id,
-                "title": show.title,
-                "cover": cover,
-                "description": "",
-                "year": year,
-                "country": "",
-                "status": "",
-                "genre": "",
-                "episodes": episodes,
-                "episode_count": episode_count
-            });
-            return (StatusCode::OK, serde_json::to_string(&response).unwrap()).into_response();
-        }
-        Ok(None) => {
-            tracing::info!("[drama_detail] Dramacool no results for '{}'", params.q);
-        }
-        Err(e) => {
-            tracing::warn!("[drama_detail] Dramacool error for '{}': {}", params.q, e);
-        }
+        let response = serde_json::json!({
+            "success": true,
+            "provider": "moviebox",
+            "id": best.id,
+            "title": best.title,
+            "cover": cover,
+            "description": best.description.as_deref().unwrap_or(""),
+            "year": best.release_date.as_ref().and_then(|d| d.split('-').next()).and_then(|y| y.parse::<u32>().ok()),
+            "country": best.genre.as_deref().unwrap_or(""),
+            "status": "",
+            "genre": best.genre.as_deref().unwrap_or(""),
+            "episodes": episodes,
+            "episode_count": episode_count
+        });
+        return (StatusCode::OK, serde_json::to_string(&response).unwrap()).into_response();
     }
 
-    // ── Fallback to KissKH (Cloudflare-challenged) ──
+    // ── Fallback to KissKH ──
     let kisskh_show_id = params.id.as_ref().and_then(|id| id.parse::<u64>().ok());
 
     let kisskh_result = if let Some(id) = kisskh_show_id {
@@ -417,29 +464,6 @@ pub async fn drama_detail_handler(
             "episode_count": episode_count
         });
         return (StatusCode::OK, serde_json::to_string(&response).unwrap()).into_response();
-    }
-
-    // ── Last resort: MovieBox ──
-    match state.moviebox.search(&params.q, 1, 0).await {
-        Ok(items) if !items.is_empty() => {
-            let best = &items[0];
-            let response = serde_json::json!({
-                "success": true,
-                "provider": "moviebox",
-                "id": best.id,
-                "title": best.title,
-                "cover": best.cover.as_deref().unwrap_or(""),
-                "description": best.description.as_deref().unwrap_or(""),
-                "year": best.release_date.as_ref().and_then(|d| d.split('-').next()).and_then(|y| y.parse::<u32>().ok()),
-                "country": best.genre.as_deref().unwrap_or(""),
-                "status": "",
-                "genre": best.genre.as_deref().unwrap_or(""),
-                "episodes": [],
-                "episode_count": 1
-            });
-            return (StatusCode::OK, serde_json::to_string(&response).unwrap()).into_response();
-        }
-        _ => {}
     }
 
     (StatusCode::NOT_FOUND, r#"{"success":false,"error":"No detail found"}"#).into_response()
