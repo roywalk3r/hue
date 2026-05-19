@@ -21,6 +21,7 @@ const TARGET_URL = 'https://kisskh.ovh/';
 const COOKIE_FILE = process.env.KISSKH_COOKIE_FILE || 'data/kisskh-cookies.json';
 const HEADLESS = process.env.HEADLESS !== 'false';
 const TIMEOUT_MS = parseInt(process.env.CF_TIMEOUT || '60000', 10);
+const PROXY_SERVER = process.env.KISSKH_PROXY || ''; // e.g. socks5://127.0.0.1:1080
 
 async function hasChallenge(page) {
   const title = await page.title().catch(() => '');
@@ -46,7 +47,12 @@ async function refreshCookies() {
 
   let browser;
   try {
-    browser = await chromium.launch({ headless: HEADLESS });
+    const launchOpts = { headless: HEADLESS };
+    if (PROXY_SERVER) {
+      launchOpts.proxy = { server: PROXY_SERVER };
+      console.log(`[KissKH-Cookies] Using proxy: ${PROXY_SERVER}`);
+    }
+    browser = await chromium.launch(launchOpts);
     const context = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
       viewport: { width: 1920, height: 1080 },
@@ -54,15 +60,28 @@ async function refreshCookies() {
 
     const page = await context.newPage();
 
-    // Navigate — use networkidle so the challenge JS has time to run
-    await page.goto(TARGET_URL, { waitUntil: 'networkidle', timeout: TIMEOUT_MS });
+    // Extra evasion: mask webdriver
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+      window.chrome = { runtime: {} };
+    });
 
-    // Wait for challenge to resolve
+    // Navigate — use domcontentloaded so we don't wait forever on blocked assets
+    await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
+
+    // Wait for challenge to resolve — poll aggressively
     const start = Date.now();
     let challengePassed = false;
+    let lastHtml = '';
     while (Date.now() - start < TIMEOUT_MS) {
-      const challenge = await hasChallenge(page);
-      if (!challenge) {
+      const html = await page.content().catch(() => '');
+      lastHtml = html;
+      if (!html.includes('challenge') && !html.includes('Checking your browser') && !html.includes('Just a moment')) {
+        challengePassed = true;
+        break;
+      }
+      const title = await page.title().catch(() => '');
+      if (title !== 'Just a moment...') {
         challengePassed = true;
         break;
       }
@@ -72,7 +91,9 @@ async function refreshCookies() {
     process.stdout.write('\n');
 
     if (!challengePassed) {
-      console.error('[KissKH-Cookies] Cloudflare challenge did not resolve in time');
+      const title = await page.title().catch(() => '');
+      console.error(`[KissKH-Cookies] Challenge failed. Page title: "${title}"`);
+      console.error(`[KissKH-Cookies] HTML snippet (first 800 chars):\n${lastHtml.substring(0, 800)}`);
       await browser.close();
       process.exit(1);
     }
