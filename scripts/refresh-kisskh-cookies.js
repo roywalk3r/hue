@@ -1,14 +1,13 @@
 /**
  * KissKH Cloudflare Cookie Refresher
  *
- * Uses Playwright to visit kisskh.ovh, solve the Cloudflare challenge,
+ * Uses Playwright to visit kisskh.ovh, wait out the Cloudflare challenge,
  * extract session cookies, and save them for the Rust backend to use.
  *
  * Usage:
  *   node scripts/refresh-kisskh-cookies.js
- *   # or via cron every 30 minutes
+ *   HEADLESS=false node scripts/refresh-kisskh-cookies.js
  *
-
  * @author roywalk3r <roywalker440@gmail.com>
  * @repository https://github.com/roywalk3r/hue.git
  * @license MIT
@@ -21,10 +20,29 @@ const path = require('path');
 const TARGET_URL = 'https://kisskh.ovh/';
 const COOKIE_FILE = process.env.KISSKH_COOKIE_FILE || 'data/kisskh-cookies.json';
 const HEADLESS = process.env.HEADLESS !== 'false';
-const TIMEOUT_MS = parseInt(process.env.CF_TIMEOUT || '30000', 10);
+const TIMEOUT_MS = parseInt(process.env.CF_TIMEOUT || '60000', 10);
+
+async function hasChallenge(page) {
+  const title = await page.title().catch(() => '');
+  if (title === 'Just a moment...') return true;
+
+  const selectors = [
+    '#challenge-running',
+    '#challenge-form',
+    '.cf-challenge-running',
+    'div:has-text("Checking your browser")',
+  ];
+  for (const sel of selectors) {
+    try {
+      const count = await page.locator(sel).count();
+      if (count > 0) return true;
+    } catch { /* ignore */ }
+  }
+  return false;
+}
 
 async function refreshCookies() {
-  console.log(`[KissKH-Cookies] Starting refresh via Playwright (headless=${HEADLESS})`);
+  console.log(`[KissKH-Cookies] Starting refresh via Playwright (headless=${HEADLESS}, timeout=${TIMEOUT_MS}ms)`);
 
   let browser;
   try {
@@ -36,34 +54,22 @@ async function refreshCookies() {
 
     const page = await context.newPage();
 
-    // Navigate and wait for challenge to resolve
-    await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
+    // Navigate — use networkidle so the challenge JS has time to run
+    await page.goto(TARGET_URL, { waitUntil: 'networkidle', timeout: TIMEOUT_MS });
 
-    // Cloudflare challenge pages have specific text indicators
-    const challengeSelectors = [
-      '#challenge-running',
-      '#challenge-form',
-      '.cf-challenge-running',
-      'title:has-text("Just a moment")',
-      'text=Just a moment',
-      'text=Checking your browser',
-    ];
-
-    // Wait for challenge to disappear or content to appear
+    // Wait for challenge to resolve
     const start = Date.now();
     let challengePassed = false;
     while (Date.now() - start < TIMEOUT_MS) {
-      const title = await page.title().catch(() => '');
-      const hasChallenge = challengeSelectors.some(async sel => {
-        try { return await page.locator(sel).count() > 0; } catch { return false; }
-      });
-
-      if (title !== 'Just a moment...' && !hasChallenge) {
+      const challenge = await hasChallenge(page);
+      if (!challenge) {
         challengePassed = true;
         break;
       }
-      await page.waitForTimeout(1000);
+      process.stdout.write('.');
+      await page.waitForTimeout(2000);
     }
+    process.stdout.write('\n');
 
     if (!challengePassed) {
       console.error('[KissKH-Cookies] Cloudflare challenge did not resolve in time');
@@ -82,7 +88,7 @@ async function refreshCookies() {
       url: TARGET_URL,
       fetchedAt: new Date().toISOString(),
       cookies: cookieMap,
-      cookieHeader: cookies.map(c => `${c.name}=${c.value}`).join('; '),
+      cookie_header: cookies.map(c => `${c.name}=${c.value}`).join('; '),
     };
 
     // Ensure directory exists
@@ -91,7 +97,7 @@ async function refreshCookies() {
 
     fs.writeFileSync(COOKIE_FILE, JSON.stringify(payload, null, 2));
     console.log(`[KissKH-Cookies] Saved ${cookies.length} cookies to ${COOKIE_FILE}`);
-    console.log(`[KissKH-Cookies] Cookie header: ${payload.cookieHeader.substring(0, 120)}...`);
+    console.log(`[KissKH-Cookies] Cookie header: ${payload.cookie_header.substring(0, 120)}...`);
 
     await browser.close();
   } catch (err) {
