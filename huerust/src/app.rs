@@ -229,6 +229,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/anime/episodes/:id", get(crate::routes::anime::episodes_handler))
         .route("/api/anime/servers", get(crate::routes::anime::servers_handler))
         .route("/api/anime/stream", get(crate::routes::anime::stream_handler))
+        .route("/api/anime/filter", axum::routing::post(crate::routes::anime::filter_handler))
         .route("/api/status", get(crate::routes::system::status_handler))
         .merge(SwaggerUi::new("/api/docs").url("/api/docs/openapi.json", crate::openapi::ApiDoc::openapi()))
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit_middleware))

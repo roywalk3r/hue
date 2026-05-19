@@ -190,6 +190,17 @@ impl HianimeClient {
         Ok(resp.json().await?)
     }
 
+    pub async fn filter(&self, body: serde_json::Value) -> Result<serde_json::Value> {
+        let url = format!("{}/filter", API_BASE);
+        let resp = self.client
+            .post(&url)
+            .headers(self.base_headers())
+            .json(&body)
+            .send()
+            .await?;
+        Ok(resp.json().await?)
+    }
+
     pub async fn get_home(&self) -> Result<serde_json::Value> {
         let url = format!("{}/home?slugNth=12&includeSlugs=false", API_BASE);
         let resp = self.client

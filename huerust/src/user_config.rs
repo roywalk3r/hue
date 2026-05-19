@@ -66,6 +66,15 @@ impl HueUserConfig {
         if let Ok(p) = std::env::var("USER_CONFIG_PATH") {
             return PathBuf::from(p);
         }
+        // Try relative to executable directory first (works regardless of CWD)
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(exe_dir) = exe.parent() {
+                let from_exe = exe_dir.join("../utils/user-config.json");
+                if from_exe.exists() {
+                    return from_exe;
+                }
+            }
+        }
         let candidates = [
             "../utils/user-config.json",
             "../../utils/user-config.json",

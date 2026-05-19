@@ -230,6 +230,12 @@
   },
   "hotPaths": [
     {
+      "path": "utils/openapi-spec.js",
+      "accessCount": 15,
+      "lastAccessed": 1779187723441,
+      "type": "file"
+    },
+    {
       "path": "apiServer.js",
       "accessCount": 12,
       "lastAccessed": 1779184786326,
@@ -248,15 +254,15 @@
       "type": "file"
     },
     {
-      "path": "utils/openapi-spec.js",
-      "accessCount": 6,
-      "lastAccessed": 1779184772670,
-      "type": "file"
-    },
-    {
       "path": "nginx-vexli.conf",
       "accessCount": 6,
       "lastAccessed": 1779185356212,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/routes/anime.rs",
+      "accessCount": 6,
+      "lastAccessed": 1779186387514,
       "type": "file"
     },
     {
@@ -272,6 +278,18 @@
       "type": "file"
     },
     {
+      "path": "huerust/src/routes/drama.rs",
+      "accessCount": 4,
+      "lastAccessed": 1779185733794,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/app.rs",
+      "accessCount": 4,
+      "lastAccessed": 1779186397282,
+      "type": "file"
+    },
+    {
       "path": "huerust/src/providers/kisskh_provider.rs",
       "accessCount": 3,
       "lastAccessed": 1779109951577,
@@ -281,6 +299,18 @@
       "path": "scraperServer.js",
       "accessCount": 3,
       "lastAccessed": 1779118668117,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/user_config.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779185716845,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/clients/hianime.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779186362753,
       "type": "file"
     },
     {
@@ -305,12 +335,6 @@
       "path": "huerust/src/clients/vidrock.rs",
       "accessCount": 2,
       "lastAccessed": 1779111317561,
-      "type": "file"
-    },
-    {
-      "path": "huerust/src/app.rs",
-      "accessCount": 2,
-      "lastAccessed": 1779181884547,
       "type": "file"
     },
     {

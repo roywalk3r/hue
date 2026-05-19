@@ -407,3 +407,26 @@ pub async fn stream_handler(
         }
     }
 }
+
+use axum::extract::Json;
+
+#[derive(Deserialize)]
+pub struct FilterBody {
+    #[serde(flatten)]
+    pub extra: std::collections::HashMap<String, serde_json::Value>,
+}
+
+pub async fn filter_handler(
+    State(state): State<AnimeState>,
+    Json(body): Json<FilterBody>,
+) -> Response {
+    info!("[anime] filter: {:?}", body.extra);
+    let payload = serde_json::to_value(&body.extra).unwrap_or_default();
+    match state.hianime.filter(payload).await {
+        Ok(raw) => success_json(raw),
+        Err(e) => {
+            warn!("[anime] filter error: {}", e);
+            error_json(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
+        }
+    }
+}

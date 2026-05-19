@@ -60,7 +60,10 @@ pub async fn kisskh_search_handler(
 ) -> Response {
     match state.kisskh.search(&params.q).await {
         Ok(items) => (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => {
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
     }
 }
 
@@ -95,7 +98,10 @@ pub async fn kisskh_show_handler(
 ) -> Response {
     match state.kisskh.get_show_list().await {
         Ok(items) => (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => {
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
     }
 }
 
@@ -113,21 +119,30 @@ pub async fn kisskh_browse_handler(
 
     match state.kisskh.get_list(page, content_type, sub, country, status, order).await {
         Ok(data) => (StatusCode::OK, serde_json::to_string(&data).unwrap()).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => {
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
     }
 }
 
 pub async fn kisskh_upcoming_handler(State(state): State<DramaState>) -> Response {
     match state.kisskh.get_upcoming().await {
         Ok(items) => (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => {
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
     }
 }
 
 pub async fn kisskh_top_rating_handler(State(state): State<DramaState>) -> Response {
     match state.kisskh.get_top_rating().await {
         Ok(items) => (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => {
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
     }
 }
 
@@ -139,7 +154,10 @@ pub async fn dramacool_search_handler(
 ) -> Response {
     match state.dramacool.search(&params.q).await {
         Ok(items) => (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => {
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
     }
 }
 
@@ -152,7 +170,10 @@ pub async fn dramacool_streams_handler(
             let proxied = wrap_with_proxy(streams, &state.proxy_base_url, &state.secret);
             (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
         }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => {
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
     }
 }
 
@@ -166,7 +187,10 @@ pub async fn moviebox_browse_handler(
     let per_page = params.per_page.unwrap_or(28);
     match state.moviebox.browse_rails(page, per_page, params.country.as_deref()).await {
         Ok(rails) => (StatusCode::OK, serde_json::to_string(&rails).unwrap()).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => {
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
     }
 }
 
@@ -178,7 +202,10 @@ pub async fn moviebox_search_handler(
     let subject_type = params.subject_type.unwrap_or(0);
     match state.moviebox.search(&params.q, page, subject_type).await {
         Ok(items) => (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => {
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
     }
 }
 
@@ -191,7 +218,10 @@ pub async fn moviebox_streams_handler(
             let proxied = wrap_with_proxy(streams, &state.proxy_base_url, &state.secret);
             (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
         }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => {
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
     }
 }
 
