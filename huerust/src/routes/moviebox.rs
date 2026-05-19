@@ -30,7 +30,6 @@ pub struct FilterQuery {
     pub country: Option<String>,
     #[allow(dead_code)]
     pub year: Option<String>,
-    #[allow(dead_code)]
     pub sort: Option<String>,
 }
 
@@ -272,7 +271,8 @@ pub async fn filter_handler(
     let page = params.page.unwrap_or(1);
     let per_page = params.per_page.unwrap_or(28);
     let country = params.country.as_deref();
-    match state.moviebox.filter(page, per_page, country).await {
+    let sort = params.sort.as_deref();
+    match state.moviebox.filter(page, per_page, country, sort).await {
         Ok(items) => {
             let resp = serde_json::json!({ "success": true, "page": page, "items": items });
             (StatusCode::OK, serde_json::to_string(&resp).unwrap()).into_response()

@@ -230,15 +230,15 @@
   },
   "hotPaths": [
     {
-      "path": "utils/openapi-spec.js",
-      "accessCount": 18,
-      "lastAccessed": 1779189411427,
+      "path": "huerust/src/routes/drama.rs",
+      "accessCount": 29,
+      "lastAccessed": 1779198087033,
       "type": "file"
     },
     {
-      "path": "huerust/src/routes/drama.rs",
+      "path": "utils/openapi-spec.js",
       "accessCount": 18,
-      "lastAccessed": 1779194561929,
+      "lastAccessed": 1779189411427,
       "type": "file"
     },
     {
@@ -257,6 +257,12 @@
       "path": "scripts/refresh-kisskh-cookies.js",
       "accessCount": 10,
       "lastAccessed": 1779194312417,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/clients/moviebox.rs",
+      "accessCount": 8,
+      "lastAccessed": 1779198032603,
       "type": "file"
     },
     {
@@ -296,21 +302,33 @@
       "type": "file"
     },
     {
+      "path": "huerust/src/providers/dramacool.rs",
+      "accessCount": 5,
+      "lastAccessed": 1779196001842,
+      "type": "file"
+    },
+    {
       "path": "huerust/src/app.rs",
+      "accessCount": 5,
+      "lastAccessed": 1779197889357,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/routes/moviebox.rs",
+      "accessCount": 5,
+      "lastAccessed": 1779198063127,
+      "type": "file"
+    },
+    {
+      "path": "scraperServer.js",
       "accessCount": 4,
-      "lastAccessed": 1779186397282,
+      "lastAccessed": 1779197529752,
       "type": "file"
     },
     {
       "path": "huerust/src/providers/kisskh_provider.rs",
       "accessCount": 3,
       "lastAccessed": 1779109951577,
-      "type": "file"
-    },
-    {
-      "path": "scraperServer.js",
-      "accessCount": 3,
-      "lastAccessed": 1779118668117,
       "type": "file"
     },
     {
@@ -338,12 +356,6 @@
       "type": "file"
     },
     {
-      "path": "huerust/src/clients/moviebox.rs",
-      "accessCount": 2,
-      "lastAccessed": 1779109932939,
-      "type": "file"
-    },
-    {
       "path": "huerust/src/clients/vidrock.rs",
       "accessCount": 2,
       "lastAccessed": 1779111317561,
@@ -353,6 +365,12 @@
       "path": "huerust/Cargo.toml",
       "accessCount": 2,
       "lastAccessed": 1779192173874,
+      "type": "file"
+    },
+    {
+      "path": "providers/dramacool.js",
+      "accessCount": 2,
+      "lastAccessed": 1779197152386,
       "type": "file"
     },
     {
@@ -395,6 +413,12 @@
       "path": "huerust/src/filters.rs",
       "accessCount": 1,
       "lastAccessed": 1779109852208,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/providers/dramacool_provider.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779195976201,
       "type": "file"
     }
   ],

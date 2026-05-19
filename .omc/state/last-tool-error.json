@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"ssh root@srv1450339 'sudo nginx -T 2>/dev/null | grep -B 2 -A 8 \\\"location /api/\\\"'\",\"description\":\"Dump effective nginx config for /api/ blocks\"}",
-  "error": "Exit code 255\nssh: Could not resolve hostname srv1450339: Name or service not known",
-  "timestamp": "2026-05-19T09:32:34.313Z",
+  "tool_input_preview": "{\"command\":\"cargo check\",\"timeout\":120000,\"description\":\"Check Rust backend compilation\"}",
+  "error": "Exit code 101\nerror: could not find `Cargo.toml` in `/mnt/devdrive/projects/Misc/hue` or any parent directory",
+  "timestamp": "2026-05-19T13:49:53.396Z",
   "retry_count": 1
 }
