@@ -231,8 +231,8 @@
   "hotPaths": [
     {
       "path": "apiServer.js",
-      "accessCount": 9,
-      "lastAccessed": 1779118681003,
+      "accessCount": 12,
+      "lastAccessed": 1779184786326,
       "type": "file"
     },
     {
@@ -245,6 +245,12 @@
       "path": "huerust/src/proxy/mod.rs",
       "accessCount": 7,
       "lastAccessed": 1779116795663,
+      "type": "file"
+    },
+    {
+      "path": "utils/openapi-spec.js",
+      "accessCount": 6,
+      "lastAccessed": 1779184772670,
       "type": "file"
     },
     {
@@ -269,12 +275,6 @@
       "path": "scraperServer.js",
       "accessCount": 3,
       "lastAccessed": 1779118668117,
-      "type": "file"
-    },
-    {
-      "path": "utils/openapi-spec.js",
-      "accessCount": 3,
-      "lastAccessed": 1779119671659,
       "type": "file"
     },
     {

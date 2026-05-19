@@ -154,12 +154,12 @@ const buildOpenApiSpec = require('./utils/openapi-spec');
 
 app.get('/api/docs/openapi.json', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.json(buildOpenApiSpec());
+  res.json(buildOpenApiSpec(req));
 });
 
 app.get('/api/docs/swagger.json', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.json(buildOpenApiSpec());
+  res.json(buildOpenApiSpec(req));
 });
 
 app.use('/api/docs/swagger', swaggerUi.serve, swaggerUi.setup(null, { swaggerOptions: { url: '/api/docs/swagger.json' } }));

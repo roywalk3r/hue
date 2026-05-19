@@ -12,7 +12,11 @@
  */
 const pkg = require('../package.json');
 
-function buildOpenApiSpec() {
+function buildOpenApiSpec(req) {
+  const host = req?.headers?.host || process.env.API_DOMAIN || '187.124.19.247';
+  const protocol = req?.headers?.['x-forwarded-proto'] === 'https' || req?.socket?.encrypted ? 'https' : 'http';
+  const serverUrl = host.includes(':') ? `${protocol}://${host}` : `${protocol}://${host}`;
+
   return {
     openapi: '3.1.0',
     info: {
@@ -22,8 +26,7 @@ function buildOpenApiSpec() {
       contact: { name: 'System Administrator' },
     },
     servers: [
-      { url: 'http://187.124.19.247:24609', description: 'Rust Backend (Streams & Proxy)' },
-      { url: 'http://187.124.19.247:24608', description: 'Node.js Backend (Auth, Sports, Docs)' },
+      { url: serverUrl, description: 'Unified API Gateway (nginx → Rust + Node.js)' },
     ],
     tags: [
       { name: 'Telemetry', description: 'Real-time stream aggregation and resolution.' },
