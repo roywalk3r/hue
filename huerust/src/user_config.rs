@@ -63,52 +63,27 @@ impl HueUserConfig {
     }
 
     fn resolve_path() -> PathBuf {
-        // 1. Explicit env override
+        // 1. Explicit env override — portable across any VPS
         if let Ok(p) = std::env::var("USER_CONFIG_PATH") {
             return PathBuf::from(p);
         }
 
-        // 2. Standard XDG config dir: ~/.config/hue/user-config.json
-        if let Ok(home) = std::env::var("HOME") {
-            let xdg = PathBuf::from(&home).join(".config/hue/user-config.json");
-            if xdg.exists() {
-                return xdg;
-            }
-        }
-
-        // 3. Common home directories (root + all /home/* users)
-        for base in ["/root", "/home"] {
-            let root_xdg = PathBuf::from(base).join(".config/hue/user-config.json");
-            if root_xdg.exists() {
-                return root_xdg;
-            }
-        }
-        if let Ok(entries) = std::fs::read_dir("/home") {
-            for entry in entries.flatten() {
-                let p = entry.path().join(".config/hue/user-config.json");
-                if p.exists() {
-                    return p;
-                }
-            }
-        }
-
-        // 4. Relative to executable directory
+        // 2. Relative to executable directory (primary — matches Node.js refresh script)
+        //    e.g. huerust/target/release/huerust → ../../../utils/user-config.json
         if let Ok(exe) = std::env::current_exe() {
             if let Some(exe_dir) = exe.parent() {
-                // Try: release → target → huerust → hue/utils/user-config.json
-                let from_exe_deep = exe_dir.join("../../../utils/user-config.json");
-                if from_exe_deep.exists() {
-                    return from_exe_deep;
+                let from_exe = exe_dir.join("../../../utils/user-config.json");
+                if from_exe.exists() {
+                    return from_exe;
                 }
-                // Fallback: one level up
-                let from_exe_shallow = exe_dir.join("../utils/user-config.json");
-                if from_exe_shallow.exists() {
-                    return from_exe_shallow;
+                let from_exe = exe_dir.join("../utils/user-config.json");
+                if from_exe.exists() {
+                    return from_exe;
                 }
             }
         }
 
-        // 5. Relative to current working directory
+        // 3. Relative to current working directory
         let candidates = [
             "utils/user-config.json",
             "../utils/user-config.json",
@@ -121,11 +96,7 @@ impl HueUserConfig {
             }
         }
 
-        // Default: prefer XDG path so the file can be created there
-        if let Ok(home) = std::env::var("HOME") {
-            return PathBuf::from(&home).join(".config/hue/user-config.json");
-        }
-        PathBuf::from("/root/.config/hue/user-config.json")
+        PathBuf::from("utils/user-config.json")
     }
 
     pub fn sflix_cookie_or_env(&self, fallback: &str) -> String {
@@ -154,7 +125,7 @@ impl HueUserConfig {
             .clone()
             .or_else(|| std::env::var("MOVIEBOX_X_USER").ok())
             .unwrap_or_else(|| {
-                warn!("[HueConfig] moviebox_x_user not configured; using fallback JWT. Set it in ~/.config/hue/user-config.json or MOVIEBOX_X_USER env.");
+                warn!("[HueConfig] moviebox_x_user not configured; using fallback JWT. Set it in utils/user-config.json or MOVIEBOX_X_USER env.");
                 fallback.to_string()
             })
     }
