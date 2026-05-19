@@ -39,6 +39,7 @@ pub struct ProxyQuery {
 pub struct TsProxyQuery {
     pub h_token: Option<String>,
     pub url: Option<String>,
+    pub headers: Option<String>, // JSON-encoded headers for url mode
     pub range: Option<String>,
     #[allow(dead_code)]
     pub clamp_open: Option<u32>,
@@ -84,7 +85,10 @@ fn resolve_ts_target(
         }
     }
     if let Some(url) = &params.url {
-        return Some((url.clone(), None));
+        let headers = params.headers.as_ref().and_then(|h| {
+            serde_json::from_str::<HashMap<String, String>>(h).ok()
+        });
+        return Some((url.clone(), headers));
     }
     None
 }
