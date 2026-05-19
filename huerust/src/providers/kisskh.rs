@@ -18,6 +18,18 @@ use std::time::{Duration, Instant};
 
 const API_BASE: &str = "https://kisskh.ovh/api";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+/// Path to the cookie file written by the Node.js Playwright refresh script.
+/// Defaults to `data/kisskh-cookies.json` (relative to CWD); override with `KISSKH_COOKIE_FILE` env var.
+fn kisskh_cookie_file() -> String {
+    std::env::var("KISSKH_COOKIE_FILE")
+        .unwrap_or_else(|_| "../data/kisskh-cookies.json".to_string())
+}
+
+/// Playwright-extracted cookie payload from Node.js
+#[derive(Debug, Deserialize)]
+struct CookieFile {
+    cookie_header: String,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct KissKhSearchItem {
@@ -62,22 +74,50 @@ const KISSKH_SUB_VIGUID: &str = "VgV52sWhwvBSf8BsM3BRY9weWiiCbtGp";
 pub struct KissKhClient {
     client: Client,
     common_js_cache: Mutex<Option<(String, Instant)>>,
+    cookie_header: Mutex<Option<String>>,
 }
 
 impl KissKhClient {
     pub fn new() -> Self {
-        Self {
-            client: Client::builder()
-                .user_agent(USER_AGENT)
-                .tcp_keepalive(std::time::Duration::from_secs(60))
-                .connect_timeout(std::time::Duration::from_secs(10))
-                .pool_max_idle_per_host(2)
-                .pool_idle_timeout(std::time::Duration::from_secs(90))
-                .timeout(std::time::Duration::from_secs(15))
-                .build()
-                .unwrap(),
-            common_js_cache: Mutex::new(None),
+        let client = Client::builder()
+            .user_agent(USER_AGENT)
+            .tcp_keepalive(std::time::Duration::from_secs(60))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .pool_max_idle_per_host(2)
+            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .timeout(std::time::Duration::from_secs(15))
+            .build()
+            .unwrap();
+
+        let cookie_header = Self::load_cookies_from_file();
+        if cookie_header.is_some() {
+            info!("[KissKH] Loaded cookies from {}", kisskh_cookie_file());
         }
+
+        Self {
+            client,
+            common_js_cache: Mutex::new(None),
+            cookie_header: Mutex::new(cookie_header),
+        }
+    }
+
+    /// Try to load cookies written by the Node.js Playwright refresh script.
+    fn load_cookies_from_file() -> Option<String> {
+        let raw = std::fs::read_to_string(kisskh_cookie_file()).ok()?;
+        let parsed: CookieFile = serde_json::from_str(&raw).ok()?;
+        if parsed.cookie_header.is_empty() { return None; }
+        Some(parsed.cookie_header)
+    }
+
+    /// Build a GET request, injecting the stored Cookie header if available.
+    fn get(&self, url: &str) -> reqwest::RequestBuilder {
+        let mut req = self.client.get(url);
+        if let Ok(lock) = self.cookie_header.lock() {
+            if let Some(ref cookie) = *lock {
+                req = req.header("Cookie", cookie.clone());
+            }
+        }
+        req
     }
 
     /// Generate a kkey token for the given episode ID and viGuid.
@@ -93,8 +133,9 @@ impl KissKhClient {
             }
         }
 
-        // Fetch common.js
-        let js_code = reqwest::get("https://kisskh.ovh/common.js").await
+        // Fetch common.js (with cookies to bypass CF)
+        let js_code = self.get("https://kisskh.ovh/common.js")
+            .send().await
             .map_err(|e| anyhow!("Failed to fetch common.js: {}", e))?
             .text().await
             .map_err(|e| anyhow!("Failed to read common.js: {}", e))?;
@@ -152,14 +193,14 @@ console.log(token);
 
     pub async fn search(&self, title: &str) -> Result<Vec<KissKhSearchItem>> {
         let url = format!("{}/DramaList/Search?q={}", API_BASE, urlencoding::encode(title));
-        let resp = self.client.get(&url).send().await?;
+        let resp = self.get(&url).send().await?;
         let data = resp.json::<Vec<KissKhSearchItem>>().await?;
         Ok(data)
     }
 
     pub async fn get_episode_id(&self, show_id: u64, ep_num: u32) -> Result<Option<u64>> {
         let url = format!("{}/DramaList/Drama/{}?is_series=1", API_BASE, show_id);
-        let resp = self.client.get(&url).send().await?;
+        let resp = self.get(&url).send().await?;
         let data = resp.json::<KissKhDramaDetail>().await?;
         
         let ep = data.episodes.iter().find(|e| e.number.floor() as u32 == ep_num);
@@ -177,7 +218,7 @@ console.log(token);
         };
 
         let url = format!("{}/DramaList/Episode/{}.png?err=false&ts=0&time=0&kkey={}", API_BASE, ep_id, kkey);
-        let resp = self.client.get(&url).send().await?;
+        let resp = self.get(&url).send().await?;
 
         let text = resp.text().await?;
         if text.contains("<!DOCTYPE") {
@@ -210,7 +251,7 @@ console.log(token);
         };
 
         let url = format!("{}/Sub/{}?kkey={}", API_BASE, ep_id, kkey);
-        let resp = self.client.get(&url).send().await?;
+        let resp = self.get(&url).send().await?;
 
         let text = resp.text().await?;
         if text.contains("<!DOCTYPE") {
@@ -340,7 +381,7 @@ console.log(token);
 
     pub async fn get_show_list(&self) -> Result<Vec<serde_json::Value>> {
         let url = format!("{}/DramaList/Show", API_BASE);
-        let resp = self.client.get(&url).send().await?;
+        let resp = self.get(&url).send().await?;
         let data = resp.json::<Vec<serde_json::Value>>().await?;
         Ok(data)
     }
@@ -350,28 +391,28 @@ console.log(token);
             "{}/DramaList/List?page={}&type={}&sub={}&country={}&status={}&order={}",
             API_BASE, page, type_, sub, country, status, order
         );
-        let resp = self.client.get(&url).send().await?;
+        let resp = self.get(&url).send().await?;
         let data = resp.json::<serde_json::Value>().await?;
         Ok(data)
     }
 
     pub async fn get_upcoming(&self) -> Result<Vec<serde_json::Value>> {
         let url = format!("{}/DramaList/upcoming", API_BASE);
-        let resp = self.client.get(&url).send().await?;
+        let resp = self.get(&url).send().await?;
         let data = resp.json::<Vec<serde_json::Value>>().await?;
         Ok(data)
     }
 
     pub async fn get_top_rating(&self) -> Result<Vec<serde_json::Value>> {
         let url = format!("{}/DramaList/TopRating?ispc=false", API_BASE);
-        let resp = self.client.get(&url).send().await?;
+        let resp = self.get(&url).send().await?;
         let data = resp.json::<Vec<serde_json::Value>>().await?;
         Ok(data)
     }
 
     pub async fn get_detail(&self, id: u64) -> Result<serde_json::Value> {
         let url = format!("{}/DramaList/Drama/{}?isq=false", API_BASE, id);
-        let resp = self.client.get(&url).send().await?;
+        let resp = self.get(&url).send().await?;
         let data = resp.json::<serde_json::Value>().await?;
         Ok(data)
     }
