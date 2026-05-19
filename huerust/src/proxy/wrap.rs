@@ -18,13 +18,6 @@ pub(crate) fn wrap_with_proxy(streams: Vec<StreamResult>, proxy_base: &str, secr
 
         let is_hls = s.format == "hls" || s.url.contains(".m3u8");
 
-        // Cinema (MovieBox) MP4 streams come from a CDN that IP-blocks server/datacenter
-        // ranges. Proxying them through our server always 403s. Return the raw URL with
-        // headers so the client (browser/player) fetches directly from its own IP.
-        if s.provider == "Cinema" && !is_hls {
-            return s;
-        }
-
         // Determine host for special provider routing
         let host = match Url::parse(&s.url) {
             Ok(u) => u.host_str().unwrap_or("").to_lowercase(),

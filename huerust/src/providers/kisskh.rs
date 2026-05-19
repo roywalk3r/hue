@@ -79,13 +79,14 @@ pub struct KissKhClient {
 
 impl KissKhClient {
     pub fn new() -> Self {
-        let client = Client::builder()
+        let builder = Client::builder()
             .user_agent(USER_AGENT)
             .tcp_keepalive(std::time::Duration::from_secs(60))
             .connect_timeout(std::time::Duration::from_secs(10))
             .pool_max_idle_per_host(2)
             .pool_idle_timeout(std::time::Duration::from_secs(90))
-            .timeout(std::time::Duration::from_secs(15))
+            .timeout(std::time::Duration::from_secs(15));
+        let client = crate::http_client::with_optional_proxy(builder, "KISSKH_PROXY_URL")
             .build()
             .unwrap();
 
@@ -417,7 +418,6 @@ console.log(token);
         Ok(data)
     }
 }
-
 
 
 

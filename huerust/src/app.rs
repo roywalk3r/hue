@@ -82,13 +82,16 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let dramacool_client = Arc::new(crate::providers::dramacool::DramacoolClient::new());
     let hianime_client = Arc::new(crate::clients::hianime::HianimeClient::new());
     let vixsrc_client = Arc::new(VixsrcClient::new(
-        Client::builder()
+        crate::http_client::with_optional_proxy(
+            Client::builder()
             .tcp_keepalive(Duration::from_secs(60))
             .connect_timeout(Duration::from_secs(8))
             .pool_max_idle_per_host(2)
             .pool_idle_timeout(Duration::from_secs(90))
             .timeout(Duration::from_secs(15))
-            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
+            "VIXSRC_PROXY_URL",
+        )
             .build()
             .unwrap(),
     ));
@@ -116,9 +119,12 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     registry.register(Arc::new(VideasyProvider::new(videasy_client.clone())));
 
     AppState {
-        client: Client::builder()
-            .tcp_keepalive(Duration::from_secs(60))
-            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        client: crate::http_client::with_optional_proxy(
+            Client::builder()
+                .tcp_keepalive(Duration::from_secs(60))
+                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
+            "STREAM_PROXY_URL",
+        )
             .build()
             .unwrap(),
         tmdb: tmdb.clone(),

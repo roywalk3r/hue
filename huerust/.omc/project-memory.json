@@ -118,26 +118,32 @@
   "hotPaths": [
     {
       "path": "src/user_config.rs",
-      "accessCount": 22,
-      "lastAccessed": 1779218636171,
-      "type": "file"
-    },
-    {
-      "path": "src/clients/moviebox.rs",
-      "accessCount": 3,
-      "lastAccessed": 1779205503375,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/drama.rs",
-      "accessCount": 3,
-      "lastAccessed": 1779205612842,
+      "accessCount": 24,
+      "lastAccessed": 1779219257491,
       "type": "file"
     },
     {
       "path": "src/proxy/mod.rs",
-      "accessCount": 2,
-      "lastAccessed": 1779215509901,
+      "accessCount": 7,
+      "lastAccessed": 1779220092622,
+      "type": "file"
+    },
+    {
+      "path": "src/proxy/wrap.rs",
+      "accessCount": 7,
+      "lastAccessed": 1779221335383,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/drama.rs",
+      "accessCount": 4,
+      "lastAccessed": 1779220458846,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/moviebox.rs",
+      "accessCount": 4,
+      "lastAccessed": 1779220503902,
       "type": "file"
     },
     {

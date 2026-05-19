@@ -10,7 +10,7 @@ use reqwest::{Client, header::{HeaderMap, HeaderValue, REFERER, USER_AGENT, ORIG
 use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use tracing::{info, warn};
-use crate::models::StreamResult;
+use crate::models::{StreamResult, Subtitle};
 
 const BASE_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff";
 const DEFAULT_X_USER: &str = r#"{"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjc1NjEyMzU2Nzc1NjA4NTMyODAsImF0cCI6MywiZXh0IjoiMTc3MTE0NDQ4MiIsImV4cCI6MTc3ODkyMDQ4MiwiaWF0IjoxNzcxMTQxNDk1fQ.BF7r1K_npeKWjkjuIxqZMTvUDxJ8oBjvSBc3glWcqtU","userId":"7561235677560853280","userType":0,"appType":2}"#;
@@ -39,6 +39,8 @@ pub struct MovieBoxItem {
 pub struct StreamData {
     pub streams: Option<Vec<MovieBoxStream>>,
     pub hls: Option<Vec<MovieBoxStream>>,
+    #[serde(skip)]
+    pub source_host: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -48,6 +50,25 @@ pub struct MovieBoxStream {
     pub quality: Option<String>,
     pub format: Option<String>,
     pub id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CaptionResponse {
+    code: i32,
+    data: Option<CaptionData>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CaptionData {
+    captions: Option<Vec<MovieBoxCaption>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MovieBoxCaption {
+    url: Option<String>,
+    lan: Option<String>,
+    #[serde(rename = "lanName")]
+    lan_name: Option<String>,
 }
 
 pub struct MovieBoxClient {
@@ -65,13 +86,14 @@ impl MovieBoxClient {
             warn!("[MovieBox] Default JWT is expired. Set moviebox_x_user in user-config.json to restore functionality.");
         }
         let host = uc.moviebox_host_or_env(&default_host);
+        let builder = Client::builder()
+            .timeout(std::time::Duration::from_secs(45))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .tcp_keepalive(std::time::Duration::from_secs(60))
+            .pool_max_idle_per_host(4)
+            .pool_idle_timeout(std::time::Duration::from_secs(90));
         Self {
-            client: Client::builder()
-                .timeout(std::time::Duration::from_secs(45))
-                .connect_timeout(std::time::Duration::from_secs(10))
-                .tcp_keepalive(std::time::Duration::from_secs(60))
-                .pool_max_idle_per_host(4)
-                .pool_idle_timeout(std::time::Duration::from_secs(90))
+            client: crate::http_client::with_optional_proxy(builder, "MOVIEBOX_PROXY_URL")
                 .build()
                 .unwrap(),
             host,
@@ -103,6 +125,55 @@ impl MovieBoxClient {
             headers.insert(COOKIE, v);
         }
         headers
+    }
+
+    fn get_stream_headers(&self, referer: &str) -> HashMap<String, String> {
+        let uc = crate::user_config::HueUserConfig::get_live();
+        let x_user = uc.moviebox_x_user_or_env(DEFAULT_X_USER);
+        let cookie = uc.moviebox_cookie_or_env(DEFAULT_COOKIE);
+        let ua = uc.moviebox_user_agent.as_deref().unwrap_or(DEFAULT_UA);
+
+        let mut headers = HashMap::new();
+        headers.insert("Accept".to_string(), "application/json".to_string());
+        headers.insert("User-Agent".to_string(), ua.to_string());
+        headers.insert("Origin".to_string(), format!("https://{}", self.host));
+        headers.insert("Referer".to_string(), referer.to_string());
+        headers.insert("x-user".to_string(), x_user);
+        headers.insert("x-client-info".to_string(), r#"{"timezone":"Pacific/Pago_Pago"}"#.to_string());
+        if !cookie.is_empty() {
+            headers.insert("Cookie".to_string(), cookie);
+        }
+        headers
+    }
+
+    fn play_hosts(&self) -> Vec<String> {
+        if let Ok(hosts) = std::env::var("MOVIEBOX_PLAY_HOSTS") {
+            let configured: Vec<String> = hosts
+                .split(|c| c == ',' || c == ';' || c == '\n')
+                .map(str::trim)
+                .filter(|h| !h.is_empty())
+                .map(|h| h.trim_start_matches("https://").trim_start_matches("http://").trim_end_matches('/').to_string())
+                .collect();
+            if !configured.is_empty() {
+                return configured;
+            }
+        }
+
+        let mut hosts = vec![self.host.clone()];
+        for host in ["moviebox.ph", "movibox.net", "moviebox.to"] {
+            if !hosts.iter().any(|h| h == host) {
+                hosts.push(host.to_string());
+            }
+        }
+        hosts
+    }
+
+    fn stream_referer_host(&self) -> String {
+        std::env::var("MOVIEBOX_REFERER_HOST")
+            .ok()
+            .filter(|h| !h.trim().is_empty())
+            .map(|h| h.trim_start_matches("https://").trim_start_matches("http://").trim_end_matches('/').to_string())
+            .unwrap_or_else(|| self.host.clone())
     }
 
     pub async fn search(&self, keyword: &str, page: u32, subject_type: u32) -> Result<Vec<MovieBoxItem>> {
@@ -159,13 +230,14 @@ impl MovieBoxClient {
         let is_movie = season == 0 && episode == 0;
         let type_label = if is_movie { "movie" } else { "series" };
 
-        // Race all host×timezone combos simultaneously — return the first successful response.
-        let hosts: &[&str] = &["moviebox.ph", "movibox.net", "123movienow.cc", "moviebox.to"];
+        // Race host×timezone combos simultaneously — return the first successful response.
+        // Keep this configurable because several MovieBox mirrors are region-blocked on VPSes.
+        let hosts = self.play_hosts();
         let timezones: &[&str] = &["Pacific/Pago_Pago", "Asia/Hong_Kong", "Europe/London", "America/New_York"];
 
         let mut set = tokio::task::JoinSet::new();
 
-        for (h_idx, &host) in hosts.iter().enumerate() {
+        for (h_idx, host) in hosts.iter().enumerate() {
             let max_tz = if h_idx == 0 { 1 } else { 2 };
             for &tz in timezones.iter().take(max_tz) {
                 let client = self.client.clone();
@@ -173,7 +245,7 @@ impl MovieBoxClient {
                 let subject_id = subject_id.to_string();
                 let detail_path = detail_path.to_string();
                 let type_label = type_label.to_string();
-                let host = host.to_string();
+                let host = host.clone();
                 let tz = tz.to_string();
                 let season = season;
                 let episode = episode;
@@ -204,7 +276,9 @@ impl MovieBoxClient {
                             if text.contains("<!DOCTYPE") { return None; }
                             let data: serde_json::Value = serde_json::from_str(&text).ok()?;
                             if data["code"] == 0 {
-                                return serde_json::from_value(data["data"].clone()).ok();
+                                let mut stream_data: StreamData = serde_json::from_value(data["data"].clone()).ok()?;
+                                stream_data.source_host = Some(host);
+                                return Some(stream_data);
                             }
                             if data["message"] == "invalid region" {
                                 warn!("[MovieBox Rust] Region blocked on {}", host);
@@ -225,6 +299,58 @@ impl MovieBoxClient {
         }
 
         Ok(None)
+    }
+
+    async fn get_captions(
+        &self,
+        subject_id: &str,
+        detail_path: &str,
+        stream_id: Option<&str>,
+        format: &str,
+    ) -> Result<Vec<Subtitle>> {
+        let Some(stream_id) = stream_id.filter(|id| !id.is_empty()) else {
+            return Ok(vec![]);
+        };
+
+        let url = format!(
+            "{}/subject/caption?format={}&id={}&subjectId={}&detailPath={}",
+            BASE_URL,
+            urlencoding::encode(format),
+            urlencoding::encode(stream_id),
+            urlencoding::encode(subject_id),
+            urlencoding::encode(detail_path),
+        );
+
+        let resp = self.client
+            .get(&url)
+            .headers(self.get_base_headers())
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Ok(vec![]);
+        }
+
+        let data = resp.json::<CaptionResponse>().await?;
+        if data.code != 0 {
+            return Ok(vec![]);
+        }
+
+        Ok(data
+            .data
+            .and_then(|d| d.captions)
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|caption| {
+                let url = caption.url?;
+                if url.is_empty() {
+                    return None;
+                }
+                let lang = caption.lan.unwrap_or_else(|| "en".to_string());
+                let label = caption.lan_name.unwrap_or_else(|| lang.clone());
+                Some(Subtitle { url, lang, label })
+            })
+            .collect())
     }
 
     pub async fn get_streams_normalized(&self, title: &str, media_type: &str, year: Option<u32>, season: u32, episode: u32) -> Result<Vec<StreamResult>> {
@@ -275,10 +401,33 @@ impl MovieBoxClient {
         match self.get_streams(&best_match.id, &detail_path, se, ep).await? {
             Some(data) => {
                 let mut results = Vec::new();
-                let mut mb_headers = HashMap::new();
-                mb_headers.insert("Origin".to_string(), format!("https://{}", self.host));
-                mb_headers.insert("x-user".to_string(), crate::user_config::HueUserConfig::get_live().moviebox_x_user_or_env(DEFAULT_X_USER));
-                mb_headers.insert("Referer".to_string(), format!("https://{}/", self.host));
+
+                let is_movie = se == 0 && ep == 0;
+                let type_folder = if is_movie { "movies" } else { "series" };
+                let type_label = if is_movie { "movie" } else { "series" };
+                let clean_path = detail_path.strip_prefix('/').unwrap_or(&detail_path);
+                let referer_host = std::env::var("MOVIEBOX_REFERER_HOST")
+                    .ok()
+                    .filter(|h| !h.trim().is_empty())
+                    .map(|h| h.trim_start_matches("https://").trim_start_matches("http://").trim_end_matches('/').to_string())
+                    .or_else(|| data.source_host.clone())
+                    .unwrap_or_else(|| self.stream_referer_host());
+                let stream_referer = format!(
+                    "https://{}/spa/videoPlayPage/{}/{}?id={}&type=/{}/detail&detailSe=&detailEp=&lang=en",
+                    referer_host, type_folder, clean_path, best_match.id, type_label
+                );
+                let mut mb_headers = self.get_stream_headers(&stream_referer);
+                mb_headers.insert("Origin".to_string(), format!("https://{}", referer_host));
+
+                let first_stream_id = data.streams.as_ref()
+                    .and_then(|streams| streams.first())
+                    .and_then(|s| s.id.as_deref())
+                    .or_else(|| data.hls.as_ref().and_then(|hls| hls.first()).and_then(|s| s.id.as_deref()));
+                let subtitles = self
+                    .get_captions(&best_match.id, &detail_path, first_stream_id, "MP4")
+                    .await
+                    .unwrap_or_default();
+                let subtitles = if subtitles.is_empty() { None } else { Some(subtitles) };
 
                 if let Some(streams) = data.streams {
                     for s in streams {
@@ -288,7 +437,7 @@ impl MovieBoxClient {
                             quality: s.quality.as_deref().unwrap_or("Auto").to_string(),
                             provider: "Cinema".to_string(),
                             format: "mp4".to_string(),
-                            subtitles: None,
+                            subtitles: subtitles.clone(),
                             headers: Some(mb_headers.clone()),
                             extra_metadata: None,
                         });
@@ -303,7 +452,7 @@ impl MovieBoxClient {
                             quality: "Auto".to_string(),
                             provider: "Cinema".to_string(),
                             format: "hls".to_string(),
-                            subtitles: None,
+                            subtitles: subtitles.clone(),
                             headers: Some(mb_headers.clone()),
                             extra_metadata: None,
                         });
