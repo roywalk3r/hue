@@ -58,9 +58,14 @@ pub async fn kisskh_search_handler(
     State(state): State<DramaState>,
     Query(params): Query<SearchQuery>,
 ) -> Response {
+    tracing::info!("[drama] kisskh_search: q={}", params.q);
     match state.kisskh.search(&params.q).await {
-        Ok(items) => (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response(),
+        Ok(items) => {
+            tracing::info!("[drama] kisskh_search: {} results for q={}", items.len(), params.q);
+            (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response()
+        }
         Err(e) => {
+            tracing::warn!("[drama] kisskh_search error for '{}': {}", params.q, e);
             let body = serde_json::json!({ "success": false, "error": e.to_string() });
             (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
         }
@@ -96,9 +101,14 @@ pub async fn kisskh_streams_handler(
 pub async fn kisskh_show_handler(
     State(state): State<DramaState>,
 ) -> Response {
+    tracing::info!("[drama] kisskh_show");
     match state.kisskh.get_show_list().await {
-        Ok(items) => (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response(),
+        Ok(items) => {
+            tracing::info!("[drama] kisskh_show: {} results", items.len());
+            (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response()
+        }
         Err(e) => {
+            tracing::warn!("[drama] kisskh_show error: {}", e);
             let body = serde_json::json!({ "success": false, "error": e.to_string() });
             (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
         }
@@ -117,9 +127,14 @@ pub async fn kisskh_browse_handler(
     let status = params.status.unwrap_or(0);
     let order = params.order.unwrap_or(2);
 
+    tracing::info!("[drama] kisskh_browse: page={}", page);
     match state.kisskh.get_list(page, content_type, sub, country, status, order).await {
-        Ok(data) => (StatusCode::OK, serde_json::to_string(&data).unwrap()).into_response(),
+        Ok(data) => {
+            tracing::info!("[drama] kisskh_browse: {} items", data.len());
+            (StatusCode::OK, serde_json::to_string(&data).unwrap()).into_response()
+        }
         Err(e) => {
+            tracing::warn!("[drama] kisskh_browse error: {}", e);
             let body = serde_json::json!({ "success": false, "error": e.to_string() });
             (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
         }
@@ -127,9 +142,14 @@ pub async fn kisskh_browse_handler(
 }
 
 pub async fn kisskh_upcoming_handler(State(state): State<DramaState>) -> Response {
+    tracing::info!("[drama] kisskh_upcoming");
     match state.kisskh.get_upcoming().await {
-        Ok(items) => (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response(),
+        Ok(items) => {
+            tracing::info!("[drama] kisskh_upcoming: {} items", items.len());
+            (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response()
+        }
         Err(e) => {
+            tracing::warn!("[drama] kisskh_upcoming error: {}", e);
             let body = serde_json::json!({ "success": false, "error": e.to_string() });
             (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
         }
@@ -137,9 +157,14 @@ pub async fn kisskh_upcoming_handler(State(state): State<DramaState>) -> Respons
 }
 
 pub async fn kisskh_top_rating_handler(State(state): State<DramaState>) -> Response {
+    tracing::info!("[drama] kisskh_top_rating");
     match state.kisskh.get_top_rating().await {
-        Ok(items) => (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response(),
+        Ok(items) => {
+            tracing::info!("[drama] kisskh_top_rating: {} items", items.len());
+            (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response()
+        }
         Err(e) => {
+            tracing::warn!("[drama] kisskh_top_rating error: {}", e);
             let body = serde_json::json!({ "success": false, "error": e.to_string() });
             (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
         }
@@ -152,9 +177,14 @@ pub async fn dramacool_search_handler(
     State(state): State<DramaState>,
     Query(params): Query<SearchQuery>,
 ) -> Response {
+    tracing::info!("[drama] dramacool_search: q={}", params.q);
     match state.dramacool.search(&params.q).await {
-        Ok(items) => (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response(),
+        Ok(items) => {
+            tracing::info!("[drama] dramacool_search: {} results", items.len());
+            (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response()
+        }
         Err(e) => {
+            tracing::warn!("[drama] dramacool_search error: {}", e);
             let body = serde_json::json!({ "success": false, "error": e.to_string() });
             (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
         }
@@ -165,12 +195,15 @@ pub async fn dramacool_streams_handler(
     State(state): State<DramaState>,
     Path((id, episode)): Path<(String, u32)>,
 ) -> Response {
+    tracing::info!("[drama] dramacool_streams: id={} ep={}", id, episode);
     match state.dramacool.get_streams_normalized(&id, 1, episode).await {
         Ok(streams) => {
+            tracing::info!("[drama] dramacool_streams: {} streams", streams.len());
             let proxied = wrap_with_proxy(streams, &state.proxy_base_url, &state.secret);
             (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
         }
         Err(e) => {
+            tracing::warn!("[drama] dramacool_streams error: {}", e);
             let body = serde_json::json!({ "success": false, "error": e.to_string() });
             (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
         }
@@ -185,9 +218,14 @@ pub async fn moviebox_browse_handler(
 ) -> Response {
     let page = params.page.unwrap_or(1);
     let per_page = params.per_page.unwrap_or(28);
+    tracing::info!("[drama] moviebox_browse: page={} per_page={}", page, per_page);
     match state.moviebox.browse_rails(page, per_page, params.country.as_deref()).await {
-        Ok(rails) => (StatusCode::OK, serde_json::to_string(&rails).unwrap()).into_response(),
+        Ok(rails) => {
+            tracing::info!("[drama] moviebox_browse: {} rails", rails.len());
+            (StatusCode::OK, serde_json::to_string(&rails).unwrap()).into_response()
+        }
         Err(e) => {
+            tracing::warn!("[drama] moviebox_browse error: {}", e);
             let body = serde_json::json!({ "success": false, "error": e.to_string() });
             (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
         }
@@ -200,9 +238,14 @@ pub async fn moviebox_search_handler(
 ) -> Response {
     let page = params.page.unwrap_or(1);
     let subject_type = params.subject_type.unwrap_or(0);
+    tracing::info!("[drama] moviebox_search: q={} page={} type={}", params.q, page, subject_type);
     match state.moviebox.search(&params.q, page, subject_type).await {
-        Ok(items) => (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response(),
+        Ok(items) => {
+            tracing::info!("[drama] moviebox_search: {} results", items.len());
+            (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response()
+        }
         Err(e) => {
+            tracing::warn!("[drama] moviebox_search error: {}", e);
             let body = serde_json::json!({ "success": false, "error": e.to_string() });
             (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
         }
@@ -213,12 +256,15 @@ pub async fn moviebox_streams_handler(
     State(state): State<DramaState>,
     Path((title, episode)): Path<(String, u32)>,
 ) -> Response {
+    tracing::info!("[drama] moviebox_streams: title={} ep={}", title, episode);
     match state.moviebox.get_streams_normalized(&title, "tv", None, 1, episode).await {
         Ok(streams) => {
+            tracing::info!("[drama] moviebox_streams: {} streams", streams.len());
             let proxied = wrap_with_proxy(streams, &state.proxy_base_url, &state.secret);
             (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
         }
         Err(e) => {
+            tracing::warn!("[drama] moviebox_streams error: {}", e);
             let body = serde_json::json!({ "success": false, "error": e.to_string() });
             (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
         }
