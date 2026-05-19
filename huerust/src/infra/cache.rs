@@ -109,7 +109,7 @@ impl StreamCache {
     }
 
     pub async fn get(&self, key: &CacheKey) -> Option<Vec<StreamResult>> {
-        match &self.backend {
+        let streams = match &self.backend {
             CacheBackend::Memory(cache) => cache.get(&key.moka_key()).await,
             CacheBackend::Redis(conn) => {
                 let result: redis::RedisResult<Option<String>> = redis::cmd("GET")
@@ -121,10 +121,18 @@ impl StreamCache {
                     _ => None,
                 }
             }
-        }
+        }?;
+
+        let streams = filter_cacheable_streams(streams);
+        if streams.is_empty() { None } else { Some(streams) }
     }
 
     pub async fn set(&self, key: &CacheKey, streams: Vec<StreamResult>) {
+        let streams = filter_cacheable_streams(streams);
+        if streams.is_empty() {
+            return;
+        }
+
         match &self.backend {
             CacheBackend::Memory(cache) => {
                 cache.insert(key.moka_key(), streams).await;
@@ -207,6 +215,17 @@ impl StreamCache {
             }
         }
     }
+}
+
+fn filter_cacheable_streams(streams: Vec<StreamResult>) -> Vec<StreamResult> {
+    streams
+        .into_iter()
+        .filter(|stream| {
+            let provider = stream.provider.to_lowercase();
+            let url = stream.url.to_lowercase();
+            provider != "aura" && !url.contains("vixsrc.to")
+        })
+        .collect()
 }
 
 impl Default for StreamCache {

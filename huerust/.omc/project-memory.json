@@ -135,21 +135,33 @@
       "type": "file"
     },
     {
+      "path": "src/clients/moviebox.rs",
+      "accessCount": 5,
+      "lastAccessed": 1779223692226,
+      "type": "file"
+    },
+    {
       "path": "src/routes/drama.rs",
       "accessCount": 4,
       "lastAccessed": 1779220458846,
       "type": "file"
     },
     {
-      "path": "src/clients/moviebox.rs",
-      "accessCount": 4,
-      "lastAccessed": 1779220503902,
-      "type": "file"
-    },
-    {
       "path": "src/providers/dramacool.rs",
       "accessCount": 2,
       "lastAccessed": 1779218724700,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/vixsrc_provider.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779224112951,
+      "type": "file"
+    },
+    {
+      "path": "src/config.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779224288497,
       "type": "file"
     }
   ],

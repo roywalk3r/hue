@@ -176,6 +176,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/m3u8-proxy", get(crate::proxy::m3u8_handler))
         .route("/ts-proxy", get(crate::proxy::ts_handler))
         .route("/sub-proxy", get(crate::proxy::sub_handler))
+        .route("/storage/enc.key", get(vixsrc_enc_key_handler))
         .route("/api/hitv/library", get(crate::routes::system::hitv_library_handler))
         .route("/api/hitv/browse", get(crate::routes::hitv::browse_handler))
         .route("/api/hitv/search", get(crate::routes::hitv::search_handler))
@@ -247,7 +248,7 @@ pub fn build_router(state: AppState) -> Router {
 async fn auth_middleware(State(_state): State<AppState>, req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
     let path = req.uri().path();
     // Proxy routes are self-authenticated via encrypted h_token — skip API key check
-    if path == "/ts-proxy" || path == "/m3u8-proxy" || path == "/sub-proxy" {
+    if path == "/ts-proxy" || path == "/m3u8-proxy" || path == "/sub-proxy" || path == "/storage/enc.key" {
         return Ok(next.run(req).await);
     }
     let is_local = req.extensions().get::<SocketAddr>().map_or(false, |a| a.ip().is_loopback());
@@ -257,6 +258,29 @@ async fn auth_middleware(State(_state): State<AppState>, req: Request<Body>, nex
         if auth != Some(&api_key) { return Err(StatusCode::FORBIDDEN); }
     }
     Ok(next.run(req).await)
+}
+
+async fn vixsrc_enc_key_handler(State(state): State<AppState>) -> Response {
+    match state.client
+        .get("https://vixsrc.to/storage/enc.key")
+        .header("Referer", "https://vixsrc.to/")
+        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+        .send()
+        .await
+    {
+        Ok(resp) if resp.status().is_success() => {
+            match resp.bytes().await {
+                Ok(bytes) => Response::builder()
+                    .header("content-type", "application/octet-stream")
+                    .header("cache-control", "public, max-age=300")
+                    .body(Body::from(bytes))
+                    .unwrap(),
+                Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+            }
+        }
+        Ok(resp) => (StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY), "").into_response(),
+        Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+    }
 }
 
 async fn rate_limit_middleware(State(state): State<AppState>, req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
