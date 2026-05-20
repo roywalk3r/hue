@@ -20,7 +20,6 @@ const DEFAULT_COOKIE: &str = "sflix_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ
 
 pub struct SflixClient {
     client: Client,
-    scraper_url: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -44,8 +43,6 @@ struct SflixCaption {
 
 impl SflixClient {
     pub fn new() -> Self {
-        let scraper_url = std::env::var("MICROSERVICE_URL")
-            .unwrap_or_else(|_| "http://127.0.0.1:24610".to_string());
         // Warn once at startup if the fallback credential is expired
         let cookie = crate::user_config::HueUserConfig::get_live()
             .sflix_cookie_or_env(DEFAULT_COOKIE);
@@ -62,7 +59,6 @@ impl SflixClient {
                 .pool_idle_timeout(std::time::Duration::from_secs(90))
                 .build()
                 .unwrap(),
-            scraper_url,
         }
     }
 
@@ -255,45 +251,7 @@ impl SflixClient {
                 Ok(results)
             }
             None => {
-                info!("[SFlix Rust] API fast-path failed, delegating to Node.js Scraper Microservice...");
-                let (type_path, type_query) = if media_type == "tv" {
-                    ("series", "/series/detail")
-                } else {
-                    ("movies", "/movie/detail")
-                };
-                let detail_url = format!("{}/spa/videoPlayPage/{}/{}?id={}&type={}&lang=en",
-                    BASE_URL, type_path, slug, subject_id, urlencoding::encode(type_query));
-                
-                let is_movie = media_type == "movie";
-                
-                let payload = serde_json::json!({
-                    "url": detail_url,
-                    "isMovie": is_movie,
-                    "season": season,
-                    "episode": episode
-                });
-
-                match self.client.post(format!("{}/scrape/sflix", self.scraper_url))
-                    .json(&payload)
-                    .send()
-                    .await {
-                        Ok(scraper_resp) => {
-                            if scraper_resp.status().is_success() {
-                                #[derive(Deserialize)]
-                                struct ScraperResponse {
-                                    success: bool,
-                                    streams: Vec<StreamResult>,
-                                }
-                                if let Ok(data) = scraper_resp.json::<ScraperResponse>().await {
-                                    if data.success {
-                                        return Ok(data.streams);
-                                    }
-                                }
-                            }
-                        },
-                        Err(e) => warn!("[SFlix Rust] Scraper microservice call failed: {}", e),
-                    }
-                
+                warn!("[SFlix Rust] API returned no streams for {} ({})", slug, media_type);
                 Ok(vec![])
             }
         }

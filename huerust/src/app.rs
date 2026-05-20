@@ -30,7 +30,8 @@ use crate::providers::registry::ProviderRegistry;
 use crate::providers::{
     dramacool::DramacoolClient, dramacool_provider::DramacoolProvider, kisskh::KissKhClient,
     kisskh_provider::KissKhProvider, moviebox_provider::MovieBoxProvider,
-    mp4hydra_provider::Mp4HydraProvider, sflix_provider::SflixProvider, videasy::VideasyClient,
+    // mp4hydra_provider::Mp4HydraProvider, // disabled — endpoint times out
+    sflix_provider::SflixProvider, videasy::VideasyClient,
     videasy_provider::VideasyProvider, vidrock_provider::VidrockProvider,
     vidsrcembed_provider::VidsrcEmbedProvider, vidzee::VidzeeClient,
     vidzee_provider::VidzeeProvider, vixsrc::VixsrcClient, vixsrc_provider::VixsrcProvider,
@@ -121,7 +122,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     registry.register(Arc::new(SflixProvider::new(sflix_client.clone())));
     registry.register(Arc::new(DramacoolProvider::new(dramacool_client.clone())));
     registry.register(Arc::new(VixsrcProvider::new(vixsrc_client)));
-    registry.register(Arc::new(Mp4HydraProvider::new()));
+    // registry.register(Arc::new(Mp4HydraProvider::new())); // disabled — endpoint times out
     registry.register(Arc::new(VidrockProvider::new(vidrock_client.clone())));
     registry.register(Arc::new(VidzeeProvider::new(vidzee_client.clone())));
     registry.register(Arc::new(VideasyProvider::new(videasy_client.clone())));
