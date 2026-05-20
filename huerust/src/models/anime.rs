@@ -215,9 +215,15 @@ pub struct AnimeHomeFeed {
     /// Featured / spotlight picks
     #[serde(skip_serializing_if = "Option::is_none")]
     pub featured: Option<Vec<AnimeCard>>,
-    /// Recently added episodes
+    /// Recently added anime
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latest: Option<Vec<AnimeCard>>,
+    /// Popular / most watched anime
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub popular: Option<Vec<AnimeCard>>,
+    /// Finished airing / completed series
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finished_airing: Option<Vec<AnimeCard>>,
 }
 
 /// Paginated search response.

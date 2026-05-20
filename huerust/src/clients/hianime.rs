@@ -652,7 +652,9 @@ pub fn transform_home_feed(raw: serde_json::Value) -> AnimeHomeFeed {
         trending: raw.get("trending").map(extract_anime_list),
         currently_airing: raw.get("currentlyAiring").map(extract_anime_list),
         featured: raw.get("featured").map(extract_anime_list),
-        latest: raw.get("latest").map(extract_anime_list),
+        latest: raw.get("latestAnime").map(extract_anime_list),
+        popular: raw.get("popular").map(extract_anime_list),
+        finished_airing: raw.get("finishedAiring").map(extract_anime_list),
     }
 }
 
