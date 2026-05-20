@@ -23,6 +23,18 @@ pub mod adsurgery;
 pub mod sanitize;
 pub mod wrap;
 
+pub(crate) fn is_whitelisted_raw_url(url: &str) -> bool {
+    let lower = url.to_lowercase();
+    lower.contains("vixsrc.to")
+        || lower.contains("hakunaymatata.com")
+        || lower.contains("aisports.mobi")
+        || lower.contains("poocloud.in")
+        || lower.contains("mewstream.buzz")
+        || lower.contains("animeplay.cfd")
+        || lower.contains("pixeldrain.")
+        || lower.contains("video-downloads.googleusercontent.com")
+}
+
 const PROGRESSIVE_STARTUP_RANGE_END: u64 = (2 * 1024 * 1024) - 1;
 const PROGRESSIVE_OPEN_RANGE_CHUNK_END: u64 = (4 * 1024 * 1024) - 1;
 
@@ -93,19 +105,6 @@ pub fn dynamic_proxy_base(headers: &HeaderMap, fallback: &str) -> String {
 /// Parse JSON headers string from query param.
 fn parse_headers_json(raw: &str) -> Option<HashMap<String, String>> {
     serde_json::from_str::<HashMap<String, String>>(raw).ok()
-}
-
-/// Known providers that require raw URL mode (signed URLs need query param inheritance).
-fn is_whitelisted_raw_url(url: &str) -> bool {
-    let lower = url.to_lowercase();
-    lower.contains("vixsrc.to")
-        || lower.contains("hakunaymatata.com")
-        || lower.contains("aisports.mobi")
-        || lower.contains("poocloud.in")
-        || lower.contains("mewstream.buzz")
-        || lower.contains("animeplay.cfd")
-        || lower.contains("pixeldrain.")
-        || lower.contains("video-downloads.googleusercontent.com")
 }
 
 /// Extract target URL + headers from `url`+`headers` mode or signed `h_token` mode.
@@ -231,7 +230,8 @@ fn inject_cdn_headers(
         );
     }
 
-    req.header("Accept", "*/*").header("Sec-Fetch-User", "?1")
+    req = req.header("Accept", "*/*");
+    req
 }
 
 fn has_header(headers: &Option<HashMap<String, String>>, name: &str) -> bool {
@@ -309,6 +309,37 @@ fn looks_like_hls_playlist_url(target_url: &str) -> bool {
 
 // ── M3U8 Proxy ───────────────────────────────────────────────────────────────
 
+/// Send an M3U8 request and return (status, body, content_type).
+async fn send_m3u8_request(
+    _client: &reqwest::Client,
+    req: reqwest::RequestBuilder,
+    target_url: &str,
+    _is_vix: bool,
+) -> Result<(reqwest::StatusCode, String, String), String> {
+    match req.send().await {
+        Ok(resp) => {
+            let status = resp.status();
+            let ct = resp
+                .headers()
+                .get("content-type")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("")
+                .to_string();
+            match resp.text().await {
+                Ok(body) => Ok((status, body, ct)),
+                Err(e) => {
+                    tracing::warn!("[m3u8-proxy] Failed to read body for {}: {}", target_url, e);
+                    Err(format!("Upstream body unreadable: {}", e))
+                }
+            }
+        }
+        Err(e) => {
+            tracing::warn!("[m3u8-proxy] Request failed for {}: {}", target_url, e);
+            Err(format!("Upstream request failed: {}", e))
+        }
+    }
+}
+
 pub async fn m3u8_handler(
     State(state): State<AppState>,
     Query(params): Query<ProxyQuery>,
@@ -349,8 +380,8 @@ pub async fn m3u8_handler(
     }
 
     if !has_origin {
-        if let Some(ref_url) = referer_value {
-            if let Ok(origin_url) = Url::parse(&ref_url) {
+        if let Some(ref ref_url) = referer_value {
+            if let Ok(origin_url) = Url::parse(ref_url) {
                 let mut origin = origin_url.origin().unicode_serialization();
                 if origin.ends_with('/') {
                     origin.pop();
@@ -369,98 +400,158 @@ pub async fn m3u8_handler(
         }
     }
 
-    match req.send().await {
-        Ok(resp) => {
-            let status = resp.status();
-            let headers_ref = resp.headers().clone();
-            let ct = headers_ref
-                .get("content-type")
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or("");
-
-            let body = match resp.text().await {
-                Ok(b) => b,
-                Err(_) => {
-                    return (StatusCode::BAD_GATEWAY, "Upstream body unreadable").into_response();
-                }
-            };
-
-            let body_trim = body.trim_start_matches('\u{feff}').trim_start();
-            let is_hls = ct.contains("mpegurl")
-                || ct.contains("x-mpegurl")
-                || ct.contains("vnd.apple.mpegurl")
-                || body_trim.starts_with("#EXTM3U")
-                || (ct.is_empty() && body_trim.starts_with("#EXTM3U"));
-
-            // m3u8-proxy was requested but upstream didn't return a valid M3U8 —
-            // don't forward HTML error pages as 200; that causes HLS.js manifestParsingError
-            let looks_like_html = body_trim.starts_with("<!DOCTYPE")
-                || body_trim.starts_with("<html")
-                || body_trim.starts_with("<HTML")
-                || body_trim.starts_with("<?xml");
-            let looks_like_json = body_trim.starts_with("{") || body_trim.starts_with("[");
-            if !is_hls && (looks_like_html || looks_like_json) {
-                tracing::warn!(
-                    "[m3u8-proxy] Upstream returned non-HLS (status={}, ct={}, body_preview={:?}) for {}",
-                    status.as_u16(),
-                    ct,
-                    body.chars().take(80).collect::<String>(),
-                    target_url
-                );
-                return (
-                    StatusCode::BAD_GATEWAY,
-                    format!(
-                        "Upstream returned non-HLS content (status={}, ct={})",
-                        status.as_u16(),
-                        ct
-                    ),
-                )
-                    .into_response();
+    // Debug: log full request shape for Vixsrc before sending
+    if is_vix {
+        let mut header_log = Vec::new();
+        // We can't introspect reqwest::RequestBuilder directly, but we know what we injected
+        if let Some(ref h) = headers {
+            for (k, v) in h.iter() {
+                header_log.push(format!("{}: {}", k, v));
             }
+        }
+        if referer_value.is_some() {
+            header_log.push(format!("referer(from-inject): {}", referer_value.as_ref().unwrap()));
+        }
+        tracing::info!(
+            "[m3u8-proxy] Vixsrc request → {} | headers: {:?}",
+            target_url,
+            header_log
+        );
+    }
 
-            let mut body = body;
+    let (status, body, ct) = match send_m3u8_request(&state.client, req, &target_url, is_vix).await {
+        Ok(result) => result,
+        Err(e) => return (StatusCode::BAD_GATEWAY, e).into_response(),
+    };
 
-            // Ad-surgery if requested or globally enabled
-            let adsurgery_enabled = params.adsurgery.unwrap_or(0) == 1
-                || env::var("SANITIZE_STREAMS").map_or(false, |v| v == "true" || v == "1");
+    let body_trim = body.trim_start_matches('\u{feff}').trim_start();
+    let is_hls = ct.contains("mpegurl")
+        || ct.contains("x-mpegurl")
+        || ct.contains("vnd.apple.mpegurl")
+        || body_trim.starts_with("#EXTM3U")
+        || (ct.is_empty() && body_trim.starts_with("#EXTM3U"));
 
-            if is_hls && adsurgery_enabled {
-                let (cleaned, removed) = adsurgery::sanitize_manifest(&body);
-                if removed > 0 {
-                    tracing::debug!(
-                        "[m3u8-proxy] Ad-surgery removed {} segments from {}",
-                        removed,
-                        target_url
+    // m3u8-proxy was requested but upstream didn't return a valid M3U8 —
+    // don't forward HTML error pages as 200; that causes HLS.js manifestParsingError
+    let looks_like_html = body_trim.starts_with("<!DOCTYPE")
+        || body_trim.starts_with("<html")
+        || body_trim.starts_with("<HTML")
+        || body_trim.starts_with("<?xml");
+    let looks_like_json = body_trim.starts_with("{") || body_trim.starts_with("[");
+    if !is_hls && (looks_like_html || looks_like_json) {
+        // Log full body for Vixsrc so we can see the exact error
+        if is_vix {
+            let now = chrono::Utc::now().timestamp();
+            let expires_val = Url::parse(&target_url)
+                .ok()
+                .and_then(|u| u.query_pairs().find(|(k, _)| k == "expires").map(|(_, v)| v.to_string()));
+            let token_val = Url::parse(&target_url)
+                .ok()
+                .and_then(|u| u.query_pairs().find(|(k, _)| k == "token").map(|(_, v)| v.to_string()));
+            tracing::error!(
+                "[m3u8-proxy] VIXSRC FAILURE — status={}, now={}, expires={:?}, has_token={} body={}",
+                status.as_u16(),
+                now,
+                expires_val.as_deref().unwrap_or("NONE"),
+                token_val.is_some(),
+                body  // full body, likely small HTML error page
+            );
+        }
+
+        tracing::warn!(
+            "[m3u8-proxy] Upstream returned non-HLS (status={}, ct={}, body_preview={:?}) for {}",
+            status.as_u16(),
+            ct,
+            body.chars().take(80).collect::<String>(),
+            target_url
+        );
+
+        // Retry once for Vixsrc with minimal headers (strip everything except Referer + UA + Origin)
+        if is_vix && (status.as_u16() == 403 || status.as_u16() == 401) {
+            tracing::info!("[m3u8-proxy] Vixsrc got {} — retrying with minimal header set", status.as_u16());
+            let mut retry = state.client.get(&target_url);
+            retry = retry.header("Referer", "https://vixsrc.to/");
+            retry = retry.header("Origin", "https://vixsrc.to");
+            retry = retry.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+            retry = retry.header("Accept", "*/*");
+
+            if let Ok((status2, body2, ct2)) = send_m3u8_request(&state.client, retry, &target_url, false).await {
+                let body_trim2 = body2.trim_start_matches('\u{feff}').trim_start();
+                let is_hls2 = ct2.contains("mpegurl")
+                    || ct2.contains("x-mpegurl")
+                    || ct2.contains("vnd.apple.mpegurl")
+                    || body_trim2.starts_with("#EXTM3U")
+                    || (ct2.is_empty() && body_trim2.starts_with("#EXTM3U"));
+                if is_hls2 {
+                    tracing::info!("[m3u8-proxy] Vixsrc retry succeeded with minimal headers");
+                    let proxy_base = dynamic_proxy_base(&request_headers, &state.proxy_base_url);
+                    let final_body = rewrite_playlist(&body2, &target_url, &proxy_base, &state.secret, None);
+                    let mut builder = Response::builder()
+                        .status(StatusCode::from_u16(status2.as_u16()).unwrap_or(StatusCode::OK));
+                    builder = builder.header("Access-Control-Allow-Origin", "*");
+                    builder = builder.header(CONTENT_TYPE, infer_content_type(&ct2, &target_url));
+                    return builder.body(Body::from(final_body)).unwrap();
+                } else {
+                    tracing::warn!(
+                        "[m3u8-proxy] Vixsrc retry also failed (status={}, ct={}, preview={:?})",
+                        status2.as_u16(),
+                        ct2,
+                        body2.chars().take(80).collect::<String>(),
                     );
                 }
-                body = cleaned;
             }
-
-            let proxy_base = dynamic_proxy_base(&request_headers, &state.proxy_base_url);
-            let final_body = if is_hls {
-                rewrite_playlist(&body, &target_url, &proxy_base, &state.secret, headers)
-            } else {
-                body
-            };
-
-            let mut builder = Response::builder()
-                .status(StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::OK));
-            builder = builder.header("Access-Control-Allow-Origin", "*");
-
-            // Download mode: force attachment disposition
-            if params.download.is_some() {
-                let filename = params.filename.as_deref().unwrap_or("playlist.m3u8");
-                builder = builder.header(
-                    "Content-Disposition",
-                    format!(r#"attachment; filename="{}""#, filename),
-                );
-            }
-
-            builder = builder.header(CONTENT_TYPE, infer_content_type(ct, &target_url));
-            builder.body(Body::from(final_body)).unwrap()
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+
+        return (
+            StatusCode::BAD_GATEWAY,
+            format!(
+                "Upstream returned non-HLS content (status={}, ct={})",
+                status.as_u16(),
+                ct
+            ),
+        )
+            .into_response();
     }
+
+    // Ad-surgery if requested or globally enabled
+    let adsurgery_enabled = params.adsurgery.unwrap_or(0) == 1
+        || env::var("SANITIZE_STREAMS").map_or(false, |v| v == "true" || v == "1");
+
+    let mut body = body;
+    if is_hls && adsurgery_enabled {
+        let (cleaned, removed) = adsurgery::sanitize_manifest(&body);
+        if removed > 0 {
+            tracing::debug!(
+                "[m3u8-proxy] Ad-surgery removed {} segments from {}",
+                removed,
+                target_url
+            );
+        }
+        body = cleaned;
+    }
+
+    let proxy_base = dynamic_proxy_base(&request_headers, &state.proxy_base_url);
+    let final_body = if is_hls {
+        rewrite_playlist(&body, &target_url, &proxy_base, &state.secret, headers)
+    } else {
+        body
+    };
+
+    let mut builder = Response::builder()
+        .status(StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::OK));
+    builder = builder.header("Access-Control-Allow-Origin", "*");
+
+    // Download mode: force attachment disposition
+    if params.download.is_some() {
+        let filename = params.filename.as_deref().unwrap_or("playlist.m3u8");
+        builder = builder.header(
+            "Content-Disposition",
+            format!(r#"attachment; filename="{}""#, filename),
+        );
+    }
+
+    builder = builder.header(CONTENT_TYPE, infer_content_type(&ct, &target_url));
+    builder.body(Body::from(final_body)).unwrap()
 }
 
 // ── TS / Segment Proxy ───────────────────────────────────────────────────────
@@ -512,7 +603,7 @@ pub async fn ts_handler(
     }
 
     let force_200 = params.force_200.unwrap_or(0) == 1;
-    let no_synth = params.no_synth.unwrap_or(0) == 1;
+    let _no_synth = params.no_synth.unwrap_or(0) == 1;
     let sanitize = params.sanitize.unwrap_or(0) == 1;
 
     let is_vix = is_vixsrc_target(&target_url, &headers);
@@ -888,21 +979,44 @@ fn rewrite_playlist(
                 segment_urls.push(abs_url.clone());
             }
 
-            let token = security::encrypt_url(&abs_url, secret, headers.clone());
-            let segment_extra = if is_hls {
-                ""
+            let use_raw = is_whitelisted_raw_url(&abs_url);
+            let proxy_url = if use_raw {
+                let encoded_url = urlencoding::encode(&abs_url);
+                let header_part = if let Some(ref h) = headers {
+                    format!(
+                        "&headers={}",
+                        urlencoding::encode(&serde_json::to_string(h).unwrap_or_default())
+                    )
+                } else {
+                    String::new()
+                };
+                let range_part = pending_byte_range
+                    .take()
+                    .filter(|_| !is_hls)
+                    .map(|range| format!("&range={}", urlencoding::encode(&range)))
+                    .unwrap_or_default();
+                format!(
+                    "{}/{}?url={}&mode=url{}{}{}",
+                    proxy_base, route, encoded_url, header_part, force_type_param, range_part
+                )
             } else {
-                "&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0"
+                let token = security::encrypt_url(&abs_url, secret, headers.clone());
+                let segment_extra = if is_hls {
+                    ""
+                } else {
+                    "&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0"
+                };
+                let range_part = pending_byte_range
+                    .take()
+                    .filter(|_| !is_hls)
+                    .map(|range| format!("&range={}", urlencoding::encode(&range)))
+                    .unwrap_or_default();
+                format!(
+                    "{}/{}?h_token={}{}{}{}",
+                    proxy_base, route, token, segment_extra, force_type_param, range_part
+                )
             };
-            let range_part = pending_byte_range
-                .take()
-                .filter(|_| !is_hls)
-                .map(|range| format!("&range={}", urlencoding::encode(&range)))
-                .unwrap_or_default();
-            rewritten_lines.push(format!(
-                "{}/{}?h_token={}{}{}{}",
-                proxy_base, route, token, segment_extra, force_type_param, range_part
-            ));
+            rewritten_lines.push(proxy_url);
         } else {
             rewritten_lines.push(line.to_string());
         }
@@ -941,9 +1055,23 @@ fn rewrite_hls_tag_uri(
 
     let abs_url = resolve_segment_url(base_url, value);
     let is_hls = looks_like_hls_playlist_url(&abs_url);
-    let token = security::encrypt_url(&abs_url, secret, headers.clone());
     let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
-    let proxy_url = format!("{}/{}?h_token={}", proxy_base, route, token);
+
+    let proxy_url = if is_whitelisted_raw_url(&abs_url) {
+        let encoded_url = urlencoding::encode(&abs_url);
+        let header_part = if let Some(ref h) = headers {
+            format!(
+                "&headers={}",
+                urlencoding::encode(&serde_json::to_string(h).unwrap_or_default())
+            )
+        } else {
+            String::new()
+        };
+        format!("{}/{}?url={}&mode=url{}", proxy_base, route, encoded_url, header_part)
+    } else {
+        let token = security::encrypt_url(&abs_url, secret, headers.clone());
+        format!("{}/{}?h_token={}", proxy_base, route, token)
+    };
 
     Some(format!("{}\"{}\"{}", prefix, proxy_url, suffix))
 }

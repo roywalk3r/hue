@@ -43,6 +43,9 @@ static RE_SUBTITLE_ARR: LazyLock<Regex> = LazyLock::new(|| {
 static RE_SUBTITLE_VAL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"subtitle[s]?\s*[:=]\s*['"]([^'"]+)['"]"#).unwrap()
 });
+static RE_MASTER_URL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"url\s*:\s*['"]([^'"]+)['"]"#).unwrap()
+});
 
 pub struct VixsrcClient {
     client: Client,
@@ -61,9 +64,48 @@ struct VixsrcStream {
     url: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct ExternalSubTrack {
+    label: String,
+    file: String,
+}
+
 impl VixsrcClient {
     pub fn new(client: Client) -> Self {
         Self { client }
+    }
+
+    /// Fetch subtitles from external API (sub.vdrk.site).
+    async fn fetch_external_subtitles(&self, tmdb_id: u64, media_type: &str, season: u32, episode: u32) -> Option<Vec<Subtitle>> {
+        let url = if media_type == "movie" {
+            format!("https://sub.vdrk.site/v2/movie/{}", tmdb_id)
+        } else {
+            format!("https://sub.vdrk.site/v2/tv/{}/{}/{}", tmdb_id, season, episode)
+        };
+
+        match self.client.get(&url).header("User-Agent", USER_AGENT).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                match resp.json::<Vec<ExternalSubTrack>>().await {
+                    Ok(tracks) if !tracks.is_empty() => {
+                        let subs: Vec<Subtitle> = tracks.into_iter().map(|t| {
+                            let lang = t.label.to_lowercase().split_whitespace().next().unwrap_or("en").to_string();
+                            Subtitle {
+                                url: t.file,
+                                lang: lang.clone(),
+                                label: t.label,
+                            }
+                        }).collect();
+                        info!("[Vixsrc Rust] External subs: {} tracks for TMDB {}", subs.len(), tmdb_id);
+                        return Some(subs);
+                    }
+                    Ok(_) => {}
+                    Err(e) => warn!("[Vixsrc Rust] External sub JSON parse failed: {}", e),
+                }
+            }
+            Ok(resp) => warn!("[Vixsrc Rust] External sub API returned {}", resp.status()),
+            Err(e) => warn!("[Vixsrc Rust] External sub request failed: {}", e),
+        }
+        None
     }
 
     pub async fn get_streams_normalized(
@@ -127,18 +169,19 @@ impl VixsrcClient {
         // ── Step 2: Extract streams + subtitles from embed page ──
         if let Some(ref url) = embed_url {
             match self.extract_from_embed_page(url, &page_url).await {
-                Ok((streams, subtitles)) if !streams.is_empty() => {
+                Ok((streams, _embed_subtitles)) if !streams.is_empty() => {
+                    let external_subs = self.fetch_external_subtitles(tmdb_id, media_type, season, episode).await;
                     let mut results = Vec::new();
                     for s in streams {
                         let mut h = headers.clone();
-                        h.insert("Referer".to_string(), url.clone());
+                        h.insert("Referer".to_string(), page_url.clone());
                         results.push(StreamResult {
                             url: s.url,
                             title: s.title,
                             quality: s.quality,
                             provider: "Aura".to_string(),
                             format: "hls".to_string(),
-                            subtitles: subtitles.clone(),
+                            subtitles: external_subs.clone(),
                             headers: Some(h),
                             extra_metadata: None,
                         });
@@ -162,16 +205,25 @@ impl VixsrcClient {
 
         let mut results = Vec::new();
 
-        // Try parsing window.masterPlaylist as JSON object
+        // Extract auth params + master URL from window.masterPlaylist using regex
         let re_master = &*RE_MASTER_PL;
+        let mut auth_token: Option<String> = None;
+        let mut auth_expires: Option<String> = None;
         if let Some(caps) = re_master.captures(&html) {
             if let Some(block) = caps.get(1) {
-                if let Ok(val) = serde_json::from_str::<Value>(block.as_str()) {
-                    if let Some(url_val) = val.get("url").and_then(|v| v.as_str()) {
-                        let mut master_url = url_val.to_string();
-                        let token = val.get("token").and_then(|v| v.as_str());
-                        let expires = val.get("expires").and_then(|v| v.as_str());
-                        if let (Some(t), Some(e)) = (token, expires) {
+                let block_text = block.as_str();
+                auth_token = RE_TOKEN
+                    .captures(block_text)
+                    .and_then(|c| c.get(1))
+                    .map(|m| m.as_str().to_string());
+                auth_expires = RE_EXPIRES
+                    .captures(block_text)
+                    .and_then(|c| c.get(1))
+                    .map(|m| m.as_str().to_string());
+                if let Some(m) = RE_MASTER_URL.captures(block_text) {
+                    if let Some(url_match) = m.get(1) {
+                        let mut master_url = url_match.as_str().to_string();
+                        if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
                             let sep = if master_url.contains('?') { '&' } else { '?' };
                             master_url = format!("{}{sep}token={t}&expires={e}&h=1&lang=en", master_url, sep=sep, t=t, e=e);
                         }
@@ -190,13 +242,6 @@ impl VixsrcClient {
         if let Some(caps) = re_streams.captures(&html) {
             if let Some(block) = caps.get(1) {
                 if let Ok(servers) = serde_json::from_str::<Vec<VixsrcStream>>(block.as_str()) {
-                    let auth_token = RE_TOKEN.captures(&html)
-                        .and_then(|c| c.get(1))
-                        .map(|m| m.as_str().to_string());
-                    let auth_expires = RE_EXPIRES.captures(&html)
-                        .and_then(|c| c.get(1))
-                        .map(|m| m.as_str().to_string());
-
                     for server in servers {
                         if let Some(u) = server.url.filter(|s| !s.is_empty()) {
                             let authed = if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
@@ -238,7 +283,7 @@ impl VixsrcClient {
             return Ok(vec![]);
         }
 
-        let subtitles = extract_subtitles(&html);
+        let external_subs = self.fetch_external_subtitles(tmdb_id, media_type, season, episode).await;
 
         let out: Vec<StreamResult> = results.into_iter().map(|s| StreamResult {
             url: s.url,
@@ -246,7 +291,7 @@ impl VixsrcClient {
             quality: s.quality,
             provider: "Aura".to_string(),
             format: "hls".to_string(),
-            subtitles: subtitles.clone(),
+            subtitles: external_subs.clone(),
             headers: Some(headers.clone()),
             extra_metadata: None,
         }).collect();
@@ -277,15 +322,24 @@ impl VixsrcClient {
         let mut auth_token: Option<String> = None;
         let mut auth_expires: Option<String> = None;
 
-        // ── Parse window.masterPlaylist as JSON object ──
+        // ── Extract auth params + master URL from window.masterPlaylist ──
+        // Vixsrc uses JS object notation (single quotes) so serde_json fails;
+        // fall back to regex extraction from the raw block text.
         let re_master = &*RE_MASTER_PL;
         if let Some(caps) = re_master.captures(&html) {
             if let Some(block) = caps.get(1) {
-                if let Ok(val) = serde_json::from_str::<Value>(block.as_str()) {
-                    if let Some(url_val) = val.get("url").and_then(|v| v.as_str()) {
-                        let mut master_url = url_val.to_string();
-                        auth_token = val.get("token").and_then(|v| v.as_str()).map(|s| s.to_string());
-                        auth_expires = val.get("expires").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let block_text = block.as_str();
+                auth_token = RE_TOKEN
+                    .captures(block_text)
+                    .and_then(|c| c.get(1))
+                    .map(|m| m.as_str().to_string());
+                auth_expires = RE_EXPIRES
+                    .captures(block_text)
+                    .and_then(|c| c.get(1))
+                    .map(|m| m.as_str().to_string());
+                if let Some(m) = RE_MASTER_URL.captures(block_text) {
+                    if let Some(url_match) = m.get(1) {
+                        let mut master_url = url_match.as_str().to_string();
                         if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
                             let sep = if master_url.contains('?') { '&' } else { '?' };
                             master_url = format!("{}{sep}token={t}&expires={e}&h=1&lang=en", master_url, sep=sep, t=t, e=e);
