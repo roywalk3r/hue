@@ -118,7 +118,7 @@ impl SflixClient {
             BASE_URL, subject_id, se, ep, slug);
 
         let mut headers = self.get_base_headers();
-        headers.insert(REFERER, HeaderValue::from_str(&referer_url).unwrap());
+        headers.insert(REFERER, HeaderValue::from_str(&referer_url).unwrap_or_else(|_| HeaderValue::from_static(BASE_URL)));
 
         let resp = self.client.get(&play_url)
             .headers(headers)
@@ -153,7 +153,7 @@ impl SflixClient {
             .filter(|id| !id.is_empty())
             .unwrap_or(subject_id);
 
-        if stream_id.is_none() || stream_id.unwrap().is_empty() {
+        if effective_id == subject_id {
             warn!("[SFlix] stream_id missing for subject_id={}, using subject_id as fallback", subject_id);
         }
 
