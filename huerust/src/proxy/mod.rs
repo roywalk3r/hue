@@ -275,8 +275,8 @@ pub async fn m3u8_handler(
     // Inject headers from token (overrides defaults)
     let mut referer_value = None;
     let mut has_origin = false;
-    if let Some(h) = headers.clone() {
-        for (k, v) in h {
+    if let Some(ref h) = headers {
+        for (k, v) in h.iter() {
             if k.eq_ignore_ascii_case("origin") { has_origin = true; }
             if k.eq_ignore_ascii_case("referer") { referer_value = Some(v.clone()); }
             req = req.header(k, v);
@@ -760,23 +760,6 @@ fn rewrite_playlist(
     }
 
     let rewritten = rewritten_lines.join("\n");
-
-    // RAM Turbo: prefetch first 5 segments asynchronously
-    if !cfg!(test) && !segment_urls.is_empty() {
-        let client = reqwest::Client::new();
-        let headers_clone = headers.clone();
-        tokio::spawn(async move {
-            for url in segment_urls.into_iter().take(5) {
-                let mut req = client.get(&url);
-                if let Some(ref h) = headers_clone {
-                    for (k, v) in h {
-                        req = req.header(k, v);
-                    }
-                }
-                let _ = req.send().await;
-            }
-        });
-    }
 
     rewritten
 }

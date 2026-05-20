@@ -45,6 +45,12 @@ use crate::providers::{
 };
 use crate::config::AppConfig;
 
+pub fn kisskh_enabled() -> bool {
+    env::var("ENABLE_KISSKH")
+        .map(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+        .unwrap_or(false)
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub client: Client,
@@ -111,7 +117,11 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let videasy_client = Arc::new(VideasyClient::new());
 
     registry.register(Arc::new(MovieBoxProvider::new(moviebox_client.clone())));
-    registry.register(Arc::new(KissKhProvider::new(kisskh_client.clone())));
+    if kisskh_enabled() {
+        registry.register(Arc::new(KissKhProvider::new(kisskh_client.clone())));
+    } else {
+        tracing::info!("KissKH provider disabled; set ENABLE_KISSKH=true to enable it");
+    }
     registry.register(Arc::new(SflixProvider::new(sflix_client.clone())));
     registry.register(Arc::new(DramacoolProvider::new(dramacool_client.clone())));
     registry.register(Arc::new(VixsrcProvider::new(vixsrc_client)));
@@ -125,6 +135,11 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         client: crate::http_client::with_optional_proxy(
             Client::builder()
                 .tcp_keepalive(Duration::from_secs(60))
+                .tcp_nodelay(true)
+                .timeout(Duration::from_secs(30))
+                .connect_timeout(Duration::from_secs(10))
+                .pool_max_idle_per_host(32)
+                .pool_idle_timeout(Duration::from_secs(120))
                 .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
             "STREAM_PROXY_URL",
         )
@@ -230,6 +245,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/moviebox/shorts", get(crate::routes::moviebox::shorts_handler))
         .route("/api/moviebox/filter", get(crate::routes::moviebox::filter_handler))
         .route("/api/moviebox/info", get(crate::routes::moviebox::info_handler))
+        .route("/api/moviebox/detail", get(crate::routes::moviebox::detail_handler))
         .route("/api/moviebox/search", get(crate::routes::moviebox::search_handler))
         .route("/api/anime/search", get(crate::routes::anime::search_handler))
         .route("/api/anime/latest", get(crate::routes::anime::latest_handler))

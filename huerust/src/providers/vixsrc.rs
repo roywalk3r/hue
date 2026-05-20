@@ -13,9 +13,36 @@ use serde_json::Value;
 use crate::models::{StreamResult, Subtitle};
 use tracing::{info, warn};
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const VIXSRC_REFERER: &str = "https://vixsrc.to/";
+
+// ── Cached regexes (compile once at first use) ──
+static RE_MASTER_PL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"window\.masterPlaylist\s*=\s*(\{[\s\S]*?\n\s*\})\s*[;\n]"#).unwrap()
+});
+static RE_STREAMS_ARR: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"window\.streams\s*=\s*(\[[\s\S]*?\]);"#).unwrap()
+});
+static RE_TOKEN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"['"]?token['"]?\s*:\s*['"]([^'"]+)['"]"#).unwrap()
+});
+static RE_EXPIRES: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"['"]?expires['"]?\s*:\s*['"]([^'"]+)['"]"#).unwrap()
+});
+static RE_M3U8_RAW: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(https?://[^'"\s]+\.m3u8[^'"\s]*)"#).unwrap()
+});
+static RE_SUBTITLE_URL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"window\.subtitleUrl\s*=\s*['"]([^'"]+)['"]"#).unwrap()
+});
+static RE_SUBTITLE_ARR: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"subtitles\s*:\s*(\[[^\]]*\])"#).unwrap()
+});
+static RE_SUBTITLE_VAL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"subtitle[s]?\s*[:=]\s*['"]([^'"]+)['"]"#).unwrap()
+});
 
 pub struct VixsrcClient {
     client: Client,
@@ -136,7 +163,7 @@ impl VixsrcClient {
         let mut results = Vec::new();
 
         // Try parsing window.masterPlaylist as JSON object
-        let re_master = Regex::new(r#"window\.masterPlaylist\s*=\s*(\{[\s\S]*?\n\s*\})\s*[;\n]"#)?;
+        let re_master = &*RE_MASTER_PL;
         if let Some(caps) = re_master.captures(&html) {
             if let Some(block) = caps.get(1) {
                 if let Ok(val) = serde_json::from_str::<Value>(block.as_str()) {
@@ -159,19 +186,14 @@ impl VixsrcClient {
         }
 
         // Try parsing window.streams as JSON array
-        let re_streams = Regex::new(r#"window\.streams\s*=\s*(\[[\s\S]*?\]);"#)?;
+        let re_streams = &*RE_STREAMS_ARR;
         if let Some(caps) = re_streams.captures(&html) {
             if let Some(block) = caps.get(1) {
                 if let Ok(servers) = serde_json::from_str::<Vec<VixsrcStream>>(block.as_str()) {
-                    let auth_token = results.first().as_ref().and_then(|_| {
-                        // reuse auth from masterPlaylist if available
-                        Regex::new(r#"['"]?token['"]?\s*:\s*['"]([^'"]+)['"]"#).ok()
-                            .and_then(|re| re.captures(&html))
-                            .and_then(|c| c.get(1))
-                            .map(|m| m.as_str().to_string())
-                    });
-                    let auth_expires = Regex::new(r#"['"]?expires['"]?\s*:\s*['"]([^'"]+)['"]"#).ok()
-                        .and_then(|re| re.captures(&html))
+                    let auth_token = RE_TOKEN.captures(&html)
+                        .and_then(|c| c.get(1))
+                        .map(|m| m.as_str().to_string());
+                    let auth_expires = RE_EXPIRES.captures(&html)
                         .and_then(|c| c.get(1))
                         .map(|m| m.as_str().to_string());
 
@@ -197,7 +219,7 @@ impl VixsrcClient {
 
         // Fallback: scan for any m3u8 URLs in the page
         if results.is_empty() {
-            let re_m3u8 = Regex::new(r#"(https?://[^'"\s]+\.m3u8[^'"\s]*)"#)?;
+            let re_m3u8 = &*RE_M3U8_RAW;
             let seen: std::collections::HashSet<String> = re_m3u8
                 .find_iter(&html)
                 .map(|m| m.as_str().to_string())
@@ -256,7 +278,7 @@ impl VixsrcClient {
         let mut auth_expires: Option<String> = None;
 
         // ── Parse window.masterPlaylist as JSON object ──
-        let re_master = Regex::new(r#"window\.masterPlaylist\s*=\s*(\{[\s\S]*?\n\s*\})\s*[;\n]"#)?;
+        let re_master = &*RE_MASTER_PL;
         if let Some(caps) = re_master.captures(&html) {
             if let Some(block) = caps.get(1) {
                 if let Ok(val) = serde_json::from_str::<Value>(block.as_str()) {
@@ -279,7 +301,7 @@ impl VixsrcClient {
         }
 
         // ── Parse window.streams as JSON array ──
-        let re_streams = Regex::new(r#"window\.streams\s*=\s*(\[[\s\S]*?\]);"#)?;
+        let re_streams = &*RE_STREAMS_ARR;
         if let Some(caps) = re_streams.captures(&html) {
             if let Some(block) = caps.get(1) {
                 if let Ok(servers) = serde_json::from_str::<Vec<VixsrcStream>>(block.as_str()) {
@@ -308,7 +330,7 @@ impl VixsrcClient {
 
         // ── Fallback: scan for raw m3u8 URLs ──
         if streams.is_empty() {
-            let re_m3u8 = Regex::new(r#"(https?://[^'"\s]+\.m3u8[^'"\s]*)"#)?;
+            let re_m3u8 = &*RE_M3U8_RAW;
             let seen: std::collections::HashSet<String> = re_m3u8
                 .find_iter(&html)
                 .map(|m| m.as_str().to_string())
@@ -337,8 +359,7 @@ struct InternalStream {
 /// Extract subtitle URLs from embed page HTML.
 fn extract_subtitles(html: &str) -> Option<Vec<Subtitle>> {
     // window.subtitleUrl = "..."
-    let re1 = Regex::new(r#"window\.subtitleUrl\s*=\s*['"]([^'"]+)['"]"#).ok()?;
-    if let Some(caps) = re1.captures(html) {
+    if let Some(caps) = RE_SUBTITLE_URL.captures(html) {
         if let Some(m) = caps.get(1) {
             return Some(vec![Subtitle {
                 url: m.as_str().to_string(),
@@ -349,8 +370,7 @@ fn extract_subtitles(html: &str) -> Option<Vec<Subtitle>> {
     }
 
     // subtitles: [{url:"...",lang:"..."}]
-    let re2 = Regex::new(r#"subtitles\s*:\s*(\[[^\]]*\])"#).ok()?;
-    if let Some(caps) = re2.captures(html) {
+    if let Some(caps) = RE_SUBTITLE_ARR.captures(html) {
         if let Some(block) = caps.get(1) {
             if let Ok(arr) = serde_json::from_str::<Vec<Value>>(block.as_str()) {
                 let subs: Vec<Subtitle> = arr
@@ -374,8 +394,7 @@ fn extract_subtitles(html: &str) -> Option<Vec<Subtitle>> {
     }
 
     // subtitle = "..."
-    let re3 = Regex::new(r#"subtitle[s]?\s*[:=]\s*['"]([^'"]+)['"]"#).ok()?;
-    if let Some(caps) = re3.captures(html) {
+    if let Some(caps) = RE_SUBTITLE_VAL.captures(html) {
         if let Some(m) = caps.get(1) {
             return Some(vec![Subtitle {
                 url: m.as_str().to_string(),
