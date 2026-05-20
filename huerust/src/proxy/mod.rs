@@ -28,6 +28,10 @@ pub mod wrap;
 #[derive(Deserialize)]
 pub struct ProxyQuery {
     pub h_token: Option<String>,
+    pub url: Option<String>,
+    pub headers: Option<String>,
+    #[allow(dead_code)]
+    pub mode: Option<String>,
     pub download: Option<String>,
     pub filename: Option<String>,
     pub adsurgery: Option<u32>,
@@ -36,6 +40,10 @@ pub struct ProxyQuery {
 #[derive(Deserialize)]
 pub struct TsProxyQuery {
     pub h_token: Option<String>,
+    pub url: Option<String>,
+    pub headers: Option<String>,
+    #[allow(dead_code)]
+    pub mode: Option<String>,
     pub range: Option<String>,
     #[allow(dead_code)]
     pub clamp_open: Option<u32>,
@@ -75,11 +83,23 @@ pub fn dynamic_proxy_base(headers: &HeaderMap, fallback: &str) -> String {
     format!("{}://{}", proto, host)
 }
 
-/// Extract target URL + headers from signed token mode.
+/// Parse JSON headers string from query param.
+fn parse_headers_json(raw: &str) -> Option<HashMap<String, String>> {
+    serde_json::from_str::<HashMap<String, String>>(raw).ok()
+}
+
+/// Extract target URL + headers from `url`+`headers` mode or signed `h_token` mode.
 fn resolve_proxy_target(
     params: &ProxyQuery,
     secret: &str,
 ) -> Option<(String, Option<HashMap<String, String>>)> {
+    // Prefer explicit url+headers mode (used by Vixsrc signed URLs)
+    if let Some(url) = &params.url {
+        if !url.trim().is_empty() {
+            let headers = params.headers.as_deref().and_then(parse_headers_json);
+            return Some((url.clone(), headers));
+        }
+    }
     if let Some(token) = &params.h_token {
         if let Some(data) = security::decrypt_url(token, secret) {
             return Some((data.url, data.headers));
@@ -92,6 +112,12 @@ fn resolve_ts_target(
     params: &TsProxyQuery,
     secret: &str,
 ) -> Option<(String, Option<HashMap<String, String>>)> {
+    if let Some(url) = &params.url {
+        if !url.trim().is_empty() {
+            let headers = params.headers.as_deref().and_then(parse_headers_json);
+            return Some((url.clone(), headers));
+        }
+    }
     if let Some(token) = &params.h_token {
         if let Some(data) = security::decrypt_url(token, secret) {
             return Some((data.url, data.headers));

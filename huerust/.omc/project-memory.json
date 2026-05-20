@@ -124,8 +124,8 @@
     },
     {
       "path": "src/proxy/mod.rs",
-      "accessCount": 16,
-      "lastAccessed": 1779225923751,
+      "accessCount": 19,
+      "lastAccessed": 1779300190731,
       "type": "file"
     },
     {
@@ -162,6 +162,12 @@
       "path": "src/clients/hianime.rs",
       "accessCount": 7,
       "lastAccessed": 1779286728254,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/vixsrc.rs",
+      "accessCount": 6,
+      "lastAccessed": 1779296134303,
       "type": "file"
     },
     {
@@ -246,12 +252,6 @@
       "path": "src/providers/kisskh.rs",
       "accessCount": 2,
       "lastAccessed": 1779289188506,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/vixsrc.rs",
-      "accessCount": 1,
-      "lastAccessed": 1779225859721,
       "type": "file"
     },
     {

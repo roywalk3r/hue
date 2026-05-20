@@ -9,10 +9,10 @@ use anyhow::Result;
 use reqwest::Client;
 use regex::Regex;
 use serde::Deserialize;
-use crate::models::StreamResult;
+use serde_json::Value;
+use crate::models::{StreamResult, Subtitle};
 use tracing::{info, warn};
 use std::collections::HashMap;
-use url::Url;
 
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const VIXSRC_REFERER: &str = "https://vixsrc.to/";
@@ -24,6 +24,14 @@ pub struct VixsrcClient {
 #[derive(Debug, Deserialize)]
 struct VixsrcApiResponse {
     src: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct VixsrcStream {
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    url: Option<String>,
 }
 
 impl VixsrcClient {
@@ -56,47 +64,66 @@ impl VixsrcClient {
         headers.insert("Referer".to_string(), page_url.clone());
         headers.insert("User-Agent".to_string(), USER_AGENT.to_string());
 
-        if let Ok(resp) = self.client
+        // ── Step 1: API call to get embed path ──
+        let embed_url = match self.client
             .get(&api_url)
             .header("User-Agent", USER_AGENT)
             .header("Referer", &page_url)
             .send()
             .await
         {
-            if resp.status().is_success() {
-                if let Ok(api) = resp.json::<VixsrcApiResponse>().await {
-                    if let Some(src) = api.src.filter(|s| !s.trim().is_empty()) {
-                        let embed_url = if src.starts_with("http://") || src.starts_with("https://") {
+            Ok(resp) if resp.status().is_success() => {
+                match resp.json::<VixsrcApiResponse>().await {
+                    Ok(api) => api.src.filter(|s| !s.trim().is_empty()).map(|src| {
+                        if src.starts_with("http://") || src.starts_with("https://") {
                             src
                         } else {
                             format!("https://vixsrc.to{}", src)
-                        };
-
-                        match self.extract_hls_from_embed(&embed_url, &page_url).await {
-                            Ok(final_url) => {
-                                headers.insert("Referer".to_string(), embed_url);
-
-                                return Ok(vec![StreamResult {
-                                    url: final_url,
-                                    title: "Aura - Auto (HLS)".to_string(),
-                                    quality: "Auto".to_string(),
-                                    provider: "Aura".to_string(),
-                                    format: "hls".to_string(),
-                                    subtitles: None,
-                                    headers: Some(headers),
-                                    extra_metadata: None,
-                                }]);
-                            }
-                            Err(e) => warn!("[Vixsrc Rust] HLS extraction from embed failed: {}", e),
                         }
-
-                        // Fallback: embed page didn't yield a playable stream — skip this provider
-                        warn!("[Vixsrc Rust] Could not extract HLS from embed for TMDB {}", tmdb_id);
+                    }),
+                    Err(e) => {
+                        warn!("[Vixsrc Rust] API JSON parse failed: {}", e);
+                        None
                     }
                 }
             }
+            Ok(resp) => {
+                warn!("[Vixsrc Rust] API returned {}", resp.status());
+                None
+            }
+            Err(e) => {
+                warn!("[Vixsrc Rust] API request failed: {}", e);
+                None
+            }
+        };
+
+        // ── Step 2: Extract streams + subtitles from embed page ──
+        if let Some(ref url) = embed_url {
+            match self.extract_from_embed_page(url, &page_url).await {
+                Ok((streams, subtitles)) if !streams.is_empty() => {
+                    let mut results = Vec::new();
+                    for s in streams {
+                        let mut h = headers.clone();
+                        h.insert("Referer".to_string(), url.clone());
+                        results.push(StreamResult {
+                            url: s.url,
+                            title: s.title,
+                            quality: s.quality,
+                            provider: "Aura".to_string(),
+                            format: "hls".to_string(),
+                            subtitles: subtitles.clone(),
+                            headers: Some(h),
+                            extra_metadata: None,
+                        });
+                    }
+                    return Ok(results);
+                }
+                Ok(_) => warn!("[Vixsrc Rust] Embed page yielded no streams for TMDB {}", tmdb_id),
+                Err(e) => warn!("[Vixsrc Rust] Embed extraction failed: {}", e),
+            }
         }
 
+        // ── Step 3: Fallback — scrape the detail page directly ──
         let resp = self.client
             .get(&page_url)
             .header("User-Agent", USER_AGENT)
@@ -106,41 +133,112 @@ impl VixsrcClient {
 
         let html = resp.text().await?;
 
-        let re_url = Regex::new(r#"(?s)masterPlaylist\s*[=:]\s*\{.*?["']?url["']?\s*:\s*["']([^"']+)["']"#)?;
-        let re_token = Regex::new(r#"masterPlaylist\s*[=:]\s*\{[^}]*?["']token["']\s*:\s*["']([^"']+)["']"#)?;
+        let mut results = Vec::new();
 
-        let stream_url = match re_url.captures(&html).and_then(|c| c.get(1)) {
-            Some(m) => m.as_str().to_string(),
-            None => {
-                warn!("[Vixsrc Rust] masterPlaylist.url not found for TMDB {}", tmdb_id);
-                return Ok(vec![]);
+        // Try parsing window.masterPlaylist as JSON object
+        let re_master = Regex::new(r#"window\.masterPlaylist\s*=\s*(\{[\s\S]*?\n\s*\})\s*[;\n]"#)?;
+        if let Some(caps) = re_master.captures(&html) {
+            if let Some(block) = caps.get(1) {
+                if let Ok(val) = serde_json::from_str::<Value>(block.as_str()) {
+                    if let Some(url_val) = val.get("url").and_then(|v| v.as_str()) {
+                        let mut master_url = url_val.to_string();
+                        let token = val.get("token").and_then(|v| v.as_str());
+                        let expires = val.get("expires").and_then(|v| v.as_str());
+                        if let (Some(t), Some(e)) = (token, expires) {
+                            let sep = if master_url.contains('?') { '&' } else { '?' };
+                            master_url = format!("{}\n{sep}token={t}&expires={e}&h=1&lang=en", master_url, sep=sep, t=t, e=e);
+                        }
+                        results.push(InternalStream {
+                            url: master_url,
+                            quality: "1080p".to_string(),
+                            title: "Aura - Master - 1080p".to_string(),
+                        });
+                    }
+                }
             }
-        };
+        }
 
-        let final_url = if let Some(token_match) = re_token.captures(&html).and_then(|c| c.get(1)) {
-            let t = token_match.as_str();
-            if stream_url.contains('?') {
-                format!("{}&token={}", stream_url, t)
-            } else {
-                format!("{}?token={}", stream_url, t)
+        // Try parsing window.streams as JSON array
+        let re_streams = Regex::new(r#"window\.streams\s*=\s*(\[[\s\S]*?\]);"#)?;
+        if let Some(caps) = re_streams.captures(&html) {
+            if let Some(block) = caps.get(1) {
+                if let Ok(servers) = serde_json::from_str::<Vec<VixsrcStream>>(block.as_str()) {
+                    let auth_token = results.first().as_ref().and_then(|_| {
+                        // reuse auth from masterPlaylist if available
+                        Regex::new(r#"['"]?token['"]?\s*:\s*['"]([^'"]+)['"]"#).ok()
+                            .and_then(|re| re.captures(&html))
+                            .and_then(|c| c.get(1))
+                            .map(|m| m.as_str().to_string())
+                    });
+                    let auth_expires = Regex::new(r#"['"]?expires['"]?\s*:\s*['"]([^'"]+)['"]"#).ok()
+                        .and_then(|re| re.captures(&html))
+                        .and_then(|c| c.get(1))
+                        .map(|m| m.as_str().to_string());
+
+                    for server in servers {
+                        if let Some(u) = server.url.filter(|s| !s.is_empty()) {
+                            let authed = if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
+                                let sep = if u.contains('?') { '&' } else { '?' };
+                                format!("{}\n{sep}token={t}&expires={e}&h=1&lang=en", u, sep=sep, t=t, e=e)
+                            } else {
+                                u
+                            };
+                            let name = server.name.as_deref().unwrap_or("Server");
+                            results.push(InternalStream {
+                                url: authed,
+                                quality: "Auto".to_string(),
+                                title: format!("Aura - {} - Auto", name),
+                            });
+                        }
+                    }
+                }
             }
-        } else {
-            stream_url
-        };
+        }
 
-        Ok(vec![StreamResult {
-            url: final_url,
-            title: "Aura - Auto (HLS)".to_string(),
-            quality: "Auto".to_string(),
+        // Fallback: scan for any m3u8 URLs in the page
+        if results.is_empty() {
+            let re_m3u8 = Regex::new(r#"(https?://[^'"\s]+\.m3u8[^'"\s]*)"#)?;
+            let seen: std::collections::HashSet<String> = re_m3u8
+                .find_iter(&html)
+                .map(|m| m.as_str().to_string())
+                .collect();
+            for url in seen {
+                results.push(InternalStream {
+                    url,
+                    quality: "Auto".to_string(),
+                    title: "Aura - Direct - Auto".to_string(),
+                });
+            }
+        }
+
+        if results.is_empty() {
+            warn!("[Vixsrc Rust] No streams found for TMDB {}", tmdb_id);
+            return Ok(vec![]);
+        }
+
+        let subtitles = extract_subtitles(&html);
+
+        let out: Vec<StreamResult> = results.into_iter().map(|s| StreamResult {
+            url: s.url,
+            title: s.title,
+            quality: s.quality,
             provider: "Aura".to_string(),
             format: "hls".to_string(),
-            subtitles: None,
-            headers: Some(headers),
+            subtitles: subtitles.clone(),
+            headers: Some(headers.clone()),
             extra_metadata: None,
-        }])
+        }).collect();
+
+        Ok(out)
     }
 
-    async fn extract_hls_from_embed(&self, embed_url: &str, page_url: &str) -> Result<String> {
+    /// Fetch embed page and extract streams + subtitles.
+    /// Returns (streams, optional_subtitles).
+    async fn extract_from_embed_page(
+        &self,
+        embed_url: &str,
+        page_url: &str,
+    ) -> Result<(Vec<InternalStream>, Option<Vec<Subtitle>>)> {
         let resp = self.client
             .get(embed_url)
             .header("User-Agent", USER_AGENT)
@@ -149,48 +247,143 @@ impl VixsrcClient {
             .await?;
 
         if !resp.status().is_success() {
-            warn!("[Vixsrc Rust] embed page returned {}", resp.status());
-            anyhow::bail!("Vixsrc embed page failed");
+            anyhow::bail!("Vixsrc embed page returned {}", resp.status());
         }
 
         let html = resp.text().await?;
-        let re_url = Regex::new(r#"(?s)masterPlaylist\s*[=:]\s*\{.*?["']?url["']?\s*:\s*["']([^"']+)["']"#)?;
-        let re_param = |name: &str| -> Result<Regex> {
-            Ok(Regex::new(&format!(r#"["']{}["']\s*:\s*["']([^"']*)["']"#, regex::escape(name)))?)
-        };
+        let mut streams: Vec<InternalStream> = Vec::new();
+        let mut auth_token: Option<String> = None;
+        let mut auth_expires: Option<String> = None;
 
-        let playlist = re_url
-            .captures(&html)
-            .and_then(|c| c.get(1))
-            .map(|m| m.as_str().to_string())
-            .ok_or_else(|| anyhow::anyhow!("Vixsrc masterPlaylist.url not found"))?;
-
-        let mut url = Url::parse(&playlist)?;
-        {
-            let mut query = url.query_pairs_mut();
-            for name in ["token", "expires", "asn"] {
-                if let Some(value) = re_param(name)?
-                    .captures(&html)
-                    .and_then(|c| c.get(1))
-                    .map(|m| m.as_str())
-                    .filter(|v| !v.is_empty())
-                {
-                    query.append_pair(name, value);
+        // ── Parse window.masterPlaylist as JSON object ──
+        let re_master = Regex::new(r#"window\.masterPlaylist\s*=\s*(\{[\s\S]*?\n\s*\})\s*[;\n]"#)?;
+        if let Some(caps) = re_master.captures(&html) {
+            if let Some(block) = caps.get(1) {
+                if let Ok(val) = serde_json::from_str::<Value>(block.as_str()) {
+                    if let Some(url_val) = val.get("url").and_then(|v| v.as_str()) {
+                        let mut master_url = url_val.to_string();
+                        auth_token = val.get("token").and_then(|v| v.as_str()).map(|s| s.to_string());
+                        auth_expires = val.get("expires").and_then(|v| v.as_str()).map(|s| s.to_string());
+                        if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
+                            let sep = if master_url.contains('?') { '&' } else { '?' };
+                            master_url = format!("{}\n{sep}token={t}&expires={e}&h=1&lang=en", master_url, sep=sep, t=t, e=e);
+                        }
+                        streams.push(InternalStream {
+                            url: master_url,
+                            quality: "1080p".to_string(),
+                            title: "Aura - Master - 1080p".to_string(),
+                        });
+                    }
                 }
             }
-
-            let lang = Url::parse(embed_url)
-                .ok()
-                .and_then(|u| {
-                    u.query_pairs()
-                        .find(|(k, _)| k == "lang")
-                        .map(|(_, v)| v.to_string())
-                })
-                .unwrap_or_else(|| "en".to_string());
-            query.append_pair("h", "1");
-            query.append_pair("lang", &lang);
         }
 
-        Ok(url.to_string())
+        // ── Parse window.streams as JSON array ──
+        let re_streams = Regex::new(r#"window\.streams\s*=\s*(\[[\s\S]*?\]);"#)?;
+        if let Some(caps) = re_streams.captures(&html) {
+            if let Some(block) = caps.get(1) {
+                if let Ok(servers) = serde_json::from_str::<Vec<VixsrcStream>>(block.as_str()) {
+                    for server in servers {
+                        if let Some(u) = server.url.filter(|s| !s.is_empty()) {
+                            let authed = if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
+                                let sep = if u.contains('?') { '&' } else { '?' };
+                                format!("{}\n{sep}token={t}&expires={e}&h=1&lang=en", u, sep=sep, t=t, e=e)
+                            } else {
+                                u
+                            };
+                            let name = server.name.as_deref().unwrap_or("Server");
+                            // dedupe by URL
+                            if !streams.iter().any(|s| s.url == authed) {
+                                streams.push(InternalStream {
+                                    url: authed,
+                                    quality: "Auto".to_string(),
+                                    title: format!("Aura - {} - Auto", name),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Fallback: scan for raw m3u8 URLs ──
+        if streams.is_empty() {
+            let re_m3u8 = Regex::new(r#"(https?://[^'"\s]+\.m3u8[^'"\s]*)"#)?;
+            let seen: std::collections::HashSet<String> = re_m3u8
+                .find_iter(&html)
+                .map(|m| m.as_str().to_string())
+                .collect();
+            for url in seen {
+                streams.push(InternalStream {
+                    url,
+                    quality: "Auto".to_string(),
+                    title: "Aura - Direct - Auto".to_string(),
+                });
+            }
+        }
+
+        let subtitles = extract_subtitles(&html);
+        Ok((streams, subtitles))
     }
+}
+
+#[derive(Debug)]
+struct InternalStream {
+    url: String,
+    quality: String,
+    title: String,
+}
+
+/// Extract subtitle URLs from embed page HTML.
+fn extract_subtitles(html: &str) -> Option<Vec<Subtitle>> {
+    // window.subtitleUrl = "..."
+    let re1 = Regex::new(r#"window\.subtitleUrl\s*=\s*['"]([^'"]+)['"]"#).ok()?;
+    if let Some(caps) = re1.captures(html) {
+        if let Some(m) = caps.get(1) {
+            return Some(vec![Subtitle {
+                url: m.as_str().to_string(),
+                lang: "en".to_string(),
+                label: "English".to_string(),
+            }]);
+        }
+    }
+
+    // subtitles: [{url:"...",lang:"..."}]
+    let re2 = Regex::new(r#"subtitles\s*:\s*(\[[^\]]*\])"#).ok()?;
+    if let Some(caps) = re2.captures(html) {
+        if let Some(block) = caps.get(1) {
+            if let Ok(arr) = serde_json::from_str::<Vec<Value>>(block.as_str()) {
+                let subs: Vec<Subtitle> = arr
+                    .into_iter()
+                    .filter_map(|v| {
+                        let url = v.get("url").and_then(|u| u.as_str())?;
+                        let lang = v.get("lang").and_then(|l| l.as_str()).unwrap_or("en");
+                        let label = v.get("label").and_then(|l| l.as_str()).unwrap_or(lang);
+                        Some(Subtitle {
+                            url: url.to_string(),
+                            lang: lang.to_string(),
+                            label: label.to_string(),
+                        })
+                    })
+                    .collect();
+                if !subs.is_empty() {
+                    return Some(subs);
+                }
+            }
+        }
+    }
+
+    // subtitle = "..."
+    let re3 = Regex::new(r#"subtitle[s]?\s*[:=]\s*['"]([^'"]+)['"]"#).ok()?;
+    if let Some(caps) = re3.captures(html) {
+        if let Some(m) = caps.get(1) {
+            return Some(vec![Subtitle {
+                url: m.as_str().to_string(),
+                lang: "en".to_string(),
+                label: "English".to_string(),
+            }]);
+        }
+    }
+
+    None
 }
