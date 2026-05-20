@@ -26,6 +26,9 @@ if (typeof global.File === 'undefined') {
 const express = require('express');
 const sflixProvider = require('./providers/sflix');
 const dramacoolProvider = require('./providers/dramacool');
+const { decrypt: videasyDecrypt } = require('./providers/videasy/decrypt');
+const { getNewPage } = require('./utils/browserManager');
+const vidsrcEmbedProvider = require('./providers/vidsrc-embed');
 
 const app = express();
 const port = process.env.SCRAPER_PORT || 24610;
@@ -63,6 +66,71 @@ app.post('/scrape/dramacool', async (req, res) => {
     } catch (e) {
         console.error(`[Scraper] Dramacool error: ${e.message}`);
         res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// Videasy Decryption Route
+app.post('/scrape/videasy', async (req, res) => {
+    const { hexResponse, tmdbId } = req.body;
+    if (!hexResponse || !tmdbId) {
+        return res.status(400).json({ error: 'Missing hexResponse or tmdbId parameter' });
+    }
+
+    try {
+        console.log(`[Scraper] Decrypting Videasy for TMDB ${tmdbId}`);
+        const decrypted = await videasyDecrypt(hexResponse.trim(), String(tmdbId));
+
+        if (!decrypted || !decrypted.sources || !Array.isArray(decrypted.sources)) {
+            return res.json({ success: false, streams: [], subtitles: [] });
+        }
+
+        const streams = decrypted.sources
+            .filter(s => s.url)
+            .map(s => ({
+                url: s.url,
+                quality: s.quality || 'Auto'
+            }));
+
+        const subtitles = (decrypted.subtitles || [])
+            .filter(s => s.url)
+            .map(s => ({
+                url: s.url,
+                lang: s.lang || 'en',
+                label: s.language || s.lang || 'English'
+            }));
+
+        console.log(`[Scraper] Videasy decrypted ${streams.length} streams, ${subtitles.length} subtitles`);
+        res.json({ success: true, streams, subtitles });
+    } catch (e) {
+        console.error(`[Scraper] Videasy error: ${e.message}`);
+        res.status(500).json({ success: false, error: e.message, streams: [], subtitles: [] });
+    }
+});
+
+// Vidsrc-Embed Browser Scraper Route
+app.post('/scrape/vidsrc-embed', async (req, res) => {
+    const { tmdbId, mediaType, season, episode } = req.body;
+    if (!tmdbId || !mediaType) {
+        return res.status(400).json({ error: 'Missing tmdbId or mediaType parameter' });
+    }
+
+    try {
+        console.log(`[Scraper] Scraping Vidsrc-Embed: ${mediaType} ${tmdbId}`);
+        const streams = await vidsrcEmbedProvider.getStreams(tmdbId, mediaType, season, episode);
+        if (streams && streams.length > 0) {
+            const mapped = streams.map(s => ({
+                url: s.url,
+                quality: s.quality || 'Auto',
+                subtitles: s.subtitles || [],
+                headers: s.headers || {}
+            }));
+            res.json({ success: true, streams: mapped });
+        } else {
+            res.json({ success: false, streams: [] });
+        }
+    } catch (e) {
+        console.error(`[Scraper] Vidsrc-Embed error: ${e.message}`);
+        res.status(500).json({ success: false, error: e.message, streams: [] });
     }
 });
 

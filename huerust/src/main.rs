@@ -18,6 +18,10 @@ async fn main() {
     }
     tracing_subscriber::fmt::init();
     let cfg = config::AppConfig::from_env();
+    if let Err(err) = cfg.validate_runtime() {
+        eprintln!("Configuration error: {err}");
+        std::process::exit(1);
+    }
     let state = app::build_state(&cfg).await;
     app::spawn_background_tasks(&state);
     let router = app::build_router(state);

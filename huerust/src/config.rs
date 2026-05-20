@@ -80,6 +80,30 @@ impl AppConfig {
         }
     }
 
+    pub fn validate_runtime(&self) -> anyhow::Result<()> {
+        let env_name = env::var("APP_ENV")
+            .or_else(|_| env::var("RUST_ENV"))
+            .or_else(|_| env::var("NODE_ENV"))
+            .unwrap_or_default()
+            .to_lowercase();
+        let is_production = matches!(env_name.as_str(), "prod" | "production");
+
+        if is_production {
+            if self.secret.trim().is_empty()
+                || self.secret == "hue-streaming-stable-secret-2026"
+            {
+                anyhow::bail!("APP_SECRET must be set to a non-default value in production");
+            }
+
+            let api_key = env::var("API_KEY").unwrap_or_default();
+            if api_key.trim().is_empty() {
+                anyhow::bail!("API_KEY must be set in production");
+            }
+        }
+
+        Ok(())
+    }
+
     #[allow(dead_code)]
     pub fn fast_deadline(&self) -> Duration {
         Duration::from_secs(self.fast_provider_deadline_secs)

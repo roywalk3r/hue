@@ -19,9 +19,8 @@ module.exports = {
     },
     {
       name: 'hue-rust-api',
-      script: 'cargo',
-      args: 'run --release',
       cwd: './huerust',
+      script: './target/release/huerust',
       env: {
         RUST_PORT: 24609,
       }

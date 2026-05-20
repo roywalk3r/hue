@@ -49,10 +49,10 @@ function extractStreamFromPage(url, contentType, contentId, seasonNum, episodeNu
 
     if (contentType === 'movie') {
         vixsrcUrl = `${BASE_URL}/movie/${contentId}`;
-        subtitleApiUrl = `https://sub.wyzie.ru/search?id=${contentId}`;
+        subtitleApiUrl = `https://sub.vdrk.site/v2/movie/${contentId}`;
     } else {
         vixsrcUrl = `${BASE_URL}/tv/${contentId}/${seasonNum}/${episodeNum}`;
-        subtitleApiUrl = `https://sub.wyzie.ru/search?id=${contentId}&season=${seasonNum}&episode=${episodeNum}`;
+        subtitleApiUrl = `https://sub.vdrk.site/v2/tv/${contentId}/${seasonNum}/${episodeNum}`;
     }
 
     console.log(`[Vixsrc] Fetching: ${vixsrcUrl}`);
@@ -135,26 +135,17 @@ function getSubtitles(subtitleApiUrl) {
     return makeRequest(subtitleApiUrl)
         .then(response => response.json())
         .then(subtitleData => {
-            // Find English subtitle track (same logic as original)
-            let subtitleTrack = subtitleData.find(track =>
-                track.display.includes('English') && (track.encoding === 'ASCII' || track.encoding === 'UTF-8')
-            );
-
-            if (!subtitleTrack) {
-                subtitleTrack = subtitleData.find(track => track.display.includes('English') && track.encoding === 'CP1252');
+            // vdrk.site API returns [{ label, file }]
+            if (!Array.isArray(subtitleData) || subtitleData.length === 0) {
+                console.log('[Vixsrc] No subtitles found');
+                return '';
             }
-
-            if (!subtitleTrack) {
-                subtitleTrack = subtitleData.find(track => track.display.includes('English') && track.encoding === 'CP1250');
-            }
-
-            if (!subtitleTrack) {
-                subtitleTrack = subtitleData.find(track => track.display.includes('English') && track.encoding === 'CP850');
-            }
-
-            const subtitles = subtitleTrack ? subtitleTrack.url : '';
-            console.log(subtitles ? `[Vixsrc] Found subtitles: ${subtitles}` : '[Vixsrc] No English subtitles found');
-            return subtitles;
+            // Prefer English
+            const english = subtitleData.find(t => t.label && t.label.toLowerCase().includes('english'));
+            const track = english || subtitleData[0];
+            const url = track.file || '';
+            console.log(url ? `[Vixsrc] Found subtitle: ${track.label} → ${url}` : '[Vixsrc] No subtitle URL');
+            return url;
         })
         .catch(error => {
             console.log('[Vixsrc] Subtitle fetch failed:', error.message);

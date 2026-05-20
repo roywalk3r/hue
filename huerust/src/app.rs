@@ -36,6 +36,7 @@ use crate::providers::{
     vidzee_provider::VidzeeProvider,
     videasy_provider::VideasyProvider,
     vidrock_provider::VidrockProvider,
+    vidsrcembed_provider::VidsrcEmbedProvider,
     vixsrc::VixsrcClient,
     kisskh::KissKhClient,
     dramacool::DramacoolClient,
@@ -70,7 +71,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let cache = Arc::new(StreamCache::new_from_config(&cfg).await);
     let circuit_breaker = Arc::new(CircuitBreaker::new());
     let metrics = Arc::new(Metrics::new(
-        &["Cinema", "Nova", "Zenith", "Orient", "Aura", "Hydra", "Luna", "VidZee", "Vortex"],
+        &["Cinema", "Nova", "Zenith", "Orient", "Aura", "Hydra", "Luna", "VidZee", "Vortex", "Nebula"],
     ));
     circuit_breaker.set_metrics(metrics.clone());
     let filter_config = Arc::new(FilterConfig::default());
@@ -97,6 +98,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     ));
 
     let vidrock_client = Arc::new(crate::clients::vidrock::VidRockClient::new());
+    let vidsrcembed_client = Arc::new(crate::clients::vidsrcembed::VidsrcEmbedClient::new());
     let vidzee_client = Arc::new(VidzeeClient::new(
         Client::builder()
             .tcp_keepalive(Duration::from_secs(60))
@@ -117,6 +119,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     registry.register(Arc::new(VidrockProvider::new(vidrock_client.clone())));
     registry.register(Arc::new(VidzeeProvider::new(vidzee_client.clone())));
     registry.register(Arc::new(VideasyProvider::new(videasy_client.clone())));
+    registry.register(Arc::new(VidsrcEmbedProvider::new(vidsrcembed_client.clone())));
 
     AppState {
         client: crate::http_client::with_optional_proxy(
@@ -251,9 +254,23 @@ async fn auth_middleware(State(_state): State<AppState>, req: Request<Body>, nex
     if path == "/ts-proxy" || path == "/m3u8-proxy" || path == "/sub-proxy" || path == "/storage/enc.key" {
         return Ok(next.run(req).await);
     }
+    if path.starts_with("/api/admin/") {
+        let api_key = env::var("API_KEY")
+            .ok()
+            .filter(|key| !key.trim().is_empty())
+            .ok_or(StatusCode::FORBIDDEN)?;
+        let auth = req.headers().get("x-api-key").and_then(|v| v.to_str().ok());
+        if auth != Some(api_key.as_str()) { return Err(StatusCode::FORBIDDEN); }
+        return Ok(next.run(req).await);
+    }
+
     let is_local = req.extensions().get::<SocketAddr>().map_or(false, |a| a.ip().is_loopback());
     if is_local { return Ok(next.run(req).await); }
+
     if let Ok(api_key) = env::var("API_KEY") {
+        if api_key.trim().is_empty() {
+            return Ok(next.run(req).await);
+        }
         let auth = req.headers().get("x-api-key").and_then(|v| v.to_str().ok());
         if auth != Some(&api_key) { return Err(StatusCode::FORBIDDEN); }
     }

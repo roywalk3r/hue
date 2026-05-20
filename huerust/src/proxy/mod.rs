@@ -13,6 +13,7 @@ use axum::{
 };
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::net::IpAddr;
 use url::Url;
 
 use crate::{security, app::AppState};
@@ -27,9 +28,6 @@ pub mod wrap;
 #[derive(Deserialize)]
 pub struct ProxyQuery {
     pub h_token: Option<String>,
-    pub url: Option<String>,
-    pub headers: Option<String>, // JSON-encoded headers for url mode
-    pub mode: Option<String>, // "url" for url+headers mode
     pub download: Option<String>,
     pub filename: Option<String>,
     pub adsurgery: Option<u32>,
@@ -38,8 +36,6 @@ pub struct ProxyQuery {
 #[derive(Deserialize)]
 pub struct TsProxyQuery {
     pub h_token: Option<String>,
-    pub url: Option<String>,
-    pub headers: Option<String>, // JSON-encoded headers for url mode
     pub range: Option<String>,
     #[allow(dead_code)]
     pub clamp_open: Option<u32>,
@@ -79,23 +75,15 @@ pub fn dynamic_proxy_base(headers: &HeaderMap, fallback: &str) -> String {
     format!("{}://{}", proto, host)
 }
 
-/// Extract target URL + headers from either token or raw url mode
+/// Extract target URL + headers from signed token mode.
 fn resolve_proxy_target(
     params: &ProxyQuery,
     secret: &str,
 ) -> Option<(String, Option<HashMap<String, String>>)> {
-    // Prefer h_token mode
     if let Some(token) = &params.h_token {
         if let Some(data) = security::decrypt_url(token, secret) {
             return Some((data.url, data.headers));
         }
-    }
-    // Fallback to url mode
-    if let Some(url) = &params.url {
-        let headers = params.headers.as_ref().and_then(|h| {
-            serde_json::from_str::<HashMap<String, String>>(h).ok()
-        });
-        return Some((url.clone(), headers));
     }
     None
 }
@@ -108,12 +96,6 @@ fn resolve_ts_target(
         if let Some(data) = security::decrypt_url(token, secret) {
             return Some((data.url, data.headers));
         }
-    }
-    if let Some(url) = &params.url {
-        let headers = params.headers.as_ref().and_then(|h| {
-            serde_json::from_str::<HashMap<String, String>>(h).ok()
-        });
-        return Some((url.clone(), headers));
     }
     None
 }
@@ -193,24 +175,6 @@ fn has_header(headers: &Option<HashMap<String, String>>, name: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Build &headers= JSON query fragment for url mode
-fn build_headers_query(headers: &Option<HashMap<String, String>>) -> String {
-    let h = match headers {
-        Some(h) => h,
-        None => return String::new(),
-    };
-    let skip: &[&str] = &["host", "connection", "content-length", "accept-encoding"];
-    let filtered: HashMap<String, String> = h
-        .iter()
-        .filter(|(k, _)| !skip.contains(&k.to_lowercase().as_str()))
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect();
-    if filtered.is_empty() {
-        return String::new();
-    }
-    format!("&headers={}", urlencoding::encode(&serde_json::to_string(&filtered).unwrap_or_default()))
-}
-
 fn is_vixsrc_target(target_url: &str, headers: &Option<HashMap<String, String>>) -> bool {
     if target_url.contains("vixsrc.to") {
         return true;
@@ -263,8 +227,6 @@ pub async fn m3u8_handler(
     }
 
     let is_vix = is_vixsrc_target(&target_url, &headers);
-    let use_url_mode = params.mode.as_deref() == Some("url") || is_vix;
-
     let mut req = state.client.get(&target_url);
     req = inject_cdn_headers(req, &target_url, &headers);
 
@@ -365,7 +327,7 @@ pub async fn m3u8_handler(
 
             let proxy_base = dynamic_proxy_base(&request_headers, &state.proxy_base_url);
             let final_body = if is_hls {
-                rewrite_playlist(&body, &target_url, &proxy_base, &state.secret, headers, use_url_mode)
+                rewrite_playlist(&body, &target_url, &proxy_base, &state.secret, headers)
             } else {
                 body
             };
@@ -396,11 +358,26 @@ fn is_internal_host(target_url: &str) -> bool {
     if let Ok(u) = Url::parse(target_url) {
         if let Some(host) = u.host_str() {
             let h = host.to_lowercase();
-            return h == "localhost"
-                || h == "127.0.0.1"
-                || h == "0.0.0.0"
-                || h.starts_with("192.168.")
-                || h.starts_with("10.");
+            if h == "localhost" {
+                return true;
+            }
+
+            if let Ok(ip) = h.parse::<IpAddr>() {
+                return match ip {
+                    IpAddr::V4(v4) => {
+                        v4.is_loopback()
+                            || v4.is_private()
+                            || v4.is_link_local()
+                            || v4.is_unspecified()
+                    }
+                    IpAddr::V6(v6) => {
+                        v6.is_loopback()
+                            || v6.is_unspecified()
+                            || v6.is_unique_local()
+                            || v6.segments()[0] & 0xffc0 == 0xfe80
+                    }
+                };
+            }
         }
     }
     false
@@ -660,19 +637,11 @@ fn rewrite_playlist(
     proxy_base: &str,
     secret: &str,
     headers: Option<HashMap<String, String>>,
-    use_url_mode: bool,
 ) -> String {
     let base_url = match Url::parse(target_url) {
         Ok(u) => u,
         Err(_) => return content.to_string(),
     };
-
-    let header_part = if use_url_mode {
-        build_headers_query(&headers)
-    } else {
-        String::new()
-    };
-    let mode_part = if use_url_mode { "&mode=url" } else { "" };
 
     // Collect segment URLs for prefetch after rewrite
     let mut segment_urls: Vec<String> = Vec::new();
@@ -691,7 +660,7 @@ fn rewrite_playlist(
 
             // Tags that carry a URI attribute
             if line.starts_with("#") {
-                if let Some(rewritten_line) = rewrite_hls_tag_uri(line, proxy_base, secret, &base_url, &headers, use_url_mode) {
+                if let Some(rewritten_line) = rewrite_hls_tag_uri(line, proxy_base, secret, &base_url, &headers) {
                     rewritten_lines.push(rewritten_line);
                     continue;
                 }
@@ -711,33 +680,14 @@ fn rewrite_playlist(
                     segment_urls.push(abs_url.clone());
                 }
 
-                if use_url_mode {
-                    let segment_extra = if is_hls { "" } else { "&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0" };
-                    let range_part = pending_byte_range
-                        .take()
-                        .filter(|_| !is_hls)
-                        .map(|range| format!("&range={}", urlencoding::encode(&range)))
-                        .unwrap_or_default();
-                    rewritten_lines.push(format!(
-                        "{}/{}?url={}{}{}{}{}",
-                        proxy_base,
-                        route,
-                        urlencoding::encode(&abs_url),
-                        header_part,
-                        mode_part,
-                        segment_extra,
-                        force_type_param
-                    ) + &range_part);
-                } else {
-                    let token = security::encrypt_url(&abs_url, secret, headers.clone());
-                    let segment_extra = if is_hls { "" } else { "&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0" };
-                    let range_part = pending_byte_range
-                        .take()
-                        .filter(|_| !is_hls)
-                        .map(|range| format!("&range={}", urlencoding::encode(&range)))
-                        .unwrap_or_default();
-                    rewritten_lines.push(format!("{}/{}?h_token={}{}{}{}", proxy_base, route, token, segment_extra, force_type_param, range_part));
-                }
+                let token = security::encrypt_url(&abs_url, secret, headers.clone());
+                let segment_extra = if is_hls { "" } else { "&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0" };
+                let range_part = pending_byte_range
+                    .take()
+                    .filter(|_| !is_hls)
+                    .map(|range| format!("&range={}", urlencoding::encode(&range)))
+                    .unwrap_or_default();
+                rewritten_lines.push(format!("{}/{}?h_token={}{}{}{}", proxy_base, route, token, segment_extra, force_type_param, range_part));
             } else {
                 rewritten_lines.push(line.to_string());
             }
@@ -768,7 +718,7 @@ fn rewrite_playlist(
 /// Extract URI value from an HLS tag line like `#EXT-X-KEY:METHOD=AES-128,URI="value"`
 /// Handles double quotes, single quotes, and unquoted values.
 /// Returns `(full_line_replacement, extracted_uri)` if a URI is found.
-fn rewrite_hls_tag_uri(line: &str, proxy_base: &str, secret: &str, base_url: &Url, headers: &Option<HashMap<String, String>>, use_url_mode: bool) -> Option<String> {
+fn rewrite_hls_tag_uri(line: &str, proxy_base: &str, secret: &str, base_url: &Url, headers: &Option<HashMap<String, String>>) -> Option<String> {
     let uri_pos = line.find("URI=")?;
     let prefix = &line[..uri_pos + 4];
     let rest = &line[uri_pos + 4..];
@@ -785,23 +735,9 @@ fn rewrite_hls_tag_uri(line: &str, proxy_base: &str, secret: &str, base_url: &Ur
 
     let abs_url = resolve_segment_url(base_url, value);
     let is_hls = looks_like_hls_playlist_url(&abs_url);
-    let proxy_url = if use_url_mode {
-        let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
-        let header_part = build_headers_query(headers);
-        let mode_part = if use_url_mode { "&mode=url" } else { "" };
-        format!(
-            "{}/{}?url={}{}{}&clampOpen=0&progressiveOpen=0&noSynth=1&force200=1&tailPrefetch=0",
-            proxy_base,
-            route,
-            urlencoding::encode(&abs_url),
-            header_part,
-            mode_part
-        )
-    } else {
-        let token = security::encrypt_url(&abs_url, secret, headers.clone());
-        let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
-        format!("{}/{}?h_token={}", proxy_base, route, token)
-    };
+    let token = security::encrypt_url(&abs_url, secret, headers.clone());
+    let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
+    let proxy_url = format!("{}/{}?h_token={}", proxy_base, route, token);
 
     Some(format!("{}\"{}\"{}", prefix, proxy_url, suffix))
 }
@@ -996,17 +932,18 @@ Second cue"#;
     async fn test_rewrite_playlist_token_mode() {
         let content = "#EXTM3U\n#EXTINF:10,\nsegment.ts\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"";
         let secret = "test-secret";
-        let rewritten = rewrite_playlist(content, "https://example.com/playlist.m3u8", "http://proxy.local", secret, None, false);
+        let rewritten = rewrite_playlist(content, "https://example.com/playlist.m3u8", "http://proxy.local", secret, None);
         assert!(rewritten.contains("http://proxy.local/ts-proxy?h_token="));
         assert!(rewritten.contains("http://proxy.local/ts-proxy?h_token="));
     }
 
     #[tokio::test]
-    async fn test_rewrite_playlist_url_mode() {
+    async fn test_rewrite_playlist_never_emits_raw_url_mode() {
         let content = "#EXTM3U\nsegment.ts";
-        let rewritten = rewrite_playlist(content, "https://example.com/playlist.m3u8", "http://proxy.local", "secret", None, true);
-        assert!(rewritten.contains("http://proxy.local/ts-proxy?url="));
-        assert!(rewritten.contains("&mode=url"));
+        let rewritten = rewrite_playlist(content, "https://example.com/playlist.m3u8", "http://proxy.local", "secret", None);
+        assert!(rewritten.contains("http://proxy.local/ts-proxy?h_token="));
+        assert!(!rewritten.contains("http://proxy.local/ts-proxy?url="));
+        assert!(!rewritten.contains("&mode=url"));
     }
 
     #[tokio::test]
@@ -1018,7 +955,6 @@ Second cue"#;
             "http://proxy.local",
             "secret",
             None,
-            false,
         );
 
         assert!(rewritten.contains("range=bytes%3D5590180-6349887"));

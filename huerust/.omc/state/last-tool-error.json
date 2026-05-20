@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"git add huerust/src/clients/tmdb.rs huerust/src/providers/dramacool_provider.rs huerust/src/providers/kisskh_provider.rs huerust/src/providers/moviebox_provider.rs huerust/src/providers/sf...",
-  "error": "Exit code 128\nwarning: could not open directory 'huerust/huerust/src/': No such file or directory\nfatal: pathspec 'huerust/src/clients/tmdb.rs' did not match any files",
-  "timestamp": "2026-05-20T07:17:33.027Z",
+  "tool_input_preview": "{\"command\":\"curl -s 'http://127.0.0.1:24609/api/drama/kisskh/browse?page=1&page_size=3&country=2&order=1' -w \\\"\\\\nHTTP_CODE:%{http_code}\\\\n\\\" | jq -r '.data[0].title, .data[1].title, .data[2].title'\",...",
+  "error": "Exit code 5\njq: parse error: Invalid numeric literal at line 2, column 10\nPerfect Crown\nTwinkling Watermelon\nTrue Beauty",
+  "timestamp": "2026-05-20T15:04:45.950Z",
   "retry_count": 1
 }

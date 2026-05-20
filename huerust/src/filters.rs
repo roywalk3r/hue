@@ -85,6 +85,11 @@ pub fn sanitize_provider_name(text: &str) -> String {
         ("kisskh", "Zenith"),
         ("dramacool", "Orient"),
         ("9anime", "Saber"),
+        ("mp4hydra", "Hydra"),
+        ("vidrock", "Luna"),
+        ("vidzee", "VidZee"),
+        ("videasy", "Vortex"),
+        ("vidsrc-embed", "Nebula"),
     ];
 
     let mut result = text.to_string();

@@ -23,6 +23,7 @@ pub mod mp4hydra_provider;
 pub mod vidzee_provider;
 pub mod videasy_provider;
 pub mod vidrock_provider;
+pub mod vidsrcembed_provider;
 
 use async_trait::async_trait;
 use crate::models::StreamResult;

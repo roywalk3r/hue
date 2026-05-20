@@ -5,12 +5,12 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use reqwest::Client;
 use anyhow::Result;
+use reqwest::Client;
 use regex::Regex;
 use serde::Deserialize;
+use crate::models::StreamResult;
 use tracing::{info, warn};
-use crate::models::{StreamResult, Subtitle};
 use std::collections::HashMap;
 use url::Url;
 
@@ -72,8 +72,6 @@ impl VixsrcClient {
                             format!("https://vixsrc.to{}", src)
                         };
 
-                        let subs = self.fetch_subtitles(tmdb_id).await.unwrap_or_default();
-
                         match self.extract_hls_from_embed(&embed_url, &page_url).await {
                             Ok(final_url) => {
                                 headers.insert("Referer".to_string(), embed_url);
@@ -84,7 +82,7 @@ impl VixsrcClient {
                                     quality: "Auto".to_string(),
                                     provider: "Aura".to_string(),
                                     format: "hls".to_string(),
-                                    subtitles: if subs.is_empty() { None } else { Some(subs) },
+                                    subtitles: None,
                                     headers: Some(headers),
                                     extra_metadata: None,
                                 }]);
@@ -130,55 +128,16 @@ impl VixsrcClient {
             stream_url
         };
 
-        let subs = self.fetch_subtitles(tmdb_id).await.unwrap_or_default();
-
         Ok(vec![StreamResult {
             url: final_url,
             title: "Aura - Auto (HLS)".to_string(),
             quality: "Auto".to_string(),
             provider: "Aura".to_string(),
             format: "hls".to_string(),
-            subtitles: if subs.is_empty() { None } else { Some(subs) },
+            subtitles: None,
             headers: Some(headers),
-extra_metadata: None,
+            extra_metadata: None,
         }])
-    }
-
-    async fn fetch_subtitles(&self, tmdb_id: u64) -> Result<Vec<Subtitle>> {
-        let url = format!("https://sub.wyzie.ru/search?id={}", tmdb_id);
-        let resp = self.client
-            .get(&url)
-            .header("User-Agent", USER_AGENT)
-            .send()
-            .await?;
-
-        let data: serde_json::Value = resp.json().await?;
-        let subs = data
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|item| {
-                        let url = item["url"].as_str()?.to_string();
-                        let display = item["display"].as_str().unwrap_or("English");
-                        let lang_lower = display.to_lowercase();
-                        let lang_code = if lang_lower.contains("english") { "en" }
-                            else if lang_lower.contains("spanish") { "es" }
-                            else if lang_lower.contains("french") { "fr" }
-                            else if lang_lower.contains("german") { "de" }
-                            else if lang_lower.contains("arabic") { "ar" }
-                            else if lang_lower.contains("portuguese") { "pt" }
-                            else { "en" };
-                        Some(Subtitle {
-                            url,
-                            lang: lang_code.to_string(),
-                            label: display.to_string(),
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        Ok(subs)
     }
 
     async fn extract_hls_from_embed(&self, embed_url: &str, page_url: &str) -> Result<String> {
