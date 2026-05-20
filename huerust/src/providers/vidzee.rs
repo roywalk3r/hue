@@ -15,6 +15,7 @@
 //!   3. AES-256-CBC decrypt each link using actual key → m3u8 playlist URL
 //!   4. Tracks (subtitles) returned inline in the API response
 
+use std::sync::LazyLock;
 use reqwest::Client;
 use anyhow::{Result, anyhow};
 use aes::Aes256;
@@ -28,6 +29,13 @@ use aes_gcm::{
 use sha2::{Sha256, Digest};
 use base64::Engine;
 use regex::Regex;
+
+static CHUNK_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"/_next/static/chunks/app/embed/[^"]+\.js"#).unwrap()
+});
+static SECRET_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"let a="([a-f0-9]{32})",l="(https://core\.vidzee\.wtf/api-key)""#).unwrap()
+});
 use tracing::{info, warn};
 use crate::models::{StreamResult, Subtitle};
 use std::collections::HashMap;
@@ -87,9 +95,7 @@ async fn try_fetch_secrets(client: &Client) -> Result<VidzeeSecrets> {
 
     // Step 2: Extract the embed page JS chunk URL from the HTML
     // Pattern: /_next/static/chunks/app/embed/[[...params]]/page-<hash>.js
-    let chunk_re = Regex::new(r#"/_next/static/chunks/app/embed/[^"]+\.js"#)
-        .map_err(|e| anyhow!("chunk regex: {}", e))?;
-    let chunk_path = chunk_re
+    let chunk_path = CHUNK_RE
         .find(&html)
         .map(|m| m.as_str().to_string())
         .ok_or_else(|| anyhow!("embed chunk URL not found in HTML"))?;
@@ -109,11 +115,7 @@ async fn try_fetch_secrets(client: &Client) -> Result<VidzeeSecrets> {
 
     // Step 4: Extract hex secret and api-key URL
     // Pattern: let a="<32-hex>",l="https://core.vidzee.wtf/api-key"
-    let secret_re = Regex::new(
-        r#"let a="([a-f0-9]{32})",l="(https://core\.vidzee\.wtf/api-key)""#
-    ).map_err(|e| anyhow!("secret regex: {}", e))?;
-
-    let caps = secret_re
+    let caps = SECRET_RE
         .captures(&js)
         .ok_or_else(|| anyhow!("hex secret pattern not found in chunk JS"))?;
 
