@@ -146,7 +146,7 @@ impl VixsrcClient {
                         let expires = val.get("expires").and_then(|v| v.as_str());
                         if let (Some(t), Some(e)) = (token, expires) {
                             let sep = if master_url.contains('?') { '&' } else { '?' };
-                            master_url = format!("{}\n{sep}token={t}&expires={e}&h=1&lang=en", master_url, sep=sep, t=t, e=e);
+                            master_url = format!("{}{sep}token={t}&expires={e}&h=1&lang=en", master_url, sep=sep, t=t, e=e);
                         }
                         results.push(InternalStream {
                             url: master_url,
@@ -179,7 +179,7 @@ impl VixsrcClient {
                         if let Some(u) = server.url.filter(|s| !s.is_empty()) {
                             let authed = if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
                                 let sep = if u.contains('?') { '&' } else { '?' };
-                                format!("{}\n{sep}token={t}&expires={e}&h=1&lang=en", u, sep=sep, t=t, e=e)
+                                format!("{}{sep}token={t}&expires={e}&h=1&lang=en", u, sep=sep, t=t, e=e)
                             } else {
                                 u
                             };
@@ -266,7 +266,7 @@ impl VixsrcClient {
                         auth_expires = val.get("expires").and_then(|v| v.as_str()).map(|s| s.to_string());
                         if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
                             let sep = if master_url.contains('?') { '&' } else { '?' };
-                            master_url = format!("{}\n{sep}token={t}&expires={e}&h=1&lang=en", master_url, sep=sep, t=t, e=e);
+                            master_url = format!("{}{sep}token={t}&expires={e}&h=1&lang=en", master_url, sep=sep, t=t, e=e);
                         }
                         streams.push(InternalStream {
                             url: master_url,
@@ -287,7 +287,7 @@ impl VixsrcClient {
                         if let Some(u) = server.url.filter(|s| !s.is_empty()) {
                             let authed = if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
                                 let sep = if u.contains('?') { '&' } else { '?' };
-                                format!("{}\n{sep}token={t}&expires={e}&h=1&lang=en", u, sep=sep, t=t, e=e)
+                                format!("{}{sep}token={t}&expires={e}&h=1&lang=en", u, sep=sep, t=t, e=e)
                             } else {
                                 u
                             };

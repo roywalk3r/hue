@@ -28,7 +28,9 @@ pub mod wrap;
 #[derive(Deserialize)]
 pub struct ProxyQuery {
     pub h_token: Option<String>,
+    #[allow(dead_code)]
     pub url: Option<String>,
+    #[allow(dead_code)]
     pub headers: Option<String>,
     #[allow(dead_code)]
     pub mode: Option<String>,
@@ -40,7 +42,9 @@ pub struct ProxyQuery {
 #[derive(Deserialize)]
 pub struct TsProxyQuery {
     pub h_token: Option<String>,
+    #[allow(dead_code)]
     pub url: Option<String>,
+    #[allow(dead_code)]
     pub headers: Option<String>,
     #[allow(dead_code)]
     pub mode: Option<String>,
@@ -88,21 +92,33 @@ fn parse_headers_json(raw: &str) -> Option<HashMap<String, String>> {
     serde_json::from_str::<HashMap<String, String>>(raw).ok()
 }
 
+/// Known providers that require raw URL mode (signed URLs need query param inheritance).
+fn is_whitelisted_raw_url(url: &str) -> bool {
+    let lower = url.to_lowercase();
+    lower.contains("vixsrc.to")
+        || lower.contains("hakunaymatata.com")
+        || lower.contains("aisports.mobi")
+        || lower.contains("poocloud.in")
+        || lower.contains("mewstream.buzz")
+        || lower.contains("animeplay.cfd")
+        || lower.contains("pixeldrain.")
+        || lower.contains("video-downloads.googleusercontent.com")
+}
+
 /// Extract target URL + headers from `url`+`headers` mode or signed `h_token` mode.
 fn resolve_proxy_target(
     params: &ProxyQuery,
     secret: &str,
 ) -> Option<(String, Option<HashMap<String, String>>)> {
-    // Prefer explicit url+headers mode (used by Vixsrc signed URLs)
-    if let Some(url) = &params.url {
-        if !url.trim().is_empty() {
-            let headers = params.headers.as_deref().and_then(parse_headers_json);
-            return Some((url.clone(), headers));
-        }
-    }
     if let Some(token) = &params.h_token {
         if let Some(data) = security::decrypt_url(token, secret) {
             return Some((data.url, data.headers));
+        }
+    }
+    if let Some(url) = &params.url {
+        if !url.trim().is_empty() && is_whitelisted_raw_url(url) {
+            let headers = params.headers.as_deref().and_then(parse_headers_json);
+            return Some((url.clone(), headers));
         }
     }
     None
@@ -112,15 +128,15 @@ fn resolve_ts_target(
     params: &TsProxyQuery,
     secret: &str,
 ) -> Option<(String, Option<HashMap<String, String>>)> {
-    if let Some(url) = &params.url {
-        if !url.trim().is_empty() {
-            let headers = params.headers.as_deref().and_then(parse_headers_json);
-            return Some((url.clone(), headers));
-        }
-    }
     if let Some(token) = &params.h_token {
         if let Some(data) = security::decrypt_url(token, secret) {
             return Some((data.url, data.headers));
+        }
+    }
+    if let Some(url) = &params.url {
+        if !url.trim().is_empty() && is_whitelisted_raw_url(url) {
+            let headers = params.headers.as_deref().and_then(parse_headers_json);
+            return Some((url.clone(), headers));
         }
     }
     None
@@ -245,7 +261,7 @@ pub async fn m3u8_handler(
 ) -> Response {
     let (target_url, headers) = match resolve_proxy_target(&params, &state.secret) {
         Some(t) => t,
-        None => return (StatusCode::FORBIDDEN, "Invalid or missing token/url").into_response(),
+        None => return (StatusCode::FORBIDDEN, "Invalid or missing signed token").into_response(),
     };
 
     if is_internal_host(&target_url) {
@@ -417,7 +433,7 @@ pub async fn ts_handler(
     let (target_url, headers) = match resolve_ts_target(&params, &state.secret) {
         Some(t) => t,
         None => {
-            return (StatusCode::FORBIDDEN, "Invalid or missing token/url").into_response();
+            return (StatusCode::FORBIDDEN, "Invalid or missing signed token").into_response();
         }
     };
 
@@ -599,8 +615,12 @@ pub async fn sub_handler(
 ) -> Response {
     let (target_url, headers) = match resolve_proxy_target(&params, &state.secret) {
         Some(t) => t,
-        None => return (StatusCode::FORBIDDEN, "Invalid or missing token/url").into_response(),
+        None => return (StatusCode::FORBIDDEN, "Invalid or missing signed token").into_response(),
     };
+
+    if is_internal_host(&target_url) {
+        return (StatusCode::FORBIDDEN, "Blocked internal URL").into_response();
+    }
 
     let mut req = state.client.get(&target_url);
     req = inject_cdn_headers(req, &target_url, &headers);
@@ -990,6 +1010,78 @@ Second cue"#;
         assert!(rewritten.contains("http://proxy.local/ts-proxy?h_token="));
         assert!(!rewritten.contains("http://proxy.local/ts-proxy?url="));
         assert!(!rewritten.contains("&mode=url"));
+    }
+
+    #[test]
+    fn test_proxy_target_rejects_non_whitelisted_raw_url() {
+        let params = ProxyQuery {
+            h_token: None,
+            url: Some("https://example.com/playlist.m3u8".to_string()),
+            headers: None,
+            mode: Some("url".to_string()),
+            download: None,
+            filename: None,
+            adsurgery: None,
+        };
+
+        assert!(resolve_proxy_target(&params, "secret").is_none());
+    }
+
+    #[test]
+    fn test_proxy_target_accepts_whitelisted_vixsrc_raw_url() {
+        let params = ProxyQuery {
+            h_token: None,
+            url: Some("https://vixsrc.to/playlist/123.m3u8".to_string()),
+            headers: Some(r#"{"Referer":"https://vixsrc.to/"}"#.to_string()),
+            mode: Some("url".to_string()),
+            download: None,
+            filename: None,
+            adsurgery: None,
+        };
+
+        let result = resolve_proxy_target(&params, "secret");
+        assert!(result.is_some());
+        let (url, headers) = result.unwrap();
+        assert_eq!(url, "https://vixsrc.to/playlist/123.m3u8");
+        assert!(headers.is_some());
+    }
+
+    #[test]
+    fn test_ts_target_rejects_non_whitelisted_raw_url() {
+        let params = TsProxyQuery {
+            h_token: None,
+            url: Some("https://example.com/segment.ts".to_string()),
+            headers: None,
+            mode: Some("url".to_string()),
+            range: None,
+            clamp_open: None,
+            progressive_open: None,
+            no_synth: None,
+            force_200: None,
+            tail_prefetch: None,
+            sanitize: None,
+        };
+
+        assert!(resolve_ts_target(&params, "secret").is_none());
+    }
+
+    #[test]
+    fn test_ts_target_accepts_whitelisted_moviebox_cdn_raw_url() {
+        let params = TsProxyQuery {
+            h_token: None,
+            url: Some("https://hakunaymatata.com/seg.ts".to_string()),
+            headers: None,
+            mode: Some("url".to_string()),
+            range: None,
+            clamp_open: None,
+            progressive_open: None,
+            no_synth: None,
+            force_200: None,
+            tail_prefetch: None,
+            sanitize: None,
+        };
+
+        assert!(resolve_ts_target(&params, "secret").is_some());
     }
 
     #[tokio::test]
