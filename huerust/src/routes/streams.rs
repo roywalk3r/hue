@@ -150,6 +150,52 @@ pub async fn streams_handler(
 
     let mut captured_timings: Vec<ProviderTiming> = vec![];
 
+    // ── Background fill: after fast return, keep fetching all providers ──
+    fn spawn_background_fill(
+        state: StreamState,
+        cache_key: CacheKey,
+        tmdb_info: crate::clients::tmdb::TmdbNormalizedInfo,
+        m_type: String,
+        season: u32,
+        episode: u32,
+        _fast_deadline: std::time::Duration,
+        slow_deadline: std::time::Duration,
+    ) {
+        tokio::spawn(async move {
+            let start = std::time::Instant::now();
+            let (mut streams, _) = fetch_from_providers(
+                state.registry.clone(),
+                state.metrics.clone(),
+                &tmdb_info,
+                &m_type,
+                season,
+                episode,
+                false, // all providers
+                1,
+                slow_deadline,
+            )
+            .await;
+            let mut seen = std::collections::HashSet::new();
+            let unique: Vec<_> = streams
+                .into_iter()
+                .filter(|s| seen.insert(s.url.clone()))
+                .collect();
+            let filtered = filter_generic_movie_tv_streams(
+                &m_type,
+                apply_filters(unique, &state.filter_config),
+            );
+            let count = filtered.len();
+            if count > 0 {
+                state.cache.set(&cache_key, filtered).await;
+                info!(
+                    "[api] Background fill: cached {} streams in {:?}",
+                    count,
+                    start.elapsed()
+                );
+            }
+        });
+    }
+
     let coalesced = if no_cache {
         // Bypass coalescer — start all providers simultaneously, per-provider timeouts apply.
         let start = std::time::Instant::now();
@@ -180,6 +226,18 @@ pub async fn streams_handler(
             .await;
             streams = slow_streams;
             timings.extend(slow_timings);
+        } else {
+            // Fast stream found — return immediately and backfill cache in background.
+            spawn_background_fill(
+                state.clone(),
+                cache_key.clone(),
+                tmdb_info_c.clone(),
+                m_type_c.clone(),
+                season,
+                episode,
+                fast_deadline,
+                slow_deadline,
+            );
         }
         captured_timings = timings;
         let mut seen_urls = std::collections::HashSet::new();
@@ -196,6 +254,8 @@ pub async fn streams_handler(
         );
         Some(filtered)
     } else {
+        let state_for_bg = state.clone();
+        let cache_key_for_bg = cache_key.clone();
         state
             .coalescer
             .execute(&cache_key, &cache, || async move {
@@ -227,6 +287,18 @@ pub async fn streams_handler(
                     )
                     .await;
                     streams = slow_streams;
+                } else {
+                    // Fast stream found — backfill cache in background.
+                    spawn_background_fill(
+                        state_for_bg,
+                        cache_key_for_bg,
+                        tmdb_info_c.clone(),
+                        m_type_c.clone(),
+                        season,
+                        episode,
+                        fast_deadline,
+                        slow_deadline,
+                    );
                 }
                 let mut seen_urls = std::collections::HashSet::new();
                 let unique: Vec<_> = streams
