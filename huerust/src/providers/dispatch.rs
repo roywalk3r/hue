@@ -1,13 +1,13 @@
+use serde::Serialize;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::timeout;
 use tracing::{info, warn};
-use serde::Serialize;
 use utoipa::ToSchema;
 
 use crate::clients::tmdb::TmdbNormalizedInfo;
-use crate::models::StreamResult;
 use crate::infra::metrics::Metrics;
+use crate::models::StreamResult;
 use crate::providers::registry::ProviderRegistry;
 
 #[derive(Serialize, Clone, ToSchema)]
@@ -29,45 +29,35 @@ pub async fn fetch_from_providers(
     min_streams_threshold: usize,
     aggregate_deadline: Duration,
 ) -> (Vec<StreamResult>, Vec<ProviderTiming>) {
-    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use tokio::time::Instant;
 
     let providers: Vec<_> = if fast_only {
-        registry.list_fast().into_iter().map(|p| (p.name().to_string(), p.timeout_secs(), p.is_fast())).collect()
+        registry
+            .list_all_arc()
+            .into_iter()
+            .filter(|p| p.is_fast() && registry.circuit_breaker().is_healthy(p.real_name()))
+            .collect()
     } else {
-        registry.list_all().into_iter().map(|p| (p.name().to_string(), p.timeout_secs(), p.is_fast())).collect()
+        registry
+            .list_all_arc()
+            .into_iter()
+            .filter(|p| registry.circuit_breaker().is_healthy(p.real_name()))
+            .collect()
     };
 
-    let stream_count = Arc::new(AtomicUsize::new(0));
-    let cancelled = Arc::new(AtomicBool::new(false));
-    let mut handles = Vec::new();
+    let mut tasks = tokio::task::JoinSet::new();
     let start = Instant::now();
 
-    for (name, timeout_secs, is_fast) in providers {
-        let registry = registry.clone();
-        let provider_name = name.clone();
+    for provider in providers {
+        let provider_name = provider.name().to_string();
+        let timeout_secs = provider.timeout_secs();
         let tmdb = tmdb_info.clone();
         let mtype = media_type.to_string();
-        let count = stream_count.clone();
-        let cancel = cancelled.clone();
-
         let metrics_c = metrics.clone();
-        let handle = tokio::spawn(async move {
-            if cancel.load(Ordering::Relaxed) {
-                return (provider_name, vec![], Duration::ZERO, true);
-            }
+        let cb = registry.circuit_breaker().clone();
 
+        tasks.spawn(async move {
             let provider_start = Instant::now();
-            let provider = match registry.get(&provider_name) {
-                Some(p) => p,
-                None => {
-                    warn!("[api] Provider {} not found in registry", provider_name);
-                    metrics_c.record_request(&provider_name, 0, false, false);
-                    return (provider_name, vec![], Duration::ZERO, false);
-                }
-            };
-
-            let cb = registry.circuit_breaker().clone();
             let real_name = provider.real_name().to_string();
 
             if !cb.is_healthy(&real_name) {
@@ -78,15 +68,16 @@ pub async fn fetch_from_providers(
 
             let provider_timeout = Duration::from_secs(timeout_secs);
 
-            let result = match timeout(provider_timeout, provider.fetch(&tmdb, &mtype, season, episode)).await {
+            let result = match timeout(
+                provider_timeout,
+                provider.fetch(&tmdb, &mtype, season, episode),
+            )
+            .await
+            {
                 Ok(Ok(streams)) => {
                     cb.record_success(&real_name);
                     let latency = provider_start.elapsed().as_millis() as u64;
                     metrics_c.record_request(&provider_name, latency, true, false);
-                    let new_count = count.fetch_add(streams.len(), Ordering::Relaxed) + streams.len();
-                    if new_count >= min_streams_threshold {
-                        cancel.store(true, Ordering::Relaxed);
-                    }
                     streams
                 }
                 Ok(Err(e)) => {
@@ -97,7 +88,10 @@ pub async fn fetch_from_providers(
                     vec![]
                 }
                 Err(_) => {
-                    warn!("[api] Provider {} timed out after {}s", provider_name, timeout_secs);
+                    warn!(
+                        "[api] Provider {} timed out after {}s",
+                        provider_name, timeout_secs
+                    );
                     cb.record_failure(&real_name);
                     let latency = provider_start.elapsed().as_millis() as u64;
                     metrics_c.record_request(&provider_name, latency, false, true);
@@ -106,31 +100,40 @@ pub async fn fetch_from_providers(
             };
 
             let elapsed = provider_start.elapsed();
-            let was_cancelled = cancel.load(Ordering::Relaxed) && result.is_empty() && !is_fast;
-            (provider_name, result, elapsed, was_cancelled)
+            (provider_name, result, elapsed, false)
         });
-        handles.push(handle);
     }
 
     let mut all = Vec::new();
     let mut timings = Vec::new();
 
     match timeout(aggregate_deadline, async {
-        for h in handles {
-            if let Ok((name, streams, elapsed, was_cancelled)) = h.await {
+        while let Some(result) = tasks.join_next().await {
+            if let Ok((name, streams, elapsed, was_cancelled)) = result {
+                let stream_len = streams.len();
                 timings.push(ProviderTiming {
                     provider: name,
                     elapsed_ms: elapsed.as_millis() as u64,
-                    streams_found: streams.len(),
+                    streams_found: stream_len,
                     cancelled: was_cancelled,
                 });
                 all.extend(streams);
+                if all.len() >= min_streams_threshold {
+                    tasks.abort_all();
+                    break;
+                }
             }
         }
-    }).await {
-        Ok(_) => {},
+    })
+    .await
+    {
+        Ok(_) => {}
         Err(_) => {
-            warn!("[api] Aggregate deadline ({:?}) reached, returning {} streams", aggregate_deadline, all.len());
+            warn!(
+                "[api] Aggregate deadline ({:?}) reached, returning {} streams",
+                aggregate_deadline,
+                all.len()
+            );
         }
     }
 

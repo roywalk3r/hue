@@ -6,24 +6,21 @@
 //! @license MIT
 
 use axum::{
-    extract::{Query, State, Path},
+    extract::{Path, Query, State},
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    http::{StatusCode, HeaderMap},
 };
 use serde::Serialize;
-use utoipa::ToSchema;
 use std::collections::HashMap;
 use tracing::{info, warn};
+use utoipa::ToSchema;
 
-use crate::{
-    app::StreamState,
-    infra::cache::CacheKey,
-    filters::apply_filters,
-    models::StreamResult,
-};
-use crate::providers::dispatch::{fetch_from_providers, ProviderTiming};
-use crate::proxy::wrap::wrap_with_proxy;
+use crate::providers::dispatch::{ProviderTiming, fetch_from_providers};
 use crate::proxy::dynamic_proxy_base;
+use crate::proxy::wrap::wrap_with_proxy;
+use crate::{
+    app::StreamState, filters::apply_filters, infra::cache::CacheKey, models::StreamResult,
+};
 
 #[derive(Serialize, ToSchema)]
 pub struct StreamsResponse {
@@ -37,7 +34,10 @@ pub struct StreamsResponse {
     pub provider_timings: Vec<ProviderTiming>,
 }
 
-fn filter_generic_movie_tv_streams(media_type: &str, streams: Vec<StreamResult>) -> Vec<StreamResult> {
+fn filter_generic_movie_tv_streams(
+    media_type: &str,
+    streams: Vec<StreamResult>,
+) -> Vec<StreamResult> {
     if media_type != "movie" && media_type != "tv" {
         return streams;
     }
@@ -72,11 +72,20 @@ pub async fn streams_handler(
     Path((m_type, tmdb_id)): Path<(String, String)>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
-    let season = params.get("season").and_then(|s| s.parse::<u32>().ok()).unwrap_or(1);
-    let episode = params.get("episode").and_then(|e| e.parse::<u32>().ok()).unwrap_or(1);
+    let season = params
+        .get("season")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(1);
+    let episode = params
+        .get("episode")
+        .and_then(|e| e.parse::<u32>().ok())
+        .unwrap_or(1);
     let no_cache = params.get("nocache").map(|v| v == "1").unwrap_or(false);
 
-    info!("[api] Rust Streams: {} {} S{} E{}", &m_type, tmdb_id, season, episode);
+    info!(
+        "[api] Rust Streams: {} {} S{} E{}",
+        &m_type, tmdb_id, season, episode
+    );
 
     let cache_key = CacheKey::new(&m_type, &tmdb_id, season, episode);
     let enable_proxy = state.config.enable_proxy;
@@ -90,7 +99,7 @@ pub async fn streams_handler(
                 &m_type,
                 apply_filters(cached, &state.filter_config),
             );
-            
+
             // Proxy wrap even on cache hits
             let final_streams = if enable_proxy {
                 wrap_with_proxy(filtered, &proxy_base, &secret)
@@ -98,21 +107,30 @@ pub async fn streams_handler(
                 filtered
             };
 
-            return (StatusCode::OK, serde_json::to_string(&StreamsResponse {
-                success: true,
-                tmdb_id: tmdb_id.clone(),
-                media_type: m_type.clone(),
-                season,
-                episode,
-                count: final_streams.len(),
-                streams: final_streams,
-                provider_timings: vec![],
-            }).unwrap()).into_response();
+            return (
+                StatusCode::OK,
+                serde_json::to_string(&StreamsResponse {
+                    success: true,
+                    tmdb_id: tmdb_id.clone(),
+                    media_type: m_type.clone(),
+                    season,
+                    episode,
+                    count: final_streams.len(),
+                    streams: final_streams,
+                    provider_timings: vec![],
+                })
+                .unwrap(),
+            )
+                .into_response();
         }
     }
 
     // 2. Fetch TMDB details
-    let tmdb_info = match state.tmdb.get_details(&m_type, tmdb_id.parse().unwrap_or(0)).await {
+    let tmdb_info = match state
+        .tmdb
+        .get_details(&m_type, tmdb_id.parse().unwrap_or(0))
+        .await
+    {
         Ok(info) => info,
         Err(e) => {
             warn!("[api] TMDB lookup failed for {}: {}", tmdb_id, e);
@@ -126,6 +144,7 @@ pub async fn streams_handler(
     let registry = state.registry.clone();
     let tmdb_info_c = tmdb_info.clone();
     let m_type_c = m_type.clone();
+    let fast_deadline = state.config.fast_deadline();
     let slow_deadline = state.config.slow_deadline();
     let metrics = state.metrics.clone();
 
@@ -134,50 +153,98 @@ pub async fn streams_handler(
     let coalesced = if no_cache {
         // Bypass coalescer — start all providers simultaneously, per-provider timeouts apply.
         let start = std::time::Instant::now();
-        let (streams, timings) = fetch_from_providers(
+        let (mut streams, mut timings) = fetch_from_providers(
             registry.clone(),
             metrics.clone(),
             &tmdb_info_c,
             &m_type_c,
             season,
             episode,
-            false, // all providers in one parallel batch
-            999,
-            slow_deadline,
-        ).await;
-        captured_timings = timings;
-        let mut seen_urls = std::collections::HashSet::new();
-        let unique: Vec<_> = streams.into_iter().filter(|s| seen_urls.insert(s.url.clone())).collect();
-        let filtered = filter_generic_movie_tv_streams(
-            &m_type_c,
-            apply_filters(unique, &filter_config),
-        );
-        info!("[api] No-cache fresh fetch: {} streams in {:?}", filtered.len(), start.elapsed());
-        Some(filtered)
-    } else {
-        state.coalescer.execute(&cache_key, &cache, || async move {
-            let start = std::time::Instant::now();
-            // All providers start simultaneously; each respects its own per-provider timeout.
-            let (streams, _) = fetch_from_providers(
+            true,
+            1,
+            fast_deadline,
+        )
+        .await;
+        if streams.is_empty() {
+            let (slow_streams, slow_timings) = fetch_from_providers(
                 registry.clone(),
                 metrics.clone(),
                 &tmdb_info_c,
                 &m_type_c,
                 season,
                 episode,
-                false, // all providers in one parallel batch
-                999,
+                false,
+                1,
                 slow_deadline,
-            ).await;
-            let mut seen_urls = std::collections::HashSet::new();
-            let unique: Vec<_> = streams.into_iter().filter(|s| seen_urls.insert(s.url.clone())).collect();
-            let filtered = filter_generic_movie_tv_streams(
-                &m_type_c,
-                apply_filters(unique, &filter_config),
-            );
-            info!("[api] Coalesced fetch: {} streams in {:?}", filtered.len(), start.elapsed());
-            filtered
-        }).await
+            )
+            .await;
+            streams = slow_streams;
+            timings.extend(slow_timings);
+        }
+        captured_timings = timings;
+        let mut seen_urls = std::collections::HashSet::new();
+        let unique: Vec<_> = streams
+            .into_iter()
+            .filter(|s| seen_urls.insert(s.url.clone()))
+            .collect();
+        let filtered =
+            filter_generic_movie_tv_streams(&m_type_c, apply_filters(unique, &filter_config));
+        info!(
+            "[api] No-cache fresh fetch: {} streams in {:?}",
+            filtered.len(),
+            start.elapsed()
+        );
+        Some(filtered)
+    } else {
+        state
+            .coalescer
+            .execute(&cache_key, &cache, || async move {
+                let start = std::time::Instant::now();
+                // Fast providers first so a working source can reach the player quickly.
+                let (mut streams, _) = fetch_from_providers(
+                    registry.clone(),
+                    metrics.clone(),
+                    &tmdb_info_c,
+                    &m_type_c,
+                    season,
+                    episode,
+                    true,
+                    1,
+                    fast_deadline,
+                )
+                .await;
+                if streams.is_empty() {
+                    let (slow_streams, _) = fetch_from_providers(
+                        registry.clone(),
+                        metrics.clone(),
+                        &tmdb_info_c,
+                        &m_type_c,
+                        season,
+                        episode,
+                        false,
+                        1,
+                        slow_deadline,
+                    )
+                    .await;
+                    streams = slow_streams;
+                }
+                let mut seen_urls = std::collections::HashSet::new();
+                let unique: Vec<_> = streams
+                    .into_iter()
+                    .filter(|s| seen_urls.insert(s.url.clone()))
+                    .collect();
+                let filtered = filter_generic_movie_tv_streams(
+                    &m_type_c,
+                    apply_filters(unique, &filter_config),
+                );
+                info!(
+                    "[api] Coalesced fetch: {} streams in {:?}",
+                    filtered.len(),
+                    start.elapsed()
+                );
+                filtered
+            })
+            .await
     };
 
     let filtered = match coalesced {
@@ -191,15 +258,19 @@ pub async fn streams_handler(
         filtered
     };
 
-    (StatusCode::OK, serde_json::to_string(&StreamsResponse {
-        success: true,
-        tmdb_id,
-        media_type: m_type,
-        season,
-        episode,
-        count: final_streams.len(),
-        streams: final_streams,
-        provider_timings: captured_timings,
-    }).unwrap()).into_response()
+    (
+        StatusCode::OK,
+        serde_json::to_string(&StreamsResponse {
+            success: true,
+            tmdb_id,
+            media_type: m_type,
+            season,
+            episode,
+            count: final_streams.len(),
+            streams: final_streams,
+            provider_timings: captured_timings,
+        })
+        .unwrap(),
+    )
+        .into_response()
 }
-

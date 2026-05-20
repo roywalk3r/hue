@@ -5,9 +5,9 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use std::sync::Arc;
-use crate::providers::StreamProvider;
 use crate::infra::circuit_breaker::CircuitBreaker;
+use crate::providers::StreamProvider;
+use std::sync::Arc;
 
 pub struct ProviderRegistry {
     providers: Vec<Arc<dyn StreamProvider>>,
@@ -26,41 +26,16 @@ impl ProviderRegistry {
         self.providers.push(provider);
     }
 
-    pub fn list_fast(&self) -> Vec<&dyn StreamProvider> {
-        self.providers
-            .iter()
-            .filter(|p| p.is_fast() && self.circuit_breaker.is_healthy(p.real_name()))
-            .map(|p| p.as_ref())
-            .collect()
+    pub fn list_all_arc(&self) -> Vec<Arc<dyn StreamProvider>> {
+        self.providers.clone()
     }
 
-    #[allow(dead_code)]
-    pub fn list_slow(&self) -> Vec<&dyn StreamProvider> {
-        self.providers
-            .iter()
-            .filter(|p| !p.is_fast() && self.circuit_breaker.is_healthy(p.real_name()))
-            .map(|p| p.as_ref())
-            .collect()
-    }
-
-    #[allow(dead_code)]
     pub fn list_all(&self) -> Vec<&dyn StreamProvider> {
         self.providers
             .iter()
             .filter(|p| self.circuit_breaker.is_healthy(p.real_name()))
             .map(|p| p.as_ref())
             .collect()
-    }
-
-    pub fn list_all_arc(&self) -> Vec<Arc<dyn StreamProvider>> {
-        self.providers.clone()
-    }
-
-    pub fn get(&self, name: &str) -> Option<&dyn StreamProvider> {
-        self.providers
-            .iter()
-            .find(|p| p.real_name() == name || p.name() == name)
-            .map(|p| p.as_ref())
     }
 
     pub fn circuit_breaker(&self) -> &Arc<CircuitBreaker> {

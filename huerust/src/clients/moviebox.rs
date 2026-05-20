@@ -5,12 +5,15 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use serde::{Deserialize, Serialize};
-use reqwest::{Client, header::{HeaderMap, HeaderValue, REFERER, USER_AGENT, ORIGIN, COOKIE, AUTHORIZATION}};
+use crate::models::{StreamResult, Subtitle};
 use anyhow::{Result, anyhow};
+use reqwest::{
+    Client,
+    header::{AUTHORIZATION, COOKIE, HeaderMap, HeaderValue, ORIGIN, REFERER, USER_AGENT},
+};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{info, warn};
-use crate::models::{StreamResult, Subtitle};
 
 const BASE_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff";
 const DEFAULT_X_USER: &str = r#"{"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjc1NjEyMzU2Nzc1NjA4NTMyODAsImF0cCI6MywiZXh0IjoiMTc3MTE0NDQ4MiIsImV4cCI6MTc3ODkyMDQ4MiwiaWF0IjoxNzcxMTQxNDk1fQ.BF7r1K_npeKWjkjuIxqZMTvUDxJ8oBjvSBc3glWcqtU","userId":"7561235677560853280","userType":0,"appType":2}"#;
@@ -83,7 +86,9 @@ impl MovieBoxClient {
         // Warn once at startup if the fallback credential is expired
         let x_user = uc.moviebox_x_user_or_env(DEFAULT_X_USER);
         if x_user == DEFAULT_X_USER && crate::security::jwt_is_expired(DEFAULT_X_USER) {
-            warn!("[MovieBox] Default JWT is expired. Set moviebox_x_user in user-config.json to restore functionality.");
+            warn!(
+                "[MovieBox] Default JWT is expired. Set moviebox_x_user in user-config.json to restore functionality."
+            );
         }
         let host = uc.moviebox_host_or_env(&default_host);
         let builder = Client::builder()
@@ -108,12 +113,21 @@ impl MovieBoxClient {
 
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));
-        headers.insert(USER_AGENT, HeaderValue::from_str(ua).unwrap_or_else(|_| HeaderValue::from_static(DEFAULT_UA)));
-        headers.insert(ORIGIN, HeaderValue::from_str(&format!("https://{}", self.host)).unwrap());
+        headers.insert(
+            USER_AGENT,
+            HeaderValue::from_str(ua).unwrap_or_else(|_| HeaderValue::from_static(DEFAULT_UA)),
+        );
+        headers.insert(
+            ORIGIN,
+            HeaderValue::from_str(&format!("https://{}", self.host)).unwrap(),
+        );
         if let Ok(v) = HeaderValue::from_str(&x_user) {
             headers.insert("x-user", v);
         }
-        headers.insert("x-client-info", HeaderValue::from_static(r#"{"timezone":"Europe/Berlin"}"#));
+        headers.insert(
+            "x-client-info",
+            HeaderValue::from_static(r#"{"timezone":"Europe/Berlin"}"#),
+        );
         if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&x_user) {
             if let Some(token) = parsed.get("token").and_then(|t| t.as_str()) {
                 if let Ok(v) = HeaderValue::from_str(&format!("Bearer {}", token)) {
@@ -139,7 +153,10 @@ impl MovieBoxClient {
         headers.insert("Origin".to_string(), format!("https://{}", self.host));
         headers.insert("Referer".to_string(), referer.to_string());
         headers.insert("x-user".to_string(), x_user);
-        headers.insert("x-client-info".to_string(), r#"{"timezone":"Pacific/Pago_Pago"}"#.to_string());
+        headers.insert(
+            "x-client-info".to_string(),
+            r#"{"timezone":"Pacific/Pago_Pago"}"#.to_string(),
+        );
         if !cookie.is_empty() {
             headers.insert("Cookie".to_string(), cookie);
         }
@@ -152,7 +169,12 @@ impl MovieBoxClient {
                 .split(|c| c == ',' || c == ';' || c == '\n')
                 .map(str::trim)
                 .filter(|h| !h.is_empty())
-                .map(|h| h.trim_start_matches("https://").trim_start_matches("http://").trim_end_matches('/').to_string())
+                .map(|h| {
+                    h.trim_start_matches("https://")
+                        .trim_start_matches("http://")
+                        .trim_end_matches('/')
+                        .to_string()
+                })
                 .collect();
             if !configured.is_empty() {
                 return configured;
@@ -172,11 +194,21 @@ impl MovieBoxClient {
         std::env::var("MOVIEBOX_REFERER_HOST")
             .ok()
             .filter(|h| !h.trim().is_empty())
-            .map(|h| h.trim_start_matches("https://").trim_start_matches("http://").trim_end_matches('/').to_string())
+            .map(|h| {
+                h.trim_start_matches("https://")
+                    .trim_start_matches("http://")
+                    .trim_end_matches('/')
+                    .to_string()
+            })
             .unwrap_or_else(|| self.host.clone())
     }
 
-    pub async fn search(&self, keyword: &str, page: u32, subject_type: u32) -> Result<Vec<MovieBoxItem>> {
+    pub async fn search(
+        &self,
+        keyword: &str,
+        page: u32,
+        subject_type: u32,
+    ) -> Result<Vec<MovieBoxItem>> {
         let url = format!("{}/subject/search", BASE_URL);
         let payload = serde_json::json!({
             "keyword": keyword,
@@ -185,7 +217,9 @@ impl MovieBoxClient {
             "subjectType": subject_type
         });
 
-        let resp = self.client.post(&url)
+        let resp = self
+            .client
+            .post(&url)
             .headers(self.get_base_headers())
             .json(&payload)
             .send()
@@ -200,7 +234,8 @@ impl MovieBoxClient {
             return Ok(vec![]);
         }
 
-        let items = data["data"]["items"].as_array()
+        let items = data["data"]["items"]
+            .as_array()
             .or_else(|| data["data"]["subjectList"].as_array())
             .map(|arr| arr.iter().filter_map(|v| self.map_item(v)).collect())
             .unwrap_or_default();
@@ -226,14 +261,25 @@ impl MovieBoxClient {
         })
     }
 
-    pub async fn get_streams(&self, subject_id: &str, detail_path: &str, season: u32, episode: u32) -> Result<Option<StreamData>> {
+    pub async fn get_streams(
+        &self,
+        subject_id: &str,
+        detail_path: &str,
+        season: u32,
+        episode: u32,
+    ) -> Result<Option<StreamData>> {
         let is_movie = season == 0 && episode == 0;
         let type_label = if is_movie { "movie" } else { "series" };
 
         // Race host×timezone combos simultaneously — return the first successful response.
         // Keep this configurable because several MovieBox mirrors are region-blocked on VPSes.
         let hosts = self.play_hosts();
-        let timezones: &[&str] = &["Pacific/Pago_Pago", "Asia/Hong_Kong", "Europe/London", "America/New_York"];
+        let timezones: &[&str] = &[
+            "Pacific/Pago_Pago",
+            "Asia/Hong_Kong",
+            "Europe/London",
+            "America/New_York",
+        ];
 
         let mut set = tokio::task::JoinSet::new();
 
@@ -321,7 +367,8 @@ impl MovieBoxClient {
             urlencoding::encode(detail_path),
         );
 
-        let resp = self.client
+        let resp = self
+            .client
             .get(&url)
             .headers(self.get_base_headers())
             .send()
@@ -353,8 +400,18 @@ impl MovieBoxClient {
             .collect())
     }
 
-    pub async fn get_streams_normalized(&self, title: &str, media_type: &str, year: Option<u32>, season: u32, episode: u32) -> Result<Vec<StreamResult>> {
-        info!("[MovieBox Rust] Searching for: \"{}\" ({:?}) S{} E{}", title, year, season, episode);
+    pub async fn get_streams_normalized(
+        &self,
+        title: &str,
+        media_type: &str,
+        year: Option<u32>,
+        season: u32,
+        episode: u32,
+    ) -> Result<Vec<StreamResult>> {
+        info!(
+            "[MovieBox Rust] Searching for: \"{}\" ({:?}) S{} E{}",
+            title, year, season, episode
+        );
 
         let subject_type = if media_type == "movie" { 1 } else { 2 };
         let items = self.search(title, 1, subject_type).await?;
@@ -365,24 +422,38 @@ impl MovieBoxClient {
 
         // Find best match by title + year + subjectType (same logic as Node.js)
         let target_type = if media_type == "movie" { 1 } else { 2 };
-        let normalized_title = title.to_lowercase().replace(|c: char| !c.is_alphanumeric(), "");
+        let normalized_title = title
+            .to_lowercase()
+            .replace(|c: char| !c.is_alphanumeric(), "");
 
-        let best_match = items.iter().find(|item| {
-            let item_title = item.title.to_lowercase().replace(|c: char| !c.is_alphanumeric(), "");
-            let item_year = item.release_date.as_ref().and_then(|d| d.split('-').next()).and_then(|y| y.parse::<u32>().ok());
-            let title_match = item_title == normalized_title;
-            let year_match = year.map_or(true, |y| item_year == Some(y));
-            let type_match = item.subject_type == target_type;
-            title_match && year_match && type_match
-        }).or_else(|| {
-            items.iter().find(|item| {
-                let item_title = item.title.to_lowercase().replace(|c: char| !c.is_alphanumeric(), "");
+        let best_match = items
+            .iter()
+            .find(|item| {
+                let item_title = item
+                    .title
+                    .to_lowercase()
+                    .replace(|c: char| !c.is_alphanumeric(), "");
+                let item_year = item
+                    .release_date
+                    .as_ref()
+                    .and_then(|d| d.split('-').next())
+                    .and_then(|y| y.parse::<u32>().ok());
+                let title_match = item_title == normalized_title;
+                let year_match = year.map_or(true, |y| item_year == Some(y));
                 let type_match = item.subject_type == target_type;
-                item_title == normalized_title && type_match
+                title_match && year_match && type_match
             })
-        }).or_else(|| {
-            items.first()
-        });
+            .or_else(|| {
+                items.iter().find(|item| {
+                    let item_title = item
+                        .title
+                        .to_lowercase()
+                        .replace(|c: char| !c.is_alphanumeric(), "");
+                    let type_match = item.subject_type == target_type;
+                    item_title == normalized_title && type_match
+                })
+            })
+            .or_else(|| items.first());
 
         let best_match = match best_match {
             Some(m) => m,
@@ -394,11 +465,24 @@ impl MovieBoxClient {
             best_match.title, best_match.id, best_match.detail_path
         );
 
-        let se = if media_type == "movie" { 0 } else { season };
-        let ep = if media_type == "movie" { 0 } else { episode };
         let detail_path = best_match.detail_path.clone().unwrap_or_default();
 
-        match self.get_streams(&best_match.id, &detail_path, se, ep).await? {
+        self.get_streams_for_detail(&best_match.id, &detail_path, media_type, season, episode)
+            .await
+    }
+
+    pub async fn get_streams_for_detail(
+        &self,
+        subject_id: &str,
+        detail_path: &str,
+        media_type: &str,
+        season: u32,
+        episode: u32,
+    ) -> Result<Vec<StreamResult>> {
+        let se = if media_type == "movie" { 0 } else { season };
+        let ep = if media_type == "movie" { 0 } else { episode };
+
+        match self.get_streams(subject_id, detail_path, se, ep).await? {
             Some(data) => {
                 let mut results = Vec::new();
 
@@ -409,31 +493,50 @@ impl MovieBoxClient {
                 let referer_host = std::env::var("MOVIEBOX_REFERER_HOST")
                     .ok()
                     .filter(|h| !h.trim().is_empty())
-                    .map(|h| h.trim_start_matches("https://").trim_start_matches("http://").trim_end_matches('/').to_string())
+                    .map(|h| {
+                        h.trim_start_matches("https://")
+                            .trim_start_matches("http://")
+                            .trim_end_matches('/')
+                            .to_string()
+                    })
                     .or_else(|| data.source_host.clone())
                     .unwrap_or_else(|| self.stream_referer_host());
                 let stream_referer = format!(
                     "https://{}/spa/videoPlayPage/{}/{}?id={}&type=/{}/detail&detailSe=&detailEp=&lang=en",
-                    referer_host, type_folder, clean_path, best_match.id, type_label
+                    referer_host, type_folder, clean_path, subject_id, type_label
                 );
                 let mut mb_headers = self.get_stream_headers(&stream_referer);
                 mb_headers.insert("Origin".to_string(), format!("https://{}", referer_host));
 
-                let first_stream_id = data.streams.as_ref()
+                let first_stream_id = data
+                    .streams
+                    .as_ref()
                     .and_then(|streams| streams.first())
                     .and_then(|s| s.id.as_deref())
-                    .or_else(|| data.hls.as_ref().and_then(|hls| hls.first()).and_then(|s| s.id.as_deref()));
+                    .or_else(|| {
+                        data.hls
+                            .as_ref()
+                            .and_then(|hls| hls.first())
+                            .and_then(|s| s.id.as_deref())
+                    });
                 let subtitles = self
-                    .get_captions(&best_match.id, &detail_path, first_stream_id, "MP4")
+                    .get_captions(subject_id, detail_path, first_stream_id, "MP4")
                     .await
                     .unwrap_or_default();
-                let subtitles = if subtitles.is_empty() { None } else { Some(subtitles) };
+                let subtitles = if subtitles.is_empty() {
+                    None
+                } else {
+                    Some(subtitles)
+                };
 
                 if let Some(streams) = data.streams {
                     for s in streams {
                         results.push(StreamResult {
                             url: s.url,
-                            title: format!("Cinema - {}p (MP4)", s.resolutions.as_deref().unwrap_or("Auto")),
+                            title: format!(
+                                "Cinema - {}p (MP4)",
+                                s.resolutions.as_deref().unwrap_or("Auto")
+                            ),
                             quality: s.quality.as_deref().unwrap_or("Auto").to_string(),
                             provider: "Cinema".to_string(),
                             format: "mp4".to_string(),
@@ -464,7 +567,14 @@ impl MovieBoxClient {
         }
     }
 
-    pub async fn filter(&self, page: u32, per_page: u32, country: Option<&str>, sort: Option<&str>, channel_id: Option<u32>) -> Result<Vec<MovieBoxItem>> {
+    pub async fn filter(
+        &self,
+        page: u32,
+        per_page: u32,
+        country: Option<&str>,
+        sort: Option<&str>,
+        channel_id: Option<u32>,
+    ) -> Result<Vec<MovieBoxItem>> {
         let url = format!("{}/subject/filter", BASE_URL);
         let payload = serde_json::json!({
             "page": page,
@@ -478,7 +588,9 @@ impl MovieBoxClient {
             "classify": "All"
         });
 
-        let resp = self.client.post(&url)
+        let resp = self
+            .client
+            .post(&url)
             .headers(self.get_base_headers())
             .json(&payload)
             .send()
@@ -493,7 +605,8 @@ impl MovieBoxClient {
             return Ok(vec![]);
         }
 
-        let items = data["data"]["items"].as_array()
+        let items = data["data"]["items"]
+            .as_array()
             .or_else(|| data["data"]["subjectList"].as_array())
             .map(|arr| arr.iter().filter_map(|v| self.map_item(v)).collect())
             .unwrap_or_default();
@@ -501,9 +614,18 @@ impl MovieBoxClient {
         Ok(items)
     }
 
-    pub async fn browse_rails(&self, page: u32, per_page: u32, country: Option<&str>, sort: Option<&str>, channel_id: Option<u32>) -> Result<Vec<serde_json::Value>> {
+    pub async fn browse_rails(
+        &self,
+        page: u32,
+        per_page: u32,
+        country: Option<&str>,
+        sort: Option<&str>,
+        channel_id: Option<u32>,
+    ) -> Result<Vec<serde_json::Value>> {
         if let Some(c) = country {
-            let items = self.filter(page, per_page, Some(c), sort, channel_id).await?;
+            let items = self
+                .filter(page, per_page, Some(c), sort, channel_id)
+                .await?;
             let rail = serde_json::json!({
                 "country": c,
                 "items": items
@@ -530,8 +652,14 @@ impl MovieBoxClient {
     }
 
     pub async fn get_detail(&self, detail_path: &str) -> Result<serde_json::Value> {
-        let url = format!("{}/detail?detailPath={}", BASE_URL, urlencoding::encode(detail_path));
-        let resp = self.client.get(&url)
+        let url = format!(
+            "{}/detail?detailPath={}",
+            BASE_URL,
+            urlencoding::encode(detail_path)
+        );
+        let resp = self
+            .client
+            .get(&url)
             .headers(self.get_base_headers())
             .send()
             .await?;
@@ -548,7 +676,9 @@ impl MovieBoxClient {
 
     pub async fn get_home(&self) -> Result<serde_json::Value> {
         let url = format!("{}/home?host={}", BASE_URL, self.host);
-        let resp = self.client.get(&url)
+        let resp = self
+            .client
+            .get(&url)
             .headers(self.get_base_headers())
             .send()
             .await?;
@@ -563,19 +693,32 @@ impl MovieBoxClient {
         }
 
         let inner = &data["data"];
-        let sections = inner["operatingList"].as_array()
-            .map(|arr| arr.iter().filter_map(|s| {
-                let title = s["title"].as_str()?;
-                let items = s["subjects"].as_array()
-                    .or_else(|| s["subjectList"].as_array())
-                    .map(|list| list.iter().filter_map(|v| self.map_item(v)).collect::<Vec<_>>())
-                    .unwrap_or_default();
-                if items.is_empty() { return None; }
-                Some(serde_json::json!({ "title": title, "items": items }))
-            }).collect::<Vec<_>>())
+        let sections = inner["operatingList"]
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|s| {
+                        let title = s["title"].as_str()?;
+                        let items = s["subjects"]
+                            .as_array()
+                            .or_else(|| s["subjectList"].as_array())
+                            .map(|list| {
+                                list.iter()
+                                    .filter_map(|v| self.map_item(v))
+                                    .collect::<Vec<_>>()
+                            })
+                            .unwrap_or_default();
+                        if items.is_empty() {
+                            return None;
+                        }
+                        Some(serde_json::json!({ "title": title, "items": items }))
+                    })
+                    .collect::<Vec<_>>()
+            })
             .unwrap_or_default();
 
-        let platforms = inner["platformList"].as_array()
+        let platforms = inner["platformList"]
+            .as_array()
             .map(|arr| arr.iter().cloned().collect::<Vec<_>>())
             .unwrap_or_default();
 
@@ -584,7 +727,9 @@ impl MovieBoxClient {
 
     pub async fn get_trending(&self, page: u32) -> Result<Vec<MovieBoxItem>> {
         let url = format!("{}/subject/trending?page={}&perPage=18", BASE_URL, page);
-        let resp = self.client.get(&url)
+        let resp = self
+            .client
+            .get(&url)
             .headers(self.get_base_headers())
             .send()
             .await?;
@@ -598,7 +743,8 @@ impl MovieBoxClient {
             return Ok(vec![]);
         }
 
-        let items = data["data"]["items"].as_array()
+        let items = data["data"]["items"]
+            .as_array()
             .or_else(|| data["data"]["subjectList"].as_array())
             .map(|arr| arr.iter().filter_map(|v| self.map_item(v)).collect())
             .unwrap_or_default();
@@ -613,8 +759,13 @@ impl MovieBoxClient {
         for s in sections {
             if let Some(title) = s["title"].as_str() {
                 if title.to_lowercase().contains(&q) {
-                    return Ok(s["items"].as_array()
-                        .map(|arr| arr.iter().filter_map(|v| serde_json::from_value(v.clone()).ok()).collect())
+                    return Ok(s["items"]
+                        .as_array()
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|v| serde_json::from_value(v.clone()).ok())
+                                .collect()
+                        })
                         .unwrap_or_default());
                 }
             }
@@ -627,17 +778,31 @@ impl MovieBoxClient {
         let sections = home["sections"].as_array().cloned().unwrap_or_default();
 
         let targets: &[&str] = &[
-            "Popular Series", "Popular Movie", "Hot Short TV", "SA Drama",
-            "Thai-Drama", "Teen Romance", "Turkish Drama", "C-Drama",
-            "K-Drama", "Western TV", "Movie/TV Series", "Must-watch Black Shows",
+            "Popular Series",
+            "Popular Movie",
+            "Hot Short TV",
+            "SA Drama",
+            "Thai-Drama",
+            "Teen Romance",
+            "Turkish Drama",
+            "C-Drama",
+            "K-Drama",
+            "Western TV",
+            "Movie/TV Series",
+            "Must-watch Black Shows",
         ];
 
-        let matched: Vec<serde_json::Value> = sections.into_iter()
+        let matched: Vec<serde_json::Value> = sections
+            .into_iter()
             .filter(|s| {
                 if let Some(t) = s["title"].as_str() {
                     let tl = t.to_lowercase();
-                    targets.iter().any(|target| tl.contains(&target.to_lowercase()))
-                } else { false }
+                    targets
+                        .iter()
+                        .any(|target| tl.contains(&target.to_lowercase()))
+                } else {
+                    false
+                }
             })
             .collect();
 
@@ -648,12 +813,21 @@ impl MovieBoxClient {
         }
     }
 
-    pub async fn get_indian_content(&self, media_type: &str, page: u32) -> Result<Vec<MovieBoxItem>> {
+    pub async fn get_indian_content(
+        &self,
+        media_type: &str,
+        page: u32,
+    ) -> Result<Vec<MovieBoxItem>> {
         let channel_id = if media_type == "movie" { 1 } else { 2 };
         self.filter_india(page, 28, channel_id).await
     }
 
-    async fn filter_india(&self, page: u32, per_page: u32, channel_id: u32) -> Result<Vec<MovieBoxItem>> {
+    async fn filter_india(
+        &self,
+        page: u32,
+        per_page: u32,
+        channel_id: u32,
+    ) -> Result<Vec<MovieBoxItem>> {
         let url = format!("{}/subject/filter", BASE_URL);
         let payload = serde_json::json!({
             "page": page,
@@ -667,7 +841,9 @@ impl MovieBoxClient {
             "classify": "All"
         });
 
-        let resp = self.client.post(&url)
+        let resp = self
+            .client
+            .post(&url)
             .headers(self.get_base_headers())
             .json(&payload)
             .send()
@@ -682,7 +858,8 @@ impl MovieBoxClient {
             return Ok(vec![]);
         }
 
-        let items = data["data"]["items"].as_array()
+        let items = data["data"]["items"]
+            .as_array()
             .or_else(|| data["data"]["subjectList"].as_array())
             .map(|arr| arr.iter().filter_map(|v| self.map_item(v)).collect())
             .unwrap_or_default();
@@ -704,7 +881,9 @@ impl MovieBoxClient {
             "classify": "All"
         });
 
-        let resp = self.client.post(&url)
+        let resp = self
+            .client
+            .post(&url)
             .headers(self.get_base_headers())
             .json(&payload)
             .send()
@@ -719,7 +898,8 @@ impl MovieBoxClient {
             return Ok(vec![]);
         }
 
-        let items = data["data"]["items"].as_array()
+        let items = data["data"]["items"]
+            .as_array()
             .or_else(|| data["data"]["subjectList"].as_array())
             .map(|arr| arr.iter().filter_map(|v| self.map_item(v)).collect())
             .unwrap_or_default();

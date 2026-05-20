@@ -1,53 +1,49 @@
+use axum::body::Body;
 use axum::{
+    Router,
     extract::State,
+    http::{Request, StatusCode},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::get,
-    Router,
-    middleware::{self, Next},
-    http::{StatusCode, Request},
 };
 use reqwest::Client;
-use tower_http::cors::CorsLayer;
-use axum::body::Body;
-use utoipa::OpenApi;
-use utoipa_swagger_ui::SwaggerUi;
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tower_http::cors::CorsLayer;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
-use crate::clients::tmdb::TmdbClient;
-use crate::infra::rate_limit::RateLimitState;
-use crate::clients::moviebox::MovieBoxClient;
 use crate::clients::hitv::HiTvClient;
-use crate::infra::cache::StreamCache;
-use crate::infra::coalesce::FetchCoalescer;
-use crate::providers::registry::ProviderRegistry;
-use crate::filters::FilterConfig;
-use crate::infra::circuit_breaker::CircuitBreaker;
-use crate::infra::metrics::Metrics;
-use crate::providers::{
-    moviebox_provider::MovieBoxProvider,
-    kisskh_provider::KissKhProvider,
-    sflix_provider::SflixProvider,
-    dramacool_provider::DramacoolProvider,
-    vixsrc_provider::VixsrcProvider,
-    mp4hydra_provider::Mp4HydraProvider,
-    vidzee_provider::VidzeeProvider,
-    videasy_provider::VideasyProvider,
-    vidrock_provider::VidrockProvider,
-    vidsrcembed_provider::VidsrcEmbedProvider,
-    vixsrc::VixsrcClient,
-    kisskh::KissKhClient,
-    dramacool::DramacoolClient,
-    vidzee::VidzeeClient,
-    videasy::VideasyClient,
-};
+use crate::clients::moviebox::MovieBoxClient;
+use crate::clients::tmdb::TmdbClient;
 use crate::config::AppConfig;
+use crate::filters::FilterConfig;
+use crate::infra::cache::StreamCache;
+use crate::infra::circuit_breaker::CircuitBreaker;
+use crate::infra::coalesce::FetchCoalescer;
+use crate::infra::metrics::Metrics;
+use crate::infra::rate_limit::RateLimitState;
+use crate::providers::registry::ProviderRegistry;
+use crate::providers::{
+    dramacool::DramacoolClient, dramacool_provider::DramacoolProvider, kisskh::KissKhClient,
+    kisskh_provider::KissKhProvider, moviebox_provider::MovieBoxProvider,
+    mp4hydra_provider::Mp4HydraProvider, sflix_provider::SflixProvider, videasy::VideasyClient,
+    videasy_provider::VideasyProvider, vidrock_provider::VidrockProvider,
+    vidsrcembed_provider::VidsrcEmbedProvider, vidzee::VidzeeClient,
+    vidzee_provider::VidzeeProvider, vixsrc::VixsrcClient, vixsrc_provider::VixsrcProvider,
+};
 
 pub fn kisskh_enabled() -> bool {
     env::var("ENABLE_KISSKH")
-        .map(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
         .unwrap_or(false)
 }
 
@@ -76,9 +72,9 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let tmdb = Arc::new(TmdbClient::new(cfg.tmdb_api_keys.clone()));
     let cache = Arc::new(StreamCache::new_from_config(&cfg).await);
     let circuit_breaker = Arc::new(CircuitBreaker::new());
-    let metrics = Arc::new(Metrics::new(
-        &["Cinema", "Nova", "Zenith", "Orient", "Aura", "Hydra", "Luna", "VidZee", "Vortex", "Nebula"],
-    ));
+    let metrics = Arc::new(Metrics::new(&[
+        "Cinema", "Nova", "Zenith", "Orient", "Aura", "Hydra", "Luna", "VidZee", "Vortex", "Nebula",
+    ]));
     circuit_breaker.set_metrics(metrics.clone());
     let filter_config = Arc::new(FilterConfig::default());
 
@@ -91,16 +87,16 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let vixsrc_client = Arc::new(VixsrcClient::new(
         crate::http_client::with_optional_proxy(
             Client::builder()
-            .tcp_keepalive(Duration::from_secs(60))
-            .connect_timeout(Duration::from_secs(8))
-            .pool_max_idle_per_host(2)
-            .pool_idle_timeout(Duration::from_secs(90))
-            .timeout(Duration::from_secs(15))
-            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
+                .tcp_keepalive(Duration::from_secs(60))
+                .connect_timeout(Duration::from_secs(8))
+                .pool_max_idle_per_host(2)
+                .pool_idle_timeout(Duration::from_secs(90))
+                .timeout(Duration::from_secs(15))
+                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
             "VIXSRC_PROXY_URL",
         )
-            .build()
-            .unwrap(),
+        .build()
+        .unwrap(),
     ));
 
     let vidrock_client = Arc::new(crate::clients::vidrock::VidRockClient::new());
@@ -129,7 +125,9 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     registry.register(Arc::new(VidrockProvider::new(vidrock_client.clone())));
     registry.register(Arc::new(VidzeeProvider::new(vidzee_client.clone())));
     registry.register(Arc::new(VideasyProvider::new(videasy_client.clone())));
-    registry.register(Arc::new(VidsrcEmbedProvider::new(vidsrcembed_client.clone())));
+    registry.register(Arc::new(VidsrcEmbedProvider::new(
+        vidsrcembed_client.clone(),
+    )));
 
     AppState {
         client: crate::http_client::with_optional_proxy(
@@ -143,8 +141,8 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
                 .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
             "STREAM_PROXY_URL",
         )
-            .build()
-            .unwrap(),
+        .build()
+        .unwrap(),
         tmdb: tmdb.clone(),
         registry: Arc::new(registry),
         cache: cache.clone(),
@@ -182,7 +180,9 @@ pub fn spawn_background_tasks(state: &AppState) {
             interval.tick().await;
             let now = Instant::now();
             let window = Duration::from_secs(rl_bg.window_secs * 2);
-            rl_bg.store.retain(|_, (_, start)| now.duration_since(*start) < window);
+            rl_bg
+                .store
+                .retain(|_, (_, start)| now.duration_since(*start) < window);
         }
     });
 }
@@ -195,79 +195,253 @@ pub fn build_router(state: AppState) -> Router {
         .route("/ts-proxy", get(crate::proxy::ts_handler))
         .route("/sub-proxy", get(crate::proxy::sub_handler))
         .route("/storage/enc.key", get(vixsrc_enc_key_handler))
-        .route("/api/hitv/library", get(crate::routes::system::hitv_library_handler))
+        .route(
+            "/api/hitv/library",
+            get(crate::routes::system::hitv_library_handler),
+        )
         .route("/api/hitv/browse", get(crate::routes::hitv::browse_handler))
         .route("/api/hitv/search", get(crate::routes::hitv::search_handler))
         .route("/api/hitv/latest", get(crate::routes::hitv::latest_handler))
-        .route("/api/hitv/trending", get(crate::routes::hitv::trending_handler))
+        .route(
+            "/api/hitv/trending",
+            get(crate::routes::hitv::trending_handler),
+        )
         .route("/api/hitv/hero", get(crate::routes::hitv::hero_handler))
         .route("/api/hitv/drama", get(crate::routes::hitv::drama_handler))
         .route("/api/hitv/info/:id", get(crate::routes::hitv::info_handler))
-        .route("/api/hitv/play/:id/:episode", get(crate::routes::hitv::play_handler))
-        .route("/api/hitv/countries", get(crate::routes::hitv::countries_handler))
-        .route("/api/hitv/categories", get(crate::routes::hitv::categories_handler))
+        .route(
+            "/api/hitv/play/:id/:episode",
+            get(crate::routes::hitv::play_handler),
+        )
+        .route(
+            "/api/hitv/countries",
+            get(crate::routes::hitv::countries_handler),
+        )
+        .route(
+            "/api/hitv/categories",
+            get(crate::routes::hitv::categories_handler),
+        )
         .route("/api/hitv/genres", get(crate::routes::hitv::genres_handler))
         .route("/api/hitv/sorts", get(crate::routes::hitv::sorts_handler))
-        .route("/api/hitv/:country/:sort/:genre", get(crate::routes::hitv::dynamic_browse_handler))
-        .route("/api/streams/:type/:tmdbId", get(crate::routes::streams::streams_handler))
-        .route("/api/streams/:type/:tmdbId/live", get(crate::routes::sse::sse_streams_handler))
-        .route("/api/providers", get(crate::routes::providers::providers_handler))
-        .route("/api/admin/reload", axum::routing::post(crate::routes::system::admin_reload_handler))
-        .route("/api/admin/refresh-tokens", axum::routing::post(crate::routes::system::admin_refresh_tokens_handler))
-        .route("/api/play/:type/:tmdbId", get(crate::routes::play::play_handler))
-        .route("/api/drama/kisskh/search", get(crate::routes::drama::kisskh_search_handler))
-        .route("/api/drama/kisskh/show", get(crate::routes::drama::kisskh_show_handler))
-        .route("/api/drama/kisskh/browse", get(crate::routes::drama::kisskh_browse_handler))
-        .route("/api/drama/kisskh/upcoming", get(crate::routes::drama::kisskh_upcoming_handler))
-        .route("/api/drama/kisskh/top-rating", get(crate::routes::drama::kisskh_top_rating_handler))
-        .route("/api/drama/kisskh/streams/:id/:episode", get(crate::routes::drama::kisskh_streams_handler))
-        .route("/api/drama/dramacool/search", get(crate::routes::drama::dramacool_search_handler))
-        .route("/api/drama/dramacool/streams/:id/:episode", get(crate::routes::drama::dramacool_streams_handler))
-        .route("/api/drama/moviebox/browse", get(crate::routes::drama::moviebox_browse_handler))
-        .route("/api/drama/moviebox/search", get(crate::routes::drama::moviebox_search_handler))
-        .route("/api/drama/moviebox/streams/:title/:episode", get(crate::routes::drama::moviebox_streams_handler))
-        .route("/api/drama/detail", get(crate::routes::drama::drama_detail_handler))
-        .route("/api/moviebox/home", get(crate::routes::moviebox::home_handler))
-        .route("/api/moviebox/discover", get(crate::routes::moviebox::discover_handler))
-        .route("/api/moviebox/section", get(crate::routes::moviebox::section_handler))
-        .route("/api/moviebox/trending", get(crate::routes::moviebox::trending_handler))
-        .route("/api/moviebox/popular-movie", get(crate::routes::moviebox::popular_movie_handler))
-        .route("/api/moviebox/popular-series", get(crate::routes::moviebox::popular_series_handler))
-        .route("/api/moviebox/hot-shorts", get(crate::routes::moviebox::hot_shorts_handler))
+        .route(
+            "/api/hitv/:country/:sort/:genre",
+            get(crate::routes::hitv::dynamic_browse_handler),
+        )
+        .route(
+            "/api/streams/:type/:tmdbId",
+            get(crate::routes::streams::streams_handler),
+        )
+        .route(
+            "/api/streams/:type/:tmdbId/live",
+            get(crate::routes::sse::sse_streams_handler),
+        )
+        .route(
+            "/api/providers",
+            get(crate::routes::providers::providers_handler),
+        )
+        .route(
+            "/api/admin/reload",
+            axum::routing::post(crate::routes::system::admin_reload_handler),
+        )
+        .route(
+            "/api/admin/refresh-tokens",
+            axum::routing::post(crate::routes::system::admin_refresh_tokens_handler),
+        )
+        .route(
+            "/api/play/:type/:tmdbId",
+            get(crate::routes::play::play_handler),
+        )
+        .route(
+            "/api/drama/kisskh/search",
+            get(crate::routes::drama::kisskh_search_handler),
+        )
+        .route(
+            "/api/drama/kisskh/show",
+            get(crate::routes::drama::kisskh_show_handler),
+        )
+        .route(
+            "/api/drama/kisskh/browse",
+            get(crate::routes::drama::kisskh_browse_handler),
+        )
+        .route(
+            "/api/drama/kisskh/upcoming",
+            get(crate::routes::drama::kisskh_upcoming_handler),
+        )
+        .route(
+            "/api/drama/kisskh/top-rating",
+            get(crate::routes::drama::kisskh_top_rating_handler),
+        )
+        .route(
+            "/api/drama/kisskh/streams/:id/:episode",
+            get(crate::routes::drama::kisskh_streams_handler),
+        )
+        .route(
+            "/api/drama/dramacool/search",
+            get(crate::routes::drama::dramacool_search_handler),
+        )
+        .route(
+            "/api/drama/dramacool/streams/:id/:episode",
+            get(crate::routes::drama::dramacool_streams_handler),
+        )
+        .route(
+            "/api/drama/moviebox/browse",
+            get(crate::routes::drama::moviebox_browse_handler),
+        )
+        .route(
+            "/api/drama/moviebox/search",
+            get(crate::routes::drama::moviebox_search_handler),
+        )
+        .route(
+            "/api/drama/moviebox/streams/:title/:episode",
+            get(crate::routes::drama::moviebox_streams_handler),
+        )
+        .route(
+            "/api/drama/moviebox/streams-direct",
+            get(crate::routes::drama::moviebox_streams_direct_handler),
+        )
+        .route(
+            "/api/drama/detail",
+            get(crate::routes::drama::drama_detail_handler),
+        )
+        .route(
+            "/api/moviebox/home",
+            get(crate::routes::moviebox::home_handler),
+        )
+        .route(
+            "/api/moviebox/discover",
+            get(crate::routes::moviebox::discover_handler),
+        )
+        .route(
+            "/api/moviebox/section",
+            get(crate::routes::moviebox::section_handler),
+        )
+        .route(
+            "/api/moviebox/trending",
+            get(crate::routes::moviebox::trending_handler),
+        )
+        .route(
+            "/api/moviebox/popular-movie",
+            get(crate::routes::moviebox::popular_movie_handler),
+        )
+        .route(
+            "/api/moviebox/popular-series",
+            get(crate::routes::moviebox::popular_series_handler),
+        )
+        .route(
+            "/api/moviebox/hot-shorts",
+            get(crate::routes::moviebox::hot_shorts_handler),
+        )
         .route("/api/moviebox/sa", get(crate::routes::moviebox::sa_handler))
-        .route("/api/moviebox/thai", get(crate::routes::moviebox::thai_handler))
-        .route("/api/moviebox/turkish", get(crate::routes::moviebox::turkish_handler))
-        .route("/api/moviebox/western", get(crate::routes::moviebox::western_handler))
-        .route("/api/moviebox/animation", get(crate::routes::moviebox::animation_handler))
-        .route("/api/moviebox/black-shows", get(crate::routes::moviebox::black_shows_handler))
-        .route("/api/moviebox/hero", get(crate::routes::moviebox::hero_handler))
-        .route("/api/moviebox/bollywood", get(crate::routes::moviebox::bollywood_handler))
-        .route("/api/moviebox/shorts", get(crate::routes::moviebox::shorts_handler))
-        .route("/api/moviebox/filter", get(crate::routes::moviebox::filter_handler))
-        .route("/api/moviebox/info", get(crate::routes::moviebox::info_handler))
-        .route("/api/moviebox/detail", get(crate::routes::moviebox::detail_handler))
-        .route("/api/moviebox/search", get(crate::routes::moviebox::search_handler))
-        .route("/api/anime/search", get(crate::routes::anime::search_handler))
-        .route("/api/anime/latest", get(crate::routes::anime::latest_handler))
-        .route("/api/anime/category", get(crate::routes::anime::category_handler))
+        .route(
+            "/api/moviebox/thai",
+            get(crate::routes::moviebox::thai_handler),
+        )
+        .route(
+            "/api/moviebox/turkish",
+            get(crate::routes::moviebox::turkish_handler),
+        )
+        .route(
+            "/api/moviebox/western",
+            get(crate::routes::moviebox::western_handler),
+        )
+        .route(
+            "/api/moviebox/animation",
+            get(crate::routes::moviebox::animation_handler),
+        )
+        .route(
+            "/api/moviebox/black-shows",
+            get(crate::routes::moviebox::black_shows_handler),
+        )
+        .route(
+            "/api/moviebox/hero",
+            get(crate::routes::moviebox::hero_handler),
+        )
+        .route(
+            "/api/moviebox/bollywood",
+            get(crate::routes::moviebox::bollywood_handler),
+        )
+        .route(
+            "/api/moviebox/shorts",
+            get(crate::routes::moviebox::shorts_handler),
+        )
+        .route(
+            "/api/moviebox/filter",
+            get(crate::routes::moviebox::filter_handler),
+        )
+        .route(
+            "/api/moviebox/info",
+            get(crate::routes::moviebox::info_handler),
+        )
+        .route(
+            "/api/moviebox/detail",
+            get(crate::routes::moviebox::detail_handler),
+        )
+        .route(
+            "/api/moviebox/search",
+            get(crate::routes::moviebox::search_handler),
+        )
+        .route(
+            "/api/anime/search",
+            get(crate::routes::anime::search_handler),
+        )
+        .route(
+            "/api/anime/latest",
+            get(crate::routes::anime::latest_handler),
+        )
+        .route(
+            "/api/anime/category",
+            get(crate::routes::anime::category_handler),
+        )
         .route("/api/anime/home", get(crate::routes::anime::home_handler))
-        .route("/api/anime/detail/:slug", get(crate::routes::anime::detail_handler))
-        .route("/api/anime/episodes/:id", get(crate::routes::anime::episodes_handler))
-        .route("/api/anime/servers", get(crate::routes::anime::servers_handler))
-        .route("/api/anime/stream", get(crate::routes::anime::stream_handler))
-        .route("/api/anime/filter", axum::routing::post(crate::routes::anime::filter_handler))
+        .route(
+            "/api/anime/detail/:slug",
+            get(crate::routes::anime::detail_handler),
+        )
+        .route(
+            "/api/anime/episodes/:id",
+            get(crate::routes::anime::episodes_handler),
+        )
+        .route(
+            "/api/anime/servers",
+            get(crate::routes::anime::servers_handler),
+        )
+        .route(
+            "/api/anime/stream",
+            get(crate::routes::anime::stream_handler),
+        )
+        .route(
+            "/api/anime/filter",
+            axum::routing::post(crate::routes::anime::filter_handler),
+        )
         .route("/api/status", get(crate::routes::system::status_handler))
-        .merge(SwaggerUi::new("/api/docs").url("/api/docs/openapi.json", crate::openapi::ApiDoc::openapi()))
-        .layer(middleware::from_fn_with_state(state.clone(), rate_limit_middleware))
-        .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
+        .merge(
+            SwaggerUi::new("/api/docs")
+                .url("/api/docs/openapi.json", crate::openapi::ApiDoc::openapi()),
+        )
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            rate_limit_middleware,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .layer(CorsLayer::permissive())
         .with_state(state)
 }
 
-async fn auth_middleware(State(_state): State<AppState>, req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
+async fn auth_middleware(
+    State(_state): State<AppState>,
+    req: Request<Body>,
+    next: Next,
+) -> Result<Response, StatusCode> {
     let path = req.uri().path();
     // Proxy routes are self-authenticated via encrypted h_token — skip API key check
-    if path == "/ts-proxy" || path == "/m3u8-proxy" || path == "/sub-proxy" || path == "/storage/enc.key" {
+    if path == "/ts-proxy"
+        || path == "/m3u8-proxy"
+        || path == "/sub-proxy"
+        || path == "/storage/enc.key"
+    {
         return Ok(next.run(req).await);
     }
     if path.starts_with("/api/admin/") {
@@ -276,19 +450,28 @@ async fn auth_middleware(State(_state): State<AppState>, req: Request<Body>, nex
             .filter(|key| !key.trim().is_empty())
             .ok_or(StatusCode::FORBIDDEN)?;
         let auth = req.headers().get("x-api-key").and_then(|v| v.to_str().ok());
-        if auth != Some(api_key.as_str()) { return Err(StatusCode::FORBIDDEN); }
+        if auth != Some(api_key.as_str()) {
+            return Err(StatusCode::FORBIDDEN);
+        }
         return Ok(next.run(req).await);
     }
 
-    let is_local = req.extensions().get::<SocketAddr>().map_or(false, |a| a.ip().is_loopback());
-    if is_local { return Ok(next.run(req).await); }
+    let is_local = req
+        .extensions()
+        .get::<SocketAddr>()
+        .map_or(false, |a| a.ip().is_loopback());
+    if is_local {
+        return Ok(next.run(req).await);
+    }
 
     if let Ok(api_key) = env::var("API_KEY") {
         if api_key.trim().is_empty() {
             return Ok(next.run(req).await);
         }
         let auth = req.headers().get("x-api-key").and_then(|v| v.to_str().ok());
-        if auth != Some(&api_key) { return Err(StatusCode::FORBIDDEN); }
+        if auth != Some(&api_key) {
+            return Err(StatusCode::FORBIDDEN);
+        }
     }
     Ok(next.run(req).await)
 }
@@ -316,17 +499,31 @@ async fn vixsrc_enc_key_handler(State(state): State<AppState>) -> Response {
     }
 }
 
-async fn rate_limit_middleware(State(state): State<AppState>, req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
+async fn rate_limit_middleware(
+    State(state): State<AppState>,
+    req: Request<Body>,
+    next: Next,
+) -> Result<Response, StatusCode> {
     let path = req.uri().path();
     // Proxy routes are self-authenticated via h_token and stream many segments — skip rate limiting
-    if path.starts_with("/m3u8-proxy") || path.starts_with("/ts-proxy") || path.starts_with("/sub-proxy") || path.starts_with("/storage/") {
+    if path.starts_with("/m3u8-proxy")
+        || path.starts_with("/ts-proxy")
+        || path.starts_with("/sub-proxy")
+        || path.starts_with("/storage/")
+    {
         return Ok(next.run(req).await);
     }
 
-    let ip = req.extensions()
+    let ip = req
+        .extensions()
         .get::<axum::extract::ConnectInfo<SocketAddr>>()
         .map(|c| c.0.ip().to_string())
-        .or_else(|| req.headers().get("x-forwarded-for").and_then(|v| v.to_str().ok()).map(|s| s.split(',').next().unwrap_or(s).trim().to_string()))
+        .or_else(|| {
+            req.headers()
+                .get("x-forwarded-for")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.split(',').next().unwrap_or(s).trim().to_string())
+        })
         .unwrap_or_else(|| "unknown".to_string());
 
     if !state.rate_limiter.check(&ip) {
@@ -341,33 +538,33 @@ use axum::extract::FromRef;
 /// State for /api/streams and /api/streams/.../live (SSE)
 #[derive(Clone)]
 pub struct StreamState {
-    pub registry:      Arc<ProviderRegistry>,
-    pub cache:         Arc<StreamCache>,
-    pub tmdb:          Arc<TmdbClient>,
+    pub registry: Arc<ProviderRegistry>,
+    pub cache: Arc<StreamCache>,
+    pub tmdb: Arc<TmdbClient>,
     pub filter_config: Arc<FilterConfig>,
-    pub coalescer:     Arc<FetchCoalescer>,
-    pub metrics:       Arc<Metrics>,
-    pub config:        Arc<AppConfig>,
-    pub secret:        String,
+    pub coalescer: Arc<FetchCoalescer>,
+    pub metrics: Arc<Metrics>,
+    pub config: Arc<AppConfig>,
+    pub secret: String,
     pub proxy_base_url: String,
-    pub client:        Client,
-    pub hitv:          Arc<HiTvClient>,
+    pub client: Client,
+    pub hitv: Arc<HiTvClient>,
 }
 
 impl FromRef<AppState> for StreamState {
     fn from_ref(s: &AppState) -> Self {
         Self {
-            registry:       s.registry.clone(),
-            cache:          s.cache.clone(),
-            tmdb:           s.tmdb.clone(),
-            filter_config:  s.filter_config.clone(),
-            coalescer:      s.coalescer.clone(),
-            metrics:        s.metrics.clone(),
-            config:         s.config.clone(),
-            secret:         s.secret.clone(),
+            registry: s.registry.clone(),
+            cache: s.cache.clone(),
+            tmdb: s.tmdb.clone(),
+            filter_config: s.filter_config.clone(),
+            coalescer: s.coalescer.clone(),
+            metrics: s.metrics.clone(),
+            config: s.config.clone(),
+            secret: s.secret.clone(),
             proxy_base_url: s.proxy_base_url.clone(),
-            client:         s.client.clone(),
-            hitv:           s.hitv.clone(),
+            client: s.client.clone(),
+            hitv: s.hitv.clone(),
         }
     }
 }
@@ -375,22 +572,22 @@ impl FromRef<AppState> for StreamState {
 /// State for /api/drama/* routes
 #[derive(Clone)]
 pub struct DramaState {
-    pub kisskh:         Arc<KissKhClient>,
-    pub dramacool:      Arc<DramacoolClient>,
-    pub moviebox:       Arc<MovieBoxClient>,
-    pub tmdb:           Arc<TmdbClient>,
-    pub secret:         String,
+    pub kisskh: Arc<KissKhClient>,
+    pub dramacool: Arc<DramacoolClient>,
+    pub moviebox: Arc<MovieBoxClient>,
+    pub tmdb: Arc<TmdbClient>,
+    pub secret: String,
     pub proxy_base_url: String,
 }
 
 impl FromRef<AppState> for DramaState {
     fn from_ref(s: &AppState) -> Self {
         Self {
-            kisskh:         s.kisskh.clone(),
-            dramacool:      s.dramacool.clone(),
-            moviebox:       s.moviebox.clone(),
-            tmdb:           s.tmdb.clone(),
-            secret:         s.secret.clone(),
+            kisskh: s.kisskh.clone(),
+            dramacool: s.dramacool.clone(),
+            moviebox: s.moviebox.clone(),
+            tmdb: s.tmdb.clone(),
+            secret: s.secret.clone(),
             proxy_base_url: s.proxy_base_url.clone(),
         }
     }
@@ -399,8 +596,8 @@ impl FromRef<AppState> for DramaState {
 /// State for /api/hitv/* routes
 #[derive(Clone)]
 pub struct HiTvState {
-    pub hitv:          Arc<HiTvClient>,
-    pub tmdb:          Arc<TmdbClient>,
+    pub hitv: Arc<HiTvClient>,
+    pub tmdb: Arc<TmdbClient>,
     pub proxy_base_url: String,
 }
 
@@ -417,18 +614,18 @@ impl FromRef<AppState> for HiTvState {
 /// State for /api/anime/* routes
 #[derive(Clone)]
 pub struct AnimeState {
-    pub hianime:        Arc<crate::clients::hianime::HianimeClient>,
-    pub config:         Arc<AppConfig>,
-    pub secret:         String,
+    pub hianime: Arc<crate::clients::hianime::HianimeClient>,
+    pub config: Arc<AppConfig>,
+    pub secret: String,
     pub proxy_base_url: String,
 }
 
 impl FromRef<AppState> for AnimeState {
     fn from_ref(s: &AppState) -> Self {
         Self {
-            hianime:        s.hianime.clone(),
-            config:         s.config.clone(),
-            secret:         s.secret.clone(),
+            hianime: s.hianime.clone(),
+            config: s.config.clone(),
+            secret: s.secret.clone(),
             proxy_base_url: s.proxy_base_url.clone(),
         }
     }
@@ -442,7 +639,9 @@ pub struct MovieBoxRouteState {
 
 impl FromRef<AppState> for MovieBoxRouteState {
     fn from_ref(s: &AppState) -> Self {
-        Self { moviebox: s.moviebox.clone() }
+        Self {
+            moviebox: s.moviebox.clone(),
+        }
     }
 }
 
@@ -454,28 +653,30 @@ pub struct ProvidersState {
 
 impl FromRef<AppState> for ProvidersState {
     fn from_ref(s: &AppState) -> Self {
-        Self { registry: s.registry.clone() }
+        Self {
+            registry: s.registry.clone(),
+        }
     }
 }
 
 /// State for system routes (health, metrics, status, admin)
 #[derive(Clone)]
 pub struct SystemState {
-    pub metrics:    Arc<Metrics>,
-    pub hitv:       Arc<HiTvClient>,
-    pub registry:   Arc<ProviderRegistry>,
+    pub metrics: Arc<Metrics>,
+    pub hitv: Arc<HiTvClient>,
+    pub registry: Arc<ProviderRegistry>,
     pub start_time: std::time::Instant,
-    pub client:     Client,
+    pub client: Client,
 }
 
 impl FromRef<AppState> for SystemState {
     fn from_ref(s: &AppState) -> Self {
         Self {
-            metrics:    s.metrics.clone(),
-            hitv:       s.hitv.clone(),
-            registry:   s.registry.clone(),
+            metrics: s.metrics.clone(),
+            hitv: s.hitv.clone(),
+            registry: s.registry.clone(),
             start_time: s.start_time,
-            client:     s.client.clone(),
+            client: s.client.clone(),
         }
     }
 }
