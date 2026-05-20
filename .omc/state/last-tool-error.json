@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"cargo check\",\"timeout\":120000,\"description\":\"Check Rust backend compilation\"}",
-  "error": "Exit code 101\nerror: could not find `Cargo.toml` in `/mnt/devdrive/projects/Misc/hue` or any parent directory",
-  "timestamp": "2026-05-19T13:49:53.396Z",
+  "tool_input_preview": "{\"command\":\"cd /mnt/devdrive/projects/Misc/huenode && timeout 20 node -e \\\"\\nconst { chromium } = require('playwright-core');\\n(async () => {\\n  const browser = await chromium.launch({ headless: true ...",
+  "error": "Exit code 124\nError: iframe.evaluate is not a function",
+  "timestamp": "2026-05-20T23:00:19.764Z",
   "retry_count": 1
 }

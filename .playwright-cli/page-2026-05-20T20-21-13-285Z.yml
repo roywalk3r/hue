@@ -1,0 +1,76 @@
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - link "Vexli Vexli" [ref=e7] [cursor=pointer]:
+        - /url: /
+        - img "Vexli" [ref=e8]
+        - generic [ref=e9]: Vexli
+      - generic [ref=e10]:
+        - link "Home" [ref=e11] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e12]: Home
+        - link "Films" [ref=e13] [cursor=pointer]:
+          - /url: /movies
+          - generic [ref=e14]: Films
+        - link "Series" [ref=e15] [cursor=pointer]:
+          - /url: /tv
+          - generic [ref=e16]: Series
+        - link "Anime" [ref=e17] [cursor=pointer]:
+          - /url: /anime
+          - generic [ref=e18]: Anime
+        - link "Drama" [ref=e19] [cursor=pointer]:
+          - /url: /drama
+          - generic [ref=e20]: Drama
+      - generic [ref=e21]:
+        - button "Search" [ref=e22] [cursor=pointer]:
+          - img [ref=e23]
+          - generic [ref=e26]: Search
+          - generic [ref=e27]: Ctrl K
+        - link "Sign in" [ref=e29] [cursor=pointer]:
+          - /url: /auth/login
+  - main [ref=e30]:
+    - generic [ref=e31]:
+      - paragraph [ref=e35]: Resolving stream...
+      - generic [ref=e36]:
+        - generic [ref=e38]:
+          - paragraph [ref=e39]: Drama
+          - heading "the-wonderfools-english" [level=1] [ref=e40]
+        - complementary [ref=e41]
+  - contentinfo [ref=e42]:
+    - generic [ref=e44]:
+      - generic [ref=e45]:
+        - link "Vexli Vexli" [ref=e46] [cursor=pointer]:
+          - /url: /
+          - img "Vexli" [ref=e47]
+          - generic [ref=e48]: Vexli
+        - paragraph [ref=e49]: Movies, series, anime, and drama in one quiet streaming catalog.
+      - generic [ref=e50]:
+        - heading "Browse" [level=3] [ref=e51]
+        - list [ref=e52]:
+          - listitem [ref=e53]:
+            - link "Movies" [ref=e54] [cursor=pointer]:
+              - /url: /movies
+          - listitem [ref=e55]:
+            - link "TV Shows" [ref=e56] [cursor=pointer]:
+              - /url: /tv
+          - listitem [ref=e57]:
+            - link "Anime" [ref=e58] [cursor=pointer]:
+              - /url: /anime
+          - listitem [ref=e59]:
+            - link "Dramas" [ref=e60] [cursor=pointer]:
+              - /url: /drama
+      - generic [ref=e61]:
+        - heading "Library" [level=3] [ref=e62]
+        - list [ref=e63]:
+          - listitem [ref=e64]:
+            - link "Search" [ref=e65] [cursor=pointer]:
+              - /url: /search
+          - listitem [ref=e66]:
+            - link "Saved" [ref=e67] [cursor=pointer]:
+              - /url: /saved
+          - listitem [ref=e68]:
+            - link "Continue Watching" [ref=e69] [cursor=pointer]:
+              - /url: /history
+          - listitem [ref=e70]:
+            - link "Profile" [ref=e71] [cursor=pointer]:
+              - /url: /profile
