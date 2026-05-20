@@ -239,7 +239,7 @@ pub async fn moviebox_search_handler(
     Query(params): Query<MovieBoxSearchQuery>,
 ) -> Response {
     let page = params.page.unwrap_or(1);
-    let subject_type = params.subject_type.unwrap_or(0);
+    let subject_type = params.subject_type.unwrap_or(2);
     tracing::info!("[drama] moviebox_search: q={} page={} type={}", params.q, page, subject_type);
     match state.moviebox.search(&params.q, page, subject_type).await {
         Ok(items) => {

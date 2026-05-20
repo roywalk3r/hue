@@ -28,7 +28,7 @@ impl StreamProvider for VidrockProvider {
     fn name(&self) -> &'static str { "Luna" }
     fn real_name(&self) -> &'static str { "vidrock" }
     fn is_fast(&self) -> bool { true }
-    fn timeout_secs(&self) -> u64 { 20 }
+    fn timeout_secs(&self) -> u64 { 15 }
 
     async fn fetch(
         &self,

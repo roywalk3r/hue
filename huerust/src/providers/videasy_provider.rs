@@ -30,7 +30,7 @@ impl StreamProvider for VideasyProvider {
     fn name(&self) -> &'static str { "Vortex" }
     fn real_name(&self) -> &'static str { "videasy" }
     fn is_fast(&self) -> bool { false }
-    fn timeout_secs(&self) -> u64 { 30 }
+    fn timeout_secs(&self) -> u64 { 15 }
 
     async fn fetch(
         &self,

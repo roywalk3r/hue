@@ -107,7 +107,8 @@ pub async fn sse_streams_handler(
         let cb = registry.circuit_breaker().clone();
         let mut raw_all: Vec<crate::models::StreamResult> = Vec::new();
 
-        let provider_tasks: Vec<_> = providers.into_iter().map(|provider| {
+        let mut provider_tasks = tokio::task::JoinSet::new();
+        for provider in providers {
             let cb = cb.clone();
             let tmdb = tmdb_info.clone();
             let mtype = m_type.clone();
@@ -116,7 +117,7 @@ pub async fn sse_streams_handler(
             let proxy_base = state.proxy_base_url.clone();
             let enable_proxy = state.config.enable_proxy;
 
-            tokio::spawn(async move {
+            provider_tasks.spawn(async move {
                 let name = provider.name().to_string();
                 let real_name = provider.real_name().to_string();
                 let timeout_secs = provider.timeout_secs();
@@ -162,12 +163,18 @@ pub async fn sse_streams_handler(
                     }
                     _ => vec![],
                 }
-            })
-        }).collect();
+            });
+        }
 
-        for h in provider_tasks {
-            if let Ok(streams) = h.await {
+        let aggregate_deadline = state.config.slow_deadline();
+        match timeout(aggregate_deadline, async {
+            while let Some(Ok(streams)) = provider_tasks.join_next().await {
                 raw_all.extend(streams);
+            }
+        }).await {
+            Ok(_) => {},
+            Err(_) => {
+                warn!("[SSE] Aggregate deadline ({:?}) reached, {} streams collected", aggregate_deadline, raw_all.len());
             }
         }
 

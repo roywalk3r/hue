@@ -94,17 +94,66 @@ impl TmdbClient {
         }
 
         let mut url = format!("https://api.themoviedb.org/3{}?api_key={}", endpoint, key);
-        for (k, v) in params {
-            url.push_str(&format!("&{}={}", k, urlencoding::encode(&v)));
+        for (k, v) in &params {
+            url.push_str(&format!("&{}={}", k, urlencoding::encode(v)));
         }
 
-        let resp = self.client.get(&url).send().await?;
-        if !resp.status().is_success() {
-            return Err(anyhow!("TMDB API error: {}", resp.status()));
+        let max_retries = 3;
+        let mut last_err = String::new();
+
+        for attempt in 0..max_retries {
+            let resp = self.client
+                .get(&url)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .send().await;
+
+            match resp {
+                Ok(r) if r.status().is_success() => {
+                    let content_type = r.headers()
+                        .get("content-type")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("")
+                        .to_string();
+
+                    if !content_type.contains("application/json") {
+                        let body_preview = r.text().await.unwrap_or_default();
+                        let preview = body_preview.chars().take(200).collect::<String>();
+                        tracing::warn!("[TMDB] non-JSON response (attempt {}): content-type={}, body={}", attempt + 1, content_type, preview);
+                        last_err = format!("non-JSON response: {}", preview);
+                        tokio::time::sleep(Duration::from_millis(500 * (attempt as u64 + 1))).await;
+                        continue;
+                    }
+
+                    match r.json::<T>().await {
+                        Ok(data) => return Ok(data),
+                        Err(e) => {
+                            tracing::warn!("[TMDB] JSON parse error (attempt {}): {}", attempt + 1, e);
+                            last_err = format!("JSON parse error: {}", e);
+                            tokio::time::sleep(Duration::from_millis(500 * (attempt as u64 + 1))).await;
+                        }
+                    }
+                }
+                Ok(r) if r.status() == reqwest::StatusCode::TOO_MANY_REQUESTS => {
+                    tracing::warn!("[TMDB] rate limited (attempt {})", attempt + 1);
+                    last_err = "rate limited".to_string();
+                    tokio::time::sleep(Duration::from_secs(2_u64.pow(attempt as u32))).await;
+                }
+                Ok(r) => {
+                    let status = r.status();
+                    let body_preview = r.text().await.unwrap_or_default().chars().take(200).collect::<String>();
+                    tracing::warn!("[TMDB] HTTP error (attempt {}): {} — {}", attempt + 1, status, body_preview);
+                    last_err = format!("HTTP {}: {}", status, body_preview);
+                    tokio::time::sleep(Duration::from_millis(500 * (attempt as u64 + 1))).await;
+                }
+                Err(e) => {
+                    tracing::warn!("[TMDB] request error (attempt {}): {}", attempt + 1, e);
+                    last_err = format!("request error: {}", e);
+                    tokio::time::sleep(Duration::from_millis(500 * (attempt as u64 + 1))).await;
+                }
+            }
         }
 
-        let data = resp.json::<T>().await?;
-        Ok(data)
+        Err(anyhow!("TMDB fetch failed after {} attempts: {}", max_retries, last_err))
     }
 
     pub async fn search(&self, query: &str, m_type: &str, year: Option<u32>) -> Result<Vec<TmdbNormalizedInfo>> {

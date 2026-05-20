@@ -28,7 +28,7 @@ impl StreamProvider for KissKhProvider {
     fn name(&self) -> &'static str { "Zenith" }
     fn real_name(&self) -> &'static str { "kisskh" }
     fn is_fast(&self) -> bool { false }
-    fn timeout_secs(&self) -> u64 { 60 }
+    fn timeout_secs(&self) -> u64 { 20 }
 
     async fn fetch(
         &self,
