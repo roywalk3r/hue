@@ -58,15 +58,7 @@ impl DramacoolClient {
         let scraper_url = std::env::var("MICROSERVICE_URL")
             .unwrap_or_else(|_| "http://127.0.0.1:24610".to_string());
         Self {
-            client: Client::builder()
-                .user_agent(USER_AGENT)
-                .timeout(std::time::Duration::from_secs(30))
-                .connect_timeout(std::time::Duration::from_secs(10))
-                .tcp_keepalive(std::time::Duration::from_secs(60))
-                .pool_max_idle_per_host(2)
-                .pool_idle_timeout(std::time::Duration::from_secs(90))
-                .build()
-                .unwrap(),
+            client: Client::new(),
             scraper_url,
         }
     }

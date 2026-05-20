@@ -47,15 +47,7 @@ pub struct Mp4HydraClient {
 impl Mp4HydraClient {
     pub fn new() -> Self {
         Self {
-            client: reqwest::Client::builder()
-                .user_agent(USER_AGENT)
-                .timeout(std::time::Duration::from_secs(10))
-                .connect_timeout(std::time::Duration::from_secs(5))
-                .tcp_keepalive(std::time::Duration::from_secs(60))
-                .pool_max_idle_per_host(2)
-                .pool_idle_timeout(std::time::Duration::from_secs(90))
-                .build()
-                .unwrap(),
+            client: reqwest::Client::new(),
         }
     }
 
@@ -76,7 +68,8 @@ impl Mp4HydraClient {
         headers.insert("Sec-Fetch-Mode", HeaderValue::from_static("cors"));
         headers.insert("Sec-Fetch-Site", HeaderValue::from_static("same-origin"));
         headers.insert(ORIGIN, HeaderValue::from_static(BASE_URL));
-        headers.insert(REFERER, HeaderValue::from_str(&format!("{}/{}/{}", BASE_URL, media_type, slug)).unwrap());
+        let referer = format!("{}/{}/{}", BASE_URL, media_type, slug);
+        headers.insert(REFERER, HeaderValue::from_str(&referer).unwrap_or_else(|_| HeaderValue::from_static(BASE_URL)));
         headers
     }
 
@@ -201,8 +194,8 @@ impl Mp4HydraClient {
     pub async fn get_streams_normalized(&self, title: &str, original_title: Option<&str>, year: Option<u32>, media_type: &str, season: u32, episode: u32) -> Result<Vec<StreamResult>> {
         info!("[Hydra Rust] Searching for: \"{}\" ({}) S{} E{}", title, media_type, season, episode);
 
-        let slug = if media_type == "movie" && year.is_some() {
-            format!("{}-{}", Self::generate_slug(title), year.unwrap())
+        let slug = if let Some(y) = year {
+            format!("{}-{}", Self::generate_slug(title), y)
         } else {
             Self::generate_slug(title)
         };
@@ -216,8 +209,8 @@ impl Mp4HydraClient {
         if let Some(orig) = original_title {
             if orig != title {
                 warn!("[Hydra Rust] Primary failed, retrying with original title: {}", orig);
-                let orig_slug = if media_type == "movie" && year.is_some() {
-                    format!("{}-{}", Self::generate_slug(orig), year.unwrap())
+                let orig_slug = if let Some(y) = year {
+                    format!("{}-{}", Self::generate_slug(orig), y)
                 } else {
                     Self::generate_slug(orig)
                 };
