@@ -529,7 +529,6 @@ pub async fn ts_handler(
     };
     let synthesized_startup_range = incoming_range.is_none()
         && !force_200
-        && !no_synth
         && progressive_video;
 
     tracing::info!("[ts-proxy] Target: {}", target_url);
