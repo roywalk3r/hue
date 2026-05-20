@@ -634,6 +634,22 @@ pub async fn sub_handler(
 
     match req.send().await {
         Ok(resp) => {
+            let status = resp.status();
+            if !status.is_success() {
+                let preview = resp.text().await.unwrap_or_default();
+                tracing::warn!(
+                    "[sub-proxy] Upstream returned non-success (status={}, url={}, preview={:?})",
+                    status.as_u16(),
+                    target_url,
+                    preview.chars().take(120).collect::<String>(),
+                );
+                return (
+                    StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY),
+                    format!("Subtitle upstream error: {}", status),
+                )
+                    .into_response();
+            }
+
             let body = resp.text().await.unwrap_or_default();
             let final_body = if body.trim_start().starts_with("WEBVTT") {
                 normalize_vtt_timestamps(&body)
@@ -646,12 +662,16 @@ pub async fn sub_handler(
                 body
             };
             Response::builder()
+                .status(StatusCode::OK)
                 .header("content-type", "text/vtt")
                 .header("Access-Control-Allow-Origin", "*")
                 .body(Body::from(final_body))
                 .unwrap()
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+        Err(e) => {
+            tracing::warn!("[sub-proxy] Request failed for {}: {}", target_url, e);
+            (StatusCode::BAD_GATEWAY, e.to_string()).into_response()
+        }
     }
 }
 

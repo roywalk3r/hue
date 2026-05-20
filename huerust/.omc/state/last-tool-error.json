@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"curl -s 'http://127.0.0.1:24609/api/drama/kisskh/browse?page=1&page_size=3&country=2&order=1' -w \\\"\\\\nHTTP_CODE:%{http_code}\\\\n\\\" | jq -r '.data[0].title, .data[1].title, .data[2].title'\",...",
-  "error": "Exit code 5\njq: parse error: Invalid numeric literal at line 2, column 10\nPerfect Crown\nTwinkling Watermelon\nTrue Beauty",
-  "timestamp": "2026-05-20T15:04:45.950Z",
-  "retry_count": 1
+  "tool_input_preview": "{\"command\":\"ls tsconfig.json && npx vue-tsc --noEmit -p . 2>&1 | tail -20\",\"timeout\":120000,\"description\":\"Check tsconfig and run vue-tsc properly\"}",
+  "error": "Exit code 2\nls: cannot access 'tsconfig.json': No such file or directory",
+  "timestamp": "2026-05-20T18:13:40.652Z",
+  "retry_count": 2
 }

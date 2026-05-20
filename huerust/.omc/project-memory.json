@@ -130,8 +130,8 @@
     },
     {
       "path": "src/app.rs",
-      "accessCount": 15,
-      "lastAccessed": 1779286716746,
+      "accessCount": 16,
+      "lastAccessed": 1779300550853,
       "type": "file"
     },
     {
@@ -207,6 +207,12 @@
       "type": "file"
     },
     {
+      "path": "src/routes/mod.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779300550776,
+      "type": "file"
+    },
+    {
       "path": "src/providers/dramacool.rs",
       "accessCount": 2,
       "lastAccessed": 1779218724700,
@@ -240,12 +246,6 @@
       "path": "src/providers/videasy.rs",
       "accessCount": 2,
       "lastAccessed": 1779280534354,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/mod.rs",
-      "accessCount": 2,
-      "lastAccessed": 1779286728091,
       "type": "file"
     },
     {

@@ -106,10 +106,12 @@ pub(crate) fn wrap_with_proxy(streams: Vec<StreamResult>, proxy_base: &str, secr
         s.url = proxied_url;
         s.headers = None; // headers are now baked into the token or url query
 
-        // Pre-proxy subtitles
+        // Pre-proxy subtitles — inherit stream headers so the proxy can inject
+        // provider-specific Referer / Origin / User-Agent for the subtitle CDN.
+        let sub_headers = if headers.is_empty() { None } else { Some(headers.clone()) };
         if let Some(subs) = s.subtitles.take() {
             s.subtitles = Some(subs.into_iter().map(|mut sub| {
-                let sub_token = encrypt_url(&sub.url, secret, None);
+                let sub_token = encrypt_url(&sub.url, secret, sub_headers.clone());
                 sub.url = format!("{}/sub-proxy?h_token={}", proxy_base, sub_token);
                 sub
             }).collect());
