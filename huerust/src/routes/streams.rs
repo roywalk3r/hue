@@ -8,7 +8,7 @@
 use axum::{
     extract::{Query, State, Path},
     response::{IntoResponse, Response},
-    http::StatusCode,
+    http::{StatusCode, HeaderMap},
 };
 use serde::Serialize;
 use utoipa::ToSchema;
@@ -23,6 +23,7 @@ use crate::{
 };
 use crate::providers::dispatch::{fetch_from_providers, ProviderTiming};
 use crate::proxy::wrap::wrap_with_proxy;
+use crate::proxy::dynamic_proxy_base;
 
 #[derive(Serialize, ToSchema)]
 pub struct StreamsResponse {
@@ -67,6 +68,7 @@ fn filter_generic_movie_tv_streams(media_type: &str, streams: Vec<StreamResult>)
 )]
 pub async fn streams_handler(
     State(state): State<StreamState>,
+    headers: HeaderMap,
     Path((m_type, tmdb_id)): Path<(String, String)>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
@@ -78,7 +80,7 @@ pub async fn streams_handler(
 
     let cache_key = CacheKey::new(&m_type, &tmdb_id, season, episode);
     let enable_proxy = state.config.enable_proxy;
-    let proxy_base = state.proxy_base_url.clone();
+    let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
     let secret = state.secret.clone();
 
     // 1. Check cache

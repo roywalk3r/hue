@@ -8,13 +8,14 @@
 use axum::{
     extract::{Query, State, Path},
     response::{IntoResponse, Response},
-    http::StatusCode,
+    http::{StatusCode, HeaderMap},
 };
 use std::collections::HashMap;
 use serde::Serialize;
 use crate::{
     app::HiTvState,
     clients::hitv::HiTvItem,
+    proxy::dynamic_proxy_base,
 };
 use tracing::{info, warn};
 
@@ -218,6 +219,7 @@ pub async fn info_handler(
 
 pub async fn play_handler(
     State(state): State<HiTvState>,
+    headers: HeaderMap,
     Path((id, episode)): Path<(String, u32)>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
@@ -262,7 +264,8 @@ pub async fn play_handler(
     // Instead we redirect the user or we inline the logic.
     // For simplicity, redirect to /api/play/tv/{tmdb_id}?season={season}&episode={episode}
 
-    let redirect_url = format!("{}/api/play/tv/{}?season={}&episode={}", state.proxy_base_url, tmdb_id, season, episode);
+    let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
+    let redirect_url = format!("{}/api/play/tv/{}?season={}&episode={}", proxy_base, tmdb_id, season, episode);
     (StatusCode::TEMPORARY_REDIRECT, [("Location", redirect_url)], "").into_response()
 }
 

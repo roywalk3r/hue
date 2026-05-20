@@ -8,13 +8,14 @@
 use axum::{
     extract::{Query, State, Path},
     response::{IntoResponse, Response},
-    http::StatusCode,
+    http::{StatusCode, HeaderMap},
 };
 use serde::Deserialize;
 
 use crate::app::DramaState;
 
 use crate::proxy::wrap::wrap_with_proxy;
+use crate::proxy::dynamic_proxy_base;
 
 #[derive(Deserialize)]
 pub struct SearchQuery {
@@ -81,6 +82,7 @@ pub struct KissKhStreamsQuery {
 
 pub async fn kisskh_streams_handler(
     State(state): State<DramaState>,
+    headers: HeaderMap,
     Path((id, episode)): Path<(String, u32)>,
     Query(params): Query<KissKhStreamsQuery>,
 ) -> Response {
@@ -91,9 +93,10 @@ pub async fn kisskh_streams_handler(
         params.title.as_ref().map(|t| t.as_str()).unwrap_or(&id)
     };
 
+    let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
     match state.kisskh.get_streams_direct(lookup, episode).await {
         Ok(streams) if !streams.is_empty() => {
-            let proxied = wrap_with_proxy(streams, &state.proxy_base_url, &state.secret);
+            let proxied = wrap_with_proxy(streams, &proxy_base, &state.secret);
             (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
         }
         _ => (StatusCode::OK, "[]").into_response(),
@@ -195,13 +198,15 @@ pub async fn dramacool_search_handler(
 
 pub async fn dramacool_streams_handler(
     State(state): State<DramaState>,
+    headers: HeaderMap,
     Path((id, episode)): Path<(String, u32)>,
 ) -> Response {
     tracing::info!("[drama] dramacool_streams: id={} ep={}", id, episode);
+    let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
     match state.dramacool.get_streams_normalized(&id, 1, episode).await {
         Ok(streams) => {
             tracing::info!("[drama] dramacool_streams: {} streams", streams.len());
-            let proxied = wrap_with_proxy(streams, &state.proxy_base_url, &state.secret);
+            let proxied = wrap_with_proxy(streams, &proxy_base, &state.secret);
             (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
         }
         Err(e) => {
@@ -256,13 +261,15 @@ pub async fn moviebox_search_handler(
 
 pub async fn moviebox_streams_handler(
     State(state): State<DramaState>,
+    headers: HeaderMap,
     Path((title, episode)): Path<(String, u32)>,
 ) -> Response {
     tracing::info!("[drama] moviebox_streams: title={} ep={}", title, episode);
+    let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
     match state.moviebox.get_streams_normalized(&title, "tv", None, 1, episode).await {
         Ok(streams) => {
             tracing::info!("[drama] moviebox_streams: {} streams", streams.len());
-            let proxied = wrap_with_proxy(streams, &state.proxy_base_url, &state.secret);
+            let proxied = wrap_with_proxy(streams, &proxy_base, &state.secret);
             (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
         }
         Err(e) => {

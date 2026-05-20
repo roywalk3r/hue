@@ -1,0 +1,229 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1779205413980,
+  "projectRoot": "/mnt/devdrive/projects/Misc/hue/huerust",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Rust",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "Cargo.toml"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "axum",
+        "version": null,
+        "category": "backend"
+      }
+    ],
+    "packageManager": "cargo",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "cargo build",
+    "testCommand": "cargo test",
+    "lintCommand": "cargo clippy",
+    "devCommand": "cargo run",
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs",
+      "examples",
+      "src"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "daemon": {
+      "path": "daemon",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1779205413971,
+      "keyFiles": [
+        "daemon.js",
+        "package-lock.json",
+        "package.json"
+      ]
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 0,
+      "lastAccessed": 1779205413974,
+      "keyFiles": []
+    },
+    "examples": {
+      "path": "examples",
+      "purpose": "Example code",
+      "fileCount": 0,
+      "lastAccessed": 1779205413977,
+      "keyFiles": []
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 10,
+      "lastAccessed": 1779205413977,
+      "keyFiles": [
+        "app.rs",
+        "config.rs",
+        "constants.rs",
+        "filters.rs",
+        "main.rs"
+      ]
+    },
+    "target": {
+      "path": "target",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1779205413977,
+      "keyFiles": [
+        "CACHEDIR.TAG"
+      ]
+    },
+    "daemon/node_modules": {
+      "path": "daemon/node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 1,
+      "lastAccessed": 1779205413978,
+      "keyFiles": []
+    },
+    "src/models": {
+      "path": "src/models",
+      "purpose": "Data models",
+      "fileCount": 1,
+      "lastAccessed": 1779205413979,
+      "keyFiles": [
+        "anime.rs"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/user_config.rs",
+      "accessCount": 24,
+      "lastAccessed": 1779219257491,
+      "type": "file"
+    },
+    {
+      "path": "src/proxy/mod.rs",
+      "accessCount": 16,
+      "lastAccessed": 1779225923751,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/drama.rs",
+      "accessCount": 11,
+      "lastAccessed": 1779259845186,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/moviebox.rs",
+      "accessCount": 9,
+      "lastAccessed": 1779259811811,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/tmdb.rs",
+      "accessCount": 9,
+      "lastAccessed": 1779261208172,
+      "type": "file"
+    },
+    {
+      "path": "src/proxy/wrap.rs",
+      "accessCount": 7,
+      "lastAccessed": 1779221335383,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/hianime.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779262564142,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/dramacool.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779218724700,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/vixsrc_provider.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779260977742,
+      "type": "file"
+    },
+    {
+      "path": "src/config.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779261244394,
+      "type": "file"
+    },
+    {
+      "path": "Cargo.toml",
+      "accessCount": 2,
+      "lastAccessed": 1779261953565,
+      "type": "file"
+    },
+    {
+      "path": "src/models/anime.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779262537555,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/vixsrc.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779225859721,
+      "type": "file"
+    },
+    {
+      "path": "src/app.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779259791998,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/sse.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779260922120,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/streams.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779260922766,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/anime.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779262339996,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/mod.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779264591023,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

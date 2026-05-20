@@ -10,6 +10,7 @@ use std::time::Duration;
 use axum::{
     extract::{Path, Query, State},
     response::sse::{Event, KeepAlive, Sse},
+    http::HeaderMap,
 };
 use serde_json::json;
 use std::collections::HashMap;
@@ -23,6 +24,7 @@ use crate::{
     infra::cache::CacheKey,
     filters::apply_filters,
     proxy::wrap::wrap_with_proxy,
+    proxy::dynamic_proxy_base,
 };
 
 fn is_generic_movie_tv_provider_allowed(media_type: &str, real_name: &str) -> bool {
@@ -50,6 +52,7 @@ fn is_generic_movie_tv_provider_allowed(media_type: &str, real_name: &str) -> bo
 )]
 pub async fn sse_streams_handler(
     State(state): State<StreamState>,
+    headers: HeaderMap,
     Path((m_type, tmdb_id)): Path<(String, String)>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Sse<ReceiverStream<Result<Event, Infallible>>> {
@@ -57,6 +60,7 @@ pub async fn sse_streams_handler(
     let episode = params.get("episode").and_then(|e| e.parse::<u32>().ok()).unwrap_or(1);
     let no_cache = params.get("nocache").map(|v| v == "1").unwrap_or(false);
 
+    let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
     let (tx, rx) = mpsc::channel::<Result<Event, Infallible>>(64);
 
     tokio::spawn(async move {
@@ -73,7 +77,7 @@ pub async fn sse_streams_handler(
                     })
                     .collect();
                 let streams = if state.config.enable_proxy {
-                    wrap_with_proxy(filtered, &state.proxy_base_url, &state.secret)
+                    wrap_with_proxy(filtered, &proxy_base, &state.secret)
                 } else {
                     filtered
                 };
@@ -114,7 +118,7 @@ pub async fn sse_streams_handler(
             let mtype = m_type.clone();
             let tx = tx.clone();
             let secret = state.secret.clone();
-            let proxy_base = state.proxy_base_url.clone();
+            let proxy_base = proxy_base.clone();
             let enable_proxy = state.config.enable_proxy;
 
             provider_tasks.spawn(async move {

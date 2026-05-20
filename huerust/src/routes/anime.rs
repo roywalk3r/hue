@@ -10,13 +10,14 @@
 use axum::{
     extract::{Query, State, Path},
     response::{IntoResponse, Response},
-    http::StatusCode,
+    http::{StatusCode, HeaderMap},
 };
 use serde::Deserialize;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
 use crate::app::AnimeState;
+use crate::proxy::dynamic_proxy_base;
 #[allow(unused_imports)]
 use crate::models::anime::{
     AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse,
@@ -373,12 +374,14 @@ pub async fn servers_handler(
 )]
 pub async fn stream_handler(
     State(state): State<AnimeState>,
+    headers: HeaderMap,
     Query(params): Query<StreamQuery>,
 ) -> Response {
     let episode = params.episode.unwrap_or(1);
     let link_type = params.r#type.as_deref().unwrap_or("sub");
     info!("[anime] stream: {} ep={} type={}", params.id, episode, link_type);
 
+    let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
     match state
         .hianime
         .get_stream(&params.id,
@@ -390,7 +393,7 @@ pub async fn stream_handler(
     {
         Ok(data) => {
             let payload = hianime_stream_to_payload(
-                &state.proxy_base_url,
+                &proxy_base,
                 &state.secret,
                 state.config.enable_proxy,
                 data,

@@ -54,6 +54,31 @@ pub struct TsProxyQuery {
 
 // ── Shared helpers ───────────────────────────────────────────────────────────
 
+/// Derive the public proxy base URL from request headers, falling back to the
+/// static config value. Matches Node.js behaviour:
+///   baseProxyUrl = `${x-forwarded-proto || fallback_proto}://${host}`
+pub fn dynamic_proxy_base(headers: &HeaderMap, fallback: &str) -> String {
+    let fallback_url = fallback.parse::<Url>().ok();
+    let default_proto = fallback_url.as_ref().map(|u| u.scheme()).unwrap_or("http");
+    let default_host = fallback_url
+        .as_ref()
+        .and_then(|u| u.host_str())
+        .unwrap_or("localhost");
+
+    let host = headers
+        .get("x-forwarded-host")
+        .or_else(|| headers.get("host"))
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or(default_host);
+
+    let proto = headers
+        .get("x-forwarded-proto")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or(default_proto);
+
+    format!("{}://{}", proto, host)
+}
+
 /// Extract target URL + headers from either token or raw url mode
 fn resolve_proxy_target(
     params: &ProxyQuery,
@@ -226,6 +251,7 @@ fn looks_like_hls_playlist_url(target_url: &str) -> bool {
 pub async fn m3u8_handler(
     State(state): State<AppState>,
     Query(params): Query<ProxyQuery>,
+    request_headers: HeaderMap,
 ) -> Response {
     let (target_url, headers) = match resolve_proxy_target(&params, &state.secret) {
         Some(t) => t,
@@ -337,8 +363,9 @@ pub async fn m3u8_handler(
                 body = cleaned;
             }
 
+            let proxy_base = dynamic_proxy_base(&request_headers, &state.proxy_base_url);
             let final_body = if is_hls {
-                rewrite_playlist(&body, &target_url, &state.proxy_base_url, &state.secret, headers, use_url_mode)
+                rewrite_playlist(&body, &target_url, &proxy_base, &state.secret, headers, use_url_mode)
             } else {
                 body
             };

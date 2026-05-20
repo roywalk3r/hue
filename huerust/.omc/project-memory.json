@@ -124,8 +124,26 @@
     },
     {
       "path": "src/proxy/mod.rs",
+      "accessCount": 16,
+      "lastAccessed": 1779225923751,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/drama.rs",
       "accessCount": 12,
-      "lastAccessed": 1779225507579,
+      "lastAccessed": 1779264703816,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/tmdb.rs",
+      "accessCount": 10,
+      "lastAccessed": 1779264886683,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/moviebox.rs",
+      "accessCount": 9,
+      "lastAccessed": 1779259811811,
       "type": "file"
     },
     {
@@ -135,15 +153,15 @@
       "type": "file"
     },
     {
-      "path": "src/clients/moviebox.rs",
-      "accessCount": 5,
-      "lastAccessed": 1779223692226,
+      "path": "src/clients/hianime.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779262564142,
       "type": "file"
     },
     {
-      "path": "src/routes/drama.rs",
-      "accessCount": 4,
-      "lastAccessed": 1779220458846,
+      "path": "src/models/anime.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779264734727,
       "type": "file"
     },
     {
@@ -154,14 +172,62 @@
     },
     {
       "path": "src/providers/vixsrc_provider.rs",
-      "accessCount": 1,
-      "lastAccessed": 1779224112951,
+      "accessCount": 2,
+      "lastAccessed": 1779260977742,
       "type": "file"
     },
     {
       "path": "src/config.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779261244394,
+      "type": "file"
+    },
+    {
+      "path": "Cargo.toml",
+      "accessCount": 2,
+      "lastAccessed": 1779261953565,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/anime.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779264704082,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/vixsrc.rs",
       "accessCount": 1,
-      "lastAccessed": 1779224288497,
+      "lastAccessed": 1779225859721,
+      "type": "file"
+    },
+    {
+      "path": "src/app.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779259791998,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/sse.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779260922120,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/streams.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779260922766,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/mod.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779264591023,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/moviebox.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779264704162,
       "type": "file"
     }
   ],
