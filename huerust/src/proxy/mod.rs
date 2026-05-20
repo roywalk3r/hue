@@ -8,7 +8,7 @@
 use axum::{
     body::Body,
     extract::{Query, State},
-    http::{header::CONTENT_TYPE, HeaderMap, StatusCode},
+    http::{HeaderMap, StatusCode, header::CONTENT_TYPE},
     response::{IntoResponse, Response},
 };
 use serde::Deserialize;
@@ -16,12 +16,15 @@ use std::collections::HashMap;
 use std::net::IpAddr;
 use url::Url;
 
-use crate::{security, app::AppState};
+use crate::{app::AppState, security};
 use std::env;
 
-pub mod sanitize;
 pub mod adsurgery;
+pub mod sanitize;
 pub mod wrap;
+
+const PROGRESSIVE_STARTUP_RANGE_END: u64 = (2 * 1024 * 1024) - 1;
+const PROGRESSIVE_OPEN_RANGE_CHUNK_END: u64 = (4 * 1024 * 1024) - 1;
 
 // ── Query Types ──────────────────────────────────────────────────────────────
 
@@ -143,13 +146,21 @@ fn resolve_ts_target(
 }
 
 /// Inject CDN-specific headers based on target host
-fn inject_cdn_headers(mut req: reqwest::RequestBuilder, target_url: &str, token_headers: &Option<HashMap<String, String>>) -> reqwest::RequestBuilder {
+fn inject_cdn_headers(
+    mut req: reqwest::RequestBuilder,
+    target_url: &str,
+    token_headers: &Option<HashMap<String, String>>,
+) -> reqwest::RequestBuilder {
     let host = match Url::parse(target_url) {
         Ok(u) => u.host_str().unwrap_or("").to_string(),
         Err(_) => return req,
     };
 
-    tracing::info!("[inject_cdn_headers] Host: {}, has_referer: {}", host, has_header(token_headers, "referer"));
+    tracing::info!(
+        "[inject_cdn_headers] Host: {}, has_referer: {}",
+        host,
+        has_header(token_headers, "referer")
+    );
 
     // Only inject host-based Referer/Origin if the token doesn't already have them
     let has_referer = has_header(token_headers, "referer");
@@ -172,7 +183,9 @@ fn inject_cdn_headers(mut req: reqwest::RequestBuilder, target_url: &str, token_
             req = req.header("Referer", r);
             if let Ok(origin_url) = Url::parse(r) {
                 let mut origin = origin_url.origin().unicode_serialization();
-                if origin.ends_with('/') { origin.pop(); }
+                if origin.ends_with('/') {
+                    origin.pop();
+                }
                 tracing::info!("[inject_cdn_headers] Added derived Origin: {}", origin);
                 req = req.header("Origin", origin);
             }
@@ -180,16 +193,28 @@ fn inject_cdn_headers(mut req: reqwest::RequestBuilder, target_url: &str, token_
     } else {
         // We have a Referer from token, but maybe no Origin. Match its logic.
         if let Some(h) = token_headers {
-            tracing::info!("[inject_cdn_headers] Has Referer, checking for Origin. Keys: {:?}", h.keys().collect::<Vec<_>>());
+            tracing::info!(
+                "[inject_cdn_headers] Has Referer, checking for Origin. Keys: {:?}",
+                h.keys().collect::<Vec<_>>()
+            );
             if !has_header(token_headers, "origin") {
                 if let Some(r) = h.get("Referer").or_else(|| h.get("referer")) {
                     if let Ok(origin_url) = Url::parse(r) {
                         let mut origin = origin_url.origin().unicode_serialization();
-                        if origin.ends_with('/') { origin.pop(); }
-                        tracing::info!("[inject_cdn_headers] Derived Origin from Referer: {} -> {}", r, origin);
+                        if origin.ends_with('/') {
+                            origin.pop();
+                        }
+                        tracing::info!(
+                            "[inject_cdn_headers] Derived Origin from Referer: {} -> {}",
+                            r,
+                            origin
+                        );
                         req = req.header("Origin", origin);
                     } else {
-                        tracing::warn!("[inject_cdn_headers] Failed to parse Origin from Referer: {}", r);
+                        tracing::warn!(
+                            "[inject_cdn_headers] Failed to parse Origin from Referer: {}",
+                            r
+                        );
                     }
                 }
             } else {
@@ -206,8 +231,7 @@ fn inject_cdn_headers(mut req: reqwest::RequestBuilder, target_url: &str, token_
         );
     }
 
-    req.header("Accept", "*/*")
-        .header("Sec-Fetch-User", "?1")
+    req.header("Accept", "*/*").header("Sec-Fetch-User", "?1")
 }
 
 fn has_header(headers: &Option<HashMap<String, String>>, name: &str) -> bool {
@@ -229,6 +253,37 @@ fn is_vixsrc_target(target_url: &str, headers: &Option<HashMap<String, String>>)
         }
     }
     false
+}
+
+fn is_progressive_video_target(target_url: &str) -> bool {
+    let lower = target_url.to_lowercase();
+    if lower.contains(".mp4") || lower.contains(".mkv") {
+        return true;
+    }
+
+    if let Ok(url) = Url::parse(target_url) {
+        let host = url.host_str().unwrap_or("").to_lowercase();
+        return host.contains("hakunaymatata.com")
+            || host.contains("aisports.mobi")
+            || host.contains("poocloud.in")
+            || host.contains("pixeldrain.")
+            || host == "video-downloads.googleusercontent.com";
+    }
+
+    false
+}
+
+fn clamp_progressive_open_range(range: &str) -> Option<String> {
+    let trimmed = range.trim();
+    let spec = trimmed.strip_prefix("bytes=")?;
+    let (start_raw, end_raw) = spec.split_once('-')?;
+    if !end_raw.trim().is_empty() {
+        return Some(trimmed.to_string());
+    }
+
+    let start = start_raw.trim().parse::<u64>().ok()?;
+    let end = start.saturating_add(PROGRESSIVE_OPEN_RANGE_CHUNK_END);
+    Some(format!("bytes={}-{}", start, end))
 }
 
 fn looks_like_hls_playlist_url(target_url: &str) -> bool {
@@ -277,8 +332,12 @@ pub async fn m3u8_handler(
     let mut has_origin = false;
     if let Some(ref h) = headers {
         for (k, v) in h.iter() {
-            if k.eq_ignore_ascii_case("origin") { has_origin = true; }
-            if k.eq_ignore_ascii_case("referer") { referer_value = Some(v.clone()); }
+            if k.eq_ignore_ascii_case("origin") {
+                has_origin = true;
+            }
+            if k.eq_ignore_ascii_case("referer") {
+                referer_value = Some(v.clone());
+            }
             req = req.header(k, v);
         }
     }
@@ -293,14 +352,18 @@ pub async fn m3u8_handler(
         if let Some(ref_url) = referer_value {
             if let Ok(origin_url) = Url::parse(&ref_url) {
                 let mut origin = origin_url.origin().unicode_serialization();
-                if origin.ends_with('/') { origin.pop(); }
+                if origin.ends_with('/') {
+                    origin.pop();
+                }
                 req = req.header("Origin", origin);
             }
         } else {
             // Fallback: derive Origin from the target host itself if Referer is missing
             if let Ok(target_u) = Url::parse(&target_url) {
                 let mut origin = target_u.origin().unicode_serialization();
-                if origin.ends_with('/') { origin.pop(); }
+                if origin.ends_with('/') {
+                    origin.pop();
+                }
                 req = req.header("Origin", origin);
             }
         }
@@ -317,7 +380,9 @@ pub async fn m3u8_handler(
 
             let body = match resp.text().await {
                 Ok(b) => b,
-                Err(_) => return (StatusCode::BAD_GATEWAY, "Upstream body unreadable").into_response(),
+                Err(_) => {
+                    return (StatusCode::BAD_GATEWAY, "Upstream body unreadable").into_response();
+                }
             };
 
             let body_trim = body.trim_start_matches('\u{feff}').trim_start();
@@ -362,7 +427,11 @@ pub async fn m3u8_handler(
             if is_hls && adsurgery_enabled {
                 let (cleaned, removed) = adsurgery::sanitize_manifest(&body);
                 if removed > 0 {
-                    tracing::debug!("[m3u8-proxy] Ad-surgery removed {} segments from {}", removed, target_url);
+                    tracing::debug!(
+                        "[m3u8-proxy] Ad-surgery removed {} segments from {}",
+                        removed,
+                        target_url
+                    );
                 }
                 body = cleaned;
             }
@@ -374,7 +443,8 @@ pub async fn m3u8_handler(
                 body
             };
 
-            let mut builder = Response::builder().status(StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::OK));
+            let mut builder = Response::builder()
+                .status(StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::OK));
             builder = builder.header("Access-Control-Allow-Origin", "*");
 
             // Download mode: force attachment disposition
@@ -442,24 +512,44 @@ pub async fn ts_handler(
     }
 
     let force_200 = params.force_200.unwrap_or(0) == 1;
-    let _no_synth = params.no_synth.unwrap_or(0) == 1;
+    let no_synth = params.no_synth.unwrap_or(0) == 1;
     let sanitize = params.sanitize.unwrap_or(0) == 1;
 
     let is_vix = is_vixsrc_target(&target_url, &headers);
+    let incoming_range = params.range.as_deref().or_else(|| {
+        request_headers
+            .get("range")
+            .and_then(|value| value.to_str().ok())
+    });
+    let progressive_video = is_progressive_video_target(&target_url);
+    let effective_range = if progressive_video {
+        incoming_range.and_then(clamp_progressive_open_range)
+    } else {
+        incoming_range.map(str::to_string)
+    };
+    let synthesized_startup_range = incoming_range.is_none()
+        && !force_200
+        && !no_synth
+        && progressive_video;
 
     tracing::info!("[ts-proxy] Target: {}", target_url);
     tracing::info!("[ts-proxy] Token headers: {:?}", headers);
 
     let mut req = state.client.get(&target_url);
     req = inject_cdn_headers(req, &target_url, &headers);
+    req = req.header("Accept-Encoding", "identity");
 
     let mut has_origin = false;
     let mut referer_value = None;
     if let Some(ref h) = headers {
         for (k, v) in h {
             req = req.header(k, v);
-            if k.eq_ignore_ascii_case("origin") { has_origin = true; }
-            if k.eq_ignore_ascii_case("referer") { referer_value = Some(v.clone()); }
+            if k.eq_ignore_ascii_case("origin") {
+                has_origin = true;
+            }
+            if k.eq_ignore_ascii_case("referer") {
+                referer_value = Some(v.clone());
+            }
         }
     }
 
@@ -474,22 +564,29 @@ pub async fn ts_handler(
         if let Some(ref_url) = referer_value {
             if let Ok(origin_url) = Url::parse(&ref_url) {
                 let mut origin = origin_url.origin().unicode_serialization();
-                if origin.ends_with('/') { origin.pop(); }
+                if origin.ends_with('/') {
+                    origin.pop();
+                }
                 req = req.header("Origin", origin);
             }
         } else {
             if let Ok(target_u) = Url::parse(&target_url) {
                 let mut origin = target_u.origin().unicode_serialization();
-                if origin.ends_with('/') { origin.pop(); }
+                if origin.ends_with('/') {
+                    origin.pop();
+                }
                 req = req.header("Origin", origin);
             }
         }
     }
 
-    if let Some(range) = &params.range {
+    if let Some(range) = effective_range.as_deref() {
         req = req.header("Range", range);
-    } else if let Some(range) = request_headers.get("range").and_then(|v| v.to_str().ok()) {
-        req = req.header("Range", range);
+    } else if synthesized_startup_range {
+        req = req.header(
+            "Range",
+            format!("bytes=0-{}", PROGRESSIVE_STARTUP_RANGE_END),
+        );
     }
 
     match req.send().await {
@@ -501,21 +598,36 @@ pub async fn ts_handler(
                 if let Some(loc) = resp.headers().get("location") {
                     if let Ok(loc_str) = loc.to_str() {
                         if is_internal_host(loc_str) {
-                            tracing::error!("[ts-proxy] Blocked redirect to localhost: {} from {}", loc_str, target_url);
-                            return (StatusCode::FORBIDDEN, "Blocked redirect to internal network").into_response();
+                            tracing::error!(
+                                "[ts-proxy] Blocked redirect to localhost: {} from {}",
+                                loc_str,
+                                target_url
+                            );
+                            return (
+                                StatusCode::FORBIDDEN,
+                                "Blocked redirect to internal network",
+                            )
+                                .into_response();
                         }
                         // Follow redirect (one level)
                         let follow = state.client.get(loc_str);
                         if let Ok(resp2) = follow.send().await {
                             let status2 = resp2.status();
-                            let mut builder = Response::builder().status(StatusCode::from_u16(status2.as_u16()).unwrap_or(StatusCode::OK));
+                            let mut builder = Response::builder().status(
+                                StatusCode::from_u16(status2.as_u16()).unwrap_or(StatusCode::OK),
+                            );
                             if let Some(ct) = resp2.headers().get("content-type") {
                                 if let Ok(ct_str) = ct.to_str() {
-                                    builder = builder.header("content-type", infer_content_type(ct_str, &target_url));
+                                    builder = builder.header(
+                                        "content-type",
+                                        infer_content_type(ct_str, &target_url),
+                                    );
                                 }
                             }
                             builder = builder.header("Access-Control-Allow-Origin", "*");
-                            return builder.body(Body::from_stream(resp2.bytes_stream())).unwrap();
+                            return builder
+                                .body(Body::from_stream(resp2.bytes_stream()))
+                                .unwrap();
                         }
                     }
                 }
@@ -527,7 +639,8 @@ pub async fn ts_handler(
 
             if let Some(ct) = resp.headers().get("content-type") {
                 if let Ok(ct_str) = ct.to_str() {
-                    builder = builder.header("content-type", infer_content_type(ct_str, &target_url));
+                    builder =
+                        builder.header("content-type", infer_content_type(ct_str, &target_url));
                 }
             }
 
@@ -544,7 +657,11 @@ pub async fn ts_handler(
                         if sanitize::is_valid_ts(&bytes) {
                             let (cleaned, stripped) = sanitize::sanitize_ts_segment(&bytes);
                             if stripped > 0 {
-                                tracing::info!("[ts-proxy] Sanitized {} packets from {}", stripped, target_url);
+                                tracing::info!(
+                                    "[ts-proxy] Sanitized {} packets from {}",
+                                    stripped,
+                                    target_url
+                                );
                             }
                             builder = builder.header("content-length", cleaned.len());
                             return builder.body(Body::from(cleaned)).unwrap();
@@ -565,16 +682,19 @@ pub async fn ts_handler(
                         builder = builder.header("content-range", v);
                     }
                 }
-                if resp.headers().contains_key("accept-ranges") {
-                    builder = builder.header("accept-ranges", "bytes");
-                }
-                builder.body(Body::from_stream(resp.bytes_stream())).unwrap()
+                builder = builder.header("accept-ranges", "bytes");
+                builder
+                    .body(Body::from_stream(resp.bytes_stream()))
+                    .unwrap()
             }
         }
         Err(e) => {
             // Retry once without Range header if the error might be range-related
             if params.range.is_some() {
-                tracing::warn!("[ts-proxy] Initial request failed ({}), retrying without Range", e);
+                tracing::warn!(
+                    "[ts-proxy] Initial request failed ({}), retrying without Range",
+                    e
+                );
                 let mut retry = state.client.get(&target_url);
                 retry = inject_cdn_headers(retry, &target_url, &headers);
                 if let Some(ref h) = headers {
@@ -588,17 +708,26 @@ pub async fn ts_handler(
                         let mut builder = Response::builder().status(StatusCode::OK);
                         if let Some(ct) = resp.headers().get("content-type") {
                             if let Ok(ct_str) = ct.to_str() {
-                                builder = builder.header("content-type", infer_content_type(ct_str, &target_url));
+                                builder = builder.header(
+                                    "content-type",
+                                    infer_content_type(ct_str, &target_url),
+                                );
                             }
                         }
                         builder = builder.header("Access-Control-Allow-Origin", "*");
                         if let Some(cl) = resp.headers().get("content-length") {
-                            if let Ok(v) = cl.to_str() { builder = builder.header("content-length", v); }
+                            if let Ok(v) = cl.to_str() {
+                                builder = builder.header("content-length", v);
+                            }
                         }
                         if let Some(cr) = resp.headers().get("content-range") {
-                            if let Ok(v) = cr.to_str() { builder = builder.header("content-range", v); }
+                            if let Ok(v) = cr.to_str() {
+                                builder = builder.header("content-range", v);
+                            }
                         }
-                        return builder.body(Body::from_stream(resp.bytes_stream())).unwrap();
+                        return builder
+                            .body(Body::from_stream(resp.bytes_stream()))
+                            .unwrap();
                     }
                 }
             }
@@ -630,8 +759,12 @@ pub async fn sub_handler(
     let mut has_origin = false;
     if let Some(h) = headers {
         for (k, v) in h {
-            if k.eq_ignore_ascii_case("origin") { has_origin = true; }
-            if k.eq_ignore_ascii_case("referer") { referer_value = Some(v.clone()); }
+            if k.eq_ignore_ascii_case("origin") {
+                has_origin = true;
+            }
+            if k.eq_ignore_ascii_case("referer") {
+                referer_value = Some(v.clone());
+            }
             req = req.header(k, v);
         }
     }
@@ -639,14 +772,18 @@ pub async fn sub_handler(
         if let Some(ref_url) = referer_value {
             if let Ok(origin_url) = Url::parse(&ref_url) {
                 let mut origin = origin_url.origin().unicode_serialization();
-                if origin.ends_with('/') { origin.pop(); }
+                if origin.ends_with('/') {
+                    origin.pop();
+                }
                 req = req.header("Origin", origin);
             }
         } else {
             // Fallback: derive Origin from the target host itself if Referer is missing
             if let Ok(target_u) = Url::parse(&target_url) {
                 let mut origin = target_u.origin().unicode_serialization();
-                if origin.ends_with('/') { origin.pop(); }
+                if origin.ends_with('/') {
+                    origin.pop();
+                }
                 req = req.header("Origin", origin);
             }
         }
@@ -717,46 +854,59 @@ fn rewrite_playlist(
     let mut next_byte_offset: Option<u64> = None;
 
     for line in content.lines() {
-            let trimmed = line.trim();
-            if let Some(range_spec) = trimmed.strip_prefix("#EXT-X-BYTERANGE:") {
-                pending_byte_range = parse_hls_byte_range(range_spec, &mut next_byte_offset);
-                rewritten_lines.push(line.to_string());
+        let trimmed = line.trim();
+        if let Some(range_spec) = trimmed.strip_prefix("#EXT-X-BYTERANGE:") {
+            pending_byte_range = parse_hls_byte_range(range_spec, &mut next_byte_offset);
+            rewritten_lines.push(line.to_string());
+            continue;
+        }
+
+        // Tags that carry a URI attribute
+        if line.starts_with("#") {
+            if let Some(rewritten_line) =
+                rewrite_hls_tag_uri(line, proxy_base, secret, &base_url, &headers)
+            {
+                rewritten_lines.push(rewritten_line);
                 continue;
             }
+            rewritten_lines.push(line.to_string());
+        } else if !line.trim().is_empty() {
+            let line_trim = line.trim();
+            let abs_url = resolve_segment_url(&base_url, line_trim);
+            let is_hls = looks_like_hls_playlist_url(&abs_url);
+            let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
 
-            // Tags that carry a URI attribute
-            if line.starts_with("#") {
-                if let Some(rewritten_line) = rewrite_hls_tag_uri(line, proxy_base, secret, &base_url, &headers) {
-                    rewritten_lines.push(rewritten_line);
-                    continue;
-                }
-                rewritten_lines.push(line.to_string());
-            } else if !line.trim().is_empty() {
-                let line_trim = line.trim();
-                let abs_url = resolve_segment_url(&base_url, line_trim);
-                let is_hls = looks_like_hls_playlist_url(&abs_url);
-                let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
-
-                // MP3-wrapped-TS detection
-                let is_mp3_wrapped_ts = abs_url.to_lowercase().contains(".mp3");
-                let force_type_param = if is_mp3_wrapped_ts { "&forceType=video%2Fmp2t" } else { "" };
-
-                // Track segment URLs for prefetch
-                if !is_hls {
-                    segment_urls.push(abs_url.clone());
-                }
-
-                let token = security::encrypt_url(&abs_url, secret, headers.clone());
-                let segment_extra = if is_hls { "" } else { "&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0" };
-                let range_part = pending_byte_range
-                    .take()
-                    .filter(|_| !is_hls)
-                    .map(|range| format!("&range={}", urlencoding::encode(&range)))
-                    .unwrap_or_default();
-                rewritten_lines.push(format!("{}/{}?h_token={}{}{}{}", proxy_base, route, token, segment_extra, force_type_param, range_part));
+            // MP3-wrapped-TS detection
+            let is_mp3_wrapped_ts = abs_url.to_lowercase().contains(".mp3");
+            let force_type_param = if is_mp3_wrapped_ts {
+                "&forceType=video%2Fmp2t"
             } else {
-                rewritten_lines.push(line.to_string());
+                ""
+            };
+
+            // Track segment URLs for prefetch
+            if !is_hls {
+                segment_urls.push(abs_url.clone());
             }
+
+            let token = security::encrypt_url(&abs_url, secret, headers.clone());
+            let segment_extra = if is_hls {
+                ""
+            } else {
+                "&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0"
+            };
+            let range_part = pending_byte_range
+                .take()
+                .filter(|_| !is_hls)
+                .map(|range| format!("&range={}", urlencoding::encode(&range)))
+                .unwrap_or_default();
+            rewritten_lines.push(format!(
+                "{}/{}?h_token={}{}{}{}",
+                proxy_base, route, token, segment_extra, force_type_param, range_part
+            ));
+        } else {
+            rewritten_lines.push(line.to_string());
+        }
     }
 
     let rewritten = rewritten_lines.join("\n");
@@ -767,11 +917,19 @@ fn rewrite_playlist(
 /// Extract URI value from an HLS tag line like `#EXT-X-KEY:METHOD=AES-128,URI="value"`
 /// Handles double quotes, single quotes, and unquoted values.
 /// Returns `(full_line_replacement, extracted_uri)` if a URI is found.
-fn rewrite_hls_tag_uri(line: &str, proxy_base: &str, secret: &str, base_url: &Url, headers: &Option<HashMap<String, String>>) -> Option<String> {
+fn rewrite_hls_tag_uri(
+    line: &str,
+    proxy_base: &str,
+    secret: &str,
+    base_url: &Url,
+    headers: &Option<HashMap<String, String>>,
+) -> Option<String> {
     let uri_pos = line.find("URI=")?;
     let prefix = &line[..uri_pos + 4];
     let rest = &line[uri_pos + 4..];
-    if rest.is_empty() { return None; }
+    if rest.is_empty() {
+        return None;
+    }
 
     let first = rest.chars().next()?;
     let (value, suffix) = if first == '"' || first == '\'' {
@@ -981,7 +1139,13 @@ Second cue"#;
     async fn test_rewrite_playlist_token_mode() {
         let content = "#EXTM3U\n#EXTINF:10,\nsegment.ts\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"";
         let secret = "test-secret";
-        let rewritten = rewrite_playlist(content, "https://example.com/playlist.m3u8", "http://proxy.local", secret, None);
+        let rewritten = rewrite_playlist(
+            content,
+            "https://example.com/playlist.m3u8",
+            "http://proxy.local",
+            secret,
+            None,
+        );
         assert!(rewritten.contains("http://proxy.local/ts-proxy?h_token="));
         assert!(rewritten.contains("http://proxy.local/ts-proxy?h_token="));
     }
@@ -989,7 +1153,13 @@ Second cue"#;
     #[tokio::test]
     async fn test_rewrite_playlist_never_emits_raw_url_mode() {
         let content = "#EXTM3U\nsegment.ts";
-        let rewritten = rewrite_playlist(content, "https://example.com/playlist.m3u8", "http://proxy.local", "secret", None);
+        let rewritten = rewrite_playlist(
+            content,
+            "https://example.com/playlist.m3u8",
+            "http://proxy.local",
+            "secret",
+            None,
+        );
         assert!(rewritten.contains("http://proxy.local/ts-proxy?h_token="));
         assert!(!rewritten.contains("http://proxy.local/ts-proxy?url="));
         assert!(!rewritten.contains("&mode=url"));
@@ -1083,9 +1253,15 @@ Second cue"#;
 
     #[test]
     fn test_infer_content_type() {
-        assert_eq!(infer_content_type("application/vnd.apple.mpegurl", "foo.m3u8"), "application/vnd.apple.mpegurl");
+        assert_eq!(
+            infer_content_type("application/vnd.apple.mpegurl", "foo.m3u8"),
+            "application/vnd.apple.mpegurl"
+        );
         assert_eq!(infer_content_type("", "foo.ts"), "video/mp2t");
         assert_eq!(infer_content_type("", "foo.mp4"), "video/mp4");
-        assert_eq!(infer_content_type("application/octet-stream", "foo.mkv"), "video/x-matroska");
+        assert_eq!(
+            infer_content_type("application/octet-stream", "foo.mkv"),
+            "video/x-matroska"
+        );
     }
 }
