@@ -60,6 +60,7 @@ pub struct AppState {
     pub dramacool: Arc<DramacoolClient>,
     pub moviebox: Arc<MovieBoxClient>,
     pub hianime: Arc<crate::clients::hianime::HianimeClient>,
+    pub aisports: Arc<crate::clients::aisports::AiSportsClient>,
     pub secret: String,
     pub proxy_base_url: String,
     pub config: Arc<crate::config::AppConfig>,
@@ -153,6 +154,15 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         dramacool: dramacool_client,
         moviebox: moviebox_client.clone(),
         hianime: hianime_client.clone(),
+        aisports: Arc::new(crate::clients::aisports::AiSportsClient::new(
+            Client::builder()
+                .tcp_keepalive(Duration::from_secs(60))
+                .connect_timeout(Duration::from_secs(8))
+                .timeout(Duration::from_secs(15))
+                .user_agent("Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1")
+                .build()
+                .unwrap(),
+        )),
         secret: cfg.secret.clone(),
         proxy_base_url: cfg.proxy_base_url.clone(),
         config: Arc::new(cfg.clone()),
@@ -413,6 +423,10 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/anime/filter",
             axum::routing::post(crate::routes::anime::filter_handler),
+        )
+        .route(
+            "/api/sports/streams",
+            get(crate::routes::sports::streams_handler),
         )
         .route("/api/status", get(crate::routes::system::status_handler))
         .merge(

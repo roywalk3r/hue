@@ -102,12 +102,13 @@ pub(crate) fn wrap_with_proxy(
             s.url = proxied_url;
             s.headers = None;
 
-            // Pre-proxy subtitles — same raw/token logic
+            // Pre-proxy subtitles — evaluate each URL independently
             if let Some(subs) = s.subtitles.take() {
                 s.subtitles = Some(
                     subs.into_iter()
                         .map(|mut sub| {
-                            let sub_url = if use_raw_url {
+                            let sub_use_raw = is_whitelisted_raw_url(&sub.url);
+                            let sub_url = if sub_use_raw {
                                 let encoded_sub_url = urlencoding::encode(&sub.url);
                                 let sub_header_part = if let Some(ref h) = token_headers {
                                     format!(

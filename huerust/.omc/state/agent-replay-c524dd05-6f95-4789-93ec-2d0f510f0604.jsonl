@@ -85,3 +85,5 @@
 {"t":0,"agent":"abb6ea8","agent_type":"unknown","event":"agent_stop","success":true}
 {"t":0,"agent":"a0344fa","agent_type":"unknown","event":"agent_stop","success":true}
 {"t":0,"agent":"a84b115","agent_type":"general-purpose","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"a6538cf","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"a3fc158","agent_type":"unknown","event":"agent_stop","success":true}

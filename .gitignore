@@ -22,3 +22,14 @@ hitv_home_cache.json
 /playwright-report/
 /blob-report/
 /playwright/.local-browsers/
+
+# Rust build artifacts
+huerust/target/
+/target/
+Cargo.lock
+*.rlib
+*.rmeta
+
+# IDE
+.idea/
+*.iml

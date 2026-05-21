@@ -33,6 +33,8 @@ pub(crate) fn is_whitelisted_raw_url(url: &str) -> bool {
         || lower.contains("animeplay.cfd")
         || lower.contains("pixeldrain.")
         || lower.contains("video-downloads.googleusercontent.com")
+        || lower.contains("cache.vdrk.site")
+        || lower.contains("sub.vdrk.site")
 }
 
 const PROGRESSIVE_STARTUP_RANGE_END: u64 = (2 * 1024 * 1024) - 1;

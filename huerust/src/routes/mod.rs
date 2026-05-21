@@ -13,4 +13,5 @@ pub mod sse;
 pub mod providers;
 pub mod moviebox;
 pub mod anime;
+pub mod sports;
 pub mod system;

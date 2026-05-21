@@ -118,8 +118,8 @@
   "hotPaths": [
     {
       "path": "src/proxy/mod.rs",
-      "accessCount": 43,
-      "lastAccessed": 1779313486770,
+      "accessCount": 45,
+      "lastAccessed": 1779352556241,
       "type": "file"
     },
     {
@@ -130,8 +130,14 @@
     },
     {
       "path": "src/proxy/wrap.rs",
-      "accessCount": 6,
-      "lastAccessed": 1779313414176,
+      "accessCount": 8,
+      "lastAccessed": 1779352556979,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/aisports.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779352150444,
       "type": "file"
     },
     {
@@ -168,6 +174,18 @@
       "path": "src/routes/streams.rs",
       "accessCount": 1,
       "lastAccessed": 1779319744595,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/hianime.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779352198520,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/drama.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779352463886,
       "type": "file"
     }
   ],
