@@ -33,8 +33,8 @@ impl AppConfig {
 
         let host = env::var("RUST_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
         let port = env::var("RUST_PORT").unwrap_or_else(|_| "24609".to_string());
-        let proxy_base_url = env::var("RUST_PROXY_URL")
-            .unwrap_or_else(|_| format!("http://{}:{}", host, port));
+        let proxy_base_url =
+            env::var("RUST_PROXY_URL").unwrap_or_else(|_| format!("http://{}:{}", host, port));
 
         let tmdb_api_keys = env::var("TMDB_API_KEYS")
             .unwrap_or_else(|_| env::var("TMDB_API_KEY").unwrap_or_default())
@@ -74,12 +74,10 @@ impl AppConfig {
                 .ok()
                 .map(|s| s == "true" || s == "1")
                 .unwrap_or(true),
-            cache_backend: env::var("CACHE_BACKEND")
-                .unwrap_or_else(|_| "memory".to_string()),
+            cache_backend: env::var("CACHE_BACKEND").unwrap_or_else(|_| "memory".to_string()),
             redis_url: env::var("REDIS_URL")
                 .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string()),
-            kkey: env::var("KKEY")
-                .unwrap_or_else(|_| "hue-kkey-2026-default".to_string()),
+            kkey: env::var("KKEY").unwrap_or_else(|_| "hue-kkey-2026-default".to_string()),
         }
     }
 
@@ -92,10 +90,26 @@ impl AppConfig {
         let is_production = matches!(env_name.as_str(), "prod" | "production");
 
         if is_production {
-            if self.secret.trim().is_empty()
-                || self.secret == "hue-streaming-stable-secret-2026"
-            {
+            if self.secret.trim().is_empty() || self.secret == "hue-streaming-stable-secret-2026" {
                 anyhow::bail!("APP_SECRET must be set to a non-default value in production");
+            }
+
+            let proxy_url = url::Url::parse(&self.proxy_base_url).map_err(|_| {
+                anyhow::anyhow!("RUST_PROXY_URL must be an absolute URL in production")
+            })?;
+            let proxy_host = proxy_url
+                .host_str()
+                .unwrap_or_default()
+                .to_ascii_lowercase();
+            if proxy_host.is_empty()
+                || proxy_host == "localhost"
+                || proxy_host == "127.0.0.1"
+                || proxy_host == "0.0.0.0"
+                || proxy_host == "::1"
+            {
+                anyhow::bail!(
+                    "RUST_PROXY_URL must point to the public Rust backend origin in production, e.g. https://api.vexli.online"
+                );
             }
 
             let api_key = env::var("API_KEY").unwrap_or_default();

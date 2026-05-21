@@ -106,7 +106,11 @@ pub fn dynamic_proxy_base(headers: &HeaderMap, fallback: &str) -> String {
                 && lower != "0.0.0.0"
                 && lower != "::1"
             {
-                return url.origin().unicode_serialization().trim_end_matches('/').to_string();
+                return url
+                    .origin()
+                    .unicode_serialization()
+                    .trim_end_matches('/')
+                    .to_string();
             }
         }
     }
