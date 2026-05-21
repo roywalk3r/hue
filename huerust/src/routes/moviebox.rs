@@ -441,6 +441,31 @@ fn moviebox_detail_text(detail_data: &serde_json::Value, keys: &[&str]) -> Strin
     String::new()
 }
 
+/// MovieBox detail endpoint returns `cover` as either a plain string or a nested object `{"url": "..."}`.
+fn moviebox_detail_cover(detail_data: &serde_json::Value, keys: &[&str]) -> String {
+    let candidates = [
+        &detail_data["data"]["resource"],
+        &detail_data["data"],
+        detail_data,
+    ];
+
+    for value in candidates {
+        for key in keys {
+            let field = &value[*key];
+            // Nested object: cover.url
+            if let Some(url) = field["url"].as_str().filter(|u| !u.trim().is_empty()) {
+                return url.to_string();
+            }
+            // Plain string
+            if let Some(text) = field.as_str().filter(|t| !t.trim().is_empty()) {
+                return text.to_string();
+            }
+        }
+    }
+
+    String::new()
+}
+
 fn moviebox_detail_response(
     id: &str,
     title: String,
