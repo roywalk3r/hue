@@ -543,6 +543,10 @@ pub async fn m3u8_handler(
         .status(StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::OK));
     builder = builder.header("Access-Control-Allow-Origin", "*");
 
+    // Cache m3u8 playlists briefly so HLS.js doesn't re-fetch identical manifests
+    // on every level switch or recovery attempt.
+    builder = builder.header("Cache-Control", "public, max-age=30");
+
     // Download mode: force attachment disposition
     if params.download.is_some() {
         let filename = params.filename.as_deref().unwrap_or("playlist.m3u8");
@@ -717,6 +721,7 @@ pub async fn ts_handler(
                                 }
                             }
                             builder = builder.header("Access-Control-Allow-Origin", "*");
+                            builder = builder.header("Cache-Control", "public, max-age=86400, immutable");
                             return builder
                                 .body(Body::from_stream(resp2.bytes_stream()))
                                 .unwrap();
@@ -811,6 +816,7 @@ pub async fn ts_handler(
                             }
                         }
                         builder = builder.header("Access-Control-Allow-Origin", "*");
+                        builder = builder.header("Cache-Control", "public, max-age=86400, immutable");
                         if let Some(cl) = resp.headers().get("content-length") {
                             if let Ok(v) = cl.to_str() {
                                 builder = builder.header("content-length", v);
