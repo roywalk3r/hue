@@ -738,6 +738,10 @@ pub async fn ts_handler(
 
             builder = builder.header("Access-Control-Allow-Origin", "*");
 
+            // Cache progressive video segments for 24h so the browser doesn't
+            // re-fetch the same byte ranges on every seek/retry.
+            builder = builder.header("Cache-Control", "public, max-age=86400, immutable");
+
             if force_200 && mapped == StatusCode::PARTIAL_CONTENT {
                 builder = builder.status(StatusCode::OK);
             }
