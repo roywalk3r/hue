@@ -17,6 +17,7 @@ use crate::app::kisskh_enabled;
 
 use crate::proxy::dynamic_proxy_base;
 use crate::proxy::wrap::wrap_with_proxy;
+use crate::security::encrypt_stream_result_urls;
 
 fn kisskh_disabled_response() -> Response {
     (
@@ -226,7 +227,8 @@ pub async fn kisskh_streams_handler(
     let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
     match state.kisskh.get_streams_direct(lookup, episode).await {
         Ok(streams) if !streams.is_empty() => {
-            let proxied = wrap_with_proxy(streams, &proxy_base, &state.secret);
+            let mut proxied = wrap_with_proxy(streams, &proxy_base, &state.secret);
+            encrypt_stream_result_urls(&mut proxied, &state.kkey);
             (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
         }
         _ => (StatusCode::OK, "[]").into_response(),
@@ -354,7 +356,8 @@ pub async fn dramacool_streams_handler(
     {
         Ok(streams) => {
             tracing::info!("[drama] dramacool_streams: {} streams", streams.len());
-            let proxied = wrap_with_proxy(streams, &proxy_base, &state.secret);
+            let mut proxied = wrap_with_proxy(streams, &proxy_base, &state.secret);
+            encrypt_stream_result_urls(&mut proxied, &state.kkey);
             (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
         }
         Err(e) => {
@@ -440,7 +443,8 @@ pub async fn moviebox_streams_handler(
     {
         Ok(streams) => {
             tracing::info!("[drama] moviebox_streams: {} streams", streams.len());
-            let proxied = wrap_with_proxy(streams, &proxy_base, &state.secret);
+            let mut proxied = wrap_with_proxy(streams, &proxy_base, &state.secret);
+            encrypt_stream_result_urls(&mut proxied, &state.kkey);
             (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
         }
         Err(e) => {
@@ -532,7 +536,8 @@ pub async fn moviebox_streams_direct_handler(
     {
         Ok(streams) => {
             tracing::info!("[drama] moviebox_streams_direct: {} streams", streams.len());
-            let proxied = wrap_with_proxy(streams, &proxy_base, &state.secret);
+            let mut proxied = wrap_with_proxy(streams, &proxy_base, &state.secret);
+            encrypt_stream_result_urls(&mut proxied, &state.kkey);
             (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
         }
         Err(e) => {

@@ -49,8 +49,10 @@ struct Match {
     playSource: Option<Vec<PlaySource>>,
     #[serde(default)]
     highlights: Option<Vec<Highlight>>,
+    #[allow(dead_code)]
     #[serde(default)]
     status: Option<String>,
+    #[allow(dead_code)]
     #[serde(default)]
     league: Option<String>,
 }
@@ -75,6 +77,7 @@ struct Highlight {
     title: Option<String>,
     #[serde(default)]
     path: Option<String>,
+    #[allow(dead_code)]
     #[serde(default)]
     duration: Option<String>,
 }

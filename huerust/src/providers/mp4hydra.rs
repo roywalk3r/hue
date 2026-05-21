@@ -5,6 +5,8 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
+#![allow(dead_code)]
+
 use serde::Deserialize;
 use reqwest::header::{HeaderMap, HeaderValue, ORIGIN, REFERER};
 use anyhow::Result;

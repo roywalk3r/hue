@@ -24,6 +24,7 @@ pub struct AppConfig {
     pub enable_proxy: bool,
     pub cache_backend: String,
     pub redis_url: String,
+    pub kkey: String,
 }
 
 impl AppConfig {
@@ -77,6 +78,8 @@ impl AppConfig {
                 .unwrap_or_else(|_| "memory".to_string()),
             redis_url: env::var("REDIS_URL")
                 .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string()),
+            kkey: env::var("KKEY")
+                .unwrap_or_else(|_| "hue-kkey-2026-default".to_string()),
         }
     }
 
@@ -134,6 +137,7 @@ mod tests {
             enable_proxy: false,
             cache_backend: "memory".to_string(),
             redis_url: "redis://127.0.0.1:6379".to_string(),
+            kkey: "test-kkey".to_string(),
         };
 
         assert_eq!(cfg.fast_deadline(), Duration::from_secs(3));

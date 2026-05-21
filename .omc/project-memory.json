@@ -258,6 +258,12 @@
       "type": "file"
     },
     {
+      "path": "huerust/src/app.rs",
+      "accessCount": 22,
+      "lastAccessed": 1779355292340,
+      "type": "file"
+    },
+    {
       "path": "utils/openapi-spec.js",
       "accessCount": 18,
       "lastAccessed": 1779189411427,
@@ -265,20 +271,14 @@
     },
     {
       "path": "huerust/src/providers/kisskh.rs",
-      "accessCount": 15,
-      "lastAccessed": 1779192623150,
+      "accessCount": 16,
+      "lastAccessed": 1779355162625,
       "type": "file"
     },
     {
       "path": "apiServer.js",
       "accessCount": 15,
       "lastAccessed": 1779318441574,
-      "type": "file"
-    },
-    {
-      "path": "huerust/src/app.rs",
-      "accessCount": 13,
-      "lastAccessed": 1779305187703,
       "type": "file"
     },
     {
@@ -303,6 +303,12 @@
       "path": "nginx-vexli.conf",
       "accessCount": 8,
       "lastAccessed": 1779201659380,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/routes/streams.rs",
+      "accessCount": 7,
+      "lastAccessed": 1779355329390,
       "type": "file"
     },
     {
@@ -342,9 +348,27 @@
       "type": "file"
     },
     {
+      "path": "huerust/src/security.rs",
+      "accessCount": 5,
+      "lastAccessed": 1779355302388,
+      "type": "file"
+    },
+    {
       "path": "providers/vixsrc.js",
       "accessCount": 4,
       "lastAccessed": 1779281955324,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/config.rs",
+      "accessCount": 4,
+      "lastAccessed": 1779355201283,
+      "type": "file"
+    },
+    {
+      "path": "huerust/src/routes/play.rs",
+      "accessCount": 4,
+      "lastAccessed": 1779355367466,
       "type": "file"
     },
     {
@@ -363,12 +387,6 @@
       "path": "huerust/src/clients/hianime.rs",
       "accessCount": 3,
       "lastAccessed": 1779186362753,
-      "type": "file"
-    },
-    {
-      "path": "huerust/src/routes/streams.rs",
-      "accessCount": 3,
-      "lastAccessed": 1779305030812,
       "type": "file"
     },
     {
@@ -444,12 +462,6 @@
       "type": "file"
     },
     {
-      "path": "huerust/src/routes/play.rs",
-      "accessCount": 1,
-      "lastAccessed": 1779109840594,
-      "type": "file"
-    },
-    {
       "path": "huerust/src/providers/dramacool_provider.rs",
       "accessCount": 1,
       "lastAccessed": 1779195976201,
@@ -483,12 +495,6 @@
       "path": "routes/moviebox.js",
       "accessCount": 1,
       "lastAccessed": 1779304037345,
-      "type": "file"
-    },
-    {
-      "path": "huerust/src/security.rs",
-      "accessCount": 1,
-      "lastAccessed": 1779304669066,
       "type": "file"
     },
     {

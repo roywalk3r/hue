@@ -20,6 +20,7 @@ use crate::proxy::dynamic_proxy_base;
 use crate::proxy::wrap::wrap_with_proxy;
 use crate::{
     app::StreamState, filters::apply_filters, infra::cache::CacheKey, models::StreamResult,
+    security::encrypt_stream_result_urls,
 };
 
 #[derive(Serialize, ToSchema)]
@@ -101,11 +102,12 @@ pub async fn streams_handler(
             );
 
             // Proxy wrap even on cache hits
-            let final_streams = if enable_proxy {
+            let mut final_streams = if enable_proxy {
                 wrap_with_proxy(filtered, &proxy_base, &secret)
             } else {
                 filtered
             };
+            encrypt_stream_result_urls(&mut final_streams, &state.kkey);
 
             return (
                 StatusCode::OK,
@@ -163,7 +165,7 @@ pub async fn streams_handler(
     ) {
         tokio::spawn(async move {
             let start = std::time::Instant::now();
-            let (mut streams, _) = fetch_from_providers(
+            let (streams, _) = fetch_from_providers(
                 state.registry.clone(),
                 state.metrics.clone(),
                 &tmdb_info,
@@ -324,11 +326,12 @@ pub async fn streams_handler(
         None => return (StatusCode::NOT_FOUND, "No streams found").into_response(),
     };
 
-    let final_streams = if enable_proxy {
+    let mut final_streams = if enable_proxy {
         wrap_with_proxy(filtered, &proxy_base, &secret)
     } else {
         filtered
     };
+    encrypt_stream_result_urls(&mut final_streams, &state.kkey);
 
     (
         StatusCode::OK,

@@ -62,6 +62,7 @@ pub struct AppState {
     pub hianime: Arc<crate::clients::hianime::HianimeClient>,
     pub aisports: Arc<crate::clients::aisports::AiSportsClient>,
     pub secret: String,
+    pub kkey: String,
     pub proxy_base_url: String,
     pub config: Arc<crate::config::AppConfig>,
     pub rate_limiter: RateLimitState,
@@ -164,6 +165,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
                 .unwrap(),
         )),
         secret: cfg.secret.clone(),
+        kkey: cfg.kkey.clone(),
         proxy_base_url: cfg.proxy_base_url.clone(),
         config: Arc::new(cfg.clone()),
         rate_limiter: RateLimitState::new(120, 60),
@@ -561,6 +563,7 @@ pub struct StreamState {
     pub metrics: Arc<Metrics>,
     pub config: Arc<AppConfig>,
     pub secret: String,
+    pub kkey: String,
     pub proxy_base_url: String,
     pub client: Client,
     pub hitv: Arc<HiTvClient>,
@@ -577,6 +580,7 @@ impl FromRef<AppState> for StreamState {
             metrics: s.metrics.clone(),
             config: s.config.clone(),
             secret: s.secret.clone(),
+            kkey: s.kkey.clone(),
             proxy_base_url: s.proxy_base_url.clone(),
             client: s.client.clone(),
             hitv: s.hitv.clone(),
@@ -592,6 +596,7 @@ pub struct DramaState {
     pub moviebox: Arc<MovieBoxClient>,
     pub tmdb: Arc<TmdbClient>,
     pub secret: String,
+    pub kkey: String,
     pub proxy_base_url: String,
 }
 
@@ -603,6 +608,7 @@ impl FromRef<AppState> for DramaState {
             moviebox: s.moviebox.clone(),
             tmdb: s.tmdb.clone(),
             secret: s.secret.clone(),
+            kkey: s.kkey.clone(),
             proxy_base_url: s.proxy_base_url.clone(),
         }
     }

@@ -12,6 +12,7 @@ use crate::{
     providers::dispatch::fetch_from_providers,
     proxy::dynamic_proxy_base,
     proxy::wrap::wrap_with_proxy,
+    security::kkey_encrypt,
 };
 use axum::{
     extract::{Path, Query, State},
@@ -159,11 +160,22 @@ pub async fn play_handler(
 }
 
 fn proxify_play_response(
-    best: PlayResponse,
+    mut best: PlayResponse,
     state: &StreamState,
     proxy_base: &str,
 ) -> PlayResponse {
     if !state.config.enable_proxy {
+        // Still encrypt even when proxy is disabled
+        if !best.url.is_empty() {
+            best.url = kkey_encrypt(&best.url, &state.kkey);
+        }
+        if let Some(ref mut subs) = best.subtitles {
+            for sub in subs.iter_mut() {
+                if !sub.url.is_empty() {
+                    sub.url = kkey_encrypt(&sub.url, &state.kkey);
+                }
+            }
+        }
         return best;
     }
 
@@ -178,7 +190,7 @@ fn proxify_play_response(
         extra_metadata: None,
     };
 
-    let Some(stream) = wrap_with_proxy(vec![stream], proxy_base, &state.secret)
+    let Some(mut stream) = wrap_with_proxy(vec![stream], proxy_base, &state.secret)
         .into_iter()
         .next()
     else {
@@ -193,6 +205,18 @@ fn proxify_play_response(
             headers: None,
         };
     };
+
+    // Kkey encrypt the proxied URL and subtitles
+    if !stream.url.is_empty() {
+        stream.url = kkey_encrypt(&stream.url, &state.kkey);
+    }
+    if let Some(ref mut subs) = stream.subtitles {
+        for sub in subs.iter_mut() {
+            if !sub.url.is_empty() {
+                sub.url = kkey_encrypt(&sub.url, &state.kkey);
+            }
+        }
+    }
 
     PlayResponse {
         success: true,

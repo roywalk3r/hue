@@ -25,6 +25,7 @@ use crate::{
     filters::apply_filters,
     proxy::wrap::wrap_with_proxy,
     proxy::dynamic_proxy_base,
+    security::encrypt_stream_result_urls,
 };
 
 fn is_generic_movie_tv_provider_allowed(media_type: &str, real_name: &str) -> bool {
@@ -76,11 +77,12 @@ pub async fn sse_streams_handler(
                         provider != "zenith" && provider != "orient"
                     })
                     .collect();
-                let streams = if state.config.enable_proxy {
+                let mut streams = if state.config.enable_proxy {
                     wrap_with_proxy(filtered, &proxy_base, &state.secret)
                 } else {
                     filtered
                 };
+                encrypt_stream_result_urls(&mut streams, &state.kkey);
                 let count = streams.len();
                 let _ = tx.send(Ok(Event::default().event("cached").data(
                     json!({"streams": streams, "count": count, "cached": true}).to_string()
@@ -118,6 +120,7 @@ pub async fn sse_streams_handler(
             let mtype = m_type.clone();
             let tx = tx.clone();
             let secret = state.secret.clone();
+            let kkey = state.kkey.clone();
             let proxy_base = proxy_base.clone();
             let enable_proxy = state.config.enable_proxy;
 
@@ -140,11 +143,12 @@ pub async fn sse_streams_handler(
                 match result {
                     Ok(Ok(streams)) if !streams.is_empty() => {
                         cb.record_success(&real_name);
-                        let display = if enable_proxy {
+                        let mut display = if enable_proxy {
                             wrap_with_proxy(streams.clone(), &proxy_base, &secret)
                         } else {
                             streams.clone()
                         };
+                        encrypt_stream_result_urls(&mut display, &kkey);
                         let _ = tx.send(Ok(Event::default().event("provider").data(
                             json!({
                                 "provider": name,

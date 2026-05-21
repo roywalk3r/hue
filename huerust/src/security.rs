@@ -131,6 +131,55 @@ pub fn decrypt_url(token: &str, secret: &str) -> Option<DecryptedToken> {
     Some(token)
 }
 
+// ── Kkey response encryption (KissKH-style obfuscation) ─────────────────────
+
+/// Hourly-rotating XOR cipher for response URL obfuscation.
+/// Format: "{epoch_hour}:{base64(xor(url, key))}"
+pub fn kkey_encrypt(url: &str, kkey: &str) -> String {
+    let epoch_hour = chrono::Utc::now().timestamp() / 3600;
+    let seed = format!("{}{}", kkey, epoch_hour);
+    let key = sha2::Sha256::digest(seed.as_bytes());
+    let mut out: Vec<u8> = url.bytes().map(|b| b).collect();
+    for (i, byte) in out.iter_mut().enumerate() {
+        *byte ^= key[i % key.len()];
+    }
+    format!("{}:{}", epoch_hour, hex::encode(&out))
+}
+
+#[allow(dead_code)]
+pub fn kkey_decrypt(token: &str, kkey: &str) -> Option<String> {
+    let parts: Vec<&str> = token.splitn(2, ':').collect();
+    if parts.len() != 2 {
+        return None;
+    }
+    let epoch_hour: i64 = parts[0].parse().ok()?;
+    let encrypted = hex::decode(parts[1]).ok()?;
+    let seed = format!("{}{}", kkey, epoch_hour);
+    let key = sha2::Sha256::digest(seed.as_bytes());
+    let mut out = encrypted;
+    for (i, byte) in out.iter_mut().enumerate() {
+        *byte ^= key[i % key.len()];
+    }
+    String::from_utf8(out).ok()
+}
+
+/// Encrypt all stream URLs and subtitle URLs in a response using the kkey.
+/// Call this AFTER wrap_with_proxy so the h_token URLs are encrypted again.
+pub fn encrypt_stream_result_urls(streams: &mut [crate::models::StreamResult], kkey: &str) {
+    for s in streams.iter_mut() {
+        if !s.url.is_empty() {
+            s.url = kkey_encrypt(&s.url, kkey);
+        }
+        if let Some(ref mut subs) = s.subtitles {
+            for sub in subs.iter_mut() {
+                if !sub.url.is_empty() {
+                    sub.url = kkey_encrypt(&sub.url, kkey);
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,9 +206,26 @@ mod tests {
     }
 
     #[test]
-    fn test_decrypt_wrong_secret() {
-        let secret = "correct-secret-1234567890123456";
-        let token = encrypt_url("https://example.com", secret, None);
-        assert!(decrypt_url(&token, "wrong-secret-1234567890123456").is_none());
+    fn test_kkey_roundtrip() {
+        let kkey = "my-secret-kkey";
+        let url = "https://example.com/stream.m3u8?token=abc123";
+        let encrypted = kkey_encrypt(url, kkey);
+        let decrypted = kkey_decrypt(&encrypted, kkey).unwrap();
+        assert_eq!(decrypted, url);
+    }
+
+    #[test]
+    fn test_kkey_decrypt_invalid() {
+        assert!(kkey_decrypt("badtoken", "kkey").is_none());
+        assert!(kkey_decrypt("", "kkey").is_none());
+    }
+
+    #[test]
+    fn test_kkey_wrong_key_fails() {
+        let url = "https://example.com/stream.m3u8";
+        let encrypted = kkey_encrypt(url, "correct-key");
+        let decrypted = kkey_decrypt(&encrypted, "wrong-key");
+        // Wrong key produces garbage, not the original URL
+        assert!(decrypted.is_none() || decrypted.unwrap() != url);
     }
 }

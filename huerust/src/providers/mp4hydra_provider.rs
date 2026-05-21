@@ -5,6 +5,8 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
+#![allow(dead_code)]
+
 use async_trait::async_trait;
 use crate::providers::StreamProvider;
 use crate::models::StreamResult;
