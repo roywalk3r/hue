@@ -37,7 +37,7 @@ pub(crate) fn is_whitelisted_raw_url(url: &str) -> bool {
         || lower.contains("sub.vdrk.site")
 }
 
-const PROGRESSIVE_STARTUP_RANGE_END: u64 = (2 * 1024 * 1024) - 1;
+const PROGRESSIVE_STARTUP_RANGE_END: u64 = (512 * 1024) - 1;
 const PROGRESSIVE_OPEN_RANGE_CHUNK_END: u64 = (1 * 1024 * 1024) - 1;
 
 // ── Query Types ──────────────────────────────────────────────────────────────
