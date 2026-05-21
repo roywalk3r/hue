@@ -423,6 +423,27 @@ fn moviebox_detail_episodes(detail_data: &serde_json::Value) -> Vec<serde_json::
         .collect()
 }
 
+fn moviebox_detail_cast(detail_data: &serde_json::Value) -> Vec<serde_json::Value> {
+    let stars = detail_data["data"]["stars"].as_array()
+        .or_else(|| detail_data["data"]["subject"]["stars"].as_array());
+
+    let Some(list) = stars else { return Vec::new(); };
+
+    list.iter()
+        .filter_map(|star| {
+            let name = star["name"].as_str()?.trim();
+            if name.is_empty() { return None; }
+            let avatar = star["avatarUrl"].as_str().unwrap_or("");
+            let character = star["character"].as_str().unwrap_or("");
+            Some(serde_json::json!({
+                "name": name,
+                "character": character,
+                "avatar": avatar,
+            }))
+        })
+        .collect()
+}
+
 fn moviebox_detail_text(detail_data: &serde_json::Value, keys: &[&str]) -> String {
     let candidates = [
         &detail_data["data"]["subject"],
@@ -504,11 +525,13 @@ fn moviebox_detail_response(
             .and_then(|item| item.genre.clone())
             .unwrap_or_else(|| moviebox_detail_text(detail_data, &["country", "area"])),
         "status": moviebox_detail_text(detail_data, &["status"]),
+        "rating": moviebox_detail_text(detail_data, &["imdbRatingValue", "rate", "rating", "score"]),
         "genre": fallback
             .and_then(|item| item.genre.clone())
             .unwrap_or_else(|| moviebox_detail_text(detail_data, &["genre", "category"])),
         "episodes": episodes,
-        "episode_count": episode_count
+        "episode_count": episode_count,
+        "cast": moviebox_detail_cast(detail_data),
     })
 }
 

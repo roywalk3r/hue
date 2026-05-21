@@ -108,24 +108,12 @@ pub(crate) fn wrap_with_proxy(
                     subs.into_iter()
                         .map(|mut sub| {
                             let sub_use_raw = is_whitelisted_raw_url(&sub.url);
-                            let sub_url = if sub_use_raw {
+                            let sub_url = if sub_use_raw && token_headers.is_none() {
                                 let encoded_sub_url = urlencoding::encode(&sub.url);
-                                let sub_header_part = if let Some(ref h) = token_headers {
-                                    format!(
-                                        "&headers={}",
-                                        urlencoding::encode(
-                                            &serde_json::to_string(h).unwrap_or_default()
-                                        )
-                                    )
-                                } else {
-                                    String::new()
-                                };
-                                format!(
-                                    "{}/sub-proxy?url={}{}&mode=url",
-                                    proxy_base, encoded_sub_url, sub_header_part
-                                )
+                                format!("{}/sub-proxy?url={}&mode=url", proxy_base, encoded_sub_url)
                             } else {
-                                let sub_token = encrypt_url(&sub.url, secret, token_headers.clone());
+                                let sub_token =
+                                    encrypt_url(&sub.url, secret, token_headers.clone());
                                 format!("{}/sub-proxy?h_token={}", proxy_base, sub_token)
                             };
                             sub.url = sub_url;
@@ -137,4 +125,58 @@ pub(crate) fn wrap_with_proxy(
             s
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::Subtitle;
+    use std::collections::HashMap;
+
+    fn stream_with_subtitles(headers: Option<HashMap<String, String>>) -> StreamResult {
+        StreamResult {
+            url: "https://cdn.example.com/video.mp4".to_string(),
+            title: "Test".to_string(),
+            quality: "720p".to_string(),
+            provider: "MovieBox".to_string(),
+            format: "mp4".to_string(),
+            subtitles: Some(vec![Subtitle {
+                url: "https://cacdn.hakunaymatata.com/subtitle/test.srt".to_string(),
+                lang: "en".to_string(),
+                label: "English".to_string(),
+            }]),
+            headers,
+            extra_metadata: None,
+        }
+    }
+
+    #[test]
+    fn wraps_header_required_subtitles_with_signed_token() {
+        let mut headers = HashMap::new();
+        headers.insert("Cookie".to_string(), "mb_token=secret".to_string());
+
+        let wrapped = wrap_with_proxy(
+            vec![stream_with_subtitles(Some(headers))],
+            "https://api.vexli.online",
+            "test-secret",
+        );
+
+        let subtitle_url = &wrapped[0].subtitles.as_ref().unwrap()[0].url;
+        assert!(subtitle_url.starts_with("https://api.vexli.online/sub-proxy?h_token="));
+        assert!(!subtitle_url.contains("mb_token"));
+        assert!(!subtitle_url.contains("&headers="));
+    }
+
+    #[test]
+    fn leaves_public_raw_subtitles_as_plain_proxy_urls_without_headers() {
+        let wrapped = wrap_with_proxy(
+            vec![stream_with_subtitles(None)],
+            "https://api.vexli.online",
+            "test-secret",
+        );
+
+        let subtitle_url = &wrapped[0].subtitles.as_ref().unwrap()[0].url;
+        assert!(subtitle_url.starts_with("https://api.vexli.online/sub-proxy?url="));
+        assert!(subtitle_url.ends_with("&mode=url"));
+    }
 }

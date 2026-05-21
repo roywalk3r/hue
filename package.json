@@ -28,6 +28,7 @@
     "@scalar/express-api-reference": "^0.9.10",
     "@scalar/hono-api-reference": "^0.9.30",
     "@upstash/redis": "^1.35.8",
+    "@vercel/analytics": "^2.0.1",
     "aromanize": "^0.1.5",
     "axios": "^1.9.0",
     "axios-cookiejar-support": "^6.0.2",
