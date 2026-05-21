@@ -373,6 +373,18 @@ pub async fn m3u8_handler(
     Query(params): Query<ProxyQuery>,
     request_headers: HeaderMap,
 ) -> Response {
+    // Handle CORS preflight so cross-origin <video> manifest requests don't get blocked.
+    if request_headers.get("access-control-request-method").is_some()
+        || request_headers.get("access-control-request-headers").is_some()
+    {
+        let mut builder = Response::builder().status(StatusCode::NO_CONTENT);
+        builder = builder.header("Access-Control-Allow-Origin", "*");
+        builder = builder.header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+        builder = builder.header("Access-Control-Allow-Headers", "*");
+        builder = builder.header("Access-Control-Max-Age", "86400");
+        return builder.body(Body::empty()).unwrap();
+    }
+
     let (target_url, headers) = match resolve_proxy_target(&params, &state.secret) {
         Some(t) => t,
         None => return (StatusCode::FORBIDDEN, "Invalid or missing signed token").into_response(),
@@ -623,6 +635,18 @@ pub async fn ts_handler(
     Query(params): Query<TsProxyQuery>,
     request_headers: HeaderMap,
 ) -> Response {
+    // Handle CORS preflight so cross-origin <video> range requests don't get blocked.
+    if request_headers.get("access-control-request-method").is_some()
+        || request_headers.get("access-control-request-headers").is_some()
+    {
+        let mut builder = Response::builder().status(StatusCode::NO_CONTENT);
+        builder = builder.header("Access-Control-Allow-Origin", "*");
+        builder = builder.header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+        builder = builder.header("Access-Control-Allow-Headers", "*");
+        builder = builder.header("Access-Control-Max-Age", "86400");
+        return builder.body(Body::empty()).unwrap();
+    }
+
     let (target_url, headers) = match resolve_ts_target(&params, &state.secret) {
         Some(t) => t,
         None => {
@@ -869,7 +893,20 @@ pub async fn ts_handler(
 pub async fn sub_handler(
     State(state): State<AppState>,
     Query(params): Query<ProxyQuery>,
+    request_headers: HeaderMap,
 ) -> Response {
+    // Handle CORS preflight for subtitle track requests.
+    if request_headers.get("access-control-request-method").is_some()
+        || request_headers.get("access-control-request-headers").is_some()
+    {
+        let mut builder = Response::builder().status(StatusCode::NO_CONTENT);
+        builder = builder.header("Access-Control-Allow-Origin", "*");
+        builder = builder.header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+        builder = builder.header("Access-Control-Allow-Headers", "*");
+        builder = builder.header("Access-Control-Max-Age", "86400");
+        return builder.body(Body::empty()).unwrap();
+    }
+
     let (target_url, headers) = match resolve_proxy_target(&params, &state.secret) {
         Some(t) => t,
         None => return (StatusCode::FORBIDDEN, "Invalid or missing signed token").into_response(),
