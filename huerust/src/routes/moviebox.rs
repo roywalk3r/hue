@@ -425,6 +425,8 @@ fn moviebox_detail_episodes(detail_data: &serde_json::Value) -> Vec<serde_json::
 
 fn moviebox_detail_text(detail_data: &serde_json::Value, keys: &[&str]) -> String {
     let candidates = [
+        &detail_data["data"]["subject"],
+        &detail_data["data"]["metadata"],
         &detail_data["data"]["resource"],
         &detail_data["data"],
         detail_data,
@@ -444,6 +446,8 @@ fn moviebox_detail_text(detail_data: &serde_json::Value, keys: &[&str]) -> Strin
 /// MovieBox detail endpoint returns `cover` as either a plain string or a nested object `{"url": "..."}`.
 fn moviebox_detail_cover(detail_data: &serde_json::Value, keys: &[&str]) -> String {
     let candidates = [
+        &detail_data["data"]["subject"],
+        &detail_data["data"]["metadata"],
         &detail_data["data"]["resource"],
         &detail_data["data"],
         detail_data,
@@ -487,11 +491,11 @@ fn moviebox_detail_response(
         "cover": fallback
             .and_then(|item| item.cover.clone())
             .filter(|cover| !cover.is_empty())
-            .unwrap_or_else(|| moviebox_detail_text(detail_data, &["cover", "poster", "image", "coverUrl"])),
+            .unwrap_or_else(|| moviebox_detail_cover(detail_data, &["cover", "poster", "image", "coverUrl", "imgUrl", "img", "backdrop"])),
         "description": fallback
             .and_then(|item| item.description.clone())
             .filter(|description| !description.is_empty())
-            .unwrap_or_else(|| moviebox_detail_text(detail_data, &["description", "desc", "introduction"])),
+            .unwrap_or_else(|| moviebox_detail_text(detail_data, &["description", "desc", "introduction", "summary", "plot", "synopsis", "story", "content"])),
         "year": fallback
             .and_then(|item| item.release_date.as_ref())
             .and_then(|date| date.split('-').next())
