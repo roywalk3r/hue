@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"cd /mnt/devdrive/projects/Misc/huenode && timeout 20 node -e \\\"\\nconst { chromium } = require('playwright-core');\\n(async () => {\\n  const browser = await chromium.launch({ headless: true ...",
-  "error": "Exit code 124\nError: iframe.evaluate is not a function",
-  "timestamp": "2026-05-20T23:00:19.764Z",
-  "retry_count": 1
-}
