@@ -38,7 +38,7 @@ pub(crate) fn is_whitelisted_raw_url(url: &str) -> bool {
 }
 
 const PROGRESSIVE_STARTUP_RANGE_END: u64 = (2 * 1024 * 1024) - 1;
-const PROGRESSIVE_OPEN_RANGE_CHUNK_END: u64 = (4 * 1024 * 1024) - 1;
+const PROGRESSIVE_OPEN_RANGE_CHUNK_END: u64 = (1 * 1024 * 1024) - 1;
 
 // ── Query Types ──────────────────────────────────────────────────────────────
 
@@ -79,9 +79,15 @@ pub struct TsProxyQuery {
 
 // ── Shared helpers ───────────────────────────────────────────────────────────
 
-/// Derive the public proxy base URL from request headers, falling back to the
-/// static config value. Matches Node.js behaviour:
-///   baseProxyUrl = `${x-forwarded-proto || fallback_proto}://${host}`
+/// Derive the public proxy base URL.
+///
+/// If the configured `fallback` is a valid URL with a real public host
+/// (not localhost/127.0.0.1), use it directly. This prevents proxy URLs from
+/// pointing back to the frontend domain (e.g. Vercel) when requests arrive
+/// through a reverse-proxy that preserves the browser's Host header.
+///
+/// Only fall back to header detection when the configured URL is localhost,
+/// which is the expected setup behind nginx or in local development.
 pub fn dynamic_proxy_base(headers: &HeaderMap, fallback: &str) -> String {
     let fallback_url = fallback.parse::<Url>().ok();
     let default_proto = fallback_url.as_ref().map(|u| u.scheme()).unwrap_or("http");
@@ -89,6 +95,21 @@ pub fn dynamic_proxy_base(headers: &HeaderMap, fallback: &str) -> String {
         .as_ref()
         .and_then(|u| u.host_str())
         .unwrap_or("localhost");
+
+    // Prefer the explicitly configured fallback when it points to a real host.
+    // Use the full origin so configured ports are preserved.
+    if let Some(ref url) = fallback_url {
+        if let Some(host) = url.host_str() {
+            let lower = host.to_lowercase();
+            if lower != "localhost"
+                && lower != "127.0.0.1"
+                && lower != "0.0.0.0"
+                && lower != "::1"
+            {
+                return url.origin().unicode_serialization().trim_end_matches('/').to_string();
+            }
+        }
+    }
 
     let host = headers
         .get("x-forwarded-host")
@@ -98,6 +119,7 @@ pub fn dynamic_proxy_base(headers: &HeaderMap, fallback: &str) -> String {
 
     let proto = headers
         .get("x-forwarded-proto")
+        .or_else(|| headers.get("x-forwarded-protocol"))
         .and_then(|v| v.to_str().ok())
         .unwrap_or(default_proto);
 
@@ -1272,6 +1294,38 @@ Second cue"#;
         let vtt = "WEBVTT\n\n1\n00:00:01,500 --> 00:00:04,000\nHello\n";
         let normalized = normalize_vtt_timestamps(vtt);
         assert!(normalized.contains("00:00:01.500 --> 00:00:04.000"));
+    }
+
+    #[test]
+    fn test_dynamic_proxy_base_prefers_public_configured_origin() {
+        let mut headers = HeaderMap::new();
+        headers.insert("host", "www.vexli.online".parse().unwrap());
+        headers.insert("x-forwarded-proto", "https".parse().unwrap());
+
+        let base = dynamic_proxy_base(&headers, "https://api.vexli.online");
+
+        assert_eq!(base, "https://api.vexli.online");
+    }
+
+    #[test]
+    fn test_dynamic_proxy_base_preserves_configured_public_port() {
+        let mut headers = HeaderMap::new();
+        headers.insert("host", "www.vexli.online".parse().unwrap());
+
+        let base = dynamic_proxy_base(&headers, "https://api.vexli.online:24609");
+
+        assert_eq!(base, "https://api.vexli.online:24609");
+    }
+
+    #[test]
+    fn test_dynamic_proxy_base_uses_headers_for_local_fallback() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-forwarded-host", "dev.example.test".parse().unwrap());
+        headers.insert("x-forwarded-proto", "https".parse().unwrap());
+
+        let base = dynamic_proxy_base(&headers, "http://localhost:24609");
+
+        assert_eq!(base, "https://dev.example.test");
     }
 
     #[tokio::test]
