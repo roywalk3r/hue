@@ -7,9 +7,14 @@ restart.trigger
 .gemini/
 gha-creds-*.json
 .env
+.omc
+.claude
+.codex
+.gemini
+.vscode
+.sh
 
 # Dynamic Data & Config
-utils/user-config.json
 hitv_library_cache.json
 hitv_home_cache.json
 *.json.bak
