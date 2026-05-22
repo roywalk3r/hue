@@ -17,7 +17,7 @@
 //!   4. GET sub.vdrk.site/v2/{type}/{tmdbId} → VTT subtitle files
 
 use serde::{Deserialize, Serialize};
-use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
 use anyhow::{Result, anyhow};
 use aes::Aes256;
 use cbc::Encryptor;
@@ -104,20 +104,21 @@ fn encrypt_item_id(item_id: &str) -> Result<String> {
 
 #[derive(Clone)]
 pub struct VidRockClient {
-    client: Client,
+    client: ClientWithMiddleware,
 }
 
 impl VidRockClient {
     pub fn new() -> Self {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(20))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .tcp_keepalive(std::time::Duration::from_secs(60))
+            .pool_max_idle_per_host(4)
+            .user_agent(UA_DESKTOP)
+            .build()
+            .unwrap();
         Self {
-            client: Client::builder()
-                .timeout(std::time::Duration::from_secs(20))
-                .connect_timeout(std::time::Duration::from_secs(10))
-                .tcp_keepalive(std::time::Duration::from_secs(60))
-                .pool_max_idle_per_host(4)
-                .user_agent(UA_DESKTOP)
-                .build()
-                .unwrap(),
+            client: crate::http_client::wrap_with_retry(client),
         }
     }
 

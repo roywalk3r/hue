@@ -15,3 +15,4 @@ pub mod moviebox;
 pub mod anime;
 pub mod sports;
 pub mod system;
+pub mod tmdb;

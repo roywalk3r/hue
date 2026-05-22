@@ -13,11 +13,19 @@ use serde::Deserialize;
 use serde_json::json;
 use tracing::{info, warn};
 use utoipa::ToSchema;
+use validator::Validate;
 
 use crate::app::AppState;
 
-#[derive(Deserialize, ToSchema)]
+#[derive(serde::Serialize, ToSchema)]
+pub struct LeaguesResponse {
+    pub success: bool,
+    pub list: Vec<crate::clients::aisports::League>,
+}
+
+#[derive(Deserialize, ToSchema, Validate)]
 pub struct SportsStreamQuery {
+    #[validate(length(min = 1, max = 200))]
     pub q: String,
 }
 
@@ -27,6 +35,35 @@ pub struct SportsStreamsResponse {
     pub query: String,
     pub count: usize,
     pub streams: Vec<crate::clients::aisports::SportsStream>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/aisports/leagues",
+    responses(
+        (status = 200, description = "AISports leagues", body = LeaguesResponse),
+    ),
+)]
+pub async fn leagues_handler(
+    State(state): State<AppState>,
+) -> Response {
+    match state.aisports.get_leagues().await {
+        Ok(list) => {
+            (
+                StatusCode::OK,
+                serde_json::to_string(&LeaguesResponse { success: true, list }).unwrap(),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            warn!("[api] AiSports leagues failed: {}", e);
+            (
+                StatusCode::OK,
+                serde_json::to_string(&LeaguesResponse { success: true, list: vec![] }).unwrap(),
+            )
+                .into_response()
+        }
+    }
 }
 
 #[utoipa::path(
@@ -44,6 +81,14 @@ pub async fn streams_handler(
     State(state): State<AppState>,
     Query(params): Query<SportsStreamQuery>,
 ) -> Response {
+    if let Err(e) = params.validate() {
+        return (
+            StatusCode::BAD_REQUEST,
+            json!({"success": false, "error": format!("Invalid query: {}", e)}).to_string(),
+        )
+            .into_response();
+    }
+
     let query = params.q.trim();
     if query.is_empty() {
         return (

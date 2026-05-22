@@ -6,7 +6,7 @@
 //! @license MIT
 
 use serde::{Deserialize, Serialize};
-use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
 use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -56,7 +56,7 @@ pub struct TmdbNormalizedInfo {
 }
 
 pub struct TmdbClient {
-    client: Client,
+    client: ClientWithMiddleware,
     api_keys: Vec<String>,
     key_index: AtomicUsize,
     details_cache: Cache<(String, u64), TmdbNormalizedInfo>,
@@ -64,12 +64,13 @@ pub struct TmdbClient {
 
 impl TmdbClient {
     pub fn new(api_keys: Vec<String>) -> Self {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(10))
+            .tcp_keepalive(Duration::from_secs(60))
+            .build()
+            .unwrap();
         Self {
-            client: Client::builder()
-                .timeout(Duration::from_secs(10))
-                .tcp_keepalive(Duration::from_secs(60))
-                .build()
-                .unwrap(),
+            client: crate::http_client::wrap_with_retry(client),
             api_keys,
             key_index: AtomicUsize::new(0),
             details_cache: Cache::builder()
@@ -98,69 +99,73 @@ impl TmdbClient {
             url.push_str(&format!("&{}={}", k, urlencoding::encode(v)));
         }
 
-        let max_retries = 3;
-        let mut last_err = String::new();
+        let resp = self.client
+            .get(&url)
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            .send().await?;
 
-        for attempt in 0..max_retries {
-            let resp = self.client
-                .get(&url)
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                .send().await;
-
-            match resp {
-                Ok(r) if r.status().is_success() => {
-                    let content_type = r.headers()
-                        .get("content-type")
-                        .and_then(|v| v.to_str().ok())
-                        .unwrap_or("")
-                        .to_string();
-
-                    if !content_type.contains("application/json") {
-                        let body_preview = r.text().await.unwrap_or_default();
-                        let preview = body_preview.chars().take(200).collect::<String>();
-                        tracing::warn!("[TMDB] non-JSON response (attempt {}): content-type={}, body={}", attempt + 1, content_type, preview);
-                        last_err = format!("non-JSON response: {}", preview);
-                        tokio::time::sleep(Duration::from_millis(500 * (attempt as u64 + 1))).await;
-                        continue;
-                    }
-
-                    match r.json::<T>().await {
-                        Ok(data) => return Ok(data),
-                        Err(e) => {
-                            tracing::warn!("[TMDB] JSON parse error (attempt {}): {}", attempt + 1, e);
-                            last_err = format!("JSON parse error: {}", e);
-                            tokio::time::sleep(Duration::from_millis(500 * (attempt as u64 + 1))).await;
-                        }
-                    }
-                }
-                Ok(r) if r.status() == reqwest::StatusCode::TOO_MANY_REQUESTS => {
-                    tracing::warn!("[TMDB] rate limited (attempt {})", attempt + 1);
-                    last_err = "rate limited".to_string();
-                    tokio::time::sleep(Duration::from_secs(2_u64.pow(attempt as u32))).await;
-                }
-                Ok(r) => {
-                    let status = r.status();
-                    let body_preview = r.text().await.unwrap_or_default().chars().take(200).collect::<String>();
-                    tracing::warn!("[TMDB] HTTP error (attempt {}): {} — {}", attempt + 1, status, body_preview);
-                    last_err = format!("HTTP {}: {}", status, body_preview);
-                    tokio::time::sleep(Duration::from_millis(500 * (attempt as u64 + 1))).await;
-                }
-                Err(e) => {
-                    tracing::warn!("[TMDB] request error (attempt {}): {}", attempt + 1, e);
-                    last_err = format!("request error: {}", e);
-                    tokio::time::sleep(Duration::from_millis(500 * (attempt as u64 + 1))).await;
-                }
-            }
+        if !resp.status().is_success() {
+            return Err(anyhow!("TMDB API returned {}", resp.status()));
         }
 
-        Err(anyhow!("TMDB fetch failed after {} attempts: {}", max_retries, last_err))
+        let content_type = resp.headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string();
+
+        if !content_type.contains("application/json") {
+            let body_preview = resp.text().await.unwrap_or_default();
+            let preview = body_preview.chars().take(200).collect::<String>();
+            tracing::warn!("[TMDB] non-JSON response: content-type={}, body={}", content_type, preview);
+            return Err(anyhow!("non-JSON response: {}", preview));
+        }
+
+        resp.json::<T>().await.map_err(|e| anyhow!("JSON parse error: {}", e))
+    }
+
+    fn normalize_value(v: serde_json::Value, default_media_type: &str) -> Option<TmdbNormalizedInfo> {
+        let media_type = v.get("media_type").and_then(|m| m.as_str()).unwrap_or(default_media_type);
+        if media_type == "tv" {
+            let info: TmdbTvInfo = serde_json::from_value(v).ok()?;
+            let year = info.first_air_date.as_ref()
+                .and_then(|d| d.split('-').next())
+                .and_then(|y| y.parse::<u32>().ok());
+            Some(TmdbNormalizedInfo {
+                id: info.id,
+                title: info.name,
+                overview: info.overview,
+                poster_path: info.poster_path,
+                backdrop_path: info.backdrop_path,
+                release_date: info.first_air_date.clone(),
+                year,
+                rating: info.vote_average,
+                imdb_id: None,
+            })
+        } else {
+            let info: TmdbMovieInfo = serde_json::from_value(v).ok()?;
+            let year = info.release_date.as_ref()
+                .and_then(|d| d.split('-').next())
+                .and_then(|y| y.parse::<u32>().ok());
+            Some(TmdbNormalizedInfo {
+                id: info.id,
+                title: info.title,
+                overview: info.overview,
+                poster_path: info.poster_path,
+                backdrop_path: info.backdrop_path,
+                release_date: info.release_date.clone(),
+                year,
+                rating: info.vote_average,
+                imdb_id: None,
+            })
+        }
     }
 
     pub async fn search(&self, query: &str, m_type: &str, year: Option<u32>) -> Result<Vec<TmdbNormalizedInfo>> {
         let endpoint = format!("/search/{}", if m_type == "multi" { "multi" } else if m_type == "tv" { "tv" } else { "movie" });
         let mut params = HashMap::new();
         params.insert("query", query.to_string());
-        
+
         if let Some(y) = year {
             let year_key = if m_type == "tv" { "first_air_date_year" } else { "primary_release_year" };
             params.insert(year_key, y.to_string());
@@ -172,46 +177,87 @@ impl TmdbClient {
         }
 
         let resp: SearchResponse = self.tmdb_fetch(&endpoint, params).await?;
-        
-        let normalized = resp.results.into_iter().filter_map(|v| {
-            let media_type = v.get("media_type").and_then(|m| m.as_str()).unwrap_or(m_type);
-            
-            if media_type == "tv" {
-                let info: TmdbTvInfo = serde_json::from_value(v).ok()?;
-                let year = info.first_air_date.as_ref()
-                    .and_then(|d| d.split('-').next())
-                    .and_then(|y| y.parse::<u32>().ok());
-                Some(TmdbNormalizedInfo {
-                    id: info.id,
-                    title: info.name,
-                    overview: info.overview,
-                    poster_path: info.poster_path,
-                    backdrop_path: info.backdrop_path,
-                    release_date: info.first_air_date.clone(),
-                    year,
-                    rating: info.vote_average,
-                    imdb_id: None,
-                })
-            } else {
-                let info: TmdbMovieInfo = serde_json::from_value(v).ok()?;
-                let year = info.release_date.as_ref()
-                    .and_then(|d| d.split('-').next())
-                    .and_then(|y| y.parse::<u32>().ok());
-                Some(TmdbNormalizedInfo {
-                    id: info.id,
-                    title: info.title,
-                    overview: info.overview,
-                    poster_path: info.poster_path,
-                    backdrop_path: info.backdrop_path,
-                    release_date: info.release_date.clone(),
-                    year,
-                    rating: info.vote_average,
-                    imdb_id: None,
-                })
-            }
-        }).collect();
+
+        let normalized = resp.results.into_iter()
+            .filter_map(|v| Self::normalize_value(v, m_type))
+            .collect();
 
         Ok(normalized)
+    }
+
+    pub async fn movie_popular(&self, page: u32) -> Result<Vec<TmdbNormalizedInfo>> {
+        let mut params = HashMap::new();
+        params.insert("page", page.to_string());
+        #[derive(Deserialize)]
+        struct PaginatedResponse { results: Vec<serde_json::Value>, }
+        let resp: PaginatedResponse = self.tmdb_fetch("/movie/popular", params).await?;
+        Ok(resp.results.into_iter().filter_map(|v| Self::normalize_value(v, "movie")).collect())
+    }
+
+    pub async fn movie_top_rated(&self, page: u32) -> Result<Vec<TmdbNormalizedInfo>> {
+        let mut params = HashMap::new();
+        params.insert("page", page.to_string());
+        #[derive(Deserialize)]
+        struct PaginatedResponse { results: Vec<serde_json::Value>, }
+        let resp: PaginatedResponse = self.tmdb_fetch("/movie/top_rated", params).await?;
+        Ok(resp.results.into_iter().filter_map(|v| Self::normalize_value(v, "movie")).collect())
+    }
+
+    pub async fn movie_now_playing(&self, page: u32) -> Result<Vec<TmdbNormalizedInfo>> {
+        let mut params = HashMap::new();
+        params.insert("page", page.to_string());
+        #[derive(Deserialize)]
+        struct PaginatedResponse { results: Vec<serde_json::Value>, }
+        let resp: PaginatedResponse = self.tmdb_fetch("/movie/now_playing", params).await?;
+        Ok(resp.results.into_iter().filter_map(|v| Self::normalize_value(v, "movie")).collect())
+    }
+
+    pub async fn tv_popular(&self, page: u32) -> Result<Vec<TmdbNormalizedInfo>> {
+        let mut params = HashMap::new();
+        params.insert("page", page.to_string());
+        #[derive(Deserialize)]
+        struct PaginatedResponse { results: Vec<serde_json::Value>, }
+        let resp: PaginatedResponse = self.tmdb_fetch("/tv/popular", params).await?;
+        Ok(resp.results.into_iter().filter_map(|v| Self::normalize_value(v, "tv")).collect())
+    }
+
+    pub async fn tv_top_rated(&self, page: u32) -> Result<Vec<TmdbNormalizedInfo>> {
+        let mut params = HashMap::new();
+        params.insert("page", page.to_string());
+        #[derive(Deserialize)]
+        struct PaginatedResponse { results: Vec<serde_json::Value>, }
+        let resp: PaginatedResponse = self.tmdb_fetch("/tv/top_rated", params).await?;
+        Ok(resp.results.into_iter().filter_map(|v| Self::normalize_value(v, "tv")).collect())
+    }
+
+    pub async fn tv_on_the_air(&self, page: u32) -> Result<Vec<TmdbNormalizedInfo>> {
+        let mut params = HashMap::new();
+        params.insert("page", page.to_string());
+        #[derive(Deserialize)]
+        struct PaginatedResponse { results: Vec<serde_json::Value>, }
+        let resp: PaginatedResponse = self.tmdb_fetch("/tv/on_the_air", params).await?;
+        Ok(resp.results.into_iter().filter_map(|v| Self::normalize_value(v, "tv")).collect())
+    }
+
+    pub async fn trending(&self, media_type: &str, page: u32) -> Result<Vec<TmdbNormalizedInfo>> {
+        let endpoint = format!("/trending/{}/day", if media_type == "tv" { "tv" } else { "movie" });
+        let mut params = HashMap::new();
+        params.insert("page", page.to_string());
+        #[derive(Deserialize)]
+        struct PaginatedResponse { results: Vec<serde_json::Value>, }
+        let resp: PaginatedResponse = self.tmdb_fetch(&endpoint, params).await?;
+        Ok(resp.results.into_iter().filter_map(|v| Self::normalize_value(v, media_type)).collect())
+    }
+
+    pub async fn discover(&self, media_type: &str, genre_id: &str, page: u32) -> Result<Vec<TmdbNormalizedInfo>> {
+        let endpoint = format!("/discover/{}", if media_type == "tv" { "tv" } else { "movie" });
+        let mut params = HashMap::new();
+        params.insert("page", page.to_string());
+        params.insert("with_genres", genre_id.to_string());
+        #[derive(Deserialize)]
+        struct PaginatedResponse { results: Vec<serde_json::Value>, }
+        let resp: PaginatedResponse = self.tmdb_fetch(&endpoint, params).await?;
+        Ok(resp.results.into_iter().filter_map(|v| Self::normalize_value(v, media_type)).collect())
     }
 
     pub async fn get_details(&self, m_type: &str, tmdb_id: u64) -> Result<TmdbNormalizedInfo> {

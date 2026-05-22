@@ -6,7 +6,7 @@
 //! @license MIT
 
 use serde::{Deserialize, Serialize};
-use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
 use anyhow::{Result, anyhow};
 use std::sync::Arc;
 use crate::clients::tmdb::{TmdbClient, TmdbNormalizedInfo};
@@ -35,7 +35,7 @@ pub struct HiTvBrowseResponse {
 }
 
 pub struct HiTvClient {
-    client: Client,
+    client: ClientWithMiddleware,
     #[allow(dead_code)]
     tmdb: Arc<TmdbClient>,
     pub library_cache: Arc<RwLock<Vec<HiTvItem>>>,
@@ -58,15 +58,16 @@ const BASE_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff";
 
 impl HiTvClient {
     pub fn new(tmdb: Arc<TmdbClient>) -> Self {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(15))
+            .connect_timeout(std::time::Duration::from_secs(8))
+            .tcp_keepalive(std::time::Duration::from_secs(60))
+            .pool_max_idle_per_host(4)
+            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .build()
+            .unwrap();
         Self {
-            client: Client::builder()
-                .timeout(std::time::Duration::from_secs(15))
-                .connect_timeout(std::time::Duration::from_secs(8))
-                .tcp_keepalive(std::time::Duration::from_secs(60))
-                .pool_max_idle_per_host(4)
-                .pool_idle_timeout(std::time::Duration::from_secs(90))
-                .build()
-                .unwrap(),
+            client: crate::http_client::wrap_with_retry(client),
             tmdb,
             library_cache: Arc::new(RwLock::new(Vec::new())),
             mapping_cache: Arc::new(RwLock::new(HashMap::new())),

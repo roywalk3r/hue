@@ -6,7 +6,7 @@
 //! @license MIT
 
 use anyhow::Result;
-use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
@@ -48,7 +48,7 @@ static RE_MASTER_URL: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 pub struct VixsrcClient {
-    client: Client,
+    client: ClientWithMiddleware,
 }
 
 #[derive(Debug, Deserialize)]
@@ -71,7 +71,7 @@ struct ExternalSubTrack {
 }
 
 impl VixsrcClient {
-    pub fn new(client: Client) -> Self {
+    pub fn new(client: ClientWithMiddleware) -> Self {
         Self { client }
     }
 

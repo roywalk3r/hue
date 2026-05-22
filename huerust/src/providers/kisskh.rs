@@ -6,7 +6,7 @@
 //! @license MIT
 
 use serde::{Deserialize, Serialize};
-use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
 use anyhow::{Result, anyhow};
 use base64::{Engine as _, engine::general_purpose};
 use tracing::{info, warn};
@@ -72,23 +72,21 @@ const KISSKH_STREAM_VIGUID: &str = "62f176f3bb1b5b8e70e39932ad34a0c7";
 const KISSKH_SUB_VIGUID: &str = "VgV52sWhwvBSf8BsM3BRY9weWiiCbtGp";
 
 pub struct KissKhClient {
-    client: Client,
+    client: ClientWithMiddleware,
     common_js_cache: Mutex<Option<(String, Instant)>>,
     cookie_header: Mutex<Option<String>>,
 }
 
 impl KissKhClient {
     pub fn new() -> Self {
-        let builder = Client::builder()
+        let builder = reqwest::Client::builder()
             .user_agent(USER_AGENT)
             .tcp_keepalive(std::time::Duration::from_secs(60))
             .connect_timeout(std::time::Duration::from_secs(10))
             .pool_max_idle_per_host(2)
             .pool_idle_timeout(std::time::Duration::from_secs(90))
             .timeout(std::time::Duration::from_secs(15));
-        let client = crate::http_client::with_optional_proxy(builder, "KISSKH_PROXY_URL")
-            .build()
-            .unwrap();
+        let client = crate::http_client::build_client_with_retry(builder, "KISSKH_PROXY_URL");
 
         let cookie_header = Self::load_cookies_from_file();
         if cookie_header.is_some() {
@@ -111,7 +109,7 @@ impl KissKhClient {
     }
 
     /// Build a GET request, injecting the stored Cookie header if available.
-    fn get(&self, url: &str) -> reqwest::RequestBuilder {
+    fn get(&self, url: &str) -> reqwest_middleware::RequestBuilder {
         let mut req = self.client.get(url);
         if let Ok(lock) = self.cookie_header.lock() {
             if let Some(ref cookie) = *lock {

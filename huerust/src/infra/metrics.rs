@@ -1,116 +1,40 @@
-//! Hue Stream API
-//! Professional Streaming Aggregator
-//!
-//! @author roywalk3r <roywalker440@gmail.com>
-//! @repository https://github.com/roywalk3r/hue.git
-//! @license MIT
+use metrics_exporter_prometheus::PrometheusBuilder;
+use std::sync::Arc;
 
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-
-/// Thread-safe per-provider metrics using atomics.
+#[derive(Clone)]
 pub struct Metrics {
-    providers: HashMap<String, ProviderMetrics>,
-}
-
-#[derive(Default)]
-pub struct ProviderMetrics {
-    pub total_requests: AtomicU64,
-    pub successes: AtomicU64,
-    pub failures: AtomicU64,
-    pub timeouts: AtomicU64,
-    pub total_latency_ms: AtomicU64,
-    pub circuit_trips: AtomicU64,
+    handle: Arc<metrics_exporter_prometheus::PrometheusHandle>,
 }
 
 impl Metrics {
-    pub fn new(provider_names: &[&str]) -> Self {
-        let mut providers = HashMap::new();
-        for name in provider_names {
-            providers.insert(name.to_string(), ProviderMetrics::default());
+    pub fn new(_names: &[&str]) -> Self {
+        let recorder = PrometheusBuilder::new().build_recorder();
+        let handle = Arc::new(recorder.handle());
+        if let Err(e) = metrics::set_global_recorder(recorder) {
+            tracing::warn!("Metrics recorder already installed: {}", e);
         }
-        Self { providers }
+        Self { handle }
     }
 
     pub fn record_request(&self, provider: &str, latency_ms: u64, success: bool, timed_out: bool) {
-        if let Some(m) = self.providers.get(provider) {
-            m.total_requests.fetch_add(1, Ordering::Relaxed);
-            m.total_latency_ms.fetch_add(latency_ms, Ordering::Relaxed);
-            if timed_out {
-                m.timeouts.fetch_add(1, Ordering::Relaxed);
-                m.failures.fetch_add(1, Ordering::Relaxed);
-            } else if success {
-                m.successes.fetch_add(1, Ordering::Relaxed);
-            } else {
-                m.failures.fetch_add(1, Ordering::Relaxed);
-            }
+        let p = provider.to_string();
+        metrics::counter!("huerust_provider_requests_total", "provider" => p.clone()).increment(1);
+        metrics::counter!("huerust_provider_latency_ms_total", "provider" => p.clone()).increment(latency_ms);
+        if timed_out {
+            metrics::counter!("huerust_provider_timeouts_total", "provider" => p.clone()).increment(1);
+            metrics::counter!("huerust_provider_failures_total", "provider" => p.clone()).increment(1);
+        } else if success {
+            metrics::counter!("huerust_provider_successes_total", "provider" => p.clone()).increment(1);
+        } else {
+            metrics::counter!("huerust_provider_failures_total", "provider" => p.clone()).increment(1);
         }
     }
 
     pub fn record_circuit_trip(&self, provider: &str) {
-        if let Some(m) = self.providers.get(provider) {
-            m.circuit_trips.fetch_add(1, Ordering::Relaxed);
-        }
+        metrics::counter!("huerust_provider_circuit_trips_total", "provider" => provider.to_string()).increment(1);
     }
 
     pub fn render_prometheus(&self) -> String {
-        let mut output = String::new();
-        let providers: Vec<String> = self.providers.keys().cloned().collect();
-
-        // Counter: total requests
-        output.push_str("# TYPE huerust_provider_requests_total counter\n");
-        output.push_str("# HELP huerust_provider_requests_total Total provider fetch requests\n");
-        for name in &providers {
-            let m = self.providers.get(name).unwrap();
-            let val = m.total_requests.load(Ordering::Relaxed);
-            output.push_str(&format!("huerust_provider_requests_total{{provider=\"{}\"}} {}\n", name, val));
-        }
-
-        // Counter: successes
-        output.push_str("# TYPE huerust_provider_successes_total counter\n");
-        output.push_str("# HELP huerust_provider_successes_total Successful provider fetches\n");
-        for name in &providers {
-            let m = self.providers.get(name).unwrap();
-            let val = m.successes.load(Ordering::Relaxed);
-            output.push_str(&format!("huerust_provider_successes_total{{provider=\"{}\"}} {}\n", name, val));
-        }
-
-        // Counter: failures
-        output.push_str("# TYPE huerust_provider_failures_total counter\n");
-        output.push_str("# HELP huerust_provider_failures_total Failed provider fetches\n");
-        for name in &providers {
-            let m = self.providers.get(name).unwrap();
-            let val = m.failures.load(Ordering::Relaxed);
-            output.push_str(&format!("huerust_provider_failures_total{{provider=\"{}\"}} {}\n", name, val));
-        }
-
-        // Counter: timeouts
-        output.push_str("# TYPE huerust_provider_timeouts_total counter\n");
-        output.push_str("# HELP huerust_provider_timeouts_total Timed-out provider fetches\n");
-        for name in &providers {
-            let m = self.providers.get(name).unwrap();
-            let val = m.timeouts.load(Ordering::Relaxed);
-            output.push_str(&format!("huerust_provider_timeouts_total{{provider=\"{}\"}} {}\n", name, val));
-        }
-
-        // Counter: total latency
-        output.push_str("# TYPE huerust_provider_latency_ms_total counter\n");
-        output.push_str("# HELP huerust_provider_latency_ms_total Sum of provider fetch latencies\n");
-        for name in &providers {
-            let m = self.providers.get(name).unwrap();
-            let val = m.total_latency_ms.load(Ordering::Relaxed);
-            output.push_str(&format!("huerust_provider_latency_ms_total{{provider=\"{}\"}} {}\n", name, val));
-        }
-
-        // Counter: circuit trips
-        output.push_str("# TYPE huerust_provider_circuit_trips_total counter\n");
-        output.push_str("# HELP huerust_provider_circuit_trips_total Circuit breaker trips to Open\n");
-        for name in &providers {
-            let m = self.providers.get(name).unwrap();
-            let val = m.circuit_trips.load(Ordering::Relaxed);
-            output.push_str(&format!("huerust_provider_circuit_trips_total{{provider=\"{}\"}} {}\n", name, val));
-        }
-
-        output
+        self.handle.render()
     }
 }

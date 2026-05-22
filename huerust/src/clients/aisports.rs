@@ -2,13 +2,20 @@
 //! Fetches live sports streams from the Aoneroom API (sportslivenow.top)
 
 use anyhow::{Result, anyhow};
-use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
 const API_LIST_URL: &str = "https://h5.aoneroom.com/wefeed-h5-bff/live/match-list-v5?leagueId=0";
 const API_DETAIL_URL: &str = "https://h5.aoneroom.com/wefeed-h5-bff/sport/detail-v1";
+const LEAGUE_TAB_URL: &str = "https://h5.aoneroom.com/wefeed-h5-bff/live/league-tab";
 const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1";
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct League {
+    pub id: String,
+    pub name: String,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SportsStream {
@@ -90,12 +97,38 @@ struct MatchDetail {
 }
 
 pub struct AiSportsClient {
-    client: Client,
+    client: ClientWithMiddleware,
 }
 
 impl AiSportsClient {
-    pub fn new(client: Client) -> Self {
+    pub fn new(client: ClientWithMiddleware) -> Self {
         Self { client }
+    }
+
+    pub async fn get_leagues(&self) -> Result<Vec<League>> {
+        let resp = self.client
+            .get(LEAGUE_TAB_URL)
+            .header("User-Agent", USER_AGENT)
+            .header("Origin", "https://sportslivenow.top")
+            .header("Referer", "https://sportslivenow.top/")
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(anyhow!("AiSports leagues API returned {}", resp.status()));
+        }
+
+        let api_resp: ApiResponse<serde_json::Value> = resp.json().await?;
+        if api_resp.code != 0 {
+            return Err(anyhow!("AiSports leagues API code: {}", api_resp.code));
+        }
+
+        let leagues = api_resp.data
+            .and_then(|d| d.get("list").cloned())
+            .and_then(|list| serde_json::from_value::<Vec<League>>(list).ok())
+            .unwrap_or_default();
+
+        Ok(leagues)
     }
 
     async fn get_matches(&self) -> Result<Vec<Match>> {

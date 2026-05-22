@@ -7,12 +7,15 @@ edition = "2021"
 # Async Runtime & Web Framework
 tokio = { version = "1.36", features = ["full"] }
 axum = { version = "0.7.4", features = ["macros"] }
-tower-http = { version = "0.5.2", features = ["cors"] }
+tower-http = { version = "0.5.2", features = ["cors", "compression-gzip", "compression-br", "trace"] }
 
 # Networking & Scraped Data
-reqwest = { version = "0.11", features = ["json", "stream", "rustls-tls", "multipart", "gzip"] }
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls", "multipart", "gzip"] }
+reqwest-middleware = { version = "0.3", features = ["json"] }
+reqwest-retry = "0.6"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_qs = "0.13"
 url = "2.5"
 urlencoding = "2.1"
 base64 = "0.21"
@@ -34,11 +37,15 @@ dotenv = "0.15"
 rand = "0.8"
 anyhow = "1.0"
 thiserror = "1.0"
+validator = { version = "0.18", features = ["derive"] }
 
 # Caching & Concurrency
 moka = { version = "0.12", features = ["future"] }
 dashmap = "6.0"
 redis = { version = "0.24", features = ["tokio-comp"] }
+deadpool-redis = "0.15"
+governor = "0.6"
+ulid = "1.1"
 
 # Provider Trait
 async-trait = "0.1"
@@ -49,8 +56,16 @@ tokio-stream = "0.1"
 # Rate Limiting
 tower = { version = "0.4", features = ["limit"] }
 
+# Metrics
+metrics = "0.23"
+metrics-exporter-prometheus = "0.15"
+
 # Scraping
 regex = "1.10"
+
+# TLS
+rustls-pemfile = "2.0"
+webpki-roots = "0.26"
 
 # Documentation (OpenAPI)
 utoipa = { version = "4", features = ["axum_extras"] }

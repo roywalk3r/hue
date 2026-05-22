@@ -16,7 +16,7 @@
 //!   4. Tracks (subtitles) returned inline in the API response
 
 use std::sync::LazyLock;
-use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
 use anyhow::{Result, anyhow};
 use aes::Aes256;
 use cbc::Decryptor as CbcDecryptor;
@@ -60,7 +60,7 @@ static SECRETS: OnceCell<VidzeeSecrets> = OnceCell::const_new();
 
 /// Fetch the embed page, locate the embed JS chunk, and extract the hex secret
 /// and api-key URL. Result is cached so subsequent calls are free.
-async fn fetch_secrets(client: &Client) -> &VidzeeSecrets {
+async fn fetch_secrets(client: &ClientWithMiddleware) -> &VidzeeSecrets {
     SECRETS
         .get_or_init(|| async {
             match try_fetch_secrets(client).await {
@@ -80,7 +80,7 @@ async fn fetch_secrets(client: &Client) -> &VidzeeSecrets {
         .await
 }
 
-async fn try_fetch_secrets(client: &Client) -> Result<VidzeeSecrets> {
+async fn try_fetch_secrets(client: &ClientWithMiddleware) -> Result<VidzeeSecrets> {
     // Step 1: Fetch the embed page HTML
     let embed_url = "https://player.vidzee.wtf/embed/movie/550";
     let html = client
@@ -126,11 +126,11 @@ async fn try_fetch_secrets(client: &Client) -> Result<VidzeeSecrets> {
 }
 
 pub struct VidzeeClient {
-    client: Client,
+    client: ClientWithMiddleware,
 }
 
 impl VidzeeClient {
-    pub fn new(client: Client) -> Self {
+    pub fn new(client: ClientWithMiddleware) -> Self {
         Self { client }
     }
 

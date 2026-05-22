@@ -9,6 +9,7 @@
 
 use serde::Deserialize;
 use reqwest::header::{HeaderMap, HeaderValue, ORIGIN, REFERER};
+use reqwest::Client;
 use anyhow::Result;
 use std::collections::HashMap;
 use tracing::{info, warn};
@@ -43,7 +44,7 @@ struct HydraSub {
 }
 
 pub struct Mp4HydraClient {
-    client: reqwest::Client,
+    client: Client,
 }
 
 impl Mp4HydraClient {

@@ -6,7 +6,7 @@
 //! @license MIT
 
 use serde::{Deserialize, Serialize};
-use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
 use anyhow::Result;
 use tracing::{info, warn};
 use crate::models::StreamResult;
@@ -49,7 +49,7 @@ pub struct XyraStreamData {
 }
 
 pub struct DramacoolClient {
-    client: Client,
+    client: ClientWithMiddleware,
     scraper_url: String,
 }
 
@@ -58,7 +58,7 @@ impl DramacoolClient {
         let scraper_url = std::env::var("MICROSERVICE_URL")
             .unwrap_or_else(|_| "http://127.0.0.1:24610".to_string());
         Self {
-            client: Client::new(),
+            client: crate::http_client::wrap_with_retry(reqwest::Client::new()),
             scraper_url,
         }
     }

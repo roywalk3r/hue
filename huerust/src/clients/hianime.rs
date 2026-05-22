@@ -9,6 +9,7 @@
 
 use anyhow::{anyhow, Result};
 use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::time::Duration;
@@ -119,7 +120,7 @@ pub struct MegaplayResponse {
 }
 
 pub struct HianimeClient {
-    client: reqwest::Client,
+    client: ClientWithMiddleware,
     episode_cache: Cache<String, EpisodeResponse>,
     stream_cache: Cache<String, StreamData>,
 }
@@ -134,7 +135,7 @@ impl HianimeClient {
             .build()
             .unwrap();
         Self {
-            client,
+            client: crate::http_client::wrap_with_retry(client),
             episode_cache: Cache::builder()
                 .max_capacity(500)
                 .time_to_live(Duration::from_secs(60 * 60))
@@ -411,7 +412,7 @@ impl HianimeClient {
 /// Extract the real `data-id` from a megaplay/animeplay iframe page HTML.
 /// The iframe page contains `<div data-id="36396" data-realid="2142">`;
 /// the site uses `data-id` for `getSources`, not the server ID from the URL.
-async fn extract_data_id_from_iframe(client: &reqwest::Client, iframe_url: &str) -> Option<String> {
+async fn extract_data_id_from_iframe(client: &ClientWithMiddleware, iframe_url: &str) -> Option<String> {
     let mut headers = HeaderMap::new();
     headers.insert("User-Agent", HeaderValue::from_static(UA_DESKTOP));
     headers.insert("Referer", HeaderValue::from_static("https://hianimes.se/"));

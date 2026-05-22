@@ -1,4 +1,6 @@
-use reqwest::{ClientBuilder, Proxy};
+use reqwest::{Client, ClientBuilder, Proxy};
+use reqwest_middleware::{ClientBuilder as MiddlewareClientBuilder, ClientWithMiddleware};
+use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use tracing::warn;
 
 pub fn with_optional_proxy(builder: ClientBuilder, specific_env: &str) -> ClientBuilder {
@@ -18,4 +20,21 @@ pub fn with_optional_proxy(builder: ClientBuilder, specific_env: &str) -> Client
             builder
         }
     }
+}
+
+#[allow(dead_code)]
+pub fn build_client_with_retry(builder: ClientBuilder, specific_env: &str) -> ClientWithMiddleware {
+    let client = with_optional_proxy(builder, specific_env).build().expect("Failed to build reqwest Client");
+    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
+    MiddlewareClientBuilder::new(client)
+        .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+        .build()
+}
+
+/// Wrap an existing [`Client`] with retry middleware.
+pub fn wrap_with_retry(client: Client) -> ClientWithMiddleware {
+    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
+    MiddlewareClientBuilder::new(client)
+        .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+        .build()
 }

@@ -13,7 +13,7 @@
 //!   1. GET api.videasy.net/cdn/sources-with-title?title=... → hex response
 //!   2. POST daemon /scrape/videasy { hexResponse, tmdbId } → decrypted streams
 
-use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
 use anyhow::Result;
 use tracing::{info, warn};
 use crate::models::StreamResult;
@@ -23,7 +23,7 @@ const API_BASE: &str = "https://api.videasy.net";
 const DAEMON_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 
 pub struct VideasyClient {
-    client: Client,
+    client: ClientWithMiddleware,
     daemon_url: String,
 }
 
@@ -31,16 +31,17 @@ impl VideasyClient {
     pub fn new() -> Self {
         let daemon_url = std::env::var("MICROSERVICE_URL")
             .unwrap_or_else(|_| "http://127.0.0.1:24610".to_string());
+        let client = reqwest::Client::builder()
+            .user_agent(DAEMON_UA)
+            .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .tcp_keepalive(std::time::Duration::from_secs(60))
+            .pool_max_idle_per_host(2)
+            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .build()
+            .unwrap();
         Self {
-            client: Client::builder()
-                .user_agent(DAEMON_UA)
-                .timeout(std::time::Duration::from_secs(30))
-                .connect_timeout(std::time::Duration::from_secs(10))
-                .tcp_keepalive(std::time::Duration::from_secs(60))
-                .pool_max_idle_per_host(2)
-                .pool_idle_timeout(std::time::Duration::from_secs(90))
-                .build()
-                .unwrap(),
+            client: crate::http_client::wrap_with_retry(client),
             daemon_url,
         }
     }

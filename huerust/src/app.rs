@@ -7,12 +7,14 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
+use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -50,7 +52,8 @@ pub fn kisskh_enabled() -> bool {
 
 #[derive(Clone)]
 pub struct AppState {
-    pub client: Client,
+    pub client: ClientWithMiddleware,
+    pub raw_client: reqwest::Client,
     pub tmdb: Arc<TmdbClient>,
     pub registry: Arc<ProviderRegistry>,
     pub cache: Arc<StreamCache>,
@@ -69,6 +72,8 @@ pub struct AppState {
     pub coalescer: Arc<FetchCoalescer>,
     pub metrics: Arc<Metrics>,
     pub start_time: std::time::Instant,
+    #[allow(dead_code)]
+    pub redis_pool: Option<deadpool_redis::Pool>,
 }
 
 pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
@@ -88,8 +93,8 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let dramacool_client = Arc::new(crate::providers::dramacool::DramacoolClient::new());
     let hianime_client = Arc::new(crate::clients::hianime::HianimeClient::new());
     let vixsrc_client = Arc::new(VixsrcClient::new(
-        crate::http_client::with_optional_proxy(
-            Client::builder()
+        crate::http_client::build_client_with_retry(
+            reqwest::Client::builder()
                 .tcp_keepalive(Duration::from_secs(60))
                 .connect_timeout(Duration::from_secs(8))
                 .pool_max_idle_per_host(2)
@@ -97,21 +102,21 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
                 .timeout(Duration::from_secs(15))
                 .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
             "VIXSRC_PROXY_URL",
-        )
-        .build()
-        .unwrap(),
+        ),
     ));
 
     let vidrock_client = Arc::new(crate::clients::vidrock::VidRockClient::new());
     let vidsrcembed_client = Arc::new(crate::clients::vidsrcembed::VidsrcEmbedClient::new());
     let vidzee_client = Arc::new(VidzeeClient::new(
-        Client::builder()
-            .tcp_keepalive(Duration::from_secs(60))
-            .connect_timeout(Duration::from_secs(8))
-            .timeout(Duration::from_secs(20))
-            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-            .build()
-            .unwrap(),
+        crate::http_client::wrap_with_retry(
+            reqwest::Client::builder()
+                .tcp_keepalive(Duration::from_secs(60))
+                .connect_timeout(Duration::from_secs(8))
+                .timeout(Duration::from_secs(20))
+                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .build()
+                .unwrap(),
+        ),
     ));
     let videasy_client = Arc::new(VideasyClient::new());
 
@@ -132,20 +137,30 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         vidsrcembed_client.clone(),
     )));
 
+    let redis_pool = if cfg.cache_backend == "redis" {
+        let pool_cfg = deadpool_redis::Config::from_url(&cfg.redis_url);
+        pool_cfg.create_pool(Some(deadpool_redis::Runtime::Tokio1)).ok()
+    } else {
+        None
+    };
+
+    let raw_client = crate::http_client::with_optional_proxy(
+        reqwest::Client::builder()
+            .tcp_keepalive(Duration::from_secs(60))
+            .tcp_nodelay(true)
+            .timeout(Duration::from_secs(30))
+            .connect_timeout(Duration::from_secs(10))
+            .pool_max_idle_per_host(32)
+            .pool_idle_timeout(Duration::from_secs(120))
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
+        "STREAM_PROXY_URL",
+    )
+    .build()
+    .unwrap();
+
     AppState {
-        client: crate::http_client::with_optional_proxy(
-            Client::builder()
-                .tcp_keepalive(Duration::from_secs(60))
-                .tcp_nodelay(true)
-                .timeout(Duration::from_secs(30))
-                .connect_timeout(Duration::from_secs(10))
-                .pool_max_idle_per_host(32)
-                .pool_idle_timeout(Duration::from_secs(120))
-                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
-            "STREAM_PROXY_URL",
-        )
-        .build()
-        .unwrap(),
+        client: crate::http_client::wrap_with_retry(raw_client.clone()),
+        raw_client,
         tmdb: tmdb.clone(),
         registry: Arc::new(registry),
         cache: cache.clone(),
@@ -156,13 +171,15 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         moviebox: moviebox_client.clone(),
         hianime: hianime_client.clone(),
         aisports: Arc::new(crate::clients::aisports::AiSportsClient::new(
-            Client::builder()
-                .tcp_keepalive(Duration::from_secs(60))
-                .connect_timeout(Duration::from_secs(8))
-                .timeout(Duration::from_secs(15))
-                .user_agent("Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1")
-                .build()
-                .unwrap(),
+            crate::http_client::wrap_with_retry(
+                reqwest::Client::builder()
+                    .tcp_keepalive(Duration::from_secs(60))
+                    .connect_timeout(Duration::from_secs(8))
+                    .timeout(Duration::from_secs(15))
+                    .user_agent("Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1")
+                    .build()
+                    .unwrap(),
+            ),
         )),
         secret: cfg.secret.clone(),
         kkey: cfg.kkey.clone(),
@@ -172,6 +189,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         coalescer: Arc::new(FetchCoalescer::new()),
         metrics: metrics.clone(),
         start_time: std::time::Instant::now(),
+        redis_pool,
     }
 }
 
@@ -185,19 +203,7 @@ pub fn spawn_background_tasks(state: &AppState) {
         }
     });
 
-    // Background Task: Evict stale rate-limiter entries every 5 minutes
-    let rl_bg = state.rate_limiter.clone();
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(300));
-        loop {
-            interval.tick().await;
-            let now = Instant::now();
-            let window = Duration::from_secs(rl_bg.window_secs * 2);
-            rl_bg
-                .store
-                .retain(|_, (_, start)| now.duration_since(*start) < window);
-        }
-    });
+    // governor handles its own key expiration — no manual eviction needed
 }
 
 pub fn build_router(state: AppState) -> Router {
@@ -427,14 +433,31 @@ pub fn build_router(state: AppState) -> Router {
             axum::routing::post(crate::routes::anime::filter_handler),
         )
         .route(
+            "/api/aisports/leagues",
+            get(crate::routes::sports::leagues_handler),
+        )
+        .route(
             "/api/sports/streams",
             get(crate::routes::sports::streams_handler),
         )
+        .route("/api/tmdb/home", get(crate::routes::tmdb::home_handler))
+        .route("/api/tmdb/movie/popular", get(crate::routes::tmdb::movie_popular_handler))
+        .route("/api/tmdb/movie/top-rated", get(crate::routes::tmdb::movie_top_rated_handler))
+        .route("/api/tmdb/movie/now-playing", get(crate::routes::tmdb::movie_now_playing_handler))
+        .route("/api/tmdb/tv/popular", get(crate::routes::tmdb::tv_popular_handler))
+        .route("/api/tmdb/tv/top-rated", get(crate::routes::tmdb::tv_top_rated_handler))
+        .route("/api/tmdb/tv/on-the-air", get(crate::routes::tmdb::tv_on_the_air_handler))
+        .route("/api/tmdb/trending", get(crate::routes::tmdb::trending_handler))
+        .route("/api/tmdb/discover", get(crate::routes::tmdb::discover_handler))
+        .route("/api/tmdb/search", get(crate::routes::tmdb::search_handler))
         .route("/api/status", get(crate::routes::system::status_handler))
         .merge(
             SwaggerUi::new("/api/docs")
                 .url("/api/docs/openapi.json", crate::openapi::ApiDoc::openapi()),
         )
+        .layer(TraceLayer::new_for_http())
+        .layer(CompressionLayer::new())
+        .layer(middleware::from_fn(request_id_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             rate_limit_middleware,
@@ -491,6 +514,15 @@ async fn auth_middleware(
         }
     }
     Ok(next.run(req).await)
+}
+
+async fn request_id_middleware(req: Request<Body>, next: Next) -> Response {
+    let id = ulid::Ulid::new().to_string();
+    let mut response = next.run(req).await;
+    if let Ok(val) = axum::http::HeaderValue::from_str(&id) {
+        response.headers_mut().insert("x-request-id", val);
+    }
+    response
 }
 
 async fn vixsrc_enc_key_handler(State(state): State<AppState>) -> Response {
@@ -565,7 +597,7 @@ pub struct StreamState {
     pub secret: String,
     pub kkey: String,
     pub proxy_base_url: String,
-    pub client: Client,
+    pub client: ClientWithMiddleware,
     pub hitv: Arc<HiTvClient>,
 }
 
@@ -680,6 +712,20 @@ impl FromRef<AppState> for ProvidersState {
     }
 }
 
+/// State for /api/tmdb/* routes
+#[derive(Clone)]
+pub struct TmdbState {
+    pub tmdb: Arc<TmdbClient>,
+}
+
+impl FromRef<AppState> for TmdbState {
+    fn from_ref(s: &AppState) -> Self {
+        Self {
+            tmdb: s.tmdb.clone(),
+        }
+    }
+}
+
 /// State for system routes (health, metrics, status, admin)
 #[derive(Clone)]
 pub struct SystemState {
@@ -687,7 +733,7 @@ pub struct SystemState {
     pub hitv: Arc<HiTvClient>,
     pub registry: Arc<ProviderRegistry>,
     pub start_time: std::time::Instant,
-    pub client: Client,
+    pub client: ClientWithMiddleware,
 }
 
 impl FromRef<AppState> for SystemState {

@@ -19,7 +19,7 @@
 //! The production solution uses a Node.js daemon (daemon/daemon.js) that keeps
 //! a warm headless Chromium and extracts URLs via the live JW Player flow.
 
-use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
 use anyhow::{Result, anyhow};
 use moka::future::Cache;
 use tracing::{info, warn};
@@ -54,13 +54,13 @@ struct PpvApiResponse {
 // ─── Client ──────────────────────────────────────────────────────────────────────
 
 pub struct PpvToClient {
-    client: Client,
+    client: ClientWithMiddleware,
     /// Cache: match_path → stream_url
     url_cache: Cache<String, String>,
 }
 
 impl PpvToClient {
-    pub fn new(client: Client) -> Self {
+    pub fn new(client: ClientWithMiddleware) -> Self {
         Self {
             client,
             // Cache stream URLs for the match window (default 6h)

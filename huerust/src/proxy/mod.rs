@@ -395,7 +395,7 @@ pub async fn m3u8_handler(
     }
 
     let is_vix = is_vixsrc_target(&target_url, &headers);
-    let mut req = state.client.get(&target_url);
+    let mut req = state.raw_client.get(&target_url);
     req = inject_cdn_headers(req, &target_url, &headers);
 
     // Inject headers from token (overrides defaults)
@@ -459,7 +459,7 @@ pub async fn m3u8_handler(
         );
     }
 
-    let (status, body, ct) = match send_m3u8_request(&state.client, req, &target_url, is_vix).await {
+    let (status, body, ct) = match send_m3u8_request(&state.raw_client, req, &target_url, is_vix).await {
         Ok(result) => result,
         Err(e) => return (StatusCode::BAD_GATEWAY, e).into_response(),
     };
@@ -509,13 +509,13 @@ pub async fn m3u8_handler(
         // Retry once for Vixsrc with minimal headers (strip everything except Referer + UA + Origin)
         if is_vix && (status.as_u16() == 403 || status.as_u16() == 401) {
             tracing::info!("[m3u8-proxy] Vixsrc got {} — retrying with minimal header set", status.as_u16());
-            let mut retry = state.client.get(&target_url);
+            let mut retry = state.raw_client.get(&target_url);
             retry = retry.header("Referer", "https://vixsrc.to/");
             retry = retry.header("Origin", "https://vixsrc.to");
             retry = retry.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
             retry = retry.header("Accept", "*/*");
 
-            if let Ok((status2, body2, ct2)) = send_m3u8_request(&state.client, retry, &target_url, false).await {
+            if let Ok((status2, body2, ct2)) = send_m3u8_request(&state.raw_client, retry, &target_url, false).await {
                 let body_trim2 = body2.trim_start_matches('\u{feff}').trim_start();
                 let is_hls2 = ct2.contains("mpegurl")
                     || ct2.contains("x-mpegurl")
@@ -681,7 +681,7 @@ pub async fn ts_handler(
     tracing::info!("[ts-proxy] Target: {}", target_url);
     tracing::info!("[ts-proxy] Token headers: {:?}", headers);
 
-    let mut req = state.client.get(&target_url);
+    let mut req = state.raw_client.get(&target_url);
     req = inject_cdn_headers(req, &target_url, &headers);
     req = req.header("Accept-Encoding", "identity");
 
@@ -756,7 +756,7 @@ pub async fn ts_handler(
                                 .into_response();
                         }
                         // Follow redirect (one level)
-                        let follow = state.client.get(loc_str);
+                        let follow = state.raw_client.get(loc_str);
                         if let Ok(resp2) = follow.send().await {
                             let status2 = resp2.status();
                             let mut builder = Response::builder().status(
@@ -846,7 +846,7 @@ pub async fn ts_handler(
                     "[ts-proxy] Initial request failed ({}), retrying without Range",
                     e
                 );
-                let mut retry = state.client.get(&target_url);
+                let mut retry = state.raw_client.get(&target_url);
                 retry = inject_cdn_headers(retry, &target_url, &headers);
                 if let Some(ref h) = headers {
                     for (k, v) in h {
@@ -916,7 +916,7 @@ pub async fn sub_handler(
         return (StatusCode::FORBIDDEN, "Blocked internal URL").into_response();
     }
 
-    let mut req = state.client.get(&target_url);
+    let mut req = state.raw_client.get(&target_url);
     req = inject_cdn_headers(req, &target_url, &headers);
 
     // Inject headers from token (overrides defaults)
