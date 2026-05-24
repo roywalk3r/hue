@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"kill 1097754 && sleep 1 && nohup /mnt/devdrive/projects/Misc/hue/huerust/target/release/huerust > /tmp/huerust.log 2>&1 & && sleep 2 && echo \\\"Backend restarted\\\" && curl -s http://localho...",
-  "error": "Exit code 1\n(eval):1: parse error near `&&'",
-  "timestamp": "2026-05-21T15:26:42.809Z",
-  "retry_count": 1
+  "tool_input_preview": "{\"command\":\"git add -A src/clients/livetv.rs\",\"description\":\"Stage livetv.rs deletion\"}",
+  "error": "Exit code 128\nfatal: pathspec 'src/clients/livetv.rs' did not match any files",
+  "timestamp": "2026-05-22T12:31:56.078Z",
+  "retry_count": 2
 }

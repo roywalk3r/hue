@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1779312092811,
+  "lastScanned": 1779441671636,
   "projectRoot": "/mnt/devdrive/projects/Misc/hue/huerust",
   "techStack": {
     "languages": [
@@ -44,10 +44,7 @@
       "examples",
       "src"
     ],
-    "gitBranches": {
-      "defaultBranch": "main",
-      "branchingStrategy": null
-    }
+    "gitBranches": null
   },
   "customNotes": [],
   "directoryMap": {
@@ -55,7 +52,7 @@
       "path": "daemon",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1779312092806,
+      "lastAccessed": 1779441671630,
       "keyFiles": [
         "daemon.js",
         "package-lock.json",
@@ -66,21 +63,21 @@
       "path": "docs",
       "purpose": "Documentation",
       "fileCount": 0,
-      "lastAccessed": 1779312092808,
+      "lastAccessed": 1779441671633,
       "keyFiles": []
     },
     "examples": {
       "path": "examples",
       "purpose": "Example code",
       "fileCount": 0,
-      "lastAccessed": 1779312092808,
+      "lastAccessed": 1779441671633,
       "keyFiles": []
     },
     "src": {
       "path": "src",
       "purpose": "Source code",
       "fileCount": 11,
-      "lastAccessed": 1779312092809,
+      "lastAccessed": 1779441671634,
       "keyFiles": [
         "app.rs",
         "config.rs",
@@ -93,7 +90,7 @@
       "path": "target",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1779312092809,
+      "lastAccessed": 1779441671634,
       "keyFiles": [
         "CACHEDIR.TAG"
       ]
@@ -102,14 +99,14 @@
       "path": "daemon/node_modules",
       "purpose": "Dependencies",
       "fileCount": 1,
-      "lastAccessed": 1779312092810,
+      "lastAccessed": 1779441671634,
       "keyFiles": []
     },
     "src/models": {
       "path": "src/models",
       "purpose": "Data models",
       "fileCount": 1,
-      "lastAccessed": 1779312092810,
+      "lastAccessed": 1779441671635,
       "keyFiles": [
         "anime.rs"
       ]
@@ -117,105 +114,189 @@
   },
   "hotPaths": [
     {
-      "path": "src/proxy/mod.rs",
-      "accessCount": 59,
-      "lastAccessed": 1779364279504,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/vixsrc.rs",
-      "accessCount": 28,
-      "lastAccessed": 1779319532211,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/sse.rs",
-      "accessCount": 10,
-      "lastAccessed": 1779364059920,
-      "type": "file"
-    },
-    {
-      "path": "src/proxy/wrap.rs",
-      "accessCount": 9,
-      "lastAccessed": 1779364039721,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/drama.rs",
-      "accessCount": 6,
-      "lastAccessed": 1779355442875,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/moviebox.rs",
-      "accessCount": 6,
-      "lastAccessed": 1779377596804,
-      "type": "file"
-    },
-    {
-      "path": "src/clients/aisports.rs",
-      "accessCount": 5,
-      "lastAccessed": 1779356468927,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/streams.rs",
-      "accessCount": 3,
-      "lastAccessed": 1779356483534,
-      "type": "file"
-    },
-    {
       "path": "src/app.rs",
-      "accessCount": 2,
-      "lastAccessed": 1779356192563,
+      "accessCount": 35,
+      "lastAccessed": 1779616087409,
       "type": "file"
     },
     {
-      "path": "src/security.rs",
-      "accessCount": 2,
-      "lastAccessed": 1779356467487,
+      "path": "src/proxy/mod.rs",
+      "accessCount": 18,
+      "lastAccessed": 1779616183075,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/tmdb.rs",
+      "accessCount": 17,
+      "lastAccessed": 1779452235871,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/hianime.rs",
+      "accessCount": 9,
+      "lastAccessed": 1779447932844,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/vidzee.rs",
+      "accessCount": 9,
+      "lastAccessed": 1779448042465,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/hitv.rs",
+      "accessCount": 8,
+      "lastAccessed": 1779447906629,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/vidrock.rs",
+      "accessCount": 7,
+      "lastAccessed": 1779447959372,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/kisskh.rs",
+      "accessCount": 7,
+      "lastAccessed": 1779448007548,
       "type": "file"
     },
     {
       "path": "src/providers/mp4hydra.rs",
+      "accessCount": 7,
+      "lastAccessed": 1779451978226,
+      "type": "file"
+    },
+    {
+      "path": "src/http_client.rs",
+      "accessCount": 6,
+      "lastAccessed": 1779447743250,
+      "type": "file"
+    },
+    {
+      "path": "Cargo.toml",
+      "accessCount": 6,
+      "lastAccessed": 1779452198365,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/vidsrcembed.rs",
+      "accessCount": 5,
+      "lastAccessed": 1779447969257,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/dramacool.rs",
+      "accessCount": 4,
+      "lastAccessed": 1779447981647,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/videasy.rs",
+      "accessCount": 4,
+      "lastAccessed": 1779448024227,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/vixsrc.rs",
+      "accessCount": 4,
+      "lastAccessed": 1779448054731,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/ppvto.rs",
+      "accessCount": 4,
+      "lastAccessed": 1779448072723,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/aisports.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779442534623,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/sports.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779442582832,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/anime.rs",
+      "accessCount": 3,
+      "lastAccessed": 1779616160191,
+      "type": "file"
+    },
+    {
+      "path": "src/infra/rate_limit.rs",
       "accessCount": 2,
-      "lastAccessed": 1779356514334,
+      "lastAccessed": 1779442027368,
       "type": "file"
     },
     {
-      "path": "src/providers/mp4hydra_provider.rs",
+      "path": "src/infra/metrics.rs",
       "accessCount": 2,
-      "lastAccessed": 1779356515091,
+      "lastAccessed": 1779442129942,
       "type": "file"
     },
     {
-      "path": "src/infra/cache.rs",
-      "accessCount": 1,
-      "lastAccessed": 1779312142727,
+      "path": "src/routes/system.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779452262967,
       "type": "file"
     },
     {
-      "path": "src/providers/vixsrc_provider.rs",
+      "path": "src/routes/mod.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779452290917,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/tmdb.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779452328476,
+      "type": "file"
+    },
+    {
+      "path": "src/main.rs",
       "accessCount": 1,
-      "lastAccessed": 1779319710198,
+      "lastAccessed": 1779441687878,
+      "type": "file"
+    },
+    {
+      "path": "src/infra/circuit_breaker.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779442075742,
       "type": "file"
     },
     {
       "path": "src/providers/dispatch.rs",
       "accessCount": 1,
-      "lastAccessed": 1779319723475,
+      "lastAccessed": 1779442075900,
       "type": "file"
     },
     {
-      "path": "src/clients/hianime.rs",
+      "path": "src/infra/cache.rs",
       "accessCount": 1,
-      "lastAccessed": 1779352198520,
+      "lastAccessed": 1779442446058,
       "type": "file"
     },
     {
       "path": "src/config.rs",
       "accessCount": 1,
-      "lastAccessed": 1779364074801,
+      "lastAccessed": 1779442636263,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/hitv.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779452193460,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/moviebox.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779452198258,
       "type": "file"
     }
   ],

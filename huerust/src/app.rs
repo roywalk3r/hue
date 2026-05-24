@@ -210,6 +210,7 @@ pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(crate::routes::system::health_check))
         .route("/metrics", get(crate::routes::system::metrics_handler))
+        .route("/api/proxy", get(crate::proxy::generic_proxy_handler))
         .route("/m3u8-proxy", get(crate::proxy::m3u8_handler))
         .route("/ts-proxy", get(crate::proxy::ts_handler))
         .route("/sub-proxy", get(crate::proxy::sub_handler))

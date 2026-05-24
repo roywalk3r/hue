@@ -1297,6 +1297,107 @@ fn srt_time_to_vtt(time: &str) -> String {
     time.replace(',', ".")
 }
 
+// ── Generic Proxy ────────────────────────────────────────────────────────────
+
+/// Generic proxy handler for iframe and other non-media content.
+/// Decrypts h_token and streams the upstream response back to the client.
+pub async fn generic_proxy_handler(
+    State(state): State<AppState>,
+    Query(params): Query<ProxyQuery>,
+    request_headers: HeaderMap,
+) -> Response {
+    // CORS preflight
+    if request_headers.get("access-control-request-method").is_some()
+        || request_headers.get("access-control-request-headers").is_some()
+    {
+        let mut builder = Response::builder().status(StatusCode::NO_CONTENT);
+        builder = builder.header("Access-Control-Allow-Origin", "*");
+        builder = builder.header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+        builder = builder.header("Access-Control-Allow-Headers", "*");
+        builder = builder.header("Access-Control-Max-Age", "86400");
+        return builder.body(Body::empty()).unwrap();
+    }
+
+    let (target_url, token_headers) = match resolve_proxy_target(&params, &state.secret) {
+        Some(t) => t,
+        None => return (StatusCode::FORBIDDEN, "Invalid or missing signed token").into_response(),
+    };
+
+    if is_internal_host(&target_url) {
+        return (StatusCode::FORBIDDEN, "Blocked internal URL").into_response();
+    }
+
+    let mut req = state.raw_client.get(&target_url);
+    req = inject_cdn_headers(req, &target_url, &token_headers);
+
+    let mut referer_value = None;
+    let mut has_origin = false;
+    if let Some(ref h) = token_headers {
+        for (k, v) in h.iter() {
+            if k.eq_ignore_ascii_case("origin") {
+                has_origin = true;
+            }
+            if k.eq_ignore_ascii_case("referer") {
+                referer_value = Some(v.clone());
+            }
+            req = req.header(k, v);
+        }
+    }
+
+    if !has_origin {
+        if let Some(ref ref_url) = referer_value {
+            if let Ok(origin_url) = Url::parse(ref_url) {
+                let mut origin = origin_url.origin().unicode_serialization();
+                if origin.ends_with('/') {
+                    origin.pop();
+                }
+                req = req.header("Origin", origin);
+            }
+        } else if let Ok(target_u) = Url::parse(&target_url) {
+            let mut origin = target_u.origin().unicode_serialization();
+            if origin.ends_with('/') {
+                origin.pop();
+            }
+            req = req.header("Origin", origin);
+        }
+    }
+
+    match req.send().await {
+        Ok(resp) => {
+            let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+            let mut builder = Response::builder().status(status);
+
+            // Forward content-type and cache headers
+            for (k, v) in resp.headers() {
+                let key = k.as_str();
+                if key.eq_ignore_ascii_case("content-type")
+                    || key.eq_ignore_ascii_case("content-length")
+                    || key.eq_ignore_ascii_case("cache-control")
+                    || key.eq_ignore_ascii_case("etag")
+                    || key.eq_ignore_ascii_case("last-modified")
+                    || key.eq_ignore_ascii_case("accept-ranges")
+                {
+                    builder = builder.header(k, v);
+                }
+            }
+
+            builder = builder.header("Access-Control-Allow-Origin", "*");
+
+            match resp.bytes().await {
+                Ok(bytes) => builder.body(Body::from(bytes)).unwrap(),
+                Err(e) => {
+                    tracing::warn!("[proxy] Failed to read body: {}", e);
+                    (StatusCode::BAD_GATEWAY, "Upstream body unreadable").into_response()
+                }
+            }
+        }
+        Err(e) => {
+            tracing::warn!("[proxy] Request failed: {}", e);
+            (StatusCode::BAD_GATEWAY, "Upstream request failed").into_response()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
