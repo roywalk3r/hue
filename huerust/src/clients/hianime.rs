@@ -341,26 +341,32 @@ impl HianimeClient {
             .cloned()
             .ok_or_else(|| anyhow!("SERVER_NOT_FOUND"))?;
 
-        // 3. Resolve source ID for getSources
-        // JSON servers: id = numeric server ID; embed_url = iframe page with real data-id
-        // Embed servers: id = iframe URL itself; embed_url = same iframe URL
+        // 3. Early return for embed servers — their id IS the iframe URL
+        if target.format == "embed" {
+            let result = StreamData {
+                link: StreamLink {
+                    file: target.id.clone(),
+                    link_type: "iframe".to_string(),
+                },
+                tracks: None,
+                intro: None,
+                outro: None,
+                server: Some(target.name.clone()),
+                referer: None,
+            };
+            self.stream_cache.insert(cache_key, result.clone()).await;
+            return Ok(result);
+        }
+
+        // 4. For JSON servers, resolve the real data-id from the iframe page
         let mut resolved_source_id = target.id.clone();
-
-        // For embed servers, the id IS the iframe URL — scrape it for data-id
-        // For json servers, the embed_url may contain the real data-id
-        let iframe_url = target.embed_url.as_ref()
-            .or_else(|| {
-                // If embed_url is missing but id looks like a URL, use id as iframe
-                if target.id.starts_with("http") { Some(&target.id) } else { None }
-            });
-
-        if let Some(url) = iframe_url {
+        if let Some(url) = target.embed_url.as_ref() {
             if let Some(data_id) = extract_data_id_from_iframe(&self.client, url).await {
                 resolved_source_id = data_id;
             }
         }
 
-        // 4. Attempt getSources extraction for ALL server formats
+        // 5. Attempt getSources extraction
         for stream_dom in STREAM_DOMAINS {
             let url = format!("{}/stream/getSources?id={}", stream_dom, resolved_source_id);
             let mut headers = HeaderMap::new();
@@ -395,23 +401,6 @@ impl HianimeClient {
                     warn!("[HiAnime] {} fetch error: {}", stream_dom, e);
                 }
             }
-        }
-
-        // 5. Fallback: if this is an embed server and extraction failed, return iframe
-        if target.format == "embed" {
-            let result = StreamData {
-                link: StreamLink {
-                    file: target.id.clone(),
-                    link_type: "iframe".to_string(),
-                },
-                tracks: None,
-                intro: None,
-                outro: None,
-                server: Some(target.name),
-                referer: None,
-            };
-            self.stream_cache.insert(cache_key, result.clone()).await;
-            return Ok(result);
         }
 
         Err(anyhow!("EXTRACTION_FAILED"))
