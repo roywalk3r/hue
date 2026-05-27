@@ -286,7 +286,6 @@ pub async fn shorts_handler(
             let resp = serde_json::json!({ "success": false, "items": [], "error": e.to_string() });
             (StatusCode::OK, serde_json::to_string(&resp).unwrap()).into_response()
         }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 

@@ -124,13 +124,18 @@ async function executeProxy(targetUrl, request, env, ctx, attempt = 0) {
     headers.delete(h);
   });
 
-  // Inject configurable headers from query params
-  const referer = url.searchParams.get('referer')
+  // Inject configurable headers from query params, but preserve incoming headers if present
+  const incomingReferer = headers.get('referer') || headers.get('Referer');
+  const incomingOrigin = headers.get('origin') || headers.get('Origin');
+  const incomingUa = headers.get('user-agent') || headers.get('User-Agent');
+
+  const referer = incomingReferer
+    || url.searchParams.get('referer')
     || url.searchParams.get('ref')
     || env.DEFAULT_REFERER
     || targetUrl.origin;
-  const origin = url.searchParams.get('origin') || referer;
-  const userAgent = url.searchParams.get('userAgent') || url.searchParams.get('ua') || DEFAULT_UA;
+  const origin = incomingOrigin || url.searchParams.get('origin') || referer;
+  const userAgent = incomingUa || url.searchParams.get('userAgent') || url.searchParams.get('ua') || DEFAULT_UA;
 
   headers.set('Referer', referer);
   headers.set('Origin', origin);

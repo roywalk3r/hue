@@ -803,6 +803,49 @@ pub async fn ts_handler(
                 }
             }
 
+            // If worker returned non-success (403/500 etc), try direct as fallback
+            if !status.is_success() && status != reqwest::StatusCode::PARTIAL_CONTENT {
+                tracing::warn!(
+                    "[ts-proxy] Worker returned {} for {}, trying direct",
+                    status.as_u16(),
+                    target_url
+                );
+                let mut direct = state.raw_client.get(&target_url);
+                direct = inject_cdn_headers(direct, &target_url, &headers);
+                if let Some(ref h) = headers {
+                    for (k, v) in h {
+                        direct = direct.header(k, v);
+                    }
+                }
+                if let Some(range) = effective_range.as_deref() {
+                    direct = direct.header("Range", range);
+                }
+                if let Ok(direct_resp) = direct.send().await {
+                    let direct_status = direct_resp.status();
+                    if direct_status.is_success() || direct_status == reqwest::StatusCode::PARTIAL_CONTENT {
+                        let mut builder = Response::builder().status(StatusCode::OK);
+                        if let Some(ct) = direct_resp.headers().get("content-type") {
+                            if let Ok(ct_str) = ct.to_str() {
+                                builder = builder.header("content-type", infer_content_type(ct_str, &target_url));
+                            }
+                        }
+                        builder = builder.header("Access-Control-Allow-Origin", "*");
+                        builder = builder.header("Cache-Control", "public, max-age=86400, immutable");
+                        if let Some(cl) = direct_resp.headers().get("content-length") {
+                            if let Ok(v) = cl.to_str() {
+                                builder = builder.header("content-length", v);
+                            }
+                        }
+                        if let Some(cr) = direct_resp.headers().get("content-range") {
+                            if let Ok(v) = cr.to_str() {
+                                builder = builder.header("content-range", v);
+                            }
+                        }
+                        return builder.body(Body::from_stream(direct_resp.bytes_stream())).unwrap();
+                    }
+                }
+            }
+
             let mut builder = Response::builder();
             let mapped = StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::OK);
             builder = builder.status(mapped);
@@ -945,7 +988,7 @@ pub async fn sub_handler(
     // Inject headers from token (overrides defaults)
     let mut referer_value = None;
     let mut has_origin = false;
-    if let Some(h) = headers {
+    if let Some(ref h) = headers {
         for (k, v) in h {
             if k.eq_ignore_ascii_case("origin") {
                 has_origin = true;
@@ -983,11 +1026,42 @@ pub async fn sub_handler(
             if !status.is_success() {
                 let preview = resp.text().await.unwrap_or_default();
                 tracing::warn!(
-                    "[sub-proxy] Upstream returned non-success (status={}, url={}, preview={:?})",
+                    "[sub-proxy] Worker returned non-success (status={}, url={}, preview={:?})",
                     status.as_u16(),
                     target_url,
                     preview.chars().take(120).collect::<String>(),
                 );
+                // Try direct request bypassing worker
+                tracing::warn!("[sub-proxy] Trying direct request to {}", target_url);
+                let mut direct = state.raw_client.get(&target_url);
+                direct = inject_cdn_headers(direct, &target_url, &headers);
+                if let Some(ref h) = headers {
+                    for (k, v) in h {
+                        direct = direct.header(k, v);
+                    }
+                }
+                if let Ok(direct_resp) = direct.send().await {
+                    let direct_status = direct_resp.status();
+                    if direct_status.is_success() {
+                        let body = direct_resp.text().await.unwrap_or_default();
+                        let final_body = if body.trim_start().starts_with("WEBVTT") {
+                            normalize_vtt_timestamps(&body)
+                        } else if target_url.to_lowercase().contains(".srt")
+                            || body.trim().starts_with("1")
+                            || body.contains(" -->")
+                        {
+                            convert_srt_to_vtt(&body)
+                        } else {
+                            body
+                        };
+                        return Response::builder()
+                            .status(StatusCode::OK)
+                            .header("content-type", "text/vtt")
+                            .header("Access-Control-Allow-Origin", "*")
+                            .body(Body::from(final_body))
+                            .unwrap();
+                    }
+                }
                 return (
                     StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY),
                     format!("Subtitle upstream error: {}", status),
