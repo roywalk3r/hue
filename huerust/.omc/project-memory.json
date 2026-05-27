@@ -114,6 +114,12 @@
   },
   "hotPaths": [
     {
+      "path": "src/main.rs",
+      "accessCount": 9,
+      "lastAccessed": 1779903676889,
+      "type": "file"
+    },
+    {
       "path": "src/config.rs",
       "accessCount": 6,
       "lastAccessed": 1779901534708,

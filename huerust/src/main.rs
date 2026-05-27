@@ -25,6 +25,7 @@ async fn main() {
     }
     tracing_subscriber::fmt::init();
     let cfg = config::AppConfig::from_env();
+    info!("[Config] CF_WORKER_URL={:?} WORKER_UPSTREAM_HOSTS={:?}", cfg.cf_worker_url, cfg.worker_upstream_hosts);
     if let Err(err) = cfg.validate_runtime() {
         eprintln!("Configuration error: {err}");
         std::process::exit(1);
