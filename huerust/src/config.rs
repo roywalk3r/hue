@@ -25,6 +25,8 @@ pub struct AppConfig {
     pub cache_backend: String,
     pub redis_url: String,
     pub kkey: String,
+    pub cf_worker_url: Option<String>,
+    pub worker_upstream_hosts: Vec<String>,
 }
 
 impl AppConfig {
@@ -78,6 +80,13 @@ impl AppConfig {
             redis_url: env::var("REDIS_URL")
                 .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string()),
             kkey: env::var("KKEY").unwrap_or_else(|_| "hue-kkey-2026-default".to_string()),
+            cf_worker_url: env::var("CF_WORKER_URL").ok().filter(|s| !s.trim().is_empty()),
+            worker_upstream_hosts: env::var("WORKER_UPSTREAM_HOSTS")
+                .unwrap_or_default()
+                .split(|c| c == ',' || c == ';' || c == '\n')
+                .map(|s| s.trim().to_lowercase().to_string())
+                .filter(|s| !s.is_empty())
+                .collect(),
         }
     }
 
@@ -152,6 +161,8 @@ mod tests {
             cache_backend: "memory".to_string(),
             redis_url: "redis://127.0.0.1:6379".to_string(),
             kkey: "test-kkey".to_string(),
+            cf_worker_url: None,
+            worker_upstream_hosts: vec![],
         };
 
         assert_eq!(cfg.fast_deadline(), Duration::from_secs(3));

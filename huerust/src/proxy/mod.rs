@@ -269,6 +269,29 @@ fn has_header(headers: &Option<HashMap<String, String>>, name: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// Route the upstream fetch through the Cloudflare Worker for hosts that
+/// geo-block datacenter IPs (e.g. MovieBox). The worker forwards the
+/// request with the same headers, returning the upstream response.
+fn worker_routed_url(
+    target_url: &str,
+    worker_url: &Option<String>,
+    worker_hosts: &[String],
+) -> String {
+    if worker_url.is_none() || worker_hosts.is_empty() {
+        return target_url.to_string();
+    }
+    let host = match Url::parse(target_url) {
+        Ok(u) => u.host_str().unwrap_or("").to_lowercase(),
+        Err(_) => return target_url.to_string(),
+    };
+    if worker_hosts.iter().any(|h| host == *h || host.ends_with(&format!(".{}", h))) {
+        if let Some(worker) = worker_url {
+            return format!("{}?target={}", worker, urlencoding::encode(target_url));
+        }
+    }
+    target_url.to_string()
+}
+
 fn is_vixsrc_target(target_url: &str, headers: &Option<HashMap<String, String>>) -> bool {
     if target_url.contains("vixsrc.to") {
         return true;
@@ -395,7 +418,7 @@ pub async fn m3u8_handler(
     }
 
     let is_vix = is_vixsrc_target(&target_url, &headers);
-    let mut req = state.raw_client.get(&target_url);
+    let mut req = state.raw_client.get(&worker_routed_url(&target_url, &state.config.cf_worker_url, &state.config.worker_upstream_hosts));
     req = inject_cdn_headers(req, &target_url, &headers);
 
     // Inject headers from token (overrides defaults)
@@ -509,7 +532,7 @@ pub async fn m3u8_handler(
         // Retry once for Vixsrc with minimal headers (strip everything except Referer + UA + Origin)
         if is_vix && (status.as_u16() == 403 || status.as_u16() == 401) {
             tracing::info!("[m3u8-proxy] Vixsrc got {} — retrying with minimal header set", status.as_u16());
-            let mut retry = state.raw_client.get(&target_url);
+            let mut retry = state.raw_client.get(&worker_routed_url(&target_url, &state.config.cf_worker_url, &state.config.worker_upstream_hosts));
             retry = retry.header("Referer", "https://vixsrc.to/");
             retry = retry.header("Origin", "https://vixsrc.to");
             retry = retry.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
@@ -681,7 +704,7 @@ pub async fn ts_handler(
     tracing::info!("[ts-proxy] Target: {}", target_url);
     tracing::info!("[ts-proxy] Token headers: {:?}", headers);
 
-    let mut req = state.raw_client.get(&target_url);
+    let mut req = state.raw_client.get(&worker_routed_url(&target_url, &state.config.cf_worker_url, &state.config.worker_upstream_hosts));
     req = inject_cdn_headers(req, &target_url, &headers);
     req = req.header("Accept-Encoding", "identity");
 
@@ -846,7 +869,7 @@ pub async fn ts_handler(
                     "[ts-proxy] Initial request failed ({}), retrying without Range",
                     e
                 );
-                let mut retry = state.raw_client.get(&target_url);
+                let mut retry = state.raw_client.get(&worker_routed_url(&target_url, &state.config.cf_worker_url, &state.config.worker_upstream_hosts));
                 retry = inject_cdn_headers(retry, &target_url, &headers);
                 if let Some(ref h) = headers {
                     for (k, v) in h {
@@ -916,7 +939,7 @@ pub async fn sub_handler(
         return (StatusCode::FORBIDDEN, "Blocked internal URL").into_response();
     }
 
-    let mut req = state.raw_client.get(&target_url);
+    let mut req = state.raw_client.get(&worker_routed_url(&target_url, &state.config.cf_worker_url, &state.config.worker_upstream_hosts));
     req = inject_cdn_headers(req, &target_url, &headers);
 
     // Inject headers from token (overrides defaults)
@@ -1327,7 +1350,7 @@ pub async fn generic_proxy_handler(
         return (StatusCode::FORBIDDEN, "Blocked internal URL").into_response();
     }
 
-    let mut req = state.raw_client.get(&target_url);
+    let mut req = state.raw_client.get(&worker_routed_url(&target_url, &state.config.cf_worker_url, &state.config.worker_upstream_hosts));
     req = inject_cdn_headers(req, &target_url, &token_headers);
 
     let mut referer_value = None;

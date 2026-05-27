@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1779616937719,
+  "lastScanned": 1779899308602,
   "projectRoot": "/mnt/devdrive/projects/Misc/hue/huerust",
   "techStack": {
     "languages": [
@@ -52,7 +52,7 @@
       "path": "daemon",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1779616937692,
+      "lastAccessed": 1779899308579,
       "keyFiles": [
         "daemon.js",
         "package-lock.json",
@@ -63,21 +63,21 @@
       "path": "docs",
       "purpose": "Documentation",
       "fileCount": 0,
-      "lastAccessed": 1779616937694,
+      "lastAccessed": 1779899308581,
       "keyFiles": []
     },
     "examples": {
       "path": "examples",
       "purpose": "Example code",
       "fileCount": 0,
-      "lastAccessed": 1779616937695,
+      "lastAccessed": 1779899308581,
       "keyFiles": []
     },
     "src": {
       "path": "src",
       "purpose": "Source code",
       "fileCount": 11,
-      "lastAccessed": 1779616937695,
+      "lastAccessed": 1779899308582,
       "keyFiles": [
         "app.rs",
         "config.rs",
@@ -90,7 +90,7 @@
       "path": "target",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1779616937718,
+      "lastAccessed": 1779899308601,
       "keyFiles": [
         "CACHEDIR.TAG"
       ]
@@ -99,14 +99,14 @@
       "path": "daemon/node_modules",
       "purpose": "Dependencies",
       "fileCount": 1,
-      "lastAccessed": 1779616937718,
+      "lastAccessed": 1779899308601,
       "keyFiles": []
     },
     "src/models": {
       "path": "src/models",
       "purpose": "Data models",
       "fileCount": 1,
-      "lastAccessed": 1779616937719,
+      "lastAccessed": 1779899308602,
       "keyFiles": [
         "anime.rs"
       ]
@@ -114,39 +114,45 @@
   },
   "hotPaths": [
     {
-      "path": "src/clients/moviebox.rs",
-      "accessCount": 29,
-      "lastAccessed": 1779890419471,
+      "path": "src/config.rs",
+      "accessCount": 6,
+      "lastAccessed": 1779901534708,
       "type": "file"
     },
     {
-      "path": "src/routes/drama.rs",
-      "accessCount": 5,
-      "lastAccessed": 1779890126883,
+      "path": "src/proxy/mod.rs",
+      "accessCount": 6,
+      "lastAccessed": 1779901732202,
       "type": "file"
     },
     {
-      "path": "src/main.rs",
-      "accessCount": 4,
-      "lastAccessed": 1779887577920,
+      "path": "src/providers/kisskh.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779899354083,
       "type": "file"
     },
     {
-      "path": "src/clients/hianime.rs",
-      "accessCount": 3,
-      "lastAccessed": 1779617235529,
+      "path": ".env",
+      "accessCount": 2,
+      "lastAccessed": 1779901588251,
       "type": "file"
     },
     {
-      "path": "src/user_config.rs",
+      "path": "src/providers/kisskh_provider.rs",
       "accessCount": 1,
-      "lastAccessed": 1779887064531,
+      "lastAccessed": 1779899346694,
       "type": "file"
     },
     {
       "path": "src/http_client.rs",
       "accessCount": 1,
-      "lastAccessed": 1779890409143,
+      "lastAccessed": 1779899376418,
+      "type": "file"
+    },
+    {
+      "path": "src/proxy/wrap.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779901290871,
       "type": "file"
     }
   ],
