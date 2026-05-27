@@ -182,7 +182,7 @@ impl MovieBoxClient {
         }
 
         let mut hosts = vec![self.host.clone()];
-        for host in ["themoviebox.org", "movibox.net", "moviebox.ph", "123movienow.cc", "moviebox.to"] {
+        for host in ["netfilm.world", "themoviebox.org", "movibox.net", "moviebox.ph", "123movienow.cc", "moviebox.to"] {
             if !hosts.iter().any(|h| h == host) {
                 hosts.push(host.to_string());
             }
@@ -325,7 +325,8 @@ impl MovieBoxClient {
                         Ok(resp) => {
                             let status = resp.status();
                             let text = resp.text().await.unwrap_or_default();
-                            if text.contains("<!DOCTYPE") {
+                            let is_html = text.contains("<!DOCTYPE") || text.trim_start().to_lowercase().starts_with("<html");
+                            if is_html {
                                 warn!(
                                     "[MovieBox Rust] {} returned HTML (status={}) — likely blocked or expired session",
                                     host, status
