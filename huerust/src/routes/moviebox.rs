@@ -263,7 +263,11 @@ pub async fn bollywood_handler(
             let resp = serde_json::json!({ "success": true, "items": items });
             (StatusCode::OK, serde_json::to_string(&resp).unwrap()).into_response()
         }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => {
+            tracing::warn!("MovieBox bollywood failed: {}", e);
+            let resp = serde_json::json!({ "success": false, "items": [], "error": e.to_string() });
+            (StatusCode::OK, serde_json::to_string(&resp).unwrap()).into_response()
+        }
     }
 }
 
@@ -275,6 +279,11 @@ pub async fn shorts_handler(
     match state.moviebox.get_shorts(page).await {
         Ok(items) => {
             let resp = serde_json::json!({ "success": true, "items": items });
+            (StatusCode::OK, serde_json::to_string(&resp).unwrap()).into_response()
+        }
+        Err(e) => {
+            tracing::warn!("MovieBox shorts failed: {}", e);
+            let resp = serde_json::json!({ "success": false, "items": [], "error": e.to_string() });
             (StatusCode::OK, serde_json::to_string(&resp).unwrap()).into_response()
         }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
@@ -301,7 +310,11 @@ pub async fn filter_handler(
             let resp = serde_json::json!({ "success": true, "page": page, "items": items });
             (StatusCode::OK, serde_json::to_string(&resp).unwrap()).into_response()
         }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => {
+            tracing::warn!("MovieBox filter failed: {}", e);
+            let resp = serde_json::json!({ "success": false, "page": page, "items": [], "error": e.to_string() });
+            (StatusCode::OK, serde_json::to_string(&resp).unwrap()).into_response()
+        }
     }
 }
 
