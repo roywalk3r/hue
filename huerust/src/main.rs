@@ -6,7 +6,15 @@ use std::net::SocketAddr;
 
 #[tokio::main]
 async fn main() {
-    dotenv().ok();
+    // Try loading .env from multiple locations so it works regardless of CWD
+    let dotenv_paths = ["../.env", ".env"];
+    for path in &dotenv_paths {
+        if std::path::Path::new(path).exists() {
+            if dotenv::from_path(path).is_ok() {
+                break;
+            }
+        }
+    }
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 1 && args[1] == "--encrypt" {
         if args.len() < 3 { println!("Usage: huerust --encrypt <url> [referer]"); return; }
