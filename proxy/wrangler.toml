@@ -1,0 +1,21 @@
+name = "hue-universal-proxy"
+main = "universal-cf-worker.js"
+compatibility_date = "2025-05-27"
+
+# Optional KV namespaces for provider mirrors and cache config
+# [[kv_namespaces]]
+# binding = "PROVIDER_MIRRORS"
+# id = "your-kv-namespace-id"
+# [[kv_namespaces]]
+# binding = "EDGE_CACHE_CONFIG"
+# id = "your-kv-namespace-id-2"
+
+[vars]
+# Public environment variables (non-secrets)
+# IMAGE_OPTIMIZATION = "true"
+# DEFAULT_REFERER = "https://moviebox.id"
+# BLOCKED_COUNTRIES = ""
+# ALLOWED_ORIGINS = "*"
+
+# Secrets (set via `wrangler secret put` or Cloudflare dashboard)
+# ALLOWED_ORIGINS = "https://yourdomain.com"
