@@ -488,13 +488,20 @@ pub async fn moviebox_streams_direct_handler(
             Ok(detail) => {
                 subject_type = detail["data"]["subject"]["subjectType"]
                     .as_u64()
+                    .or_else(|| detail["data"]["subjectType"].as_u64())
                     .or_else(|| detail["subject"]["subjectType"].as_u64())
+                    .or_else(|| detail["subjectType"].as_u64())
                     .map(|value| value as u32);
-                detail["data"]["subject"]["subjectId"]
+                let sid = detail["data"]["subject"]["subjectId"]
                     .as_str()
+                    .or_else(|| detail["data"]["subjectId"].as_str())
                     .or_else(|| detail["subject"]["subjectId"].as_str())
-                    .map(str::to_string)
-                    .unwrap_or_default()
+                    .or_else(|| detail["subjectId"].as_str());
+                tracing::info!(
+                    "[drama] moviebox detail: subjectType={:?} subjectId={:?}",
+                    subject_type, sid
+                );
+                sid.map(str::to_string).unwrap_or_default()
             }
             Err(e) => {
                 tracing::warn!(
@@ -521,11 +528,13 @@ pub async fn moviebox_streams_direct_handler(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| {
-            if subject_type == Some(1) {
+            let mt = if subject_type == Some(1) {
                 "movie"
             } else {
                 "tv"
-            }
+            };
+            tracing::info!("[drama] moviebox media_type inferred: {} (subject_type={:?})", mt, subject_type);
+            mt
         });
 
     let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
