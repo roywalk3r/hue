@@ -376,9 +376,18 @@ impl MovieBoxClient {
         }
 
         while let Some(result) = set.join_next().await {
-            if let Ok(Some(data)) = result {
-                set.abort_all();
-                return Ok(Some(data));
+            match &result {
+                Ok(Some(_)) => {
+                    info!("[MovieBox Rust] Host task returned streams");
+                    set.abort_all();
+                    return Ok(result.unwrap());
+                }
+                Ok(None) => {
+                    info!("[MovieBox Rust] Host task returned None (no streams)");
+                }
+                Err(e) => {
+                    warn!("[MovieBox Rust] Host task panicked or was aborted: {}", e);
+                }
             }
         }
 
