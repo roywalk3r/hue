@@ -182,7 +182,7 @@ impl MovieBoxClient {
         }
 
         let mut hosts = vec![self.host.clone()];
-        for host in ["moviebox.ph", "movibox.net", "moviebox.to"] {
+        for host in ["moviebox.ph", "movibox.net", "moviebox.to", "h5-api.aoneroom.com"] {
             if !hosts.iter().any(|h| h == host) {
                 hosts.push(host.to_string());
             }
