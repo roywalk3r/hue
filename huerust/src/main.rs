@@ -1,6 +1,5 @@
 mod security; mod clients; mod providers; mod models; mod infra; mod filters; mod routes; mod microservice; mod config; mod proxy; mod user_config; mod openapi; mod constants; mod app; mod http_client;
 
-use dotenv::dotenv;
 use tracing::info;
 use std::net::SocketAddr;
 
