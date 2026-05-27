@@ -535,6 +535,12 @@ impl MovieBoxClient {
 
         match self.get_streams(subject_id, detail_path, se, ep).await? {
             Some(data) => {
+                info!(
+                    "[MovieBox Rust] get_streams_for_detail received data: streams={} hls={} source_host={:?}",
+                    data.streams.as_ref().map(|s| s.len()).unwrap_or(0),
+                    data.hls.as_ref().map(|h| h.len()).unwrap_or(0),
+                    data.source_host
+                );
                 let mut results = Vec::new();
 
                 let is_movie = se == 0 && ep == 0;
