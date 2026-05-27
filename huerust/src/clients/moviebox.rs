@@ -318,20 +318,52 @@ impl MovieBoxClient {
 
                     match client.get(&url).headers(headers).send().await {
                         Ok(resp) => {
+                            let status = resp.status();
                             let text = resp.text().await.unwrap_or_default();
-                            if text.contains("<!DOCTYPE") { return None; }
-                            let data: serde_json::Value = serde_json::from_str(&text).ok()?;
-                            if data["code"] == 0 {
-                                let mut stream_data: StreamData = serde_json::from_value(data["data"].clone()).ok()?;
+                            if text.contains("<!DOCTYPE") {
+                                warn!(
+                                    "[MovieBox Rust] {} returned HTML (status={}) — likely blocked or expired session",
+                                    host, status
+                                );
+                                return None;
+                            }
+                            let data: serde_json::Value = match serde_json::from_str(&text) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    warn!(
+                                        "[MovieBox Rust] {} JSON parse error: {} — text preview: {:.200}",
+                                        host, e, text
+                                    );
+                                    return None;
+                                }
+                            };
+                            let code = data["code"].as_i64().unwrap_or(-1);
+                            if code == 0 {
+                                let mut stream_data: StreamData = match serde_json::from_value(data["data"].clone()) {
+                                    Ok(v) => v,
+                                    Err(e) => {
+                                        warn!("[MovieBox Rust] {} stream data deserialization error: {}", host, e);
+                                        return None;
+                                    }
+                                };
                                 stream_data.source_host = Some(host);
                                 return Some(stream_data);
                             }
-                            if data["message"] == "invalid region" {
+                            let message = data["message"].as_str().unwrap_or("unknown");
+                            if message == "invalid region" {
                                 warn!("[MovieBox Rust] Region blocked on {}", host);
+                            } else {
+                                warn!(
+                                    "[MovieBox Rust] {} returned code={} message='{}' for subjectId={} se={} ep={}",
+                                    host, code, message, subject_id, season, episode
+                                );
                             }
                             None
                         }
-                        Err(_) => None,
+                        Err(e) => {
+                            warn!("[MovieBox Rust] {} network error: {}", host, e);
+                            None
+                        }
                     }
                 });
             }
