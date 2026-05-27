@@ -182,7 +182,7 @@ impl MovieBoxClient {
         }
 
         let mut hosts = vec![self.host.clone()];
-        for host in ["moviebox.ph", "movibox.net", "moviebox.to", "h5-api.aoneroom.com"] {
+        for host in ["movibox.net", "moviebox.ph", "123movienow.cc", "moviebox.to"] {
             if !hosts.iter().any(|h| h == host) {
                 hosts.push(host.to_string());
             }
@@ -268,6 +268,10 @@ impl MovieBoxClient {
         season: u32,
         episode: u32,
     ) -> Result<Option<StreamData>> {
+        info!(
+            "[MovieBox Rust] get_streams start: subject_id={} detail_path={} se={} ep={}",
+            subject_id, detail_path, season, episode
+        );
         let is_movie = season == 0 && episode == 0;
         let type_label = if is_movie { "movie" } else { "series" };
 
@@ -298,6 +302,7 @@ impl MovieBoxClient {
 
                 set.spawn(async move {
                     let play_url = format!("https://{}/wefeed-h5api-bff/subject/play", host);
+                    info!("[MovieBox Rust] Trying host={} tz={} subjectId={} se={} ep={}", host, tz, subject_id, season, episode);
 
                     let mut referer_path = detail_path.clone();
                     if referer_path.starts_with('/') { referer_path.remove(0); }
@@ -376,6 +381,10 @@ impl MovieBoxClient {
             }
         }
 
+        warn!(
+            "[MovieBox Rust] All hosts failed for subjectId={} se={} ep={}",
+            subject_id, season, episode
+        );
         Ok(None)
     }
 
