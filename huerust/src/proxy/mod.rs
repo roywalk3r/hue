@@ -308,7 +308,10 @@ fn is_vixsrc_target(target_url: &str, headers: &Option<HashMap<String, String>>)
 
 fn is_progressive_video_target(target_url: &str) -> bool {
     let lower = target_url.to_lowercase();
-    if lower.contains(".mp4") || lower.contains(".mkv") {
+    // Only apply progressive range clamping to HLS segment formats.
+    // Full MP4/MKV files must not be truncated — mobile browsers need the
+    // complete ftyp + moov atoms to demux (ffmpegDemux error otherwise).
+    if lower.contains(".ts") || lower.contains(".m4s") {
         return true;
     }
 
