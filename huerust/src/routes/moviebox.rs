@@ -300,9 +300,10 @@ pub async fn filter_handler(
     let country = params.country.as_deref();
     let sort = params.sort.as_deref();
     let channel_id = params.channel_id;
+    let genre = params.genre.as_deref();
     match state
         .moviebox
-        .filter(page, per_page, country, sort, channel_id)
+        .filter(page, per_page, country, sort, channel_id, genre)
         .await
     {
         Ok(items) => {
@@ -533,14 +534,15 @@ fn moviebox_detail_response(
             .and_then(|item| item.release_date.as_ref())
             .and_then(|date| date.split('-').next())
             .and_then(|year| year.parse::<u32>().ok()),
-        "country": fallback
-            .and_then(|item| item.genre.clone())
-            .unwrap_or_else(|| moviebox_detail_text(detail_data, &["country", "area"])),
+        "country": moviebox_detail_text(detail_data, &["country", "area"]),
         "status": moviebox_detail_text(detail_data, &["status"]),
         "rating": moviebox_detail_text(detail_data, &["imdbRatingValue", "rate", "rating", "score"]),
-        "genre": fallback
-            .and_then(|item| item.genre.clone())
-            .unwrap_or_else(|| moviebox_detail_text(detail_data, &["genre", "category"])),
+        "genres": fallback
+            .and_then(|item| item.genres.clone())
+            .unwrap_or_else(|| {
+                let s = moviebox_detail_text(detail_data, &["genre", "category"]);
+                if s.is_empty() { Vec::new() } else { vec![s] }
+            }),
         "episodes": episodes,
         "episode_count": episode_count,
         "cast": moviebox_detail_cast(detail_data),

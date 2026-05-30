@@ -570,7 +570,19 @@ pub fn transform_anime_card(v: &serde_json::Value) -> AnimeCard {
         status: opt_str(v, "Status"),
         score: opt_str(v, "Score"),
         rating: opt_str(v, "Rating"),
-        genres: opt_str_arr(v, "genres"),
+        genres: {
+            // Try multiple possible keys the API might return
+            let arr = opt_str_arr(v, "genres")
+                .or_else(|| opt_str_arr(v, "Genres"))
+                .or_else(|| opt_str_arr(v, "genreList"))
+                .or_else(|| {
+                    // Fallback: comma-separated string under "genre"
+                    v.get("genre").and_then(|g| g.as_str()).map(|s| {
+                        s.split(',').map(|g| g.trim().to_string()).collect()
+                    })
+                });
+            arr
+        },
         total_episodes: opt_u32(v, "totalEpisodes"),
         total_subbed,
         total_dubbed,

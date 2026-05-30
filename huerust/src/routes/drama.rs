@@ -636,9 +636,9 @@ pub async fn drama_detail_handler(
             "cover": cover,
             "description": best.description.as_deref().unwrap_or(""),
             "year": best.release_date.as_ref().and_then(|d| d.split('-').next()).and_then(|y| y.parse::<u32>().ok()),
-            "country": best.genre.as_deref().unwrap_or(""),
+            "country": "",
             "status": "",
-            "genre": best.genre.as_deref().unwrap_or(""),
+            "genres": best.genres.clone().unwrap_or_default(),
             "episodes": episodes,
             "episode_count": episode_count
         });

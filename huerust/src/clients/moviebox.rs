@@ -31,7 +31,7 @@ pub struct MovieBoxItem {
     pub release_date: Option<String>,
     #[serde(rename = "detailPath")]
     pub detail_path: Option<String>,
-    pub genre: Option<String>,
+    pub genres: Option<Vec<String>>,
     #[serde(rename = "type")]
     pub media_type: String,
     #[serde(rename = "subjectType")]
@@ -80,6 +80,26 @@ pub struct MovieBoxClient {
 }
 
 impl MovieBoxClient {
+    fn extract_genres(v: &serde_json::Value) -> Option<Vec<String>> {
+        for key in &["genreList", "genreTagList", "genres", "genreListVoList"] {
+            if let Some(arr) = v[*key].as_array() {
+                let genres: Vec<String> = arr.iter().filter_map(|g| {
+                    g.as_str().or_else(|| g["name"].as_str()).map(String::from)
+                }).collect();
+                if !genres.is_empty() {
+                    return Some(genres);
+                }
+            }
+        }
+        if let Some(s) = v["genre"].as_str() {
+            let genres: Vec<String> = s.split(',').map(|g| g.trim().to_string()).filter(|g| !g.is_empty()).collect();
+            if !genres.is_empty() {
+                return Some(genres);
+            }
+        }
+        None
+    }
+
     pub fn new(host: Option<String>) -> Self {
         let default_host = host.unwrap_or_else(|| "moviebox.ph".to_string());
         let uc = crate::user_config::HueUserConfig::get_live();
@@ -255,7 +275,7 @@ impl MovieBoxClient {
             rating: v["imdbRatingValue"].as_f64(),
             release_date: v["releaseDate"].as_str().map(String::from),
             detail_path: v["detailPath"].as_str().map(String::from),
-            genre: v["genre"].as_str().map(String::from),
+            genres: Self::extract_genres(v),
             media_type: media_type.to_string(),
             subject_type,
         })
@@ -631,13 +651,14 @@ impl MovieBoxClient {
         country: Option<&str>,
         sort: Option<&str>,
         channel_id: Option<u32>,
+        genre: Option<&str>,
     ) -> Result<Vec<MovieBoxItem>> {
         let url = format!("{}/subject/filter", BASE_URL);
         let payload = serde_json::json!({
             "page": page,
             "perPage": per_page,
             "channelId": channel_id.unwrap_or(2),
-            "genre": "All",
+            "genre": genre.unwrap_or("All"),
             "country": country.unwrap_or("All"),
             "year": "All",
             "sort": sort.unwrap_or("ForYou"),
@@ -681,7 +702,7 @@ impl MovieBoxClient {
     ) -> Result<Vec<serde_json::Value>> {
         if let Some(c) = country {
             let items = self
-                .filter(page, per_page, Some(c), sort, channel_id)
+                .filter(page, per_page, Some(c), sort, channel_id, None)
                 .await?;
             let rail = serde_json::json!({
                 "country": c,
@@ -694,7 +715,7 @@ impl MovieBoxClient {
         let mut rails = Vec::new();
 
         for c in countries {
-            match self.filter(page, per_page, Some(c), sort, channel_id).await {
+            match self.filter(page, per_page, Some(c), sort, channel_id, None).await {
                 Ok(items) if !items.is_empty() => {
                     rails.push(serde_json::json!({
                         "country": c,
