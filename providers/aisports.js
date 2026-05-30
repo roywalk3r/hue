@@ -9,7 +9,7 @@
 
 /**
  * AiSports Provider
- * Fetches live sports streams from sportslivenow.top (Aoneroom API)
+ * Fetches live sports streams from thesports.today (Aoneroom API)
  */
 
 const axios = require('axios');
@@ -17,10 +17,20 @@ const cheerio = require('cheerio');
 
 class AiSportsProvider {
     constructor() {
-        this.baseUrl = 'https://sportslivenow.top/';
-        this.apiDetailUrl = 'https://h5.aoneroom.com/wefeed-h5-bff/sport/detail-v1';
-        this.apiListV5Url = 'https://h5.aoneroom.com/wefeed-h5-bff/live/match-list-v5?leagueId=0';
-        this.userAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1';
+        this.baseUrl = 'https://thesports.today/';
+        this.apiBaseUrl = 'https://h5-api.aoneroom.com/wefeed-h5api-bff';
+        this.apiDetailUrl = `${this.apiBaseUrl}/sport/detail-v1`;
+        this.apiListV5Url = `${this.apiBaseUrl}/live/match-list-v5?leagueId=0`;
+        this.userAgent = 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36';
+        this.defaultHeaders = {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'User-Agent': this.userAgent,
+            'Origin': 'https://thesports.today',
+            'Referer': 'https://thesports.today/',
+            'x-client-info': JSON.stringify({ timezone: 'Africa/Accra', system_language: 'en' }),
+            'x-device-info': '{}'
+        };
     }
 
     /**
@@ -42,11 +52,7 @@ class AiSportsProvider {
     async getMatchesV5() {
         try {
             const response = await axios.get(this.apiListV5Url, {
-                headers: { 
-                    'User-Agent': this.userAgent,
-                    'Origin': 'https://sportslivenow.top',
-                    'Referer': 'https://sportslivenow.top/'
-                }
+                headers: this.defaultHeaders
             });
 
             if (response.data && response.data.code === 0 && response.data.data?.list) {
@@ -129,11 +135,7 @@ class AiSportsProvider {
         try {
             const url = `${this.apiDetailUrl}?matchId=${matchId}`;
             const response = await axios.get(url, {
-                headers: {
-                    'User-Agent': this.userAgent,
-                    'Origin': 'https://sportslivenow.top',
-                    'Referer': 'https://sportslivenow.top/'
-                }
+                headers: this.defaultHeaders
             });
 
             if (response.data && response.data.code === 0 && response.data.data) {
@@ -154,38 +156,44 @@ class AiSportsProvider {
         if (!query) return [];
 
         console.log(`[AiSports] Searching for: ${query}`);
-        
-        // Try V5 first, then Home page
-        let matches = await this.getMatchesV5();
-        if (matches.length === 0) {
-            matches = await this.getMatchesFromHome();
-        }
-        
-        const cleanQuery = query.toLowerCase().replace(/-/g, ' ');
-        const bestMatch = matches.find(m => {
-            const title = m.title.toLowerCase();
-            const team1 = m.team1.toLowerCase();
-            const team2 = m.team2.toLowerCase();
-            return title.includes(cleanQuery) || cleanQuery.includes(team1) || cleanQuery.includes(team2);
-        });
 
-        if (!bestMatch) {
-            console.log(`[AiSports] No match found for "${query}"`);
+        let activeMatch = null;
+        const isDirectId = /^\d{15,}$/.test(query);
+        if (isDirectId) {
+            activeMatch = await this.getMatchDetail(query);
+        } else {
+            // Try V5 first, then Home page
+            let matches = await this.getMatchesV5();
+            if (matches.length === 0) {
+                matches = await this.getMatchesFromHome();
+            }
+
+            const cleanQuery = query.toLowerCase().replace(/-/g, ' ');
+            const bestMatch = matches.find(m => {
+                const title = m.title.toLowerCase();
+                const team1 = m.team1.toLowerCase();
+                const team2 = m.team2.toLowerCase();
+                return title.includes(cleanQuery) || cleanQuery.includes(team1) || cleanQuery.includes(team2) || m.id === query;
+            });
+
+            if (!bestMatch) {
+                console.log(`[AiSports] No match found for "${query}"`);
+                return [];
+            }
+
+            console.log(`[AiSports] Found match: ${bestMatch.title} (ID: ${bestMatch.id}) Status: ${bestMatch.status}`);
+
+            // Always try to fetch fresh detail for more sources
+            activeMatch = await this.getMatchDetail(bestMatch.id) || bestMatch;
+        }
+
+        if (!activeMatch) {
+            console.log(`[AiSports] No match detail found for "${query}"`);
             return [];
         }
 
-        console.log(`[AiSports] Found match: ${bestMatch.title} (ID: ${bestMatch.id}) Status: ${bestMatch.status}`);
-        
-        // Always try to fetch fresh detail for more sources
-        const detail = await this.getMatchDetail(bestMatch.id);
-        const activeMatch = detail || bestMatch;
-
         const streams = [];
-        const headers = {
-            'Referer': 'https://sportslivenow.top/',
-            'Origin': 'https://sportslivenow.top',
-            'User-Agent': this.userAgent
-        };
+        const headers = this.defaultHeaders;
 
         // Add Live Streams
         if (activeMatch.playPath) {

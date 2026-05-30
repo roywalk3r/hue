@@ -188,6 +188,22 @@ test('AD_DOMAINS includes canonical domains', () => {
         'should include analytics domains');
 });
 
+// ─── routes/sports.js AiSports route params ───────────────────────────────────
+console.log('\nroutes/sports.js');
+
+const sportsRoutes = require('../routes/sports');
+
+test('resolveSportsMatchName reads legacy sports-stream matchName wildcard', () => {
+    const req = { params: { matchName: 'psg-vs-arsenal', 0: '/admin/1' } };
+    assert.strictEqual(sportsRoutes.resolveSportsMatchName(req), 'psg-vs-arsenal/admin/1');
+});
+
+test('resolveSportsMatchName reads aisports play id param', () => {
+    const req = { params: { id: '4144956851383325432' } };
+    assert.strictEqual(sportsRoutes.resolveSportsMatchName(req), '4144956851383325432');
+});
+
 // ─── Summary ──────────────────────────────────────────────────────────────────
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed\n`);
 if (failed > 0) process.exit(1);
+process.exit(0);

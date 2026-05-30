@@ -1,21 +1,25 @@
 //! AiSports Client
-//! Fetches live sports streams from the Aoneroom API (sportslivenow.top)
+//! Fetches live sports streams from the Aoneroom API (thesports.today)
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
-const API_LIST_URL: &str = "https://h5.aoneroom.com/wefeed-h5-bff/live/match-list-v5?leagueId=0";
-const API_DETAIL_URL: &str = "https://h5.aoneroom.com/wefeed-h5-bff/sport/detail-v1";
-const LEAGUE_TAB_URL: &str = "https://h5.aoneroom.com/wefeed-h5-bff/live/league-tab";
-const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1";
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct League {
-    pub id: String,
-    pub name: String,
-}
+const API_LIST_URL: &str =
+    "https://h5-api.aoneroom.com/wefeed-h5api-bff/live/match-list-v5?leagueId=0";
+const API_LIST_V5_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff/live/match-list-v5";
+const API_LIST_V3_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff/live/match-list-v3";
+const API_DETAIL_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff/sport/detail-v1";
+const API_LATEST_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff/live/latest-match";
+const API_AGGREGATE_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff/sport/aggregate-v1";
+const LEAGUE_TAB_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff/live/league-tab";
+const USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36";
+const ORIGIN: &str = "https://thesports.today";
+const REFERER: &str = "https://thesports.today/";
+const X_CLIENT_INFO: &str = r#"{"timezone":"Africa/Accra","system_language":"en"}"#;
+const X_DEVICE_INFO: &str = "{}";
+const BLOCKED_CHANNEL_HOST: &str = "sportsteam368.com";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SportsStream {
@@ -105,38 +109,96 @@ impl AiSportsClient {
         Self { client }
     }
 
-    pub async fn get_leagues(&self) -> Result<Vec<League>> {
-        let resp = self.client
-            .get(LEAGUE_TAB_URL)
+    async fn get_json(&self, url: reqwest::Url, label: &str) -> Result<serde_json::Value> {
+        let resp = self
+            .client
+            .get(url)
             .header("User-Agent", USER_AGENT)
-            .header("Origin", "https://sportslivenow.top")
-            .header("Referer", "https://sportslivenow.top/")
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .header("Origin", ORIGIN)
+            .header("Referer", REFERER)
+            .header("x-client-info", X_CLIENT_INFO)
+            .header("x-device-info", X_DEVICE_INFO)
             .send()
             .await?;
 
         if !resp.status().is_success() {
-            return Err(anyhow!("AiSports leagues API returned {}", resp.status()));
+            return Err(anyhow!("AiSports {} API returned {}", label, resp.status()));
         }
 
         let api_resp: ApiResponse<serde_json::Value> = resp.json().await?;
         if api_resp.code != 0 {
-            return Err(anyhow!("AiSports leagues API code: {}", api_resp.code));
+            return Err(anyhow!("AiSports {} API code: {}", label, api_resp.code));
         }
 
-        let leagues = api_resp.data
-            .and_then(|d| d.get("list").cloned())
-            .and_then(|list| serde_json::from_value::<Vec<League>>(list).ok())
-            .unwrap_or_default();
+        Ok(api_resp.data.unwrap_or_else(|| serde_json::json!({})))
+    }
 
-        Ok(leagues)
+    pub async fn get_league_tabs(&self) -> Result<serde_json::Value> {
+        self.get_json(reqwest::Url::parse(LEAGUE_TAB_URL)?, "league tab")
+            .await
+    }
+
+    pub async fn get_match_list_v5(&self, league_id: &str) -> Result<serde_json::Value> {
+        let league_id = if league_id.trim().is_empty() {
+            "0"
+        } else {
+            league_id.trim()
+        };
+        let url = reqwest::Url::parse_with_params(API_LIST_V5_URL, [("leagueId", league_id)])?;
+
+        self.get_json(url, "match list v5").await
+    }
+
+    pub async fn get_match_list_v3(
+        &self,
+        status: i32,
+        match_type: &str,
+        start_time: &str,
+        end_time: &str,
+    ) -> Result<serde_json::Value> {
+        let status_string = status.to_string();
+        let match_type = if match_type.trim().is_empty() {
+            "football"
+        } else {
+            match_type.trim()
+        };
+        let url = reqwest::Url::parse_with_params(
+            API_LIST_V3_URL,
+            [
+                ("status", status_string.as_str()),
+                ("matchType", match_type),
+                ("startTime", start_time),
+                ("endTime", end_time),
+            ],
+        )?;
+
+        self.get_json(url, "match list v3").await
+    }
+
+    pub async fn get_aggregate(&self, league_id: &str) -> Result<serde_json::Value> {
+        let league_id = if league_id.trim().is_empty() {
+            "0"
+        } else {
+            league_id.trim()
+        };
+        let url = reqwest::Url::parse_with_params(API_AGGREGATE_URL, [("leagueId", league_id)])?;
+
+        self.get_json(url, "aggregate").await
     }
 
     async fn get_matches(&self) -> Result<Vec<Match>> {
-        let resp = self.client
+        let resp = self
+            .client
             .get(API_LIST_URL)
             .header("User-Agent", USER_AGENT)
-            .header("Origin", "https://sportslivenow.top")
-            .header("Referer", "https://sportslivenow.top/")
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .header("Origin", ORIGIN)
+            .header("Referer", REFERER)
+            .header("x-client-info", X_CLIENT_INFO)
+            .header("x-device-info", X_DEVICE_INFO)
             .send()
             .await?;
 
@@ -152,13 +214,38 @@ impl AiSportsClient {
         Ok(api_resp.data.map(|d| d.list).unwrap_or_default())
     }
 
+    pub async fn get_latest_matches(
+        &self,
+        match_type: &str,
+        count: u32,
+    ) -> Result<serde_json::Value> {
+        let count = count.clamp(1, 50);
+        let match_type = if match_type.trim().is_empty() {
+            "MTFootball"
+        } else {
+            match_type.trim()
+        };
+        let count_string = count.to_string();
+        let url = reqwest::Url::parse_with_params(
+            API_LATEST_URL,
+            [("matchType", match_type), ("count", count_string.as_str())],
+        )?;
+
+        self.get_json(url, "latest").await
+    }
+
     async fn get_match_detail(&self, match_id: &str) -> Result<Option<Match>> {
         let url = format!("{}?matchId={}", API_DETAIL_URL, match_id);
-        let resp = self.client
+        let resp = self
+            .client
             .get(&url)
             .header("User-Agent", USER_AGENT)
-            .header("Origin", "https://sportslivenow.top")
-            .header("Referer", "https://sportslivenow.top/")
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .header("Origin", ORIGIN)
+            .header("Referer", REFERER)
+            .header("x-client-info", X_CLIENT_INFO)
+            .header("x-device-info", X_DEVICE_INFO)
             .send()
             .await?;
 
@@ -178,6 +265,15 @@ impl AiSportsClient {
         let clean_query = query.to_lowercase().replace("-", " ");
         info!("[AiSports] Searching for: {}", query);
 
+        if query.chars().all(|c| c.is_ascii_digit()) && query.len() >= 15 {
+            let Some(active) = self.get_match_detail(query).await? else {
+                info!("[AiSports] No match detail found for '{}'", query);
+                return Ok(vec![]);
+            };
+
+            return Ok(Self::streams_from_match(&active));
+        }
+
         let matches = self.get_matches().await?;
         if matches.is_empty() {
             warn!("[AiSports] No matches returned from API");
@@ -187,12 +283,28 @@ impl AiSportsClient {
         let best_match = matches.iter().find(|m| {
             let title = format!(
                 "{} vs {}",
-                m.team1.as_ref().and_then(|t| t.name.clone()).unwrap_or_default(),
-                m.team2.as_ref().and_then(|t| t.name.clone()).unwrap_or_default()
+                m.team1
+                    .as_ref()
+                    .and_then(|t| t.name.clone())
+                    .unwrap_or_default(),
+                m.team2
+                    .as_ref()
+                    .and_then(|t| t.name.clone())
+                    .unwrap_or_default()
             )
             .to_lowercase();
-            let team1 = m.team1.as_ref().and_then(|t| t.name.clone()).unwrap_or_default().to_lowercase();
-            let team2 = m.team2.as_ref().and_then(|t| t.name.clone()).unwrap_or_default().to_lowercase();
+            let team1 = m
+                .team1
+                .as_ref()
+                .and_then(|t| t.name.clone())
+                .unwrap_or_default()
+                .to_lowercase();
+            let team2 = m
+                .team2
+                .as_ref()
+                .and_then(|t| t.name.clone())
+                .unwrap_or_default()
+                .to_lowercase();
 
             title.contains(&clean_query)
                 || clean_query.contains(&team1)
@@ -210,8 +322,14 @@ impl AiSportsClient {
 
         info!(
             "[AiSports] Found match: {} vs {} (ID: {})",
-            m.team1.as_ref().and_then(|t| t.name.clone()).unwrap_or_default(),
-            m.team2.as_ref().and_then(|t| t.name.clone()).unwrap_or_default(),
+            m.team1
+                .as_ref()
+                .and_then(|t| t.name.clone())
+                .unwrap_or_default(),
+            m.team2
+                .as_ref()
+                .and_then(|t| t.name.clone())
+                .unwrap_or_default(),
             m.id
         );
 
@@ -219,14 +337,29 @@ impl AiSportsClient {
         let detail = self.get_match_detail(&m.id).await?;
         let active = detail.as_ref().unwrap_or(&m);
 
-        let team1_name = active.team1.as_ref().and_then(|t| t.name.clone()).unwrap_or_else(|| "Unknown".to_string());
-        let team2_name = active.team2.as_ref().and_then(|t| t.name.clone()).unwrap_or_else(|| "Unknown".to_string());
+        Ok(Self::streams_from_match(active))
+    }
+
+    fn streams_from_match(active: &Match) -> Vec<SportsStream> {
+        let team1_name = active
+            .team1
+            .as_ref()
+            .and_then(|t| t.name.clone())
+            .unwrap_or_else(|| "Unknown".to_string());
+        let team2_name = active
+            .team2
+            .as_ref()
+            .and_then(|t| t.name.clone())
+            .unwrap_or_else(|| "Unknown".to_string());
 
         let headers = {
             let mut h = std::collections::HashMap::new();
-            h.insert("Referer".to_string(), "https://sportslivenow.top/".to_string());
-            h.insert("Origin".to_string(), "https://sportslivenow.top".to_string());
+            h.insert("Referer".to_string(), REFERER.to_string());
+            h.insert("Origin".to_string(), ORIGIN.to_string());
             h.insert("User-Agent".to_string(), USER_AGENT.to_string());
+            h.insert("Accept".to_string(), "application/json".to_string());
+            h.insert("x-client-info".to_string(), X_CLIENT_INFO.to_string());
+            h.insert("x-device-info".to_string(), X_DEVICE_INFO.to_string());
             h
         };
 
@@ -251,13 +384,16 @@ impl AiSportsClient {
         if let Some(sources) = &active.playSource {
             for (idx, source) in sources.iter().enumerate() {
                 if let Some(path) = &source.path {
-                    if !path.is_empty() {
+                    if !path.is_empty() && !path.to_lowercase().contains(BLOCKED_CHANNEL_HOST) {
                         streams.push(SportsStream {
                             title: format!(
                                 "{} vs {} ({})",
                                 team1_name,
                                 team2_name,
-                                source.title.clone().unwrap_or_else(|| format!("Channel {}", idx + 1))
+                                source
+                                    .title
+                                    .clone()
+                                    .unwrap_or_else(|| format!("Channel {}", idx + 1))
                             ),
                             url: path.clone(),
                             quality: "Auto".to_string(),
@@ -295,7 +431,6 @@ impl AiSportsClient {
             }
         }
 
-        info!("[AiSports] Returning {} streams", streams.len());
-        Ok(streams)
+        streams
     }
 }

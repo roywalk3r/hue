@@ -114,6 +114,18 @@
   },
   "hotPaths": [
     {
+      "path": "src/proxy/mod.rs",
+      "accessCount": 23,
+      "lastAccessed": 1779909168347,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/moviebox.rs",
+      "accessCount": 17,
+      "lastAccessed": 1780134876429,
+      "type": "file"
+    },
+    {
       "path": "src/main.rs",
       "accessCount": 9,
       "lastAccessed": 1779903676889,
@@ -126,9 +138,9 @@
       "type": "file"
     },
     {
-      "path": "src/proxy/mod.rs",
+      "path": "src/clients/moviebox.rs",
       "accessCount": 6,
-      "lastAccessed": 1779901732202,
+      "lastAccessed": 1780134760559,
       "type": "file"
     },
     {
@@ -144,21 +156,45 @@
       "type": "file"
     },
     {
+      "path": "src/http_client.rs",
+      "accessCount": 2,
+      "lastAccessed": 1779907964552,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/drama.rs",
+      "accessCount": 2,
+      "lastAccessed": 1780134706382,
+      "type": "file"
+    },
+    {
       "path": "src/providers/kisskh_provider.rs",
       "accessCount": 1,
       "lastAccessed": 1779899346694,
       "type": "file"
     },
     {
-      "path": "src/http_client.rs",
-      "accessCount": 1,
-      "lastAccessed": 1779899376418,
-      "type": "file"
-    },
-    {
       "path": "src/proxy/wrap.rs",
       "accessCount": 1,
       "lastAccessed": 1779901290871,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/moviebox_provider.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779907464266,
+      "type": "file"
+    },
+    {
+      "path": "src/app.rs",
+      "accessCount": 1,
+      "lastAccessed": 1779907514696,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/anime.rs",
+      "accessCount": 1,
+      "lastAccessed": 1780134997721,
       "type": "file"
     }
   ],

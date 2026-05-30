@@ -16,9 +16,14 @@ const { getProvider } = require('../providers/registry');
 const { applyFilters } = require('../utils/streamFilters');
 const aisportsApi = require('../utils/aisports-api');
 
-module.exports = function(metrics) {
+function resolveSportsMatchName(req) {
+    const base = req.params?.matchName ?? req.params?.id ?? '';
+    return `${base}${req.params?.[0] || ''}`;
+}
+
+function createSportsRoutes(metrics) {
     async function handleSportsRequest(req, res) {
-        let matchName = req.params.matchName + (req.params[0] || '');
+        let matchName = resolveSportsMatchName(req);
         if (!matchName) return res.status(400).json({ success: false, error: 'Match name required' });
 
         try {
@@ -32,7 +37,9 @@ module.exports = function(metrics) {
                 if (m) directId = m[1];
             }
 
-            if (directId) return res.redirect(`/api/aisports/play/${directId}`);
+            const requestPath = `${req.baseUrl || ''}${req.path || ''}`;
+            const isAiSportsPlayRoute = requestPath.startsWith('/api/aisports/play/') || requestPath.startsWith('/aisports/play/');
+            if (directId && !isAiSportsPlayRoute) return res.redirect(`/api/aisports/play/${directId}`);
 
             const isPpvRoute = req.path.startsWith('/api/ppv/streams/');
             const isPpvUri = /^[a-z0-9-]+\/\d{4}-\d{2}-\d{2}\/[a-z0-9-]+$/i.test(matchName);
@@ -109,4 +116,7 @@ module.exports = function(metrics) {
     router.get('/livetv/:matchName*', handleSportsRequest);
 
     return router;
-};
+}
+
+module.exports = createSportsRoutes;
+module.exports.resolveSportsMatchName = resolveSportsMatchName;

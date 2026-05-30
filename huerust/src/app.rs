@@ -1,11 +1,11 @@
 use axum::body::Body;
 use axum::{
-    Router,
     extract::State,
     http::{Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::get,
+    Router,
 };
 use reqwest_middleware::ClientWithMiddleware;
 use std::env;
@@ -30,13 +30,21 @@ use crate::infra::metrics::Metrics;
 use crate::infra::rate_limit::RateLimitState;
 use crate::providers::registry::ProviderRegistry;
 use crate::providers::{
-    dramacool::DramacoolClient, dramacool_provider::DramacoolProvider, kisskh::KissKhClient,
-    kisskh_provider::KissKhProvider, moviebox_provider::MovieBoxProvider,
+    dramacool::DramacoolClient,
+    dramacool_provider::DramacoolProvider,
+    kisskh::KissKhClient,
+    kisskh_provider::KissKhProvider,
+    moviebox_provider::MovieBoxProvider,
     // mp4hydra_provider::Mp4HydraProvider, // disabled — endpoint times out
-    sflix_provider::SflixProvider, videasy::VideasyClient,
-    videasy_provider::VideasyProvider, vidrock_provider::VidrockProvider,
-    vidsrcembed_provider::VidsrcEmbedProvider, vidzee::VidzeeClient,
-    vidzee_provider::VidzeeProvider, vixsrc::VixsrcClient, vixsrc_provider::VixsrcProvider,
+    sflix_provider::SflixProvider,
+    videasy::VideasyClient,
+    videasy_provider::VideasyProvider,
+    vidrock_provider::VidrockProvider,
+    vidsrcembed_provider::VidsrcEmbedProvider,
+    vidzee::VidzeeClient,
+    vidzee_provider::VidzeeProvider,
+    vixsrc::VixsrcClient,
+    vixsrc_provider::VixsrcProvider,
 };
 
 pub fn kisskh_enabled() -> bool {
@@ -107,17 +115,15 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
 
     let vidrock_client = Arc::new(crate::clients::vidrock::VidRockClient::new());
     let vidsrcembed_client = Arc::new(crate::clients::vidsrcembed::VidsrcEmbedClient::new());
-    let vidzee_client = Arc::new(VidzeeClient::new(
-        crate::http_client::wrap_with_retry(
-            reqwest::Client::builder()
-                .tcp_keepalive(Duration::from_secs(60))
-                .connect_timeout(Duration::from_secs(8))
-                .timeout(Duration::from_secs(20))
-                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                .build()
-                .unwrap(),
-        ),
-    ));
+    let vidzee_client = Arc::new(VidzeeClient::new(crate::http_client::wrap_with_retry(
+        reqwest::Client::builder()
+            .tcp_keepalive(Duration::from_secs(60))
+            .connect_timeout(Duration::from_secs(8))
+            .timeout(Duration::from_secs(20))
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            .build()
+            .unwrap(),
+    )));
     let videasy_client = Arc::new(VideasyClient::new());
 
     registry.register(Arc::new(MovieBoxProvider::new(moviebox_client.clone())));
@@ -139,7 +145,9 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
 
     let redis_pool = if cfg.cache_backend == "redis" {
         let pool_cfg = deadpool_redis::Config::from_url(&cfg.redis_url);
-        pool_cfg.create_pool(Some(deadpool_redis::Runtime::Tokio1)).ok()
+        pool_cfg
+            .create_pool(Some(deadpool_redis::Runtime::Tokio1))
+            .ok()
     } else {
         None
     };
@@ -438,18 +446,99 @@ pub fn build_router(state: AppState) -> Router {
             get(crate::routes::sports::leagues_handler),
         )
         .route(
+            "/api/sports/leagues",
+            get(crate::routes::sports::leagues_handler),
+        )
+        .route(
+            "/api/aisports/latest",
+            get(crate::routes::sports::latest_handler),
+        )
+        .route(
+            "/api/sports/latest",
+            get(crate::routes::sports::latest_handler),
+        )
+        .route(
+            "/api/aisports/league-tabs",
+            get(crate::routes::sports::league_tabs_handler),
+        )
+        .route(
+            "/api/sports/league-tabs",
+            get(crate::routes::sports::league_tabs_handler),
+        )
+        .route(
+            "/api/aisports/matches",
+            get(crate::routes::sports::matches_handler),
+        )
+        .route(
+            "/api/sports/matches",
+            get(crate::routes::sports::matches_handler),
+        )
+        .route(
+            "/api/aisports/matches/grouped",
+            get(crate::routes::sports::grouped_matches_handler),
+        )
+        .route(
+            "/api/sports/matches/grouped",
+            get(crate::routes::sports::grouped_matches_handler),
+        )
+        .route(
+            "/api/aisports/matches/live",
+            get(crate::routes::sports::live_matches_handler),
+        )
+        .route(
+            "/api/sports/matches/live",
+            get(crate::routes::sports::live_matches_handler),
+        )
+        .route(
+            "/api/aisports/matches/filter-tabs",
+            get(crate::routes::sports::filter_tabs_handler),
+        )
+        .route(
+            "/api/sports/matches/filter-tabs",
+            get(crate::routes::sports::filter_tabs_handler),
+        )
+        .route(
+            "/api/aisports/home",
+            get(crate::routes::sports::home_handler),
+        )
+        .route("/api/sports/home", get(crate::routes::sports::home_handler))
+        .route(
             "/api/sports/streams",
             get(crate::routes::sports::streams_handler),
         )
         .route("/api/tmdb/home", get(crate::routes::tmdb::home_handler))
-        .route("/api/tmdb/movie/popular", get(crate::routes::tmdb::movie_popular_handler))
-        .route("/api/tmdb/movie/top-rated", get(crate::routes::tmdb::movie_top_rated_handler))
-        .route("/api/tmdb/movie/now-playing", get(crate::routes::tmdb::movie_now_playing_handler))
-        .route("/api/tmdb/tv/popular", get(crate::routes::tmdb::tv_popular_handler))
-        .route("/api/tmdb/tv/top-rated", get(crate::routes::tmdb::tv_top_rated_handler))
-        .route("/api/tmdb/tv/on-the-air", get(crate::routes::tmdb::tv_on_the_air_handler))
-        .route("/api/tmdb/trending", get(crate::routes::tmdb::trending_handler))
-        .route("/api/tmdb/discover", get(crate::routes::tmdb::discover_handler))
+        .route(
+            "/api/tmdb/movie/popular",
+            get(crate::routes::tmdb::movie_popular_handler),
+        )
+        .route(
+            "/api/tmdb/movie/top-rated",
+            get(crate::routes::tmdb::movie_top_rated_handler),
+        )
+        .route(
+            "/api/tmdb/movie/now-playing",
+            get(crate::routes::tmdb::movie_now_playing_handler),
+        )
+        .route(
+            "/api/tmdb/tv/popular",
+            get(crate::routes::tmdb::tv_popular_handler),
+        )
+        .route(
+            "/api/tmdb/tv/top-rated",
+            get(crate::routes::tmdb::tv_top_rated_handler),
+        )
+        .route(
+            "/api/tmdb/tv/on-the-air",
+            get(crate::routes::tmdb::tv_on_the_air_handler),
+        )
+        .route(
+            "/api/tmdb/trending",
+            get(crate::routes::tmdb::trending_handler),
+        )
+        .route(
+            "/api/tmdb/discover",
+            get(crate::routes::tmdb::discover_handler),
+        )
         .route("/api/tmdb/search", get(crate::routes::tmdb::search_handler))
         .route("/api/status", get(crate::routes::system::status_handler))
         .merge(

@@ -8,7 +8,7 @@
 use axum::{
     body::Body,
     extract::{Query, State},
-    http::{HeaderMap, StatusCode, header::CONTENT_TYPE},
+    http::{header::CONTENT_TYPE, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
 use serde::Deserialize;
@@ -67,12 +67,17 @@ pub struct TsProxyQuery {
     pub mode: Option<String>,
     pub range: Option<String>,
     #[allow(dead_code)]
+    #[serde(alias = "clampOpen")]
     pub clamp_open: Option<u32>,
     #[allow(dead_code)]
+    #[serde(alias = "progressiveOpen")]
     pub progressive_open: Option<u32>,
+    #[serde(alias = "noSynth")]
     pub no_synth: Option<u32>,
+    #[serde(alias = "force200")]
     pub force_200: Option<u32>,
     #[allow(dead_code)]
+    #[serde(alias = "tailPrefetch")]
     pub tail_prefetch: Option<u32>,
     pub sanitize: Option<u32>,
 }
@@ -101,10 +106,7 @@ pub fn dynamic_proxy_base(headers: &HeaderMap, fallback: &str) -> String {
     if let Some(ref url) = fallback_url {
         if let Some(host) = url.host_str() {
             let lower = host.to_lowercase();
-            if lower != "localhost"
-                && lower != "127.0.0.1"
-                && lower != "0.0.0.0"
-                && lower != "::1"
+            if lower != "localhost" && lower != "127.0.0.1" && lower != "0.0.0.0" && lower != "::1"
             {
                 return url
                     .origin()
@@ -284,7 +286,10 @@ fn worker_routed_url(
         Ok(u) => u.host_str().unwrap_or("").to_lowercase(),
         Err(_) => return target_url.to_string(),
     };
-    if worker_hosts.iter().any(|h| host == *h || host.ends_with(&format!(".{}", h))) {
+    if worker_hosts
+        .iter()
+        .any(|h| host == *h || host.ends_with(&format!(".{}", h)))
+    {
         if let Some(worker) = worker_url {
             return format!("{}?target={}", worker, urlencoding::encode(target_url));
         }
@@ -400,8 +405,12 @@ pub async fn m3u8_handler(
     request_headers: HeaderMap,
 ) -> Response {
     // Handle CORS preflight so cross-origin <video> manifest requests don't get blocked.
-    if request_headers.get("access-control-request-method").is_some()
-        || request_headers.get("access-control-request-headers").is_some()
+    if request_headers
+        .get("access-control-request-method")
+        .is_some()
+        || request_headers
+            .get("access-control-request-headers")
+            .is_some()
     {
         let mut builder = Response::builder().status(StatusCode::NO_CONTENT);
         builder = builder.header("Access-Control-Allow-Origin", "*");
@@ -421,7 +430,11 @@ pub async fn m3u8_handler(
     }
 
     let is_vix = is_vixsrc_target(&target_url, &headers);
-    let mut req = state.raw_client.get(&worker_routed_url(&target_url, &state.config.cf_worker_url, &state.config.worker_upstream_hosts));
+    let mut req = state.raw_client.get(&worker_routed_url(
+        &target_url,
+        &state.config.cf_worker_url,
+        &state.config.worker_upstream_hosts,
+    ));
     req = inject_cdn_headers(req, &target_url, &headers);
 
     // Inject headers from token (overrides defaults)
@@ -476,7 +489,10 @@ pub async fn m3u8_handler(
             }
         }
         if referer_value.is_some() {
-            header_log.push(format!("referer(from-inject): {}", referer_value.as_ref().unwrap()));
+            header_log.push(format!(
+                "referer(from-inject): {}",
+                referer_value.as_ref().unwrap()
+            ));
         }
         tracing::info!(
             "[m3u8-proxy] Vixsrc request → {} | headers: {:?}",
@@ -485,10 +501,11 @@ pub async fn m3u8_handler(
         );
     }
 
-    let (status, body, ct) = match send_m3u8_request(&state.raw_client, req, &target_url, is_vix).await {
-        Ok(result) => result,
-        Err(e) => return (StatusCode::BAD_GATEWAY, e).into_response(),
-    };
+    let (status, body, ct) =
+        match send_m3u8_request(&state.raw_client, req, &target_url, is_vix).await {
+            Ok(result) => result,
+            Err(e) => return (StatusCode::BAD_GATEWAY, e).into_response(),
+        };
 
     let body_trim = body.trim_start_matches('\u{feff}').trim_start();
     let is_hls = ct.contains("mpegurl")
@@ -508,12 +525,16 @@ pub async fn m3u8_handler(
         // Log full body for Vixsrc so we can see the exact error
         if is_vix {
             let now = chrono::Utc::now().timestamp();
-            let expires_val = Url::parse(&target_url)
-                .ok()
-                .and_then(|u| u.query_pairs().find(|(k, _)| k == "expires").map(|(_, v)| v.to_string()));
-            let token_val = Url::parse(&target_url)
-                .ok()
-                .and_then(|u| u.query_pairs().find(|(k, _)| k == "token").map(|(_, v)| v.to_string()));
+            let expires_val = Url::parse(&target_url).ok().and_then(|u| {
+                u.query_pairs()
+                    .find(|(k, _)| k == "expires")
+                    .map(|(_, v)| v.to_string())
+            });
+            let token_val = Url::parse(&target_url).ok().and_then(|u| {
+                u.query_pairs()
+                    .find(|(k, _)| k == "token")
+                    .map(|(_, v)| v.to_string())
+            });
             tracing::error!(
                 "[m3u8-proxy] VIXSRC FAILURE — status={}, now={}, expires={:?}, has_token={} body={}",
                 status.as_u16(),
@@ -534,14 +555,23 @@ pub async fn m3u8_handler(
 
         // Retry once for Vixsrc with minimal headers (strip everything except Referer + UA + Origin)
         if is_vix && (status.as_u16() == 403 || status.as_u16() == 401) {
-            tracing::info!("[m3u8-proxy] Vixsrc got {} — retrying with minimal header set", status.as_u16());
-            let mut retry = state.raw_client.get(&worker_routed_url(&target_url, &state.config.cf_worker_url, &state.config.worker_upstream_hosts));
+            tracing::info!(
+                "[m3u8-proxy] Vixsrc got {} — retrying with minimal header set",
+                status.as_u16()
+            );
+            let mut retry = state.raw_client.get(&worker_routed_url(
+                &target_url,
+                &state.config.cf_worker_url,
+                &state.config.worker_upstream_hosts,
+            ));
             retry = retry.header("Referer", "https://vixsrc.to/");
             retry = retry.header("Origin", "https://vixsrc.to");
             retry = retry.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
             retry = retry.header("Accept", "*/*");
 
-            if let Ok((status2, body2, ct2)) = send_m3u8_request(&state.raw_client, retry, &target_url, false).await {
+            if let Ok((status2, body2, ct2)) =
+                send_m3u8_request(&state.raw_client, retry, &target_url, false).await
+            {
                 let body_trim2 = body2.trim_start_matches('\u{feff}').trim_start();
                 let is_hls2 = ct2.contains("mpegurl")
                     || ct2.contains("x-mpegurl")
@@ -551,7 +581,8 @@ pub async fn m3u8_handler(
                 if is_hls2 {
                     tracing::info!("[m3u8-proxy] Vixsrc retry succeeded with minimal headers");
                     let proxy_base = dynamic_proxy_base(&request_headers, &state.proxy_base_url);
-                    let final_body = rewrite_playlist(&body2, &target_url, &proxy_base, &state.secret, None);
+                    let final_body =
+                        rewrite_playlist(&body2, &target_url, &proxy_base, &state.secret, None);
                     let mut builder = Response::builder()
                         .status(StatusCode::from_u16(status2.as_u16()).unwrap_or(StatusCode::OK));
                     builder = builder.header("Access-Control-Allow-Origin", "*");
@@ -603,8 +634,8 @@ pub async fn m3u8_handler(
         body
     };
 
-    let mut builder = Response::builder()
-        .status(StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::OK));
+    let mut builder =
+        Response::builder().status(StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::OK));
     builder = builder.header("Access-Control-Allow-Origin", "*");
 
     // Cache m3u8 playlists briefly so HLS.js doesn't re-fetch identical manifests
@@ -662,8 +693,12 @@ pub async fn ts_handler(
     request_headers: HeaderMap,
 ) -> Response {
     // Handle CORS preflight so cross-origin <video> range requests don't get blocked.
-    if request_headers.get("access-control-request-method").is_some()
-        || request_headers.get("access-control-request-headers").is_some()
+    if request_headers
+        .get("access-control-request-method")
+        .is_some()
+        || request_headers
+            .get("access-control-request-headers")
+            .is_some()
     {
         let mut builder = Response::builder().status(StatusCode::NO_CONTENT);
         builder = builder.header("Access-Control-Allow-Origin", "*");
@@ -685,7 +720,7 @@ pub async fn ts_handler(
     }
 
     let force_200 = params.force_200.unwrap_or(0) == 1;
-    let _no_synth = params.no_synth.unwrap_or(0) == 1;
+    let no_synth = params.no_synth.unwrap_or(0) == 1;
     let sanitize = params.sanitize.unwrap_or(0) == 1;
 
     let is_vix = is_vixsrc_target(&target_url, &headers);
@@ -700,14 +735,17 @@ pub async fn ts_handler(
     } else {
         incoming_range.map(str::to_string)
     };
-    let synthesized_startup_range = incoming_range.is_none()
-        && !force_200
-        && progressive_video;
+    let synthesized_startup_range =
+        incoming_range.is_none() && !force_200 && !no_synth && progressive_video;
 
     tracing::info!("[ts-proxy] Target: {}", target_url);
     tracing::info!("[ts-proxy] Token headers: {:?}", headers);
 
-    let mut req = state.raw_client.get(&worker_routed_url(&target_url, &state.config.cf_worker_url, &state.config.worker_upstream_hosts));
+    let mut req = state.raw_client.get(&worker_routed_url(
+        &target_url,
+        &state.config.cf_worker_url,
+        &state.config.worker_upstream_hosts,
+    ));
     req = inject_cdn_headers(req, &target_url, &headers);
     req = req.header("Accept-Encoding", "identity");
 
@@ -797,7 +835,8 @@ pub async fn ts_handler(
                                 }
                             }
                             builder = builder.header("Access-Control-Allow-Origin", "*");
-                            builder = builder.header("Cache-Control", "public, max-age=86400, immutable");
+                            builder =
+                                builder.header("Cache-Control", "public, max-age=86400, immutable");
                             return builder
                                 .body(Body::from_stream(resp2.bytes_stream()))
                                 .unwrap();
@@ -825,15 +864,21 @@ pub async fn ts_handler(
                 }
                 if let Ok(direct_resp) = direct.send().await {
                     let direct_status = direct_resp.status();
-                    if direct_status.is_success() || direct_status == reqwest::StatusCode::PARTIAL_CONTENT {
+                    if direct_status.is_success()
+                        || direct_status == reqwest::StatusCode::PARTIAL_CONTENT
+                    {
                         let mut builder = Response::builder().status(StatusCode::OK);
                         if let Some(ct) = direct_resp.headers().get("content-type") {
                             if let Ok(ct_str) = ct.to_str() {
-                                builder = builder.header("content-type", infer_content_type(ct_str, &target_url));
+                                builder = builder.header(
+                                    "content-type",
+                                    infer_content_type(ct_str, &target_url),
+                                );
                             }
                         }
                         builder = builder.header("Access-Control-Allow-Origin", "*");
-                        builder = builder.header("Cache-Control", "public, max-age=86400, immutable");
+                        builder =
+                            builder.header("Cache-Control", "public, max-age=86400, immutable");
                         if let Some(cl) = direct_resp.headers().get("content-length") {
                             if let Ok(v) = cl.to_str() {
                                 builder = builder.header("content-length", v);
@@ -844,7 +889,9 @@ pub async fn ts_handler(
                                 builder = builder.header("content-range", v);
                             }
                         }
-                        return builder.body(Body::from_stream(direct_resp.bytes_stream())).unwrap();
+                        return builder
+                            .body(Body::from_stream(direct_resp.bytes_stream()))
+                            .unwrap();
                     }
                 }
             }
@@ -915,7 +962,11 @@ pub async fn ts_handler(
                     "[ts-proxy] Initial request failed ({}), retrying without Range",
                     e
                 );
-                let mut retry = state.raw_client.get(&worker_routed_url(&target_url, &state.config.cf_worker_url, &state.config.worker_upstream_hosts));
+                let mut retry = state.raw_client.get(&worker_routed_url(
+                    &target_url,
+                    &state.config.cf_worker_url,
+                    &state.config.worker_upstream_hosts,
+                ));
                 retry = inject_cdn_headers(retry, &target_url, &headers);
                 if let Some(ref h) = headers {
                     for (k, v) in h {
@@ -935,7 +986,8 @@ pub async fn ts_handler(
                             }
                         }
                         builder = builder.header("Access-Control-Allow-Origin", "*");
-                        builder = builder.header("Cache-Control", "public, max-age=86400, immutable");
+                        builder =
+                            builder.header("Cache-Control", "public, max-age=86400, immutable");
                         if let Some(cl) = resp.headers().get("content-length") {
                             if let Ok(v) = cl.to_str() {
                                 builder = builder.header("content-length", v);
@@ -965,8 +1017,12 @@ pub async fn sub_handler(
     request_headers: HeaderMap,
 ) -> Response {
     // Handle CORS preflight for subtitle track requests.
-    if request_headers.get("access-control-request-method").is_some()
-        || request_headers.get("access-control-request-headers").is_some()
+    if request_headers
+        .get("access-control-request-method")
+        .is_some()
+        || request_headers
+            .get("access-control-request-headers")
+            .is_some()
     {
         let mut builder = Response::builder().status(StatusCode::NO_CONTENT);
         builder = builder.header("Access-Control-Allow-Origin", "*");
@@ -985,7 +1041,11 @@ pub async fn sub_handler(
         return (StatusCode::FORBIDDEN, "Blocked internal URL").into_response();
     }
 
-    let mut req = state.raw_client.get(&worker_routed_url(&target_url, &state.config.cf_worker_url, &state.config.worker_upstream_hosts));
+    let mut req = state.raw_client.get(&worker_routed_url(
+        &target_url,
+        &state.config.cf_worker_url,
+        &state.config.worker_upstream_hosts,
+    ));
     req = inject_cdn_headers(req, &target_url, &headers);
 
     // Inject headers from token (overrides defaults)
@@ -1137,7 +1197,7 @@ fn rewrite_playlist(
             rewritten_lines.push(line.to_string());
         } else if !line.trim().is_empty() {
             let line_trim = line.trim();
-            let abs_url = resolve_segment_url(&base_url, line_trim);
+            let abs_url = unwrap_aisports_worker_url(&resolve_segment_url(&base_url, line_trim));
             let is_hls = looks_like_hls_playlist_url(&abs_url);
             let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
 
@@ -1154,7 +1214,7 @@ fn rewrite_playlist(
                 segment_urls.push(abs_url.clone());
             }
 
-            let use_raw = is_whitelisted_raw_url(&abs_url);
+            let use_raw = is_whitelisted_raw_url(&abs_url) && headers.is_none();
             let proxy_url = if use_raw {
                 let encoded_url = urlencoding::encode(&abs_url);
                 let header_part = if let Some(ref h) = headers {
@@ -1229,10 +1289,11 @@ fn rewrite_hls_tag_uri(
     };
 
     let abs_url = resolve_segment_url(base_url, value);
+    let abs_url = unwrap_aisports_worker_url(&abs_url);
     let is_hls = looks_like_hls_playlist_url(&abs_url);
     let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
 
-    let proxy_url = if is_whitelisted_raw_url(&abs_url) {
+    let proxy_url = if is_whitelisted_raw_url(&abs_url) && headers.is_none() {
         let encoded_url = urlencoding::encode(&abs_url);
         let header_part = if let Some(ref h) = headers {
             format!(
@@ -1242,13 +1303,72 @@ fn rewrite_hls_tag_uri(
         } else {
             String::new()
         };
-        format!("{}/{}?url={}&mode=url{}", proxy_base, route, encoded_url, header_part)
+        format!(
+            "{}/{}?url={}&mode=url{}",
+            proxy_base, route, encoded_url, header_part
+        )
     } else {
         let token = security::encrypt_url(&abs_url, secret, headers.clone());
         format!("{}/{}?h_token={}", proxy_base, route, token)
     };
 
     Some(format!("{}\"{}\"{}", prefix, proxy_url, suffix))
+}
+
+fn unwrap_aisports_worker_url(input: &str) -> String {
+    let Ok(worker_url) = Url::parse(input) else {
+        return input.to_string();
+    };
+
+    let host = worker_url.host_str().unwrap_or("").to_lowercase();
+    if !host.contains("hue-universal-proxy") {
+        return input.to_string();
+    }
+
+    let mut target = None;
+    let mut sign = None;
+    let mut t = None;
+    for (key, value) in worker_url.query_pairs() {
+        match key.as_ref() {
+            "target" => target = Some(value.into_owned()),
+            "sign" => sign = Some(value.into_owned()),
+            "t" => t = Some(value.into_owned()),
+            _ => {}
+        }
+    }
+
+    let Some(target) = target else {
+        return input.to_string();
+    };
+
+    let Ok(mut target_url) = Url::parse(&target) else {
+        return input.to_string();
+    };
+
+    let target_host = target_url.host_str().unwrap_or("").to_lowercase();
+    if !target_host.contains("live-pull.aisports.mobi") {
+        return input.to_string();
+    }
+
+    {
+        let existing: std::collections::HashSet<String> = target_url
+            .query_pairs()
+            .map(|(key, _)| key.into_owned())
+            .collect();
+        let mut pairs = target_url.query_pairs_mut();
+        if let Some(sign) = sign {
+            if !existing.contains("sign") {
+                pairs.append_pair("sign", &sign);
+            }
+        }
+        if let Some(t) = t {
+            if !existing.contains("t") {
+                pairs.append_pair("t", &t);
+            }
+        }
+    }
+
+    target_url.to_string()
 }
 
 fn parse_hls_byte_range(range_spec: &str, next_byte_offset: &mut Option<u64>) -> Option<String> {
@@ -1407,8 +1527,12 @@ pub async fn generic_proxy_handler(
     request_headers: HeaderMap,
 ) -> Response {
     // CORS preflight
-    if request_headers.get("access-control-request-method").is_some()
-        || request_headers.get("access-control-request-headers").is_some()
+    if request_headers
+        .get("access-control-request-method")
+        .is_some()
+        || request_headers
+            .get("access-control-request-headers")
+            .is_some()
     {
         let mut builder = Response::builder().status(StatusCode::NO_CONTENT);
         builder = builder.header("Access-Control-Allow-Origin", "*");
@@ -1427,7 +1551,11 @@ pub async fn generic_proxy_handler(
         return (StatusCode::FORBIDDEN, "Blocked internal URL").into_response();
     }
 
-    let mut req = state.raw_client.get(&worker_routed_url(&target_url, &state.config.cf_worker_url, &state.config.worker_upstream_hosts));
+    let mut req = state.raw_client.get(&worker_routed_url(
+        &target_url,
+        &state.config.cf_worker_url,
+        &state.config.worker_upstream_hosts,
+    ));
     req = inject_cdn_headers(req, &target_url, &token_headers);
 
     let mut referer_value = None;
@@ -1464,7 +1592,8 @@ pub async fn generic_proxy_handler(
 
     match req.send().await {
         Ok(resp) => {
-            let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+            let status =
+                StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
             let mut builder = Response::builder().status(status);
 
             // Forward content-type and cache headers
@@ -1600,6 +1729,40 @@ Second cue"#;
         assert!(!rewritten.contains("&mode=url"));
     }
 
+    #[tokio::test]
+    async fn test_rewrite_playlist_uses_signed_urls_when_headers_are_present() {
+        let content = "#EXTM3U\n#EXTINF:10,\nsegment.ts";
+        let mut headers = HashMap::new();
+        headers.insert(
+            "Referer".to_string(),
+            "https://thesports.today/".to_string(),
+        );
+
+        let rewritten = rewrite_playlist(
+            content,
+            "https://live-pull.aisports.mobi/moviebox/device01/playlist.m3u8",
+            "http://proxy.local",
+            "secret",
+            Some(headers),
+        );
+
+        assert!(rewritten.contains("http://proxy.local/ts-proxy?h_token="));
+        assert!(!rewritten.contains("http://proxy.local/ts-proxy?url="));
+        assert!(!rewritten.contains("&headers="));
+    }
+
+    #[test]
+    fn test_unwrap_aisports_worker_url_moves_segment_signature_to_target() {
+        let input = "https://hue-universal-proxy.testpjmail.workers.dev/?target=https%3A%2F%2Flive-pull.aisports.mobi%2Fmoviebox%2Fdevice01%2Fsegment.ts&referer=https%3A%2F%2Flive-pull.aisports.mobi&origin=https%3A%2F%2Flive-pull.aisports.mobi&sign=abc&t=123";
+
+        let unwrapped = unwrap_aisports_worker_url(input);
+
+        assert_eq!(
+            unwrapped,
+            "https://live-pull.aisports.mobi/moviebox/device01/segment.ts?sign=abc&t=123"
+        );
+    }
+
     #[test]
     fn test_proxy_target_rejects_non_whitelisted_raw_url() {
         let params = ProxyQuery {
@@ -1651,6 +1814,24 @@ Second cue"#;
         };
 
         assert!(resolve_ts_target(&params, "secret").is_none());
+    }
+
+    #[test]
+    fn test_ts_query_accepts_camel_case_playback_flags() {
+        let params: TsProxyQuery = serde_json::from_value(serde_json::json!({
+            "noSynth": 1,
+            "force200": 1,
+            "clampOpen": 0,
+            "progressiveOpen": 0,
+            "tailPrefetch": 0
+        }))
+        .unwrap();
+
+        assert_eq!(params.no_synth, Some(1));
+        assert_eq!(params.force_200, Some(1));
+        assert_eq!(params.clamp_open, Some(0));
+        assert_eq!(params.progressive_open, Some(0));
+        assert_eq!(params.tail_prefetch, Some(0));
     }
 
     #[test]
