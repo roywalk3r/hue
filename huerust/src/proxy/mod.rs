@@ -314,19 +314,27 @@ fn is_vixsrc_target(target_url: &str, headers: &Option<HashMap<String, String>>)
 fn is_progressive_video_target(target_url: &str) -> bool {
     let lower = target_url.to_lowercase();
     // Only apply progressive range clamping to HLS segment formats.
-    // Full MP4/MKV files must not be truncated — mobile browsers need the
+    // Full MP4/MKV/WebM files must not be truncated — mobile browsers need the
     // complete ftyp + moov atoms to demux (ffmpegDemux error otherwise).
+    if lower.contains(".mp4") || lower.contains(".mkv") || lower.contains(".webm") {
+        return false;
+    }
     if lower.contains(".ts") || lower.contains(".m4s") {
         return true;
     }
 
+    // Host-based heuristic: these CDNs also serve TS segments from
+    // extensionless URLs, so keep progressive clamping for them.
     if let Ok(url) = Url::parse(target_url) {
         let host = url.host_str().unwrap_or("").to_lowercase();
-        return host.contains("hakunaymatata.com")
+        if host.contains("hakunaymatata.com")
             || host.contains("aisports.mobi")
             || host.contains("poocloud.in")
             || host.contains("pixeldrain.")
-            || host == "video-downloads.googleusercontent.com";
+            || host == "video-downloads.googleusercontent.com"
+        {
+            return true;
+        }
     }
 
     false

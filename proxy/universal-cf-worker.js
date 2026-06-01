@@ -206,8 +206,13 @@ async function executeProxy(targetUrl, request, env, ctx, attempt = 0) {
     responseHeaders.set('Content-Type', 'application/vnd.apple.mpegurl');
   }
 
+  const isFullContainer = pathLower.endsWith('.mp4') || pathLower.endsWith('.mkv') || pathLower.endsWith('.webm');
+
   // ── Base64-Encoded Segment Detection ──────────────────────────────────────
-  if (isSegment && upstream.ok && !isM3U8) {
+  // Only run for HLS segment formats (.ts / .m4s). Full container files are
+  // streamed directly — buffering multi-GB MP4s into memory breaks mobile
+  // playback and can exceed Worker memory limits.
+  if (isSegment && upstream.ok && !isM3U8 && !isFullContainer) {
     const buffer = await upstream.arrayBuffer();
     const view = new Uint8Array(buffer);
     // MPEG-TS starts with 0x47; JPEG with 0xFF 0xD8
