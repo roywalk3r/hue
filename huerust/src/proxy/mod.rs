@@ -732,6 +732,7 @@ pub async fn ts_handler(
     let force_200 = params.force_200.unwrap_or(0) == 1;
     let no_synth = params.no_synth.unwrap_or(0) == 1;
     let sanitize = params.sanitize.unwrap_or(0) == 1;
+    let is_download = params.download.is_some();
 
     let is_vix = is_vixsrc_target(&target_url, &headers);
     let incoming_range = params.range.as_deref().or_else(|| {
@@ -753,7 +754,7 @@ pub async fn ts_handler(
 
     let mut req = state.raw_client.get(&worker_routed_url(
         &target_url,
-        &state.config.cf_worker_url,
+        if is_download { &None } else { &state.config.cf_worker_url },
         &state.config.worker_upstream_hosts,
     ));
     req = inject_cdn_headers(req, &target_url, &headers);
