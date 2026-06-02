@@ -156,7 +156,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         reqwest::Client::builder()
             .tcp_keepalive(Duration::from_secs(60))
             .tcp_nodelay(true)
-            .timeout(Duration::from_secs(30))
+            .timeout(Duration::from_secs(600))
             .connect_timeout(Duration::from_secs(10))
             .pool_max_idle_per_host(32)
             .pool_idle_timeout(Duration::from_secs(120))
