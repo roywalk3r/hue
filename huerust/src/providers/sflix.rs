@@ -200,6 +200,17 @@ impl SflixClient {
         let items = self.search(title, media_type).await?;
         if items.is_empty() { return Ok(vec![]); }
 
+        // Debug: dump each candidate's title/year for diagnosis
+        for (i, item) in items.iter().enumerate() {
+            let ctitle = item["title"].as_str().unwrap_or_default();
+            let cyear = extract_year(item);
+            let score = title_score(title, ctitle);
+            info!(
+                "[SFlix Rust]   candidate[{}] title={:?} year={:?} score={:.1}",
+                i, ctitle, cyear, score
+            );
+        }
+
         let best_match = match pick_best_match(&items, title, year) {
             Some(m) => m,
             None => {
@@ -207,6 +218,12 @@ impl SflixClient {
                 return Ok(vec![]);
             }
         };
+        let chosen_title = best_match["title"].as_str().unwrap_or_default();
+        let chosen_year = extract_year(best_match);
+        info!(
+            "[SFlix Rust]   CHOSE title={:?} year={:?} for query {:?}",
+            chosen_title, chosen_year, title
+        );
         let slug = best_match["detailPath"].as_str().unwrap_or_default();
         let subject_id = best_match["subjectId"].as_str().unwrap_or_default();
 
