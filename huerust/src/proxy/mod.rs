@@ -972,6 +972,35 @@ pub async fn ts_handler(
                     }
                     Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
                 }
+            } else if params.download.is_some() {
+                // Download mode: buffer the full upstream body so the response
+                // has a known Content-Length (browser can show download size)
+                // and we never hand the browser a half-streamed chunked body.
+                let upstream_status = status;
+                let upstream_headers = resp.headers().clone();
+                match resp.bytes().await {
+                    Ok(bytes) => {
+                        let len = bytes.len();
+                        builder = builder.header("content-length", len);
+                        tracing::info!(
+                            "[ts-proxy] Download buffered {} bytes for {} (status={})",
+                            len,
+                            target_url,
+                            upstream_status.as_u16()
+                        );
+                        builder.body(Body::from(bytes)).unwrap()
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "[ts-proxy] Download body read failed for {}: {} (status={}, cl_header={:?})",
+                            target_url,
+                            e,
+                            upstream_status.as_u16(),
+                            upstream_headers.get("content-length").and_then(|v| v.to_str().ok())
+                        );
+                        (StatusCode::BAD_GATEWAY, e.to_string()).into_response()
+                    }
+                }
             } else {
                 if let Some(cl) = resp.headers().get("content-length") {
                     if let Ok(v) = cl.to_str() {
