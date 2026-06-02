@@ -80,6 +80,8 @@ pub struct TsProxyQuery {
     #[serde(alias = "tailPrefetch")]
     pub tail_prefetch: Option<u32>,
     pub sanitize: Option<u32>,
+    pub download: Option<String>,
+    pub filename: Option<String>,
 }
 
 // ── Shared helpers ───────────────────────────────────────────────────────────
@@ -845,6 +847,13 @@ pub async fn ts_handler(
                             builder = builder.header("Access-Control-Allow-Origin", "*");
                             builder =
                                 builder.header("Cache-Control", "public, max-age=86400, immutable");
+                            if params.download.is_some() {
+                                let filename = params.filename.as_deref().unwrap_or("video.mp4");
+                                builder = builder.header(
+                                    "Content-Disposition",
+                                    format!(r#"attachment; filename="{}""#, filename),
+                                );
+                            }
                             return builder
                                 .body(Body::from_stream(resp2.bytes_stream()))
                                 .unwrap();
@@ -897,6 +906,13 @@ pub async fn ts_handler(
                                 builder = builder.header("content-range", v);
                             }
                         }
+                        if params.download.is_some() {
+                            let filename = params.filename.as_deref().unwrap_or("video.mp4");
+                            builder = builder.header(
+                                "Content-Disposition",
+                                format!(r#"attachment; filename="{}""#, filename),
+                            );
+                        }
                         return builder
                             .body(Body::from_stream(direct_resp.bytes_stream()))
                             .unwrap();
@@ -925,7 +941,16 @@ pub async fn ts_handler(
                 builder = builder.status(StatusCode::OK);
             }
 
-            if sanitize {
+            // Download mode: force attachment disposition
+            if params.download.is_some() {
+                let filename = params.filename.as_deref().unwrap_or("video.mp4");
+                builder = builder.header(
+                    "Content-Disposition",
+                    format!(r#"attachment; filename="{}""#, filename),
+                );
+            }
+
+            if sanitize && params.download.is_none() {
                 match resp.bytes().await {
                     Ok(body) => {
                         let bytes = body.to_vec();
@@ -1005,6 +1030,13 @@ pub async fn ts_handler(
                             if let Ok(v) = cr.to_str() {
                                 builder = builder.header("content-range", v);
                             }
+                        }
+                        if params.download.is_some() {
+                            let filename = params.filename.as_deref().unwrap_or("video.mp4");
+                            builder = builder.header(
+                                "Content-Disposition",
+                                format!(r#"attachment; filename="{}""#, filename),
+                            );
                         }
                         return builder
                             .body(Body::from_stream(resp.bytes_stream()))
@@ -1819,6 +1851,8 @@ Second cue"#;
             force_200: None,
             tail_prefetch: None,
             sanitize: None,
+            download: None,
+            filename: None,
         };
 
         assert!(resolve_ts_target(&params, "secret").is_none());
@@ -1856,6 +1890,8 @@ Second cue"#;
             force_200: None,
             tail_prefetch: None,
             sanitize: None,
+            download: None,
+            filename: None,
         };
 
         assert!(resolve_ts_target(&params, "secret").is_some());

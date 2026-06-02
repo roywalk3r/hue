@@ -982,6 +982,10 @@ function createProxyRoutes(app) {
         const noSynth = req.query.noSynth === '1';
         const force200 = req.query.force200 === '1';
         const isDownload = req.query.download === '1';
+        if (isDownload) {
+            const dlFilename = req.query.filename || 'video.mp4';
+            res.setHeader('Content-Disposition', `attachment; filename="${dlFilename}"`);
+        }
         const forceType = typeof req.query.forceType === 'string' && /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(req.query.forceType)
             ? req.query.forceType
             : null;
