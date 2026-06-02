@@ -308,11 +308,17 @@ fn title_score(query: &str, candidate: &str) -> f32 {
     let q_set: std::collections::HashSet<&str> = q_words.iter().copied().collect();
     let c_set: std::collections::HashSet<&str> = c_words.iter().copied().collect();
     let overlap = q_set.intersection(&c_set).count() as f32;
-    let max_len = q_words.len().max(c_words.len()) as f32;
-    if max_len == 0.0 {
+    // Penalize candidates with significantly more words than the query —
+    // "Spider-Man Noir" vs "Spider-Noir" is a 1-word extension that's
+    // probably still a match, but "Off Campus" vs "Spider-Noir" is
+    // completely different. Score by overlap on the *shorter* side so a
+    // short query like "Spider-Noir" still gets full credit when one of
+    // its words appears in the candidate.
+    let short_len = q_words.len().min(c_words.len()) as f32;
+    if short_len == 0.0 {
         return 0.0;
     }
-    (overlap / max_len) * 60.0
+    (overlap / short_len) * 60.0
 }
 
 fn extract_year(item: &serde_json::Value) -> Option<u32> {
@@ -327,7 +333,7 @@ fn pick_best_match<'a>(items: &'a [serde_json::Value], title: &str, year: Option
     // similarity threshold, a year-only "match" can pick a totally unrelated
     // show (e.g. searching "Black Noir" returning "Off Campus" because the
     // years align but titles share zero words).
-    const MIN_TITLE_SCORE: f32 = 30.0;
+    const MIN_TITLE_SCORE: f32 = 25.0;
 
     let mut best: Option<(&'a serde_json::Value, f32)> = None;
     for item in items {
