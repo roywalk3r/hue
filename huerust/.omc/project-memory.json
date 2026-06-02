@@ -115,8 +115,8 @@
   "hotPaths": [
     {
       "path": "src/proxy/mod.rs",
-      "accessCount": 23,
-      "lastAccessed": 1779909168347,
+      "accessCount": 29,
+      "lastAccessed": 1780342459806,
       "type": "file"
     },
     {
@@ -141,6 +141,18 @@
       "path": "src/clients/moviebox.rs",
       "accessCount": 6,
       "lastAccessed": 1780134760559,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/sflix.rs",
+      "accessCount": 5,
+      "lastAccessed": 1780426401108,
+      "type": "file"
+    },
+    {
+      "path": "src/app.rs",
+      "accessCount": 3,
+      "lastAccessed": 1780426297364,
       "type": "file"
     },
     {
@@ -186,15 +198,15 @@
       "type": "file"
     },
     {
-      "path": "src/app.rs",
-      "accessCount": 1,
-      "lastAccessed": 1779907514696,
-      "type": "file"
-    },
-    {
       "path": "src/routes/anime.rs",
       "accessCount": 1,
       "lastAccessed": 1780134997721,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/sflix_provider.rs",
+      "accessCount": 1,
+      "lastAccessed": 1780426327797,
       "type": "file"
     }
   ],
