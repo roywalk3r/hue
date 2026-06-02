@@ -194,13 +194,13 @@ impl SflixClient {
             .collect())
     }
 
-    pub async fn get_streams_normalized(&self, title: &str, media_type: &str, _year: Option<u32>, season: u32, episode: u32) -> Result<Vec<StreamResult>> {
+    pub async fn get_streams_normalized(&self, title: &str, media_type: &str, year: Option<u32>, season: u32, episode: u32) -> Result<Vec<StreamResult>> {
         info!("[SFlix Rust] Searching for: \"{}\" ({}) S{} E{}", title, media_type, season, episode);
-        
+
         let items = self.search(title, media_type).await?;
         if items.is_empty() { return Ok(vec![]); }
 
-        let best_match = &items[0];
+        let best_match = pick_best_match(&items, title, year).unwrap_or(&items[0]);
         let slug = best_match["detailPath"].as_str().unwrap_or_default();
         let subject_id = best_match["subjectId"].as_str().unwrap_or_default();
 
@@ -256,4 +256,67 @@ impl SflixClient {
             }
         }
     }
+}
+
+fn normalize(s: &str) -> String {
+    s.to_lowercase()
+        .chars()
+        .filter(|c| c.is_alphanumeric() || c.is_whitespace())
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn title_score(query: &str, candidate: &str) -> f32 {
+    let q = normalize(query);
+    let c = normalize(candidate);
+    if q.is_empty() || c.is_empty() {
+        return 0.0;
+    }
+    if c == q {
+        return 100.0;
+    }
+    if c.contains(&q) || q.contains(&c) {
+        return 80.0;
+    }
+    let q_words: Vec<&str> = q.split_whitespace().collect();
+    let c_words: Vec<&str> = c.split_whitespace().collect();
+    let q_set: std::collections::HashSet<&str> = q_words.iter().copied().collect();
+    let c_set: std::collections::HashSet<&str> = c_words.iter().copied().collect();
+    let overlap = q_set.intersection(&c_set).count() as f32;
+    let max_len = q_words.len().max(c_words.len()) as f32;
+    if max_len == 0.0 {
+        return 0.0;
+    }
+    (overlap / max_len) * 60.0
+}
+
+fn extract_year(item: &serde_json::Value) -> Option<u32> {
+    let release = item["releaseDate"].as_str()
+        .or_else(|| item["release_date"].as_str())
+        .or_else(|| item["year"].as_str())?;
+    release.get(..4)?.parse().ok()
+}
+
+fn pick_best_match<'a>(items: &'a [serde_json::Value], title: &str, year: Option<u32>) -> Option<&'a serde_json::Value> {
+    let mut best: Option<(&'a serde_json::Value, f32)> = None;
+    for item in items {
+        let candidate_title = item["title"].as_str().unwrap_or_default();
+        let mut score = title_score(title, candidate_title);
+        if let (Some(target_year), Some(cand_year)) = (year, extract_year(item)) {
+            let diff = (target_year as i32 - cand_year as i32).abs();
+            let year_bonus = match diff {
+                0 => 20.0,
+                1 => 10.0,
+                2 => 4.0,
+                _ => -10.0,
+            };
+            score += year_bonus;
+        }
+        if best.map_or(true, |(_, s)| score > s) {
+            best = Some((item, score));
+        }
+    }
+    best.map(|(item, _)| item)
 }
