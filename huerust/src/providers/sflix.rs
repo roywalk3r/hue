@@ -339,11 +339,16 @@ fn pick_best_match<'a>(items: &'a [serde_json::Value], title: &str, year: Option
         let mut score = t_score;
         if let (Some(target_year), Some(cand_year)) = (year, extract_year(item)) {
             let diff = (target_year as i32 - cand_year as i32).abs();
+            // Year outside a ±2 window = hard reject, not a small penalty.
+            // Otherwise a "Spider-Man Noir" (2018) match would beat nothing
+            // when the user actually wants "Spider-Noir" (2026 TV show).
+            if diff > 2 {
+                continue;
+            }
             let year_bonus = match diff {
                 0 => 20.0,
                 1 => 10.0,
-                2 => 4.0,
-                _ => -10.0,
+                _ => 4.0,
             };
             score += year_bonus;
         }
