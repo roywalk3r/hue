@@ -200,7 +200,13 @@ impl SflixClient {
         let items = self.search(title, media_type).await?;
         if items.is_empty() { return Ok(vec![]); }
 
-        let best_match = pick_best_match(&items, title, year).unwrap_or(&items[0]);
+        let best_match = match pick_best_match(&items, title, year) {
+            Some(m) => m,
+            None => {
+                warn!("[SFlix Rust] No plausible match for \"{}\" (year={:?}) in {} results — skipping SFlix", title, year, items.len());
+                return Ok(vec![]);
+            }
+        };
         let slug = best_match["detailPath"].as_str().unwrap_or_default();
         let subject_id = best_match["subjectId"].as_str().unwrap_or_default();
 
@@ -300,10 +306,20 @@ fn extract_year(item: &serde_json::Value) -> Option<u32> {
 }
 
 fn pick_best_match<'a>(items: &'a [serde_json::Value], title: &str, year: Option<u32>) -> Option<&'a serde_json::Value> {
+    // Reject if there's no plausible title match. Without a minimum title
+    // similarity threshold, a year-only "match" can pick a totally unrelated
+    // show (e.g. searching "Black Noir" returning "Off Campus" because the
+    // years align but titles share zero words).
+    const MIN_TITLE_SCORE: f32 = 30.0;
+
     let mut best: Option<(&'a serde_json::Value, f32)> = None;
     for item in items {
         let candidate_title = item["title"].as_str().unwrap_or_default();
-        let mut score = title_score(title, candidate_title);
+        let t_score = title_score(title, candidate_title);
+        if t_score < MIN_TITLE_SCORE {
+            continue;
+        }
+        let mut score = t_score;
         if let (Some(target_year), Some(cand_year)) = (year, extract_year(item)) {
             let diff = (target_year as i32 - cand_year as i32).abs();
             let year_bonus = match diff {
