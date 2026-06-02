@@ -53,3 +53,10 @@ pub trait StreamProvider: Send + Sync {
         episode: u32,
     ) -> Result<Vec<StreamResult>>;
 }
+
+/// Pick the "best" provider from a non-empty result list. The SSE aggregator
+/// inserts results in the order providers complete, so the first stream's
+/// provider is the fastest healthy one for this title.
+pub fn best_provider_real_name(streams: &[StreamResult]) -> Option<&str> {
+    streams.first().map(|s| s.provider.as_str())
+}

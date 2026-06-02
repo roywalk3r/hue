@@ -21,7 +21,10 @@ use tracing::warn;
 
 use crate::{
     app::StreamState,
-    infra::cache::CacheKey,
+    infra::{
+        cache::CacheKey,
+        sticky_pref::{StickyPrefEntry, StickyPrefKey},
+    },
     filters::apply_filters,
     proxy::wrap::wrap_with_proxy,
     proxy::dynamic_proxy_base,
@@ -64,8 +67,21 @@ pub async fn sse_streams_handler(
     let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
     let (tx, rx) = mpsc::channel::<Result<Event, Infallible>>(64);
 
+    let user_id = headers
+        .get_all(axum::http::header::COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|s| s.split(';'))
+        .map(str::trim)
+        .find_map(|pair| {
+            let (k, v) = pair.split_once('=')?;
+            if k == "hue_anon" { Some(v.to_string()) } else { None }
+        })
+        .unwrap_or_else(|| "anon".to_string());
+
     tokio::spawn(async move {
         let cache_key = CacheKey::new(&m_type, &tmdb_id, season, episode);
+        let sticky_key = StickyPrefKey::new(&user_id, &m_type, &tmdb_id);
 
         // Serve from cache immediately if available (only if nocache is not set)
         if !no_cache {
@@ -94,7 +110,20 @@ pub async fn sse_streams_handler(
             }
         }
 
-        // Fetch TMDB info
+        // Sticky fast-path: if this user has a recent successful provider
+        // for this title, try just that one with a short timeout before
+        // fanning out to every provider.
+        let cb = state.registry.circuit_breaker();
+        let mut sticky_hit: Option<StickyPrefEntry> = None;
+        if let Some(entry) = state.sticky_pref.get(&sticky_key).await {
+            if entry.consecutive_failures == 0 && cb.is_healthy(&entry.provider_real_name) {
+                sticky_hit = Some(entry);
+            } else {
+                state.sticky_pref.record_failure(&sticky_key).await;
+            }
+        }
+
+        // Fetch TMDB info (needed for both fast path and full fan-out)
         let tmdb_info = match state.tmdb.get_details(&m_type, tmdb_id.parse().unwrap_or(0)).await {
             Ok(info) => info,
             Err(e) => {
@@ -102,6 +131,65 @@ pub async fn sse_streams_handler(
                 return;
             }
         };
+
+        // Try the sticky provider alone first
+        if let Some(entry) = sticky_hit {
+            if let Some(provider) = state
+                .registry
+                .list_all_arc()
+                .into_iter()
+                .find(|p| p.real_name() == entry.provider_real_name)
+            {
+                let t0 = std::time::Instant::now();
+                let result = timeout(
+                    Duration::from_secs(3),
+                    provider.fetch(&tmdb_info, &m_type, season, episode),
+                ).await;
+
+                match result {
+                    Ok(Ok(streams)) if !streams.is_empty() => {
+                        cb.record_success(&entry.provider_real_name);
+                        let elapsed_ms = t0.elapsed().as_millis() as u64;
+                        let mut display = if state.config.enable_proxy {
+                            wrap_with_proxy(streams.clone(), &proxy_base, &state.secret)
+                        } else {
+                            streams.clone()
+                        };
+                        encrypt_stream_result_urls(&mut display, &state.kkey);
+                        let _ = tx.send(Ok(Event::default().event("provider").data(
+                            json!({
+                                "provider": provider.name(),
+                                "streams": display,
+                                "count": display.len(),
+                                "elapsed_ms": elapsed_ms,
+                                "sticky": true
+                            }).to_string()
+                        ))).await;
+                        state.sticky_pref.record_success(&sticky_key, &entry.provider_real_name).await;
+
+                        // Also populate the regular stream cache so future
+                        // requests can short-circuit entirely.
+                        let mut seen = std::collections::HashSet::new();
+                        let deduped: Vec<_> = streams.into_iter().filter(|s| seen.insert(s.url.clone())).collect();
+                        state.cache.set(&cache_key, deduped).await;
+
+                        let _ = tx.send(Ok(Event::default().event("done").data(
+                            json!({"total": 1, "cached": false, "sticky": true}).to_string()
+                        ))).await;
+                        return;
+                    }
+                    _ => {
+                        warn!(
+                            "[SSE] Sticky provider {} failed fast-path for {} — falling back to fan-out",
+                            entry.provider_real_name, tmdb_id
+                        );
+                        state.sticky_pref.record_failure(&sticky_key).await;
+                    }
+                }
+            } else {
+                state.sticky_pref.record_failure(&sticky_key).await;
+            }
+        }
 
         // Fire each provider independently, emitting results as they arrive
         let registry = state.registry.clone();
@@ -191,6 +279,13 @@ pub async fn sse_streams_handler(
         raw_all.retain(|s| seen.insert(s.url.clone()));
         let cache_key2 = CacheKey::new(&m_type, &tmdb_id, season, episode);
         state.cache.set(&cache_key2, raw_all.clone()).await;
+
+        // Record the sticky provider preference for the next watch.
+        // Use the first result stream's provider — it's the fastest one
+        // that returned successfully.
+        if let Some(best) = crate::providers::best_provider_real_name(&raw_all) {
+            state.sticky_pref.record_success(&sticky_key, best).await;
+        }
 
         let _ = tx.send(Ok(Event::default().event("done").data(
             json!({"total": raw_all.len(), "cached": false}).to_string()

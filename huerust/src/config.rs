@@ -27,6 +27,9 @@ pub struct AppConfig {
     pub kkey: String,
     pub cf_worker_url: Option<String>,
     pub worker_upstream_hosts: Vec<String>,
+    pub sticky_pref_enabled: bool,
+    pub sticky_pref_ttl_secs: u64,
+    pub sticky_pref_failure_threshold: u32,
 }
 
 impl AppConfig {
@@ -87,6 +90,18 @@ impl AppConfig {
                 .map(|s| s.trim().to_lowercase().to_string())
                 .filter(|s| !s.is_empty())
                 .collect(),
+            sticky_pref_enabled: env::var("STICKY_PREF_ENABLED")
+                .ok()
+                .map(|s| s == "true" || s == "1")
+                .unwrap_or(true),
+            sticky_pref_ttl_secs: env::var("STICKY_PREF_TTL_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(259200),
+            sticky_pref_failure_threshold: env::var("STICKY_PREF_FAILURE_THRESHOLD")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(2),
         }
     }
 
@@ -163,6 +178,9 @@ mod tests {
             kkey: "test-kkey".to_string(),
             cf_worker_url: None,
             worker_upstream_hosts: vec![],
+            sticky_pref_enabled: true,
+            sticky_pref_ttl_secs: 3600,
+            sticky_pref_failure_threshold: 2,
         };
 
         assert_eq!(cfg.fast_deadline(), Duration::from_secs(3));

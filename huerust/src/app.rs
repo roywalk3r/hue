@@ -65,6 +65,7 @@ pub struct AppState {
     pub tmdb: Arc<TmdbClient>,
     pub registry: Arc<ProviderRegistry>,
     pub cache: Arc<StreamCache>,
+    pub sticky_pref: Arc<crate::infra::sticky_pref::StickyPrefCache>,
     pub filter_config: Arc<FilterConfig>,
     pub hitv: Arc<HiTvClient>,
     pub kisskh: Arc<KissKhClient>,
@@ -172,6 +173,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         tmdb: tmdb.clone(),
         registry: Arc::new(registry),
         cache: cache.clone(),
+        sticky_pref: Arc::new(crate::infra::sticky_pref::StickyPrefCache::new_from_config(&cfg).await),
         filter_config: filter_config.clone(),
         hitv: Arc::new(HiTvClient::new(tmdb.clone())),
         kisskh: kisskh_client,
@@ -547,6 +549,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         .layer(TraceLayer::new_for_http())
         .layer(CompressionLayer::new())
+        .layer(middleware::from_fn(hue_anon_middleware))
         .layer(middleware::from_fn(request_id_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -615,6 +618,41 @@ async fn request_id_middleware(req: Request<Body>, next: Next) -> Response {
     response
 }
 
+const HUE_ANON_COOKIE: &str = "hue_anon";
+
+#[derive(Clone, Debug)]
+#[allow(dead_code)]
+pub struct HueAnonId(pub String);
+
+async fn hue_anon_middleware(mut req: Request<Body>, next: Next) -> Response {
+    let existing = req
+        .headers()
+        .get_all(axum::http::header::COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|s| s.split(';'))
+        .map(str::trim)
+        .find_map(|pair| {
+            let (k, v) = pair.split_once('=')?;
+            if k == HUE_ANON_COOKIE { Some(v.to_string()) } else { None }
+        });
+
+    let is_new = existing.is_none();
+    let id = existing.unwrap_or_else(|| ulid::Ulid::new().to_string());
+    req.extensions_mut().insert(HueAnonId(id.clone()));
+
+    let mut response = next.run(req).await;
+
+    if is_new {
+        if let Ok(val) = axum::http::HeaderValue::from_str(
+            &format!("{HUE_ANON_COOKIE}={id}; Path=/; Max-Age=63072000; HttpOnly; SameSite=Lax"),
+        ) {
+            response.headers_mut().append(axum::http::header::SET_COOKIE, val);
+        }
+    }
+    response
+}
+
 async fn vixsrc_enc_key_handler(State(state): State<AppState>) -> Response {
     match state.client
         .get("https://vixsrc.to/storage/enc.key")
@@ -679,6 +717,7 @@ use axum::extract::FromRef;
 pub struct StreamState {
     pub registry: Arc<ProviderRegistry>,
     pub cache: Arc<StreamCache>,
+    pub sticky_pref: Arc<crate::infra::sticky_pref::StickyPrefCache>,
     pub tmdb: Arc<TmdbClient>,
     pub filter_config: Arc<FilterConfig>,
     pub coalescer: Arc<FetchCoalescer>,
@@ -696,6 +735,7 @@ impl FromRef<AppState> for StreamState {
         Self {
             registry: s.registry.clone(),
             cache: s.cache.clone(),
+            sticky_pref: s.sticky_pref.clone(),
             tmdb: s.tmdb.clone(),
             filter_config: s.filter_config.clone(),
             coalescer: s.coalescer.clone(),
