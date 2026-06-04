@@ -156,6 +156,12 @@
       "type": "file"
     },
     {
+      "path": "src/routes/anime.rs",
+      "accessCount": 7,
+      "lastAccessed": 1780609234974,
+      "type": "file"
+    },
+    {
       "path": "src/providers/sflix.rs",
       "accessCount": 5,
       "lastAccessed": 1780426401108,
@@ -243,12 +249,6 @@
       "path": "src/proxy/wrap.rs",
       "accessCount": 2,
       "lastAccessed": 1780609059354,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/anime.rs",
-      "accessCount": 2,
-      "lastAccessed": 1780609108338,
       "type": "file"
     },
     {

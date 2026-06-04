@@ -108,11 +108,16 @@ fn hianime_stream_to_payload(
             else { "/api/proxy".to_string() }
         };
 
-        d.link.file = {
-            let route = route_for(&d.link.file, "stream");
-            let token = crate::security::encrypt_url(&d.link.file, secret, Some(headers.clone()));
-            format!("{}{}?h_token={}", proxy_base_url, route, urlencoding::encode(&token))
-        };
+        // Iframe embeds (Vidmoly, Vidwish, etc.) must NOT be proxied — proxying
+        // breaks relative URLs for JS/CSS inside the HTML and can forward
+        // X-Frame-Options that block display. Pass the raw URL directly.
+        if d.link.link_type != "iframe" {
+            d.link.file = {
+                let route = route_for(&d.link.file, "stream");
+                let token = crate::security::encrypt_url(&d.link.file, secret, Some(headers.clone()));
+                format!("{}{}?h_token={}", proxy_base_url, route, urlencoding::encode(&token))
+            };
+        }
 
         if let Some(ref mut tracks) = d.tracks {
             for t in tracks.iter_mut() {
