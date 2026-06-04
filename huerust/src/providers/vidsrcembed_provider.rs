@@ -30,7 +30,7 @@ impl StreamProvider for VidsrcEmbedProvider {
     fn name(&self) -> &'static str { "Nebula" }
     fn real_name(&self) -> &'static str { "vidsrc-embed" }
     fn is_fast(&self) -> bool { false }
-    fn timeout_secs(&self) -> u64 { 60 }
+    fn timeout_secs(&self) -> u64 { 20 }
 
     async fn fetch(
         &self,

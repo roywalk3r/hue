@@ -11,6 +11,7 @@ pub mod vixsrc;
 pub mod kisskh;
 pub mod sflix;
 pub mod dramacool;
+pub mod kissasian;
 pub mod mp4hydra;
 pub mod vidzee;
 pub mod videasy;
@@ -18,11 +19,13 @@ pub mod moviebox_provider;
 pub mod kisskh_provider;
 pub mod sflix_provider;
 pub mod dramacool_provider;
+pub mod kissasian_provider;
 pub mod vixsrc_provider;
 pub mod mp4hydra_provider;
 pub mod vidzee_provider;
 pub mod videasy_provider;
 pub mod vidrock_provider;
+pub mod vidvault_provider;
 pub mod vidsrcembed_provider;
 
 use async_trait::async_trait;
@@ -54,9 +57,29 @@ pub trait StreamProvider: Send + Sync {
     ) -> Result<Vec<StreamResult>>;
 }
 
+/// Map a provider's public display name to its internal `real_name`.
+/// This is the stable mapping used by sticky preferences and circuit breakers.
+pub fn display_to_real_name(display: &str) -> &str {
+    match display {
+        "Cinema" => "moviebox",
+        "Nova" => "sflix",
+        "Luna" => "vidrock",
+        "Aura" => "vixsrc",
+        "Zenith" => "kisskh",
+        "Orient" => "dramacool",
+        "Pearl" => "kissasian",
+        "Hydra" => "mp4hydra",
+        "VidZee" => "vidzee",
+        "Vortex" => "videasy",
+        "Nebula" => "vidsrcembed",
+        "Vault" => "vidvault",
+        other => other,
+    }
+}
+
 /// Pick the "best" provider from a non-empty result list. The SSE aggregator
 /// inserts results in the order providers complete, so the first stream's
 /// provider is the fastest healthy one for this title.
 pub fn best_provider_real_name(streams: &[StreamResult]) -> Option<&str> {
-    streams.first().map(|s| s.provider.as_str())
+    streams.first().map(|s| display_to_real_name(&s.provider))
 }

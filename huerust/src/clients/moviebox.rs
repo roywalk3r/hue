@@ -263,9 +263,28 @@ impl MovieBoxClient {
         Ok(items)
     }
 
+    fn is_english_dub(title: &str) -> bool {
+        let t = title.to_lowercase();
+        t.contains("[english]")
+            || t.contains("(english)")
+            || t.contains("(english dub)")
+            || t.contains("[english dub]")
+            || t.contains("english dub")
+            || t.contains("dubbed")
+            || t.contains("(dub)")
+            || t.contains("[dub]")
+            || t.contains(" english version")
+    }
+
     fn map_item(&self, v: &serde_json::Value) -> Option<MovieBoxItem> {
         let subject_type = v["subjectType"].as_u64()? as u32;
         let media_type = if subject_type == 1 { "movie" } else { "tv" };
+
+        let title = v["title"].as_str()?;
+        if Self::is_english_dub(title) {
+            tracing::debug!("[MovieBox] Filtering dub entry: {}", title);
+            return None;
+        }
 
         Some(MovieBoxItem {
             id: v["subjectId"].as_str()?.to_string(),
@@ -841,7 +860,8 @@ impl MovieBoxClient {
                         .as_array()
                         .map(|arr| {
                             arr.iter()
-                                .filter_map(|v| serde_json::from_value(v.clone()).ok())
+                                .filter_map(|v| serde_json::from_value::<MovieBoxItem>(v.clone()).ok())
+                                .filter(|item: &MovieBoxItem| !Self::is_english_dub(&item.title))
                                 .collect()
                         })
                         .unwrap_or_default());

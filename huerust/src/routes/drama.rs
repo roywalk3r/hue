@@ -368,6 +368,52 @@ pub async fn dramacool_streams_handler(
     }
 }
 
+// ── KissAsian ──────────────────────────────────────────────────────
+
+pub async fn kissasian_search_handler(
+    State(state): State<DramaState>,
+    Query(params): Query<SearchQuery>,
+) -> Response {
+    tracing::info!("[drama] kissasian_search: q={}", params.q);
+    match state.kissasian.search(&params.q).await {
+        Ok(items) => {
+            tracing::info!("[drama] kissasian_search: {} results", items.len());
+            (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response()
+        }
+        Err(e) => {
+            tracing::warn!("[drama] kissasian_search error: {}", e);
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
+    }
+}
+
+pub async fn kissasian_streams_handler(
+    State(state): State<DramaState>,
+    headers: HeaderMap,
+    Path((id, episode)): Path<(String, u32)>,
+) -> Response {
+    tracing::info!("[drama] kissasian_streams: id={} ep={}", id, episode);
+    let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
+    match state
+        .kissasian
+        .get_streams_by_slug(&id, episode)
+        .await
+    {
+        Ok(streams) => {
+            tracing::info!("[drama] kissasian_streams: {} streams", streams.len());
+            let mut proxied = wrap_with_proxy(streams, &proxy_base, &state.secret);
+            encrypt_stream_result_urls(&mut proxied, &state.kkey);
+            (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
+        }
+        Err(e) => {
+            tracing::warn!("[drama] kissasian_streams error: {}", e);
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
+    }
+}
+
 // ── MovieBox ───────────────────────────────────────────────────────
 
 pub async fn moviebox_browse_handler(

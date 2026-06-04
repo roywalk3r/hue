@@ -26,6 +26,7 @@ if (typeof global.File === 'undefined') {
 const express = require('express');
 const sflixProvider = require('./providers/sflix');
 const dramacoolProvider = require('./providers/dramacool');
+const kissasianProvider = require('./providers/kissasian');
 const { decrypt: videasyDecrypt } = require('./providers/videasy/decrypt');
 const { getNewPage } = require('./utils/browserManager');
 const vidsrcEmbedProvider = require('./providers/vidsrc-embed');
@@ -104,6 +105,28 @@ app.post('/scrape/videasy', async (req, res) => {
     } catch (e) {
         console.error(`[Scraper] Videasy error: ${e.message}`);
         res.status(500).json({ success: false, error: e.message, streams: [], subtitles: [] });
+    }
+});
+
+// KissAsian Fallback Scraper Route
+app.post('/scrape/kissasian', async (req, res) => {
+    const { url, title, season, episode } = req.body;
+
+    try {
+        if (url) {
+            console.log(`[Scraper] Scraping KissAsian URL: ${url}`);
+            const streams = await kissasianProvider.getStreamsByUrl(url);
+            res.json({ success: true, streams: streams || [] });
+        } else if (title) {
+            console.log(`[Scraper] Scraping KissAsian: ${title} S${season || 1}E${episode || 1}`);
+            const streams = await kissasianProvider.getStreams(null, 'tv', season, episode);
+            res.json({ success: true, streams: streams || [] });
+        } else {
+            res.status(400).json({ error: 'Missing url or title parameter' });
+        }
+    } catch (e) {
+        console.error(`[Scraper] KissAsian error: ${e.message}`);
+        res.status(500).json({ success: false, error: e.message });
     }
 });
 

@@ -5,6 +5,7 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
+use std::collections::HashMap;
 use std::env;
 use std::time::Duration;
 
@@ -30,6 +31,11 @@ pub struct AppConfig {
     pub sticky_pref_enabled: bool,
     pub sticky_pref_ttl_secs: u64,
     pub sticky_pref_failure_threshold: u32,
+    pub stale_cache_ttl_secs: u64,
+    /// Per-provider season split mappings:
+    /// provider_real_name → { tmdb_id → [episodes_in_season_1, episodes_in_season_2, ...] }
+    /// For shows where TMDB lists as one season but some providers split into multiple.
+    pub season_splits: HashMap<String, HashMap<String, Vec<u32>>>,
 }
 
 impl AppConfig {
@@ -70,7 +76,7 @@ impl AppConfig {
             slow_provider_deadline_secs: env::var("SLOW_PROVIDER_DEADLINE_SECS")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(25),
+                .unwrap_or(18),
             head_check_timeout_secs: env::var("HEAD_CHECK_TIMEOUT_SECS")
                 .ok()
                 .and_then(|s| s.parse().ok())
@@ -102,6 +108,13 @@ impl AppConfig {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(2),
+            stale_cache_ttl_secs: env::var("STALE_CACHE_TTL_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(86400),
+            season_splits: parse_season_splits(
+                &env::var("SEASON_SPLITS").unwrap_or_default()
+            ),
         }
     }
 
@@ -153,6 +166,65 @@ impl AppConfig {
     pub fn slow_deadline(&self) -> Duration {
         Duration::from_secs(self.slow_provider_deadline_secs)
     }
+
+    /// Map TMDB season/episode to provider season/episode for shows where
+    /// TMDB lists as one season but a specific provider splits into multiple seasons.
+    /// Returns (provider_season, provider_episode).
+    pub fn map_season_episode(&self, provider: &str, tmdb_id: &str, season: u32, episode: u32) -> (u32, u32) {
+        if season != 1 {
+            return (season, episode);
+        }
+        let Some(provider_map) = self.season_splits.get(provider) else {
+            return (season, episode);
+        };
+        let Some(splits) = provider_map.get(tmdb_id) else {
+            return (season, episode);
+        };
+        if splits.is_empty() {
+            return (season, episode);
+        }
+        let mut cumulative = 0u32;
+        for (idx, count) in splits.iter().enumerate() {
+            if episode <= cumulative + *count {
+                return (idx as u32 + 1, episode - cumulative);
+            }
+            cumulative += *count;
+        }
+        // Episode exceeds all split points — return original
+        (season, episode)
+    }
+}
+
+/// Parse SEASON_SPLITS env var format:
+/// "moviebox:127532:12,13;sflix:127532:12,13" → {"moviebox": {"127532": [12,13]}, "sflix": {...}}
+fn parse_season_splits(raw: &str) -> HashMap<String, HashMap<String, Vec<u32>>> {
+    let mut map: HashMap<String, HashMap<String, Vec<u32>>> = HashMap::new();
+    if raw.trim().is_empty() {
+        return map;
+    }
+    for entry in raw.split(';') {
+        let entry = entry.trim();
+        if entry.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = entry.splitn(3, ':').collect();
+        if parts.len() != 3 {
+            continue;
+        }
+        let provider = parts[0].trim().to_string();
+        let tmdb_id = parts[1].trim().to_string();
+        let counts: Vec<u32> = parts[2]
+            .split(',')
+            .map(|s| s.trim().parse().unwrap_or(0))
+            .filter(|n| *n > 0)
+            .collect();
+        if !counts.is_empty() {
+            map.entry(provider)
+                .or_default()
+                .insert(tmdb_id, counts);
+        }
+    }
+    map
 }
 
 #[cfg(test)]
@@ -181,10 +253,18 @@ mod tests {
             sticky_pref_enabled: true,
             sticky_pref_ttl_secs: 3600,
             sticky_pref_failure_threshold: 2,
+            stale_cache_ttl_secs: 86400,
+            season_splits: HashMap::new(),
         };
 
         assert_eq!(cfg.fast_deadline(), Duration::from_secs(3));
         assert_eq!(cfg.slow_deadline(), Duration::from_secs(10));
+
+        // Test parsing of the new per-provider format
+        let parsed = parse_season_splits("moviebox:127532:12,13;sflix:127532:12,13");
+        assert_eq!(parsed.get("moviebox").unwrap().get("127532").unwrap(), &vec![12, 13]);
+        assert_eq!(parsed.get("sflix").unwrap().get("127532").unwrap(), &vec![12, 13]);
+        assert!(parsed.get("vidrock").is_none());
     }
 
     #[test]
@@ -196,5 +276,53 @@ mod tests {
             .collect();
 
         assert_eq!(keys, vec!["key1", "key2", "key3", "key4"]);
+    }
+
+    #[test]
+    fn test_map_season_episode_split() {
+        let mut splits: HashMap<String, HashMap<String, Vec<u32>>> = HashMap::new();
+        let mut inner = HashMap::new();
+        inner.insert("127532".to_string(), vec![12, 13]);
+        splits.insert("moviebox".to_string(), inner.clone());
+        splits.insert("sflix".to_string(), inner);
+        let cfg = AppConfig {
+            secret: "s".to_string(),
+            host: "0.0.0.0".to_string(),
+            port: "3000".to_string(),
+            proxy_base_url: "http://localhost:3000".to_string(),
+            tmdb_api_keys: vec!["k1".to_string()],
+            cache_ttl_secs: 3600,
+            cache_max_capacity: 500,
+            fast_provider_deadline_secs: 3,
+            slow_provider_deadline_secs: 10,
+            head_check_timeout_secs: 2,
+            enable_proxy: false,
+            cache_backend: "memory".to_string(),
+            redis_url: "redis://127.0.0.1:6379".to_string(),
+            kkey: "test-kkey".to_string(),
+            cf_worker_url: None,
+            worker_upstream_hosts: vec![],
+            sticky_pref_enabled: true,
+            sticky_pref_ttl_secs: 3600,
+            sticky_pref_failure_threshold: 2,
+            stale_cache_ttl_secs: 86400,
+            season_splits: splits,
+        };
+
+        // Solo Leveling for moviebox: TMDB S1E1-12 map to provider S1E1-12
+        assert_eq!(cfg.map_season_episode("moviebox", "127532", 1, 1), (1, 1));
+        assert_eq!(cfg.map_season_episode("moviebox", "127532", 1, 12), (1, 12));
+
+        // TMDB S1E13-25 map to provider S2E1-13
+        assert_eq!(cfg.map_season_episode("moviebox", "127532", 1, 13), (2, 1));
+        assert_eq!(cfg.map_season_episode("moviebox", "127532", 1, 18), (2, 6));
+        assert_eq!(cfg.map_season_episode("moviebox", "127532", 1, 25), (2, 13));
+
+        // vidrock has no split — passes through unchanged
+        assert_eq!(cfg.map_season_episode("vidrock", "127532", 1, 18), (1, 18));
+
+        // Unknown show / season > 1 pass through unchanged
+        assert_eq!(cfg.map_season_episode("moviebox", "99999", 1, 5), (1, 5));
+        assert_eq!(cfg.map_season_episode("moviebox", "127532", 2, 1), (2, 1));
     }
 }

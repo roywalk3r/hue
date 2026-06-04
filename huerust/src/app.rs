@@ -27,11 +27,14 @@ use crate::infra::cache::StreamCache;
 use crate::infra::circuit_breaker::CircuitBreaker;
 use crate::infra::coalesce::FetchCoalescer;
 use crate::infra::metrics::Metrics;
+use crate::infra::provider_score::ProviderScoreCache;
 use crate::infra::rate_limit::RateLimitState;
 use crate::providers::registry::ProviderRegistry;
 use crate::providers::{
     dramacool::DramacoolClient,
     dramacool_provider::DramacoolProvider,
+    kissasian::KissAsianClient,
+    kissasian_provider::KissAsianProvider,
     kisskh::KissKhClient,
     kisskh_provider::KissKhProvider,
     moviebox_provider::MovieBoxProvider,
@@ -40,6 +43,7 @@ use crate::providers::{
     videasy::VideasyClient,
     videasy_provider::VideasyProvider,
     vidrock_provider::VidrockProvider,
+    vidvault_provider::VidvaultProvider,
     vidsrcembed_provider::VidsrcEmbedProvider,
     vidzee::VidzeeClient,
     vidzee_provider::VidzeeProvider,
@@ -66,10 +70,12 @@ pub struct AppState {
     pub registry: Arc<ProviderRegistry>,
     pub cache: Arc<StreamCache>,
     pub sticky_pref: Arc<crate::infra::sticky_pref::StickyPrefCache>,
+    pub provider_score: Arc<ProviderScoreCache>,
     pub filter_config: Arc<FilterConfig>,
     pub hitv: Arc<HiTvClient>,
     pub kisskh: Arc<KissKhClient>,
     pub dramacool: Arc<DramacoolClient>,
+    pub kissasian: Arc<KissAsianClient>,
     pub moviebox: Arc<MovieBoxClient>,
     pub hianime: Arc<crate::clients::hianime::HianimeClient>,
     pub aisports: Arc<crate::clients::aisports::AiSportsClient>,
@@ -90,7 +96,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let cache = Arc::new(StreamCache::new_from_config(&cfg).await);
     let circuit_breaker = Arc::new(CircuitBreaker::new());
     let metrics = Arc::new(Metrics::new(&[
-        "Cinema", "Nova", "Zenith", "Orient", "Aura", "Hydra", "Luna", "VidZee", "Vortex", "Nebula",
+        "Cinema", "Nova", "Zenith", "Orient", "Pearl", "Aura", "Hydra", "Luna", "Vault", "VidZee", "Vortex", "Nebula",
     ]));
     circuit_breaker.set_metrics(metrics.clone());
     let filter_config = Arc::new(FilterConfig::default());
@@ -100,6 +106,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let kisskh_client = Arc::new(crate::providers::kisskh::KissKhClient::new());
     let sflix_client = Arc::new(crate::providers::sflix::SflixClient::new());
     let dramacool_client = Arc::new(crate::providers::dramacool::DramacoolClient::new());
+    let kissasian_client = Arc::new(crate::providers::kissasian::KissAsianClient::new());
     let hianime_client = Arc::new(crate::clients::hianime::HianimeClient::new());
     let vixsrc_client = Arc::new(VixsrcClient::new(
         crate::http_client::build_client_with_retry(
@@ -115,6 +122,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     ));
 
     let vidrock_client = Arc::new(crate::clients::vidrock::VidRockClient::new());
+    let vidvault_client = Arc::new(crate::clients::vidvault::VidVaultClient::new());
     let vidsrcembed_client = Arc::new(crate::clients::vidsrcembed::VidsrcEmbedClient::new());
     let vidzee_client = Arc::new(VidzeeClient::new(crate::http_client::wrap_with_retry(
         reqwest::Client::builder()
@@ -135,9 +143,11 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     }
     registry.register(Arc::new(SflixProvider::new(sflix_client.clone())));
     registry.register(Arc::new(DramacoolProvider::new(dramacool_client.clone())));
+    registry.register(Arc::new(KissAsianProvider::new(kissasian_client.clone())));
     registry.register(Arc::new(VixsrcProvider::new(vixsrc_client)));
     // registry.register(Arc::new(Mp4HydraProvider::new())); // disabled — endpoint times out
     registry.register(Arc::new(VidrockProvider::new(vidrock_client.clone())));
+    registry.register(Arc::new(VidvaultProvider::new(vidvault_client.clone())));
     registry.register(Arc::new(VidzeeProvider::new(vidzee_client.clone())));
     registry.register(Arc::new(VideasyProvider::new(videasy_client.clone())));
     registry.register(Arc::new(VidsrcEmbedProvider::new(
@@ -174,10 +184,12 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         registry: Arc::new(registry),
         cache: cache.clone(),
         sticky_pref: Arc::new(crate::infra::sticky_pref::StickyPrefCache::new_from_config(&cfg).await),
+        provider_score: Arc::new(ProviderScoreCache::new_from_config(&cfg).await),
         filter_config: filter_config.clone(),
         hitv: Arc::new(HiTvClient::new(tmdb.clone())),
         kisskh: kisskh_client,
         dramacool: dramacool_client,
+        kissasian: kissasian_client,
         moviebox: moviebox_client.clone(),
         hianime: hianime_client.clone(),
         aisports: Arc::new(crate::clients::aisports::AiSportsClient::new(
@@ -266,6 +278,10 @@ pub fn build_router(state: AppState) -> Router {
             get(crate::routes::sse::sse_streams_handler),
         )
         .route(
+            "/api/warm/:type/:tmdbId",
+            get(crate::routes::sse::warm_handler),
+        )
+        .route(
             "/api/providers",
             get(crate::routes::providers::providers_handler),
         )
@@ -312,6 +328,14 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/drama/dramacool/streams/:id/:episode",
             get(crate::routes::drama::dramacool_streams_handler),
+        )
+        .route(
+            "/api/drama/kissasian/search",
+            get(crate::routes::drama::kissasian_search_handler),
+        )
+        .route(
+            "/api/drama/kissasian/streams/:id/:episode",
+            get(crate::routes::drama::kissasian_streams_handler),
         )
         .route(
             "/api/drama/moviebox/browse",
@@ -718,6 +742,7 @@ pub struct StreamState {
     pub registry: Arc<ProviderRegistry>,
     pub cache: Arc<StreamCache>,
     pub sticky_pref: Arc<crate::infra::sticky_pref::StickyPrefCache>,
+    pub provider_score: Arc<ProviderScoreCache>,
     pub tmdb: Arc<TmdbClient>,
     pub filter_config: Arc<FilterConfig>,
     pub coalescer: Arc<FetchCoalescer>,
@@ -736,6 +761,7 @@ impl FromRef<AppState> for StreamState {
             registry: s.registry.clone(),
             cache: s.cache.clone(),
             sticky_pref: s.sticky_pref.clone(),
+            provider_score: s.provider_score.clone(),
             tmdb: s.tmdb.clone(),
             filter_config: s.filter_config.clone(),
             coalescer: s.coalescer.clone(),
@@ -755,6 +781,7 @@ impl FromRef<AppState> for StreamState {
 pub struct DramaState {
     pub kisskh: Arc<KissKhClient>,
     pub dramacool: Arc<DramacoolClient>,
+    pub kissasian: Arc<KissAsianClient>,
     pub moviebox: Arc<MovieBoxClient>,
     pub tmdb: Arc<TmdbClient>,
     pub secret: String,
@@ -767,6 +794,7 @@ impl FromRef<AppState> for DramaState {
         Self {
             kisskh: s.kisskh.clone(),
             dramacool: s.dramacool.clone(),
+            kissasian: s.kissasian.clone(),
             moviebox: s.moviebox.clone(),
             tmdb: s.tmdb.clone(),
             secret: s.secret.clone(),

@@ -123,7 +123,7 @@ impl VidRockClient {
     }
 
     pub async fn get_streams(&self, tmdb_id: &str, media_type: &str, season: Option<u32>, episode: Option<u32>) -> Result<Vec<VidRockStream>> {
-        let (item_id, api_type) = if media_type == "tv" || media_type == "series" {
+        let (item_id, api_type) = if media_type == "tv" || media_type == "series" || media_type == "anime" {
             let s = season.unwrap_or(1);
             let e = episode.unwrap_or(1);
             (format!("{}_{}_{}", tmdb_id, s, e), "tv")
@@ -150,7 +150,11 @@ impl VidRockClient {
         let sources: std::collections::HashMap<String, SourceEntry> = resp.json().await?;
 
         // Fetch subtitles in parallel
-        let sub_url = format!("{}/v2/{}/{}", SUB_BASE, api_type, tmdb_id);
+        let sub_url = if api_type == "tv" {
+            format!("{}/v2/{}/{}/{}/{}", SUB_BASE, api_type, tmdb_id, season.unwrap_or(1), episode.unwrap_or(1))
+        } else {
+            format!("{}/v2/{}/{}", SUB_BASE, api_type, tmdb_id)
+        };
         let subs_fut = async {
             match self.client.get(&sub_url)
                 .header("Referer", API_BASE)
@@ -222,11 +226,13 @@ impl VidRockClient {
             all
         });
 
-        // Attach subtitles to the first stream
+        // Attach subtitles to all streams so whichever quality is picked has them
         let mut streams = stream_results;
         if let Some(ref sub_list) = subs {
-            if !streams.is_empty() && !sub_list.is_empty() {
-                streams[0].subtitles = Some(sub_list.clone());
+            if !sub_list.is_empty() {
+                for stream in streams.iter_mut() {
+                    stream.subtitles = Some(sub_list.clone());
+                }
             }
         }
 

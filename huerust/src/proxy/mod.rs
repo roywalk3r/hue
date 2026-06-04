@@ -1628,6 +1628,11 @@ pub async fn generic_proxy_handler(
     ));
     req = inject_cdn_headers(req, &target_url, &token_headers);
 
+    // Forward Range header from client (critical for mobile video downloads)
+    if let Some(range) = request_headers.get("range").and_then(|v| v.to_str().ok()) {
+        req = req.header("Range", range);
+    }
+
     let mut referer_value = None;
     let mut has_origin = false;
     if let Some(ref h) = token_headers {
@@ -1671,6 +1676,7 @@ pub async fn generic_proxy_handler(
                 let key = k.as_str();
                 if key.eq_ignore_ascii_case("content-type")
                     || key.eq_ignore_ascii_case("content-length")
+                    || key.eq_ignore_ascii_case("content-range")
                     || key.eq_ignore_ascii_case("cache-control")
                     || key.eq_ignore_ascii_case("etag")
                     || key.eq_ignore_ascii_case("last-modified")
@@ -1682,12 +1688,26 @@ pub async fn generic_proxy_handler(
 
             builder = builder.header("Access-Control-Allow-Origin", "*");
 
-            match resp.bytes().await {
-                Ok(bytes) => builder.body(Body::from(bytes)).unwrap(),
-                Err(e) => {
-                    tracing::warn!("[proxy] Failed to read body: {}", e);
-                    (StatusCode::BAD_GATEWAY, "Upstream body unreadable").into_response()
+            // Download mode: buffer the full body so the browser gets a known
+            // Content-Length and can show progress. Stream everything else.
+            if params.download.is_some() {
+                let filename = params.filename.as_deref().unwrap_or("video.mp4");
+                builder = builder.header(
+                    "Content-Disposition",
+                    format!(r#"attachment; filename="{}""#, filename),
+                );
+                match resp.bytes().await {
+                    Ok(bytes) => {
+                        builder = builder.header("content-length", bytes.len());
+                        builder.body(Body::from(bytes)).unwrap()
+                    }
+                    Err(e) => {
+                        tracing::warn!("[proxy] Download body read failed: {}", e);
+                        (StatusCode::BAD_GATEWAY, "Upstream body unreadable").into_response()
+                    }
                 }
+            } else {
+                builder.body(Body::from_stream(resp.bytes_stream())).unwrap()
             }
         }
         Err(e) => {

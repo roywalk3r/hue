@@ -30,8 +30,16 @@ impl CacheKey {
         format!("huerust:streams:{}:{}:{}:{}", self.media_type, self.tmdb_id, self.season, self.episode)
     }
 
+    pub fn stale_redis_key(&self) -> String {
+        format!("huerust:streams:stale:{}:{}:{}:{}", self.media_type, self.tmdb_id, self.season, self.episode)
+    }
+
     fn moka_key(&self) -> String {
         format!("{}:{}:{}:{}", self.media_type, self.tmdb_id, self.season, self.episode)
+    }
+
+    fn stale_moka_key(&self) -> String {
+        format!("stale:{}:{}:{}:{}", self.media_type, self.tmdb_id, self.season, self.episode)
     }
 }
 
@@ -55,39 +63,41 @@ impl Clone for CacheBackend {
 
 pub struct StreamCache {
     backend: CacheBackend,
+    stale_backend: CacheBackend,
     ttl_secs: u64,
+    stale_ttl_secs: u64,
 }
 
 impl StreamCache {
     /// Create from config: uses Redis if `CACHE_BACKEND=redis`, otherwise in-memory
     pub async fn new_from_config(cfg: &crate::config::AppConfig) -> Self {
         if cfg.cache_backend == "redis" {
-            match Self::new_redis(&cfg.redis_url, cfg.cache_ttl_secs).await {
+            match Self::new_redis(&cfg.redis_url, cfg.cache_ttl_secs, cfg.stale_cache_ttl_secs).await {
                 Ok(cache) => {
                     tracing::info!("[Cache] Using Redis backend at {}", cfg.redis_url);
                     cache
                 }
                 Err(e) => {
                     tracing::warn!("[Cache] Redis connection failed ({}), falling back to memory", e);
-                    Self::new_memory(cfg.cache_max_capacity, cfg.cache_ttl_secs)
+                    Self::new_memory(cfg.cache_max_capacity, cfg.cache_ttl_secs, cfg.stale_cache_ttl_secs)
                 }
             }
         } else {
             tracing::info!("[Cache] Using in-memory backend");
-            Self::new_memory(cfg.cache_max_capacity, cfg.cache_ttl_secs)
+            Self::new_memory(cfg.cache_max_capacity, cfg.cache_ttl_secs, cfg.stale_cache_ttl_secs)
         }
     }
 
     pub fn new() -> Self {
-        Self::new_memory(1000, Duration::from_secs(4 * 60 * 60).as_secs())
+        Self::new_memory(1000, Duration::from_secs(4 * 60 * 60).as_secs(), Duration::from_secs(24 * 60 * 60).as_secs())
     }
 
     #[allow(dead_code)]
     pub fn new_with_capacity_ttl(max_capacity: u64, ttl: Duration) -> Self {
-        Self::new_memory(max_capacity, ttl.as_secs())
+        Self::new_memory(max_capacity, ttl.as_secs(), ttl.as_secs() * 6)
     }
 
-    fn new_memory(max_capacity: u64, ttl_secs: u64) -> Self {
+    fn new_memory(max_capacity: u64, ttl_secs: u64, stale_ttl_secs: u64) -> Self {
         Self {
             backend: CacheBackend::Memory(
                 moka::future::Cache::builder()
@@ -95,16 +105,25 @@ impl StreamCache {
                     .time_to_live(Duration::from_secs(ttl_secs))
                     .build()
             ),
+            stale_backend: CacheBackend::Memory(
+                moka::future::Cache::builder()
+                    .max_capacity(max_capacity)
+                    .time_to_live(Duration::from_secs(stale_ttl_secs))
+                    .build()
+            ),
             ttl_secs,
+            stale_ttl_secs,
         }
     }
 
-    async fn new_redis(redis_url: &str, ttl_secs: u64) -> anyhow::Result<Self> {
+    async fn new_redis(redis_url: &str, ttl_secs: u64, stale_ttl_secs: u64) -> anyhow::Result<Self> {
         let client = redis::Client::open(redis_url)?;
         let conn = client.get_multiplexed_tokio_connection().await?;
         Ok(Self {
-            backend: CacheBackend::Redis(conn),
+            backend: CacheBackend::Redis(conn.clone()),
+            stale_backend: CacheBackend::Redis(conn),
             ttl_secs,
+            stale_ttl_secs,
         })
     }
 
@@ -127,6 +146,27 @@ impl StreamCache {
         if streams.is_empty() { None } else { Some(streams) }
     }
 
+    /// Get stale fallback — returns the last cached result even if past normal TTL,
+    /// as long as it's within the stale TTL window (default 24h).
+    pub async fn get_stale(&self, key: &CacheKey) -> Option<Vec<StreamResult>> {
+        let streams = match &self.stale_backend {
+            CacheBackend::Memory(cache) => cache.get(&key.stale_moka_key()).await,
+            CacheBackend::Redis(conn) => {
+                let result: redis::RedisResult<Option<String>> = redis::cmd("GET")
+                    .arg(key.stale_redis_key())
+                    .query_async(&mut conn.clone())
+                    .await;
+                match result {
+                    Ok(Some(json_str)) => serde_json::from_str::<Vec<StreamResult>>(&json_str).ok(),
+                    _ => None,
+                }
+            }
+        }?;
+
+        let streams = filter_cacheable_streams(streams);
+        if streams.is_empty() { None } else { Some(streams) }
+    }
+
     pub async fn set(&self, key: &CacheKey, streams: Vec<StreamResult>) {
         let streams = filter_cacheable_streams(streams);
         if streams.is_empty() {
@@ -135,14 +175,30 @@ impl StreamCache {
 
         match &self.backend {
             CacheBackend::Memory(cache) => {
-                cache.insert(key.moka_key(), streams).await;
+                cache.insert(key.moka_key(), streams.clone()).await;
             }
             CacheBackend::Redis(conn) => {
                 if let Ok(json) = serde_json::to_string(&streams) {
                     let _: redis::RedisResult<()> = redis::cmd("SETEX")
                         .arg(key.redis_key())
                         .arg(self.ttl_secs)
-                        .arg(json)
+                        .arg(&json)
+                        .query_async(&mut conn.clone())
+                        .await;
+                }
+            }
+        }
+
+        match &self.stale_backend {
+            CacheBackend::Memory(cache) => {
+                cache.insert(key.stale_moka_key(), streams.clone()).await;
+            }
+            CacheBackend::Redis(conn) => {
+                if let Ok(json) = serde_json::to_string(&streams) {
+                    let _: redis::RedisResult<()> = redis::cmd("SETEX")
+                        .arg(key.stale_redis_key())
+                        .arg(self.stale_ttl_secs)
+                        .arg(&json)
                         .query_async(&mut conn.clone())
                         .await;
                 }
@@ -173,6 +229,15 @@ impl StreamCache {
             CacheBackend::Redis(conn) => {
                 let _: redis::RedisResult<()> = redis::cmd("DEL")
                     .arg(key.redis_key())
+                    .query_async(&mut conn.clone())
+                    .await;
+            }
+        }
+        match &self.stale_backend {
+            CacheBackend::Memory(cache) => cache.invalidate(&key.stale_moka_key()).await,
+            CacheBackend::Redis(conn) => {
+                let _: redis::RedisResult<()> = redis::cmd("DEL")
+                    .arg(key.stale_redis_key())
                     .query_async(&mut conn.clone())
                     .await;
             }
@@ -243,7 +308,9 @@ impl Clone for StreamCache {
     fn clone(&self) -> Self {
         Self {
             backend: self.backend.clone(),
+            stale_backend: self.stale_backend.clone(),
             ttl_secs: self.ttl_secs,
+            stale_ttl_secs: self.stale_ttl_secs,
         }
     }
 }
@@ -279,6 +346,18 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_cache_stale_fallback() {
+        let cache = StreamCache::new();
+        let key = CacheKey::new("tv", "456", 2, 3);
+
+        cache.set(&key, vec![dummy_stream("http://a.com")]).await;
+        // stale should be available immediately
+        let stale = cache.get_stale(&key).await;
+        assert!(stale.is_some());
+        assert_eq!(stale.unwrap()[0].url, "http://a.com");
+    }
+
+    #[tokio::test]
     async fn test_cache_merge_dedup() {
         let cache = StreamCache::new();
         let key = CacheKey::new("tv", "456", 2, 3);
@@ -302,11 +381,13 @@ mod tests {
         cache.invalidate(&key).await;
 
         assert!(cache.get(&key).await.is_none());
+        assert!(cache.get_stale(&key).await.is_none());
     }
 
     #[test]
     fn test_cache_key_redis() {
         let key = CacheKey::new("tv", "12345", 2, 5);
         assert_eq!(key.redis_key(), "huerust:streams:tv:12345:2:5");
+        assert_eq!(key.stale_redis_key(), "huerust:streams:stale:tv:12345:2:5");
     }
 }

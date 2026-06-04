@@ -4,4 +4,5 @@ pub mod hianime;
 pub mod moviebox;
 pub mod vidrock;
 pub mod vidsrcembed;
+pub mod vidvault;
 pub mod aisports;
