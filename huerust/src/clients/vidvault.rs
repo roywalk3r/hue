@@ -24,8 +24,36 @@ struct TokenResponse {
 struct ProxyResponse {
     #[serde(rename = "mp4Data")]
     mp4_data: Option<Mp4Data>,
+    #[serde(rename = "mkvData")]
+    mkv_data: Option<MkvData>,
+    #[serde(rename = "mkvV2Data")]
+    mkv_v2_data: Option<MkvData>,
     #[serde(rename = "mkvV3Data")]
     mkv_v3_data: Option<MkvV3Data>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MkvData {
+    #[serde(default)]
+    files: Vec<MkvFile>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct MkvFile {
+    url: String,
+    size: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct DownloadFile {
+    pub url: String,
+    pub size: String,
+    pub format: String,
+}
+
+#[derive(Debug, Serialize, Clone, Default)]
+pub struct DownloadLinks {
+    pub files: Vec<DownloadFile>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -197,5 +225,69 @@ impl VidVaultClient {
         }
 
         Ok(results)
+    }
+
+    pub async fn get_download_files(
+        &self,
+        tmdb_id: &str,
+        media_type: &str,
+        season: u32,
+        episode: u32,
+    ) -> Result<DownloadLinks> {
+        let token = self.get_token().await?;
+        let mtype = if media_type == "movie" { "movie" } else { "tv" };
+
+        let mut payload = serde_json::json!({
+            "type": mtype,
+            "tmdbId": tmdb_id,
+        });
+        if mtype == "tv" {
+            payload["season"] = season.into();
+            payload["episode"] = episode.into();
+        }
+
+        let resp = self.client
+            .post(format!("{}/download-proxy", API_BASE))
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .header("x-request-token", HeaderValue::from_str(&token)?)
+            .header("Origin", "https://vidvault.ru")
+            .header("Referer", "https://vidvault.ru/")
+            .json(&payload)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(anyhow!("VidVault download-proxy returned {}", resp.status()));
+        }
+
+        let data: ProxyResponse = resp.json().await?;
+        let mut files: Vec<DownloadFile> = Vec::new();
+
+        for src in [data.mkv_data, data.mkv_v2_data].into_iter().flatten() {
+            for f in src.files {
+                files.push(DownloadFile { url: f.url, size: f.size, format: "mkv".to_string() });
+            }
+        }
+
+        if let Some(mkv3) = data.mkv_v3_data {
+            for d in mkv3.downloads {
+                files.push(DownloadFile { url: d.url, size: d._size, format: "mkv".to_string() });
+            }
+        }
+
+        if let Some(mp4) = data.mp4_data {
+            if let Some(info) = mp4.download_info.and_then(|w| w.data) {
+                for d in info.downloads.unwrap_or_default() {
+                    files.push(DownloadFile {
+                        url: d.url,
+                        size: format!("{}p", d.resolution),
+                        format: "mp4".to_string(),
+                    });
+                }
+            }
+        }
+
+        Ok(DownloadLinks { files })
     }
 }

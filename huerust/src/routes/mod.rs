@@ -5,6 +5,7 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
+pub mod download;
 pub mod hitv;
 pub mod play;
 pub mod streams;

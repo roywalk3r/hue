@@ -78,7 +78,9 @@ pub struct AppState {
     pub kissasian: Arc<KissAsianClient>,
     pub moviebox: Arc<MovieBoxClient>,
     pub hianime: Arc<crate::clients::hianime::HianimeClient>,
+    pub vidvault: Arc<crate::clients::vidvault::VidVaultClient>,
     pub aisports: Arc<crate::clients::aisports::AiSportsClient>,
+    pub anime_agg: Arc<crate::clients::anime_agg::AnimeAggregator>,
     pub secret: String,
     pub kkey: String,
     pub proxy_base_url: String,
@@ -108,6 +110,12 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let dramacool_client = Arc::new(crate::providers::dramacool::DramacoolClient::new());
     let kissasian_client = Arc::new(crate::providers::kissasian::KissAsianClient::new());
     let hianime_client = Arc::new(crate::clients::hianime::HianimeClient::new());
+    let anime_agg = Arc::new(crate::clients::anime_agg::AnimeAggregator::new(
+        hianime_client.clone(),
+        Arc::new(crate::clients::aniwatch::AniWatchClient::new()),
+        Arc::new(crate::clients::anilist::AniListClient::new()),
+        Arc::new(crate::clients::animexin::AnimexinClient::new()),
+    ));
     let vixsrc_client = Arc::new(VixsrcClient::new(
         crate::http_client::build_client_with_retry(
             reqwest::Client::builder()
@@ -192,6 +200,8 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         kissasian: kissasian_client,
         moviebox: moviebox_client.clone(),
         hianime: hianime_client.clone(),
+        vidvault: vidvault_client.clone(),
+        anime_agg: anime_agg.clone(),
         aisports: Arc::new(crate::clients::aisports::AiSportsClient::new(
             crate::http_client::wrap_with_retry(
                 reqwest::Client::builder()
@@ -268,6 +278,10 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/hitv/:country/:sort/:genre",
             get(crate::routes::hitv::dynamic_browse_handler),
+        )
+        .route(
+            "/api/download/:type/:tmdbId",
+            get(crate::routes::download::download_handler),
         )
         .route(
             "/api/streams/:type/:tmdbId",
@@ -826,6 +840,7 @@ impl FromRef<AppState> for HiTvState {
 #[derive(Clone)]
 pub struct AnimeState {
     pub hianime: Arc<crate::clients::hianime::HianimeClient>,
+    pub anime_agg: Arc<crate::clients::anime_agg::AnimeAggregator>,
     pub config: Arc<AppConfig>,
     pub secret: String,
     pub proxy_base_url: String,
@@ -835,6 +850,7 @@ impl FromRef<AppState> for AnimeState {
     fn from_ref(s: &AppState) -> Self {
         Self {
             hianime: s.hianime.clone(),
+            anime_agg: s.anime_agg.clone(),
             config: s.config.clone(),
             secret: s.secret.clone(),
             proxy_base_url: s.proxy_base_url.clone(),
