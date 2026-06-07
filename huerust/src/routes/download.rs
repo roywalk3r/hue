@@ -5,7 +5,6 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 use crate::clients::vidvault::VidVaultClient;
 
@@ -42,12 +41,8 @@ pub async fn download_handler(
 
     match state.vidvault.get_download_files(&tmdb_id, &media_type, season, episode).await {
         Ok(links) => {
-            let mut headers = HashMap::new();
-            headers.insert("Referer".to_string(), "https://vidvault.ru/".to_string());
-            headers.insert("Origin".to_string(), "https://vidvault.ru".to_string());
-
             let files: Vec<serde_json::Value> = links.files.into_iter().map(|f| {
-                let token = crate::security::encrypt_url(&f.url, &state.secret, Some(headers.clone()));
+                let token = crate::security::encrypt_url(&f.url, &state.secret, None);
                 let proxied = format!("{}/ts-proxy?h_token={}", state.proxy_base_url, token);
                 serde_json::json!({ "url": proxied, "size": f.size, "format": f.format })
             }).collect();
