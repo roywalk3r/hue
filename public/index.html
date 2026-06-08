@@ -735,6 +735,8 @@
             const loader = document.getElementById('modalLoading');
             if (list) list.innerHTML = '';
             if (loader) loader.classList.remove('d-none');
+            // MovieBox has its own TMDB-less id; skip Vault lookup for this row.
+            window.currentVaultTmdbId = null;
             
             try {
                 let se = null, ep = null;
@@ -763,6 +765,8 @@
             const loader = document.getElementById('modalLoading');
             if (list) list.innerHTML = '';
             if (loader) loader.classList.remove('d-none');
+            // Sports streams have no TMDB id — skip Vault lookup.
+            window.currentVaultTmdbId = null;
 
             try {
                 const res = await fetch(`/api/aisports/play/${id}`);
@@ -793,15 +797,27 @@
                 } else if (currentSource === 'tmdb') {
                     const type = passedType || prompt("Is this a 'movie' or 'series'?", "movie") || "movie";
                     let query = "";
+                    let season = null, episode = null;
                     if (type === 'series' || type === 'tv') {
-                        const s = prompt("Season?", "1");
-                        const e = prompt("Episode?", "1");
-                        query = `?season=${s}&episode=${e}`;
+                        season = prompt("Season?", "1");
+                        episode = prompt("Episode?", "1");
+                        query = `?season=${season}&episode=${episode}`;
                     }
+                    // Stash the TMDB context so the renderer's download button
+                    // can fetch a real MP4 file from Vault (vidrock's download
+                    // mirror) for the same title, regardless of which provider
+                    // produced the playing stream.
+                    window.currentVaultTmdbId = id;
+                    window.currentVaultType = (type === 'series' || type === 'tv') ? 'tv' : 'movie';
+                    window.currentVaultSeason = season;
+                    window.currentVaultEpisode = episode;
                     url = `/api/streams/${type === 'tv' ? 'series' : type}/${id}${query}`;
                 } else if (currentSource === 'kisskh') {
                     const ep = prompt("Episode?", "1") || 1;
                     url = `/api/kdrama/streams/${id}/${ep}`;
+                    // Kdrama isn't on Vault — clear context so the renderer
+                    // falls back to the playing stream's own URL.
+                    window.currentVaultTmdbId = null;
                 } else if (currentSource === 'dramacool') {
                     const ep = prompt("Episode?", "1") || 1;
                     let slug = id;
@@ -812,6 +828,10 @@
                         } catch(e) { console.error("URL parse fail", e); }
                     }
                     url = `/api/dramacool/browse/streams/${slug}/${ep}`;
+                    window.currentVaultTmdbId = null;
+                } else {
+                    // hitv / other sources have no TMDB id — no Vault lookup.
+                    window.currentVaultTmdbId = null;
                 }
 
                 const res = await fetch(url);
@@ -830,27 +850,65 @@
                 return;
             }
 
-            list.innerHTML = streams.map(s => {
-                const isDirect = /\.(mp4|mkv|webm|ogg|avi|mov)(\?|$)/i.test(s.url) || /\.m3u8(\?|$)/i.test(s.url) || s.url.includes('m3u8-proxy') || s.format === 'mp4';
-                const downloadUrl = s.url.includes('?') ? 
-                    `${s.url}&download=1&filename=${encodeURIComponent(title + '.mp4')}` : 
-                    `${s.url}?download=1&filename=${encodeURIComponent(title + '.mp4')}`;
+            // Resolve the best Vault (vidvault.ru / vidrock download mirror) URL
+            // once for this title. Vault returns direct MP4/MKV links from the
+            // same upstream Luna/Vidrock streams from, so it gives the user a
+            // real file instead of an HLS manifest regardless of which provider
+            // produced the stream they clicked.
+            const vaultPromise = (typeof window.currentVaultTmdbId === 'string' && window.currentVaultTmdbId)
+                ? window.fetchVaultDownloadUrl(window.currentVaultTmdbId, window.currentVaultType, window.currentVaultSeason, window.currentVaultEpisode, title)
+                : Promise.resolve(null);
+            vaultPromise.then(vaultUrl => {
+                list.innerHTML = streams.map(s => {
+                    const isDirect = /\.(mp4|mkv|webm|ogg|avi|mov)(\?|$)/i.test(s.url) || /\.m3u8(\?|$)/i.test(s.url) || s.url.includes('m3u8-proxy') || s.format === 'mp4';
+                    // Prefer Vault's direct file URL for the download button
+                    // when available; fall back to the playing stream's URL.
+                    const dlSrc = vaultUrl || s.url;
+                    const dlExt = (vaultUrl && /\.mkv(\?|$)/i.test(vaultUrl)) ? 'mkv' : 'mp4';
+                    const downloadUrl = dlSrc.includes('?') ?
+                        `${dlSrc}&download=1&filename=${encodeURIComponent(title + '.' + dlExt)}` :
+                        `${dlSrc}?download=1&filename=${encodeURIComponent(title + '.' + dlExt)}`;
 
-                return `
-                <div class="list-group-item bg-dark text-light border-secondary mb-2 rounded shadow-sm">
-                    <div class="d-flex w-100 justify-content-between align-items-center">
-                        <h6 class="mb-1 text-primary fw-bold">${s.provider || 'Unknown'}</h6>
-                        <span class="badge bg-secondary">${s.quality || 'Auto'}</span>
+                    return `
+                    <div class="list-group-item bg-dark text-light border-secondary mb-2 rounded shadow-sm">
+                        <div class="d-flex w-100 justify-content-between align-items-center">
+                            <h6 class="mb-1 text-primary fw-bold">${s.provider || 'Unknown'}</h6>
+                            <span class="badge bg-secondary">${s.quality || 'Auto'}</span>
+                        </div>
+                        <p class="mb-1 text-truncate small text-muted">${s.title || s.url}</p>
+                        <div class="mt-2 d-flex gap-2">
+                            <button onclick="playStream('${s.url}')" class="btn btn-sm btn-success px-3">▶ PLAY</button>
+                            ${isDirect || vaultUrl ? `<a href="${downloadUrl}" target="_blank" class="btn btn-sm btn-outline-info">⬇ DOWNLOAD</a>` : ''}
+                            <a href="${s.url}" target="_blank" class="btn btn-sm btn-outline-secondary">RAW</a>
+                        </div>
                     </div>
-                    <p class="mb-1 text-truncate small text-muted">${s.title || s.url}</p>
-                    <div class="mt-2 d-flex gap-2">
-                        <button onclick="playStream('${s.url}')" class="btn btn-sm btn-success px-3">▶ PLAY</button>
-                        ${isDirect ? `<a href="${downloadUrl}" target="_blank" class="btn btn-sm btn-outline-info">⬇ DOWNLOAD</a>` : ''}
-                        <a href="${s.url}" target="_blank" class="btn btn-sm btn-outline-secondary">RAW</a>
-                    </div>
-                </div>
-                `;
-            }).join('');
+                    `;
+                }).join('');
+            });
+        }
+
+        // Look up a direct MP4/MKV download link from the Vault provider.
+        // Resolves to null when Vault doesn't have the title or the page
+        // wasn't opened from a TMDB context (live TV, sports, etc.).
+        window.fetchVaultDownloadUrl = async function(tmdbId, type, season, episode, title) {
+            if (!tmdbId) return null;
+            const t = (type === 'series' || type === 'tv') ? 'tv' : 'movie';
+            const params = new URLSearchParams();
+            if ((t === 'tv') && season) params.set('season', season);
+            if ((t === 'tv') && episode) params.set('episode', episode);
+            const url = `/api/downloads/${t}/${tmdbId}${params.toString() ? '?' + params.toString() : ''}`;
+            try {
+                const res = await fetch(url, { credentials: 'include' });
+                if (!res.ok) return null;
+                const data = await res.json();
+                if (!data || !Array.isArray(data.streams) || !data.streams.length) return null;
+                // Prefer MP4 (smaller, faster) over MKV
+                const mp4 = data.streams.find(s => /\.mp4(\?|$)/i.test(s.url) || s.format === 'mp4');
+                return (mp4 || data.streams[0]).url;
+            } catch (e) {
+                console.warn('[vault] fetch failed:', e);
+                return null;
+            }
         }
 
         let hls = null;

@@ -88,63 +88,43 @@ fn error_json(status: StatusCode, error: &str) -> Response {
         .into_response()
 }
 
-fn hianime_stream_to_payload(
+fn proxy_stream_payload(
     proxy_base_url: &str,
     secret: &str,
     enable_proxy: bool,
-    data: crate::clients::hianime::StreamData,
+    mut payload: StreamPayload,
 ) -> StreamPayload {
-    let proxied = if enable_proxy {
-        let mut d = data;
-        let referer = d.referer.as_deref().unwrap_or("https://megaplay.buzz/");
-        let mut headers = std::collections::HashMap::new();
-        headers.insert("Referer".to_string(), referer.to_string());
+    if !enable_proxy || payload.stream_type == "iframe" {
+        return payload;
+    }
 
-        let route_for = |url: &str, kind: &str| -> String {
-            let normalized = url.to_lowercase();
-            if kind == "subtitle" { "/sub-proxy".to_string() }
-            else if normalized.contains(".m3u8") { "/m3u8-proxy".to_string() }
-            else if normalized.contains(".ts") || normalized.contains(".mp4") || normalized.contains(".m4s") || normalized.contains(".mkv") { "/ts-proxy".to_string() }
-            else { "/api/proxy".to_string() }
-        };
+    let referer = payload.referer.as_deref().unwrap_or("https://megaplay.buzz/");
+    let mut headers = std::collections::HashMap::new();
+    headers.insert("Referer".to_string(), referer.to_string());
 
-        // Iframe embeds (Vidmoly, Vidwish, etc.) must NOT be proxied — proxying
-        // breaks relative URLs for JS/CSS inside the HTML and can forward
-        // X-Frame-Options that block display. Pass the raw URL directly.
-        if d.link.link_type != "iframe" {
-            d.link.file = {
-                let route = route_for(&d.link.file, "stream");
-                let token = crate::security::encrypt_url(&d.link.file, secret, Some(headers.clone()));
-                format!("{}{}?h_token={}", proxy_base_url, route, urlencoding::encode(&token))
-            };
-        }
-
-        if let Some(ref mut tracks) = d.tracks {
-            for t in tracks.iter_mut() {
-                let route = route_for(&t.file, "subtitle");
-                let token = crate::security::encrypt_url(&t.file, secret, Some(headers.clone()));
-                t.file = format!("{}{}?h_token={}", proxy_base_url, route, urlencoding::encode(&token));
-            }
-        }
-        d
-    } else {
-        data
+    let route_for = |url: &str, kind: &str| -> String {
+        let normalized = url.to_lowercase();
+        if kind == "subtitle" { "/sub-proxy".to_string() }
+        else if normalized.contains(".m3u8") { "/m3u8-proxy".to_string() }
+        else if normalized.contains(".ts") || normalized.contains(".mp4") || normalized.contains(".m4s") || normalized.contains(".mkv") { "/ts-proxy".to_string() }
+        else { "/api/proxy".to_string() }
     };
 
-    StreamPayload {
-        url: proxied.link.file,
-        stream_type: proxied.link.link_type,
-        subtitles: proxied.tracks.map(|t| t.into_iter().map(|tr| SubtitleTrack {
-            file: tr.file,
-            label: tr.label,
-            kind: tr.kind,
-            default: tr.default,
-        }).collect()),
-        intro: proxied.intro.map(|i| SkipRange { start: i.start, end: i.end }),
-        outro: proxied.outro.map(|o| SkipRange { start: o.start, end: o.end }),
-        server: proxied.server,
-        referer: proxied.referer,
+    payload.url = {
+        let route = route_for(&payload.url, "stream");
+        let token = crate::security::encrypt_url(&payload.url, secret, Some(headers.clone()));
+        format!("{}{}?h_token={}", proxy_base_url, route, urlencoding::encode(&token))
+    };
+
+    if let Some(ref mut tracks) = payload.subtitles {
+        for t in tracks.iter_mut() {
+            let route = route_for(&t.file, "subtitle");
+            let token = crate::security::encrypt_url(&t.file, secret, Some(headers.clone()));
+            t.file = format!("{}{}?h_token={}", proxy_base_url, route, urlencoding::encode(&token));
+        }
     }
+
+    payload
 }
 
 #[utoipa::path(
@@ -164,16 +144,8 @@ pub async fn search_handler(
     Query(params): Query<SearchQuery>,
 ) -> Response {
     info!("[anime] search: {}", params.q);
-    match state.hianime.search(&params.q).await {
-        Ok(raw) => {
-            let structured = crate::clients::hianime::transform_search_results(raw, &params.q);
-            success_json(structured)
-        }
-        Err(e) => {
-            warn!("[anime] search error: {}", e);
-            error_json(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
-        }
-    }
+    let response = state.anime_agg.search(&params.q, 1, 50).await;
+    success_json(response)
 }
 
 #[utoipa::path(
@@ -238,16 +210,8 @@ pub async fn category_handler(
     ),
 )]
 pub async fn home_handler(State(state): State<AnimeState>) -> Response {
-    match state.hianime.get_home().await {
-        Ok(raw) => {
-            let structured = crate::clients::hianime::transform_home_feed(raw);
-            success_json(structured)
-        }
-        Err(e) => {
-            warn!("[anime] home error: {}", e);
-            error_json(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
-        }
-    }
+    let feed = state.anime_agg.get_home().await;
+    success_json(feed)
 }
 
 #[utoipa::path(
@@ -267,18 +231,14 @@ pub async fn detail_handler(
     Path(slug): Path<String>,
 ) -> Response {
     info!("[anime] detail: {}", slug);
-    match state.hianime.get_anime_info(&slug).await {
-        Ok(raw) => {
-            let detail = crate::clients::hianime::transform_anime_detail(raw);
+    match state.anime_agg.get_detail(&slug).await {
+        Some(detail) => {
             if detail.card.id.is_empty() {
                 return error_json(StatusCode::NOT_FOUND, "Anime not found");
             }
             success_json(detail)
         }
-        Err(e) => {
-            warn!("[anime] detail error: {}", e);
-            error_json(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
-        }
+        None => error_json(StatusCode::NOT_FOUND, "Anime not found"),
     }
 }
 
@@ -302,22 +262,8 @@ pub async fn episodes_handler(
 ) -> Response {
     let start = params.start.unwrap_or(0);
     info!("[anime] episodes: {} start={}", id, start);
-    match state.hianime.get_episodes(&id, start).await {
-        Ok(ep_data) => {
-            // Build a minimal detail response with just the episodes
-            let episodes: Vec<crate::models::anime::EpisodeSummary> = ep_data.episodes
-                .unwrap_or_default()
-                .into_iter()
-                .map(|ep| crate::models::anime::EpisodeSummary {
-                    id: ep._id,
-                    number: ep.episodeNumber.unwrap_or(0),
-                    title: None,
-                    sub_count: ep.link.as_ref().and_then(|l| l.sub.as_ref()).map(|v| v.len() as u32).unwrap_or(0),
-                    dub_count: ep.link.as_ref().and_then(|l| l.dub.as_ref()).map(|v| v.len() as u32).unwrap_or(0),
-                    slug: ep.slugs.as_ref().and_then(|s| s.first().cloned()),
-                    slugs: ep.slugs,
-                })
-                .collect();
+    match state.anime_agg.get_episodes(&id, start).await {
+        Some(episodes) => {
             success_json(serde_json::json!({
                 "animeId": id,
                 "start": start,
@@ -325,9 +271,9 @@ pub async fn episodes_handler(
                 "episodes": episodes,
             }))
         }
-        Err(e) => {
-            warn!("[anime] episodes error: {}", e);
-            error_json(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
+        None => {
+            warn!("[anime] episodes not found: {}", id);
+            error_json(StatusCode::NOT_FOUND, "Episodes not found")
         }
     }
 }
@@ -349,14 +295,11 @@ pub async fn servers_handler(
     Query(params): Query<ServersQuery>,
 ) -> Response {
     info!("[anime] servers for: {}", params.id);
-    match state.hianime.get_servers(&params.id).await {
-        Ok(raw) => {
-            let structured = crate::clients::hianime::transform_server_list(&raw);
-            success_json(structured)
-        }
-        Err(e) => {
-            warn!("[anime] servers error: {}", e);
-            error_json(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
+    match state.anime_agg.get_servers(&params.id).await {
+        Some(servers) => success_json(servers),
+        None => {
+            warn!("[anime] servers not found: {}", params.id);
+            error_json(StatusCode::NOT_FOUND, "Servers not found")
         }
     }
 }
@@ -388,7 +331,7 @@ pub async fn stream_handler(
 
     let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
     match state
-        .hianime
+        .anime_agg
         .get_stream(&params.id,
             params.server.as_deref(),
             link_type,
@@ -396,22 +339,18 @@ pub async fn stream_handler(
         )
         .await
     {
-        Ok(data) => {
-            let payload = hianime_stream_to_payload(
+        Some(payload) => {
+            let proxied = proxy_stream_payload(
                 &proxy_base,
                 &state.secret,
                 state.config.enable_proxy,
-                data,
+                payload,
             );
-            success_json(payload)
+            success_json(proxied)
         }
-        Err(e) => {
-            let msg = e.to_string();
-            if msg.contains("SERVERS_NOT_FOUND") || msg.contains("SERVER_NOT_FOUND") || msg.contains("EXTRACTION_FAILED") {
-                return error_json(StatusCode::NOT_FOUND, &msg);
-            }
-            warn!("[anime] stream error: {}", e);
-            error_json(StatusCode::INTERNAL_SERVER_ERROR, &msg)
+        None => {
+            warn!("[anime] stream not found: {}", params.id);
+            error_json(StatusCode::NOT_FOUND, "Stream not found")
         }
     }
 }

@@ -77,6 +77,8 @@ struct DownloadInfo {
 struct Mp4Download {
     url: String,
     resolution: i32,
+    #[serde(default)]
+    size: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -279,9 +281,15 @@ impl VidVaultClient {
         if let Some(mp4) = data.mp4_data {
             if let Some(info) = mp4.download_info.and_then(|w| w.data) {
                 for d in info.downloads.unwrap_or_default() {
+                    let size_bytes = d.size.parse::<u64>().unwrap_or(0);
+                    let size_str = if size_bytes > 0 {
+                        format!("{:.2} MB", size_bytes as f64 / 1_048_576.0)
+                    } else {
+                        format!("{}p", d.resolution)
+                    };
                     files.push(DownloadFile {
                         url: d.url,
-                        size: format!("{}p", d.resolution),
+                        size: size_str,
                         format: "mp4".to_string(),
                     });
                 }

@@ -29,6 +29,7 @@ use crate::{
     },
     filters::apply_filters,
     proxy::wrap::wrap_with_proxy,
+    providers::StreamProvider,
     proxy::dynamic_proxy_base,
     security::encrypt_stream_result_urls,
 };
@@ -38,7 +39,10 @@ fn is_generic_movie_tv_provider_allowed(media_type: &str, real_name: &str) -> bo
         return true;
     }
 
-    real_name != "kisskh" && real_name != "dramacool" && real_name != "kissasian"
+    real_name != "kisskh"
+        && real_name != "dramacool"
+        && real_name != "kissasian"
+        && real_name != "vidvault"
 }
 
 #[utoipa::path(
@@ -145,8 +149,22 @@ pub async fn sse_streams_handler(
             }
         }
 
-        // Try the sticky provider alone first
-        if let Some(entry) = sticky_hit {
+        // Try the sticky provider alone first — but only short-circuit
+        // if it's already a priority provider. Otherwise we still spawn
+        // the priority fan-out (Luna/Aura) in parallel so they get their
+        // headstart; the sticky provider joins the race and the fastest
+        // one wins. This stops a non-priority sticky entry from blocking
+        // the priority providers indefinitely.
+        if let Some(entry) = sticky_hit.clone() {
+            let sticky_is_priority = state
+                .registry
+                .list_all_arc()
+                .iter()
+                .find(|p| p.real_name() == entry.provider_real_name)
+                .map(|p| matches!(p.name(), "Luna" | "Aura"))
+                .unwrap_or(false);
+
+            if sticky_is_priority {
             if let Some(provider) = state
                 .registry
                 .list_all_arc()
@@ -220,6 +238,34 @@ pub async fn sse_streams_handler(
             } else {
                 state.sticky_pref.record_failure(&sticky_key).await;
             }
+            } // end sticky_is_priority guard
+        }
+
+        // If the sticky provider is NOT a priority provider, we still
+        // want it in the race — push it onto the rest list so it joins
+        // the fan-out. The fastest provider wins; the winner is recorded
+        // as the new sticky entry at the end of the request, so a
+        // priority provider will override the non-priority sticky on
+        // this very request.
+        let mut non_priority_sticky: Option<Arc<dyn StreamProvider>> = None;
+        if let Some(entry) = sticky_hit {
+            let sticky_is_priority = state
+                .registry
+                .list_all_arc()
+                .iter()
+                .find(|p| p.real_name() == entry.provider_real_name)
+                .map(|p| matches!(p.name(), "Luna" | "Aura"))
+                .unwrap_or(false);
+            if !sticky_is_priority {
+                if let Some(provider) = state
+                    .registry
+                    .list_all_arc()
+                    .into_iter()
+                    .find(|p| p.real_name() == entry.provider_real_name)
+                {
+                    non_priority_sticky = Some(provider);
+                }
+            }
         }
 
         // Fire each provider independently, emitting results as they arrive.
@@ -235,8 +281,18 @@ pub async fn sse_streams_handler(
         let mut raw_all: Vec<crate::models::StreamResult> = Vec::new();
 
         let priority_names = ["Luna", "Aura"];
-        let (priority, rest): (Vec<_>, Vec<_>) =
+        let (mut priority, rest): (Vec<_>, Vec<_>) =
             all_providers.into_iter().partition(|p| priority_names.contains(&p.name()));
+
+        // If we have a sticky entry whose provider is NOT in the priority
+        // list, the priority fan-out alone would let a non-priority sticky
+        // block Luna/Aura. Promote it to the priority phase so it races
+        // with Luna/Aura; the fastest winner is recorded as the new sticky.
+        if let Some(sticky_provider) = non_priority_sticky {
+            if !priority.iter().any(|p| p.real_name() == sticky_provider.real_name()) {
+                priority.push(sticky_provider);
+            }
+        }
 
         let mut provider_tasks = tokio::task::JoinSet::new();
 

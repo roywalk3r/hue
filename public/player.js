@@ -144,6 +144,14 @@
       if (!data || !Array.isArray(data.streams)) throw new Error('Invalid response shape.');
       els.jsonInput.value = JSON.stringify(data, null, 2);
       applyTimings(data.providerTimings);
+      // Stash context so the download button can fetch Vault's direct MP4 link
+      // for the same title/season/episode even when the playing stream is from
+      // a different provider.
+      state.currentType = mediaType;
+      state.currentTmdbId = tmdbId;
+      state.currentSeason = season || null;
+      state.currentEpisode = episode || null;
+      state.currentTitle = data.title || data.name || els.tmdbId.value || 'video';
       renderStreams(data.streams);
       setStatus(`Loaded ${data.streams.length} stream(s) from API.`);
     } catch (e) {
@@ -174,6 +182,13 @@
       const parsed = JSON.parse(raw);
       if (!parsed || !Array.isArray(parsed.streams)) throw new Error('Missing streams array.');
       applyTimings(parsed.providerTimings);
+      // Pull download context from the JSON envelope if present, otherwise
+      // fall back to whatever the user typed into the TMDB ID field.
+      if (parsed.mediaType) state.currentType = parsed.mediaType;
+      if (parsed.tmdbId || parsed.tmdb_id) state.currentTmdbId = parsed.tmdbId || parsed.tmdb_id;
+      if (parsed.season) state.currentSeason = parsed.season;
+      if (parsed.episode) state.currentEpisode = parsed.episode;
+      if (parsed.title || parsed.name) state.currentTitle = parsed.title || parsed.name;
       renderStreams(parsed.streams);
       setStatus(`Loaded ${parsed.streams.length} stream(s) from JSON.`);
     } catch (e) {
@@ -271,18 +286,54 @@
     if (!stream) return;
     setStatus('Preparing download...');
     try {
+      // Vault is the same upstream as Luna (vidrock) but returns direct MP4/MKV
+      // download links instead of HLS streams. Always go through it for
+      // downloads so the browser gets a real file, not a manifest.
+      if (state.currentTitle && (stream.tmdbId || state.currentTmdbId)) {
+        try {
+          const vaultUrl = await fetchVaultDownload(stream, state.currentTitle);
+          if (vaultUrl) {
+            window.open(vaultUrl, '_blank');
+            setStatus(`Downloading from Vault (${stream.provider || 'source'})...`);
+            return;
+          }
+        } catch (e) {
+          console.warn('[download] Vault fetch failed, falling back to direct:', e);
+        }
+      }
+
       const resolved = await resolveUrl(stream);
       if (!resolved || !resolved.url) throw new Error('No usable URL in stream.');
-      
-      const downloadUrl = resolved.url.includes('?') ? 
-        `${resolved.url}&download=1&filename=${encodeURIComponent((stream.name || 'video') + '.mp4')}` : 
+
+      const downloadUrl = resolved.url.includes('?') ?
+        `${resolved.url}&download=1&filename=${encodeURIComponent((stream.name || 'video') + '.mp4')}` :
         `${resolved.url}?download=1&filename=${encodeURIComponent((stream.name || 'video') + '.mp4')}`;
-      
+
       window.open(downloadUrl, '_blank');
       setStatus(`Downloading ${stream.provider || 'source'}...`);
     } catch (e) {
       setStatus(e.message, true);
     }
+  }
+
+  async function fetchVaultDownload(stream, title) {
+    const tmdbId = stream.tmdbId || state.currentTmdbId;
+    if (!tmdbId) return null;
+    const params = new URLSearchParams();
+    if (state.currentSeason) params.set('season', state.currentSeason);
+    if (state.currentEpisode) params.set('episode', state.currentEpisode);
+    const url = `${base}/api/downloads/${state.currentType || 'movie'}/${tmdbId}${params.toString() ? '?' + params.toString() : ''}`;
+    const res = await fetch(url, { credentials: 'include' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || !Array.isArray(data.streams) || !data.streams.length) return null;
+    // Prefer MP4 (smaller, faster) over MKV
+    const mp4 = data.streams.find(s => /\.mp4(\?|$)/i.test(s.url) || s.format === 'mp4');
+    const target = mp4 || data.streams[0];
+    const filename = (stream.name || title || 'video') + (target.format === 'mkv' ? '.mkv' : '.mp4');
+    return target.url.includes('?')
+      ? `${target.url}&download=1&filename=${encodeURIComponent(filename)}`
+      : `${target.url}?download=1&filename=${encodeURIComponent(filename)}`;
   }
 
   function updateNowPlaying(stream, url) {

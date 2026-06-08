@@ -1033,8 +1033,10 @@ function createProxyRoutes(app) {
         // Pass through Range header for progressive playback / seeking
         const range = req.headers['range'];
         let appliedClamp = false;
-        let effectiveRange = range;
-        if (range) headers.Range = range;
+        // Downloads always request the full file — never a partial range.
+        // (Forces upstream to send Content-Length matching the actual file size.)
+        let effectiveRange = isDownload ? null : range;
+        if (range && !isDownload) headers.Range = range;
         if (force200) { // treat as full fetch
             effectiveRange = null;
             delete headers.Range;
@@ -1185,7 +1187,9 @@ function createProxyRoutes(app) {
             }
 
             // If no range requested but we now know size (HEAD or probe), synthesize an initial small range fetch to accelerate playback.
-            if (!force200 && !effectiveRange && contentLength && !noSynth && req.query.progressiveOpen === '0') {
+            // Skipped for downloads — we want the full body, not a 512KB initial slice that
+            // the browser would happily save as the complete file.
+            if (!force200 && !effectiveRange && contentLength && !noSynth && req.query.progressiveOpen === '0' && !isDownload) {
                 const total = parseInt(contentLength, 10);
                 const desired = initChunkKB * 1024;
                 const chunkSize = Math.min(desired, Math.max(0, total - 1));
@@ -1209,8 +1213,10 @@ function createProxyRoutes(app) {
             }
 
             const upstreamOptions = { headers: { 'User-Agent': DEFAULT_UA, ...headers }, redirect: 'manual' };
-            // If client supplied a suffix range like bytes=0- we pass it; force200 strips Range
-            if (force200 && headers.Range) delete headers.Range;
+            // If client supplied a suffix range like bytes=0- we pass it; force200 strips Range.
+            // Downloads also strip Range so the upstream returns the full file in one response
+            // (some CDNs reject open-ended ranges or close the connection after a small head).
+            if ((force200 || isDownload) && headers.Range) delete headers.Range;
             let resp = await fetchWithRetry(targetUrl, upstreamOptions);
             
             // Handle redirects manually to prevent redirection to localhost
@@ -1284,11 +1290,17 @@ function createProxyRoutes(app) {
             res.setHeader('Access-Control-Allow-Origin', '*');
             if (debug) console.log('[ts-proxy] streaming body', { status: resp.status, ct: upstreamCT, cl, contentRange: force200 ? undefined : contentRange });
             
-            // Add a timeout to the body stream to prevent hanging
-            const streamTimeout = setTimeout(() => {
-                if (!res.headersSent) res.status(504).json({ error: 'Upstream stream timeout' });
-                resp.body.destroy(new Error('Stream timeout'));
-            }, 30000);
+            // Add a timeout to the body stream to prevent hanging on dead connections.
+            // Skipped for downloads — multi-GB MP4s regularly exceed 30s and would be
+            // truncated mid-file, leaving the browser with a 13kb stub it thinks is
+            // a complete file.
+            let streamTimeout = null;
+            if (!isDownload) {
+                streamTimeout = setTimeout(() => {
+                    if (!res.headersSent) res.status(504).json({ error: 'Upstream stream timeout' });
+                    resp.body.destroy(new Error('Stream timeout'));
+                }, 30000);
+            }
 
             // Optional TS sanitization (buffer mode — adds latency, use sparingly)
             const sanitize = req.query.sanitize === '1' || process.env.SANITIZE_STREAMS === 'true';
