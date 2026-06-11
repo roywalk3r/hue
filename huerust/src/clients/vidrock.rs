@@ -190,9 +190,25 @@ impl VidRockClient {
                         Ok(r) if r.status().is_success() => {
                             match r.json::<Vec<PlaylistEntry>>().await {
                                 Ok(playlist) => {
-                                    playlist.into_iter().map(move |p| {
+                                    let now = std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_secs() as i64;
+                                    playlist.into_iter().filter_map(move |p| {
+                                        // Reject URLs with expired signatures (t= older than 45 min)
+                                        if let Some(pos) = p.url.find("t=") {
+                                            let rest = &p.url[pos + 2..];
+                                            let end = rest.find('&').unwrap_or(rest.len());
+                                            if let Ok(ts) = rest[..end].parse::<i64>() {
+                                                let age = now - ts;
+                                                if age > 2700 {
+                                                    tracing::warn!("[VidRock] Discarding expired URL (age={}s): {}", age, &p.url[..p.url.len().min(80)]);
+                                                    return None;
+                                                }
+                                            }
+                                        }
                                         let is_hls = p.url.contains(".m3u8") || fmt == "hls";
-                                        VidRockStream {
+                                        Some(VidRockStream {
                                             url: p.url,
                                             title: format!("VidRock {} - {}p - {}", name, p.resolution, lang),
                                             quality: format!("{}p", p.resolution),
@@ -204,7 +220,7 @@ impl VidRockClient {
                                                 "User-Agent": UA_DESKTOP
                                             }),
                                             subtitles: None,
-                                        }
+                                        })
                                     }).collect::<Vec<_>>()
                                 }
                                 Err(_) => vec![]
