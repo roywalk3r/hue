@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1780818118116,
+  "lastScanned": 1781174599902,
   "projectRoot": "/mnt/devdrive/projects/Misc/hue/huerust",
   "techStack": {
     "languages": [
@@ -52,7 +52,7 @@
       "path": "daemon",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1780818118098,
+      "lastAccessed": 1781174599884,
       "keyFiles": [
         "daemon.js",
         "package-lock.json",
@@ -63,21 +63,21 @@
       "path": "docs",
       "purpose": "Documentation",
       "fileCount": 0,
-      "lastAccessed": 1780818118105,
+      "lastAccessed": 1781174599885,
       "keyFiles": []
     },
     "examples": {
       "path": "examples",
       "purpose": "Example code",
       "fileCount": 0,
-      "lastAccessed": 1780818118106,
+      "lastAccessed": 1781174599886,
       "keyFiles": []
     },
     "package": {
       "path": "package",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1780818118107,
+      "lastAccessed": 1781174599886,
       "keyFiles": [
         "LICENSE",
         "README.md",
@@ -88,7 +88,7 @@
       "path": "src",
       "purpose": "Source code",
       "fileCount": 11,
-      "lastAccessed": 1780818118108,
+      "lastAccessed": 1781174599886,
       "keyFiles": [
         "app.rs",
         "config.rs",
@@ -101,7 +101,7 @@
       "path": "target",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1780818118108,
+      "lastAccessed": 1781174599887,
       "keyFiles": [
         "CACHEDIR.TAG"
       ]
@@ -110,14 +110,14 @@
       "path": "daemon/node_modules",
       "purpose": "Dependencies",
       "fileCount": 1,
-      "lastAccessed": 1780818118109,
+      "lastAccessed": 1781174599902,
       "keyFiles": []
     },
     "package/dist": {
       "path": "package/dist",
       "purpose": "Distribution/build output",
       "fileCount": 3,
-      "lastAccessed": 1780818118110,
+      "lastAccessed": 1781174599902,
       "keyFiles": [
         "index.d.ts",
         "index.js",
@@ -128,301 +128,12 @@
       "path": "src/models",
       "purpose": "Data models",
       "fileCount": 1,
-      "lastAccessed": 1780818118111,
+      "lastAccessed": 1781174599902,
       "keyFiles": [
         "anime.rs"
       ]
     }
   },
-  "hotPaths": [
-    {
-      "path": "src/routes/sse.rs",
-      "accessCount": 105,
-      "lastAccessed": 1780910734021,
-      "type": "file"
-    },
-    {
-      "path": "src/proxy/mod.rs",
-      "accessCount": 68,
-      "lastAccessed": 1780950472786,
-      "type": "file"
-    },
-    {
-      "path": "src/app.rs",
-      "accessCount": 49,
-      "lastAccessed": 1780859260222,
-      "type": "file"
-    },
-    {
-      "path": "src/config.rs",
-      "accessCount": 30,
-      "lastAccessed": 1780911218121,
-      "type": "file"
-    },
-    {
-      "path": "src/clients/anime_agg.rs",
-      "accessCount": 29,
-      "lastAccessed": 1780765956379,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/anime.rs",
-      "accessCount": 28,
-      "lastAccessed": 1780741265122,
-      "type": "file"
-    },
-    {
-      "path": "src/clients/animexin.rs",
-      "accessCount": 22,
-      "lastAccessed": 1780948745497,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/downloads.rs",
-      "accessCount": 19,
-      "lastAccessed": 1780836135339,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/moviebox.rs",
-      "accessCount": 17,
-      "lastAccessed": 1780134876429,
-      "type": "file"
-    },
-    {
-      "path": "src/clients/moviebox.rs",
-      "accessCount": 17,
-      "lastAccessed": 1780587306632,
-      "type": "file"
-    },
-    {
-      "path": "src/main.rs",
-      "accessCount": 9,
-      "lastAccessed": 1779903676889,
-      "type": "file"
-    },
-    {
-      "path": "src/clients/vidvault.rs",
-      "accessCount": 8,
-      "lastAccessed": 1780859336589,
-      "type": "file"
-    },
-    {
-      "path": "src/clients/anilist.rs",
-      "accessCount": 6,
-      "lastAccessed": 1780689926064,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/download.rs",
-      "accessCount": 6,
-      "lastAccessed": 1780950865010,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/sflix.rs",
-      "accessCount": 5,
-      "lastAccessed": 1780426401108,
-      "type": "file"
-    },
-    {
-      "path": "src/clients/hianime.rs",
-      "accessCount": 5,
-      "lastAccessed": 1780690076147,
-      "type": "file"
-    },
-    {
-      "path": "src/clients/mod.rs",
-      "accessCount": 5,
-      "lastAccessed": 1780740842835,
-      "type": "file"
-    },
-    {
-      "path": "src/proxy/wrap.rs",
-      "accessCount": 5,
-      "lastAccessed": 1780833772875,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/mod.rs",
-      "accessCount": 5,
-      "lastAccessed": 1780852248921,
-      "type": "file"
-    },
-    {
-      "path": "src/infra/cache.rs",
-      "accessCount": 4,
-      "lastAccessed": 1780595959590,
-      "type": "file"
-    },
-    {
-      "path": "src/clients/vidrock.rs",
-      "accessCount": 4,
-      "lastAccessed": 1780685981504,
-      "type": "file"
-    },
-    {
-      "path": "src/models/anime.rs",
-      "accessCount": 4,
-      "lastAccessed": 1780689797331,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/vidrock_provider.rs",
-      "accessCount": 4,
-      "lastAccessed": 1780823735323,
-      "type": "file"
-    },
-    {
-      "path": "src/infra/sticky_pref.rs",
-      "accessCount": 4,
-      "lastAccessed": 1780852228073,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/moviebox_provider.rs",
-      "accessCount": 3,
-      "lastAccessed": 1780596281970,
-      "type": "file"
-    },
-    {
-      "path": ".env",
-      "accessCount": 3,
-      "lastAccessed": 1780603084965,
-      "type": "file"
-    },
-    {
-      "path": "src/http_client.rs",
-      "accessCount": 3,
-      "lastAccessed": 1780818184460,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/streams.rs",
-      "accessCount": 3,
-      "lastAccessed": 1780823856180,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/kisskh.rs",
-      "accessCount": 2,
-      "lastAccessed": 1779899354083,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/drama.rs",
-      "accessCount": 2,
-      "lastAccessed": 1780134706382,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/kissasian.rs",
-      "accessCount": 2,
-      "lastAccessed": 1780559969592,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/vidsrcembed_provider.rs",
-      "accessCount": 2,
-      "lastAccessed": 1780566427928,
-      "type": "file"
-    },
-    {
-      "path": "src/infra/mod.rs",
-      "accessCount": 2,
-      "lastAccessed": 1780596158619,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/registry.rs",
-      "accessCount": 2,
-      "lastAccessed": 1780823811916,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/mod.rs",
-      "accessCount": 2,
-      "lastAccessed": 1780823900007,
-      "type": "file"
-    },
-    {
-      "path": "src/security.rs",
-      "accessCount": 2,
-      "lastAccessed": 1780833757339,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/kisskh_provider.rs",
-      "accessCount": 1,
-      "lastAccessed": 1779899346694,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/sflix_provider.rs",
-      "accessCount": 1,
-      "lastAccessed": 1780426327797,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/kissasian_provider.rs",
-      "accessCount": 1,
-      "lastAccessed": 1780559969459,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/vixsrc_provider.rs",
-      "accessCount": 1,
-      "lastAccessed": 1780566347762,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/vidzee_provider.rs",
-      "accessCount": 1,
-      "lastAccessed": 1780566362438,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/videasy_provider.rs",
-      "accessCount": 1,
-      "lastAccessed": 1780566362763,
-      "type": "file"
-    },
-    {
-      "path": "src/infra/provider_score.rs",
-      "accessCount": 1,
-      "lastAccessed": 1780596145136,
-      "type": "file"
-    },
-    {
-      "path": "src/models.rs",
-      "accessCount": 1,
-      "lastAccessed": 1780596295866,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/vixsrc.rs",
-      "accessCount": 1,
-      "lastAccessed": 1780597176130,
-      "type": "file"
-    },
-    {
-      "path": "src/clients/aniwatch.rs",
-      "accessCount": 1,
-      "lastAccessed": 1780689269727,
-      "type": "file"
-    },
-    {
-      "path": "src/providers/vidvault_provider.rs",
-      "accessCount": 1,
-      "lastAccessed": 1780833878550,
-      "type": "file"
-    },
-    {
-      "path": "src/clients/tmdb.rs",
-      "accessCount": 1,
-      "lastAccessed": 1780859243982,
-      "type": "file"
-    }
-  ],
+  "hotPaths": [],
   "userDirectives": []
 }

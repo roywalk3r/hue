@@ -57,7 +57,16 @@ pub(crate) fn wrap_with_proxy(
             let is_mp4_mkv =
                 s.url.to_lowercase().contains(".mp4") || s.url.to_lowercase().contains(".mkv");
 
-            let headers = s.headers.clone().unwrap_or_default();
+            let mut headers = s.headers.clone().unwrap_or_default();
+            // Workers.dev CDN (VidRock/VidVault) now requires vidvault.ru headers.
+            if host.contains("workers.dev") {
+                if let Some(r) = headers.get("Referer") {
+                    if r.contains("vidrock.net") {
+                        headers.insert("Referer".to_string(), "https://vidvault.ru/".to_string());
+                        headers.insert("Origin".to_string(), "https://vidvault.ru".to_string());
+                    }
+                }
+            }
             let use_raw_url = is_whitelisted_raw_url(&s.url);
             let token_headers = if headers.is_empty() {
                 None
