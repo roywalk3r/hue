@@ -137,8 +137,38 @@
   "hotPaths": [
     {
       "path": "src/proxy/mod.rs",
-      "accessCount": 4,
-      "lastAccessed": 1781186872482,
+      "accessCount": 13,
+      "lastAccessed": 1781189068088,
+      "type": "file"
+    },
+    {
+      "path": "src/app.rs",
+      "accessCount": 7,
+      "lastAccessed": 1781188770709,
+      "type": "file"
+    },
+    {
+      "path": "src/proxy/wrap.rs",
+      "accessCount": 2,
+      "lastAccessed": 1781188437139,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/mod.rs",
+      "accessCount": 1,
+      "lastAccessed": 1781188734833,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/vidrock.rs",
+      "accessCount": 1,
+      "lastAccessed": 1781188793849,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/vidrock_provider.rs",
+      "accessCount": 1,
+      "lastAccessed": 1781189168831,
       "type": "file"
     }
   ],
