@@ -40,8 +40,8 @@ use crate::providers::{
     moviebox_provider::MovieBoxProvider,
     // mp4hydra_provider::Mp4HydraProvider, // disabled — endpoint times out
     sflix_provider::SflixProvider,
-    videasy::VideasyClient,
-    videasy_provider::VideasyProvider,
+    // videasy::VideasyClient,       // disabled — upstream 500
+    // videasy_provider::VideasyProvider,
     vidrock_provider::VidrockProvider,
     vidvault_provider::VidvaultProvider,
     vidsrcembed_provider::VidsrcEmbedProvider,
@@ -98,7 +98,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let cache = Arc::new(StreamCache::new_from_config(&cfg).await);
     let circuit_breaker = Arc::new(CircuitBreaker::new());
     let metrics = Arc::new(Metrics::new(&[
-        "Cinema", "Nova", "Zenith", "Orient", "Pearl", "Aura", "Hydra", "Luna", "Vault", "VidZee", "Vortex", "Nebula",
+        "Cinema", "Nova", "Zenith", "Orient", "Pearl", "Aura", "Hydra", "Luna", "Vault", "VidZee", "Nebula",
     ]));
     circuit_breaker.set_metrics(metrics.clone());
     let filter_config = Arc::new(FilterConfig::default());
@@ -141,7 +141,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
             .build()
             .unwrap(),
     )));
-    let videasy_client = Arc::new(VideasyClient::new());
+    // let _videasy_client = Arc::new(VideasyClient::new()); // disabled — upstream 500
 
     registry.register(Arc::new(MovieBoxProvider::new(moviebox_client.clone())));
     if kisskh_enabled() {
@@ -157,7 +157,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     registry.register(Arc::new(VidrockProvider::new(vidrock_client.clone())));
     registry.register(Arc::new(VidvaultProvider::new(vidvault_client.clone())));
     registry.register(Arc::new(VidzeeProvider::new(vidzee_client.clone())));
-    registry.register(Arc::new(VideasyProvider::new(videasy_client.clone())));
+    // registry.register(Arc::new(VideasyProvider::new(videasy_client.clone()))); // disabled — upstream 500
     registry.register(Arc::new(VidsrcEmbedProvider::new(
         vidsrcembed_client.clone(),
     )));
