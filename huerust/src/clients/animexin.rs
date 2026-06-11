@@ -32,48 +32,55 @@ impl AnimexinClient {
         let html = resp.text().await?;
 
         let mut results = Vec::new();
-        // Match article cards, extract slug and title
-        let re = Regex::new(r#"<article[^>]*>.*?<a\s+href="https://animexin\.dev/([^"]+)/"[^>]*>([^<]+)</a>.*?</article>"#)?;
-        for cap in re.captures_iter(&html) {
-            let slug = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
-            let title = cap.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-            if slug.is_empty() || title.is_empty() {
-                continue;
-            }
-            // Filter out non-anime pages
-            if is_utility_page(&slug) {
-                continue;
-            }
-            // Skip duplicates
-            if results.iter().any(|c: &AnimeCard| c.id == slug) {
-                continue;
-            }
-            // Infer episode count from search result snippet if available
-            let total_eps = extract_episode_count_from_search(&cap.get(0).map(|m| m.as_str()).unwrap_or(""));
+        // (?s) makes . match newlines — article content spans multiple lines
+        let article_re = Regex::new(r#"(?s)<article[^>]*class="bs"[^>]*>(.*?)</article>"#)?;
+        let link_re = Regex::new(r#"<a\s+href="https://animexin\.dev/([^"]+)/"[^>]*title="([^"]+)""#)?;
+        let img_re = Regex::new(r#"<img[^>]+src="([^"]+)""#)?;
+        let type_re = Regex::new(r#"<div\s+class="typez\s+([^"]+)">"#)?;
+        let status_re = Regex::new(r#"<div\s+class="status\s+([^"]+)">"#)?;
 
-            results.push(AnimeCard {
-                id: slug.clone(),
-                title: clean_title(&title),
-                japanese_title: None,
-                synopsis: None,
-                image: None,
-                banner_image: None,
-                anime_type: Some("TV".to_string()),
-                status: None,
-                score: None,
-                rating: None,
-                genres: None,
-                total_episodes: total_eps,
-                total_subbed: total_eps,
-                total_dubbed: None,
-                slug: Some(slug),
-                mal_id: None,
-                view_count: None,
-                aired: None,
-                duration: None,
-                has_sub: true,
-                has_dub: false,
-            });
+        for article in article_re.captures_iter(&html) {
+            let block = article.get(1).map(|m| m.as_str()).unwrap_or("");
+            if let Some(cap) = link_re.captures(block) {
+                let slug = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
+                let title = cap.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+                if slug.is_empty() || title.is_empty() || is_utility_page(&slug) {
+                    continue;
+                }
+                if results.iter().any(|c: &AnimeCard| c.id == slug) {
+                    continue;
+                }
+                let image = img_re.captures(block)
+                    .and_then(|c| c.get(1).map(|m| m.as_str().to_string()));
+                let anime_type = type_re.captures(block)
+                    .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
+                let status = status_re.captures(block)
+                    .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
+
+                results.push(AnimeCard {
+                    id: slug.clone(),
+                    title: clean_title(&title),
+                    japanese_title: None,
+                    synopsis: None,
+                    image,
+                    banner_image: None,
+                    anime_type: anime_type.or_else(|| Some("TV".to_string())),
+                    status,
+                    score: None,
+                    rating: None,
+                    genres: None,
+                    total_episodes: None,
+                    total_subbed: None,
+                    total_dubbed: None,
+                    slug: Some(slug),
+                    mal_id: None,
+                    view_count: None,
+                    aired: None,
+                    duration: None,
+                    has_sub: true,
+                    has_dub: false,
+                });
+            }
         }
 
         let total = results.len();
@@ -262,89 +269,73 @@ impl AnimexinClient {
         })
     }
 
-    /// Scrape homepage for latest episodes.
+    /// Scrape homepage for latest episodes and trending series.
     pub async fn get_home(&self) -> Result<AnimeHomeFeed> {
         let resp = self.client.get(BASE_URL).send().await?;
         let html = resp.text().await?;
 
+        let mut seen = std::collections::HashSet::new();
         let mut latest = Vec::new();
         let mut trending = Vec::new();
 
-        // Latest episodes are typically in the main content area
-        let ep_re = Regex::new(r#"<a\s+href="https://animexin\.dev/([^"]*episode[^"]*)/"[^>]*>([^<]+)</a>"#)?;
-        for cap in ep_re.captures_iter(&html) {
-            let slug = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
-            let title = cap.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-            if slug.is_empty() || title.is_empty() {
-                continue;
-            }
-            // Clean up the title - remove "- AnimeXin" suffix
-            let title = title.replace("- AnimeXin", "").trim().to_string();
-            if latest.iter().any(|c: &AnimeCard| c.id == slug) {
-                continue;
-            }
-            latest.push(AnimeCard {
-                id: slug.clone(),
-                title,
-                japanese_title: None,
-                synopsis: None,
-                image: None,
-                banner_image: None,
-                anime_type: Some("TV".to_string()),
-                status: None,
-                score: None,
-                rating: None,
-                genres: None,
-                total_episodes: None,
-                total_subbed: None,
-                total_dubbed: None,
-                slug: Some(slug),
-                mal_id: None,
-                view_count: None,
-                aired: None,
-                duration: None,
-                has_sub: true,
-                has_dub: false,
-            });
-        }
+        // (?s) makes . match newlines — article content spans multiple lines
+        let article_re = Regex::new(r#"(?s)<article[^>]*class="bs"[^>]*>(.*?)</article>"#)?;
+        let link_re = Regex::new(r#"<a\s+href="https://animexin\.dev/([^"]+)/"[^>]*title="([^"]+)""#)?;
+        let img_re = Regex::new(r#"<img[^>]+src="([^"]+)""#)?;
+        let type_re = Regex::new(r#"<div\s+class="typez\s+([^"]+)">"#)?;
+        let status_re = Regex::new(r#"<div\s+class="status\s+([^"]+)">"#)?;
 
-        // Trending: pick first 10 from homepage articles
-        let series_re = Regex::new(r#"<article[^>]*>.*?<a\s+href="https://animexin\.dev/([^"]+)/"[^>]*>([^<]+)</a>.*?</article>"#)?;
-        for cap in series_re.captures_iter(&html) {
-            let slug = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
-            let title = cap.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
-            if slug.is_empty() || title.is_empty() || is_utility_page(&slug) {
-                continue;
+        for cap in article_re.captures_iter(&html) {
+            let block = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            if let Some(link_cap) = link_re.captures(block) {
+                let slug = link_cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
+                let title = link_cap.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+                if slug.is_empty() || title.is_empty() || is_utility_page(&slug) {
+                    continue;
+                }
+                if seen.contains(&slug) {
+                    continue;
+                }
+                seen.insert(slug.clone());
+
+                let image = img_re.captures(block)
+                    .and_then(|c| c.get(1).map(|m| m.as_str().to_string()));
+                let anime_type = type_re.captures(block)
+                    .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
+                let status = status_re.captures(block)
+                    .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
+
+                let is_episode = slug.contains("episode");
+                let card = AnimeCard {
+                    id: slug.clone(),
+                    title: clean_title(&title),
+                    japanese_title: None,
+                    synopsis: None,
+                    image,
+                    banner_image: None,
+                    anime_type: anime_type.or_else(|| Some("TV".to_string())),
+                    status,
+                    score: None,
+                    rating: None,
+                    genres: None,
+                    total_episodes: None,
+                    total_subbed: None,
+                    total_dubbed: None,
+                    slug: Some(slug),
+                    mal_id: None,
+                    view_count: None,
+                    aired: None,
+                    duration: None,
+                    has_sub: true,
+                    has_dub: false,
+                };
+
+                if is_episode {
+                    latest.push(card);
+                } else if trending.len() < 20 {
+                    trending.push(card);
+                }
             }
-            if trending.iter().any(|c: &AnimeCard| c.id == slug) {
-                continue;
-            }
-            if trending.len() >= 10 {
-                break;
-            }
-            trending.push(AnimeCard {
-                id: slug.clone(),
-                title: clean_title(&title),
-                japanese_title: None,
-                synopsis: None,
-                image: None,
-                banner_image: None,
-                anime_type: Some("TV".to_string()),
-                status: None,
-                score: None,
-                rating: None,
-                genres: None,
-                total_episodes: None,
-                total_subbed: None,
-                total_dubbed: None,
-                slug: Some(slug),
-                mal_id: None,
-                view_count: None,
-                aired: None,
-                duration: None,
-                has_sub: true,
-                has_dub: false,
-            });
         }
 
         Ok(AnimeHomeFeed {

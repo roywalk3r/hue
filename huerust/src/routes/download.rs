@@ -42,6 +42,7 @@ struct DownloadFileOut {
     format: String,
     filename: String,
     headers: Option<HashMap<String, String>>,
+    downloadable: bool,
 }
 
 fn sanitize_filename(s: &str) -> String {
@@ -75,13 +76,19 @@ pub async fn download_handler(
 
     match result {
         Ok(links) => {
-            let mut mp4_headers = HashMap::new();
-            mp4_headers.insert("Referer".to_string(), "https://vidvault.ru/".to_string());
-            mp4_headers.insert("Origin".to_string(), "https://vidvault.ru".to_string());
-
             let mut mkv_headers = HashMap::new();
             mkv_headers.insert("Referer".to_string(), "https://vidvault.ru/".to_string());
             mkv_headers.insert("Origin".to_string(), "https://vidvault.ru".to_string());
+
+            // hakunaymatata.com CDN blocks direct/proxied downloads (403).
+            // MKV files from workers.dev CDN work with direct URL + headers.
+            // MP4 files from blocked CDNs link to VidVault's own page instead.
+            let blocked_hosts = ["hakunaymatata.com", "vidsrc.xyz"];
+
+            let vidvault_url = format!(
+                "https://vidvault.ru/{}/{}",
+                media_type, tmdb_id
+            );
 
             let files: Vec<DownloadFileOut> = links
                 .files
@@ -105,25 +112,45 @@ pub async fn download_handler(
                             format: f.format,
                             filename,
                             headers: Some(mkv_headers.clone()),
+                            downloadable: true,
                         }
                     } else {
-                        let token = crate::security::encrypt_url(
-                            &f.url,
-                            &state.secret,
-                            Some(mp4_headers.clone()),
-                        );
-                        let proxied = format!(
-                            "{}/ts-proxy?h_token={}&download=1&filename={}",
-                            state.proxy_base_url,
-                            token,
-                            urlencoding::encode(&filename),
-                        );
-                        DownloadFileOut {
-                            url: proxied,
-                            size: f.size,
-                            format: f.format,
-                            filename,
-                            headers: None,
+                        let url_lower = f.url.to_lowercase();
+                        let is_blocked = blocked_hosts.iter().any(|h| url_lower.contains(h));
+                        if is_blocked {
+                            // CDN blocks direct access — link to VidVault page instead
+                            DownloadFileOut {
+                                url: vidvault_url.clone(),
+                                size: f.size,
+                                format: f.format,
+                                filename,
+                                headers: None,
+                                downloadable: false,
+                            }
+                        } else {
+                            // MP4 from accessible CDN — proxy through ts-proxy
+                            let mut headers = HashMap::new();
+                            headers.insert("Referer".to_string(), "https://vidvault.ru/".to_string());
+                            headers.insert("Origin".to_string(), "https://vidvault.ru".to_string());
+                            let token = crate::security::encrypt_url(
+                                &f.url,
+                                &state.secret,
+                                Some(headers),
+                            );
+                            let proxied = format!(
+                                "{}/ts-proxy?h_token={}&download=1&filename={}",
+                                state.proxy_base_url,
+                                token,
+                                urlencoding::encode(&filename),
+                            );
+                            DownloadFileOut {
+                                url: proxied,
+                                size: f.size,
+                                format: f.format,
+                                filename,
+                                headers: None,
+                                downloadable: true,
+                            }
                         }
                     }
                 })

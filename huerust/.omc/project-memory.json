@@ -143,8 +143,8 @@
     },
     {
       "path": "src/proxy/mod.rs",
-      "accessCount": 64,
-      "lastAccessed": 1780859109184,
+      "accessCount": 68,
+      "lastAccessed": 1780950472786,
       "type": "file"
     },
     {
@@ -172,6 +172,12 @@
       "type": "file"
     },
     {
+      "path": "src/clients/animexin.rs",
+      "accessCount": 22,
+      "lastAccessed": 1780948745497,
+      "type": "file"
+    },
+    {
       "path": "src/routes/downloads.rs",
       "accessCount": 19,
       "lastAccessed": 1780836135339,
@@ -190,12 +196,6 @@
       "type": "file"
     },
     {
-      "path": "src/clients/animexin.rs",
-      "accessCount": 14,
-      "lastAccessed": 1780765897273,
-      "type": "file"
-    },
-    {
       "path": "src/main.rs",
       "accessCount": 9,
       "lastAccessed": 1779903676889,
@@ -211,6 +211,12 @@
       "path": "src/clients/anilist.rs",
       "accessCount": 6,
       "lastAccessed": 1780689926064,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/download.rs",
+      "accessCount": 6,
+      "lastAccessed": 1780950865010,
       "type": "file"
     },
     {
@@ -343,12 +349,6 @@
       "path": "src/security.rs",
       "accessCount": 2,
       "lastAccessed": 1780833757339,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/download.rs",
-      "accessCount": 2,
-      "lastAccessed": 1780859282412,
       "type": "file"
     },
     {

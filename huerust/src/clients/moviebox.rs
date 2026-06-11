@@ -1004,4 +1004,42 @@ impl MovieBoxClient {
 
         Ok(items)
     }
+
+    pub async fn get_detail_rec(
+        &self,
+        subject_id: &str,
+        page: u32,
+        per_page: u32,
+    ) -> Result<Vec<MovieBoxItem>> {
+        let url = format!(
+            "{}/subject/detail-rec?subjectId={}&page={}&perPage={}",
+            BASE_URL,
+            urlencoding::encode(subject_id),
+            page,
+            per_page
+        );
+        let resp = self
+            .client
+            .get(&url)
+            .headers(self.get_base_headers())
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(anyhow!("MovieBox detail-rec error: {}", resp.status()));
+        }
+
+        let data: serde_json::Value = resp.json().await?;
+        if data["code"] != 0 {
+            return Ok(vec![]);
+        }
+
+        let items = data["data"]["items"]
+            .as_array()
+            .or_else(|| data["data"]["subjectList"].as_array())
+            .map(|arr| arr.iter().filter_map(|v| self.map_item(v)).collect())
+            .unwrap_or_default();
+
+        Ok(items)
+    }
 }

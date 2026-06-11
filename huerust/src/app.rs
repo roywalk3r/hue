@@ -368,6 +368,10 @@ pub fn build_router(state: AppState) -> Router {
             get(crate::routes::drama::moviebox_streams_direct_handler),
         )
         .route(
+            "/api/drama/moviebox/detail-rec",
+            get(crate::routes::drama::moviebox_detail_rec_handler),
+        )
+        .route(
             "/api/drama/detail",
             get(crate::routes::drama::drama_detail_handler),
         )

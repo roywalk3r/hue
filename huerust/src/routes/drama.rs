@@ -176,6 +176,13 @@ pub struct DetailQuery {
     pub id: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct DetailRecQuery {
+    pub id: String,
+    pub page: Option<u32>,
+    pub per_page: Option<u32>,
+}
+
 // ── KissKH ─────────────────────────────────────────────────────────
 
 pub async fn kisskh_search_handler(
@@ -805,4 +812,32 @@ pub async fn drama_detail_handler(
         r#"{"success":false,"error":"No detail found"}"#,
     )
         .into_response()
+}
+
+// ── MovieBox Detail Rec ──────────────────────────────────────────────
+
+pub async fn moviebox_detail_rec_handler(
+    State(state): State<DramaState>,
+    Query(params): Query<DetailRecQuery>,
+) -> Response {
+    let page = params.page.unwrap_or(1);
+    let per_page = params.per_page.unwrap_or(12);
+    tracing::info!(
+        "[drama] moviebox_detail_rec: id={} page={} per_page={}",
+        params.id,
+        page,
+        per_page
+    );
+    match state.moviebox.get_detail_rec(&params.id, page, per_page).await {
+        Ok(items) => {
+            tracing::info!("[drama] moviebox_detail_rec: {} items", items.len());
+            let body = serde_json::json!({ "success": true, "items": items });
+            (StatusCode::OK, serde_json::to_string(&body).unwrap()).into_response()
+        }
+        Err(e) => {
+            tracing::warn!("[drama] moviebox_detail_rec error: {}", e);
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, serde_json::to_string(&body).unwrap()).into_response()
+        }
+    }
 }
