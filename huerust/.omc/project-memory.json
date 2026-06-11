@@ -137,8 +137,8 @@
   "hotPaths": [
     {
       "path": "src/proxy/mod.rs",
-      "accessCount": 14,
-      "lastAccessed": 1781190370745,
+      "accessCount": 16,
+      "lastAccessed": 1781197023522,
       "type": "file"
     },
     {
@@ -148,33 +148,33 @@
       "type": "file"
     },
     {
+      "path": "src/clients/moviebox.rs",
+      "accessCount": 8,
+      "lastAccessed": 1781194064259,
+      "type": "file"
+    },
+    {
       "path": "src/app.rs",
       "accessCount": 7,
       "lastAccessed": 1781188770709,
       "type": "file"
     },
     {
-      "path": "src/clients/moviebox.rs",
-      "accessCount": 6,
-      "lastAccessed": 1781192235318,
+      "path": "src/infra/cache.rs",
+      "accessCount": 4,
+      "lastAccessed": 1781193928917,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/sse.rs",
+      "accessCount": 4,
+      "lastAccessed": 1781193986687,
       "type": "file"
     },
     {
       "path": "src/proxy/wrap.rs",
       "accessCount": 3,
       "lastAccessed": 1781192888816,
-      "type": "file"
-    },
-    {
-      "path": "src/infra/cache.rs",
-      "accessCount": 2,
-      "lastAccessed": 1781191297660,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/sse.rs",
-      "accessCount": 2,
-      "lastAccessed": 1781191313067,
       "type": "file"
     },
     {
@@ -193,6 +193,18 @@
       "path": "src/routes/streams.rs",
       "accessCount": 1,
       "lastAccessed": 1781190037370,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/drama.rs",
+      "accessCount": 1,
+      "lastAccessed": 1781194032967,
+      "type": "file"
+    },
+    {
+      "path": "src/security.rs",
+      "accessCount": 1,
+      "lastAccessed": 1781196977950,
       "type": "file"
     }
   ],

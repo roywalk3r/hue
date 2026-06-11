@@ -1332,6 +1332,15 @@ fn rewrite_playlist(
             }
 
             let use_raw = is_whitelisted_raw_url(&abs_url) && headers.is_none();
+            // Per-rewrite nonce so the browser never replays a cached 4xx
+            // against the deterministic h_token / raw-url path.
+            let nonce = format!(
+                "&_n={:x}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0)
+            );
             let proxy_url = if use_raw {
                 let encoded_url = urlencoding::encode(&abs_url);
                 let header_part = if let Some(ref h) = headers {
@@ -1348,8 +1357,8 @@ fn rewrite_playlist(
                     .map(|range| format!("&range={}", urlencoding::encode(&range)))
                     .unwrap_or_default();
                 format!(
-                    "{}/{}?url={}&mode=url{}{}{}",
-                    proxy_base, route, encoded_url, header_part, force_type_param, range_part
+                    "{}/{}?url={}&mode=url{}{}{}{}",
+                    proxy_base, route, encoded_url, header_part, force_type_param, range_part, nonce
                 )
             } else {
                 let token = security::encrypt_url(&abs_url, secret, headers.clone());
@@ -1364,8 +1373,8 @@ fn rewrite_playlist(
                     .map(|range| format!("&range={}", urlencoding::encode(&range)))
                     .unwrap_or_default();
                 format!(
-                    "{}/{}?h_token={}{}{}{}",
-                    proxy_base, route, token, segment_extra, force_type_param, range_part
+                    "{}/{}?h_token={}{}{}{}{}",
+                    proxy_base, route, token, segment_extra, force_type_param, range_part, nonce
                 )
             };
             rewritten_lines.push(proxy_url);
