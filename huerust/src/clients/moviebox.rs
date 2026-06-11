@@ -625,8 +625,29 @@ impl MovieBoxClient {
                     Some(subtitles)
                 };
 
+                // Helper: reject URLs with expired signatures (t= older than 45 min)
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() as i64;
+                let is_url_fresh = |url: &str| -> bool {
+                    if let Some(pos) = url.find("t=") {
+                        let rest = &url[pos + 2..];
+                        let end = rest.find('&').unwrap_or(rest.len());
+                        if let Ok(ts) = rest[..end].parse::<i64>() {
+                            let age = now - ts;
+                            if age > 2700 { // 45 minutes
+                                warn!("[MovieBox Rust] Discarding expired URL (age={}s): {}", age, &url[..url.len().min(80)]);
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                };
+
                 if let Some(streams) = data.streams {
                     for s in streams {
+                        if !is_url_fresh(&s.url) { continue; }
                         results.push(StreamResult {
                             url: s.url,
                             title: format!(
@@ -645,6 +666,7 @@ impl MovieBoxClient {
 
                 if let Some(hls) = data.hls {
                     for s in hls {
+                        if !is_url_fresh(&s.url) { continue; }
                         results.push(StreamResult {
                             url: s.url,
                             title: "Cinema - Auto (HLS)".to_string(),
