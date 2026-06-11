@@ -173,77 +173,64 @@ impl VidRockClient {
             }
         };
 
-        // Resolve playlist URLs in parallel
-        let mut stream_futs = Vec::new();
+        // Build streams directly from source URLs (like Node.js client).
+        // VidRock sub-providers return direct stream URLs (M3U8 / MP4), not JSON playlists.
+        // Fetching them as Vec<PlaylistEntry> always fails for HLS master playlists.
+        let mut streams = Vec::new();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+
         for (provider_name, entry) in &sources {
-            if let Some(ref playlist_url) = entry.url {
-                if playlist_url.is_empty() { continue; }
-                let client = self.client.clone();
-                let name = provider_name.clone();
-                let lang = entry.language.clone().unwrap_or_else(|| "Unknown".to_string());
-                let fmt = entry.source_type.clone().unwrap_or_else(|| "mp4".to_string());
-                let url = playlist_url.clone();
-                let referer = referer_url.clone();
+            let Some(ref url) = entry.url else { continue };
+            if url.is_empty() { continue; }
 
-                stream_futs.push(tokio::spawn(async move {
-                    match client.get(&url).header("Referer", &referer).send().await {
-                        Ok(r) if r.status().is_success() => {
-                            match r.json::<Vec<PlaylistEntry>>().await {
-                                Ok(playlist) => {
-                                    let now = std::time::SystemTime::now()
-                                        .duration_since(std::time::UNIX_EPOCH)
-                                        .unwrap_or_default()
-                                        .as_secs() as i64;
-                                    playlist.into_iter().filter_map(move |p| {
-                                        // Reject URLs with expired signatures (t= older than 45 min)
-                                        if let Some(pos) = p.url.find("t=") {
-                                            let rest = &p.url[pos + 2..];
-                                            let end = rest.find('&').unwrap_or(rest.len());
-                                            if let Ok(ts) = rest[..end].parse::<i64>() {
-                                                let age = now - ts;
-                                                if age > 2700 {
-                                                    tracing::warn!("[VidRock] Discarding expired URL (age={}s): {}", age, &p.url[..p.url.len().min(80)]);
-                                                    return None;
-                                                }
-                                            }
-                                        }
-                                        let is_hls = p.url.contains(".m3u8") || fmt == "hls";
-                                        Some(VidRockStream {
-                                            url: p.url,
-                                            title: format!("VidRock {} - {}p - {}", name, p.resolution, lang),
-                                            quality: format!("{}p", p.resolution),
-                                            format: if is_hls { "hls".to_string() } else { fmt.clone() },
-                                            provider: format!("VidRock/{}", name),
-                                            headers: serde_json::json!({
-                                                "Referer": referer,
-                                                "Origin": API_BASE,
-                                                "User-Agent": UA_DESKTOP
-                                            }),
-                                            subtitles: None,
-                                        })
-                                    }).collect::<Vec<_>>()
-                                }
-                                Err(_) => vec![]
-                            }
-                        }
-                        _ => vec![]
+            // Reject URLs with expired signatures (t= older than 45 min)
+            if let Some(pos) = url.find("t=") {
+                let rest = &url[pos + 2..];
+                let end = rest.find('&').unwrap_or(rest.len());
+                if let Ok(ts) = rest[..end].parse::<i64>() {
+                    let age = now - ts;
+                    if age > 2700 {
+                        tracing::warn!("[VidRock] Discarding expired URL (age={}s): {}", age, &url[..url.len().min(80)]);
+                        continue;
                     }
-                }));
-            }
-        }
-
-        let (subs, stream_results) = tokio::join!(subs_fut, async {
-            let mut all = Vec::new();
-            for fut in stream_futs {
-                if let Ok(streams) = fut.await {
-                    all.extend(streams);
                 }
             }
-            all
-        });
 
-        // Attach subtitles to all streams so whichever quality is picked has them
-        let mut streams = stream_results;
+            let fmt = entry.source_type.as_deref().unwrap_or("mp4");
+            let is_hls = url.contains(".m3u8") || fmt == "hls";
+            let format = if is_hls { "hls".to_string() } else { fmt.to_string() };
+            let lang = entry.language.clone().unwrap_or_else(|| "Unknown".to_string());
+
+            // Per-sub-provider headers: use the sub-provider's domain as Origin
+            // for workers.dev / storm / hellstorm URLs so the CDN sees the right referrer.
+            let origin = if url.contains("workers.dev") {
+                // Extract scheme+host for workers.dev origins
+                url.split('/').take(3).collect::<Vec<_>>().join("/")
+            } else {
+                API_BASE.to_string()
+            };
+
+            streams.push(VidRockStream {
+                url: url.clone(),
+                title: format!("VidRock {} - {} - {}", provider_name, if is_hls { "HLS" } else { "MP4" }, lang),
+                quality: "Auto".to_string(),
+                format,
+                provider: format!("VidRock/{}", provider_name),
+                headers: serde_json::json!({
+                    "Referer": referer_url,
+                    "Origin": origin,
+                    "User-Agent": UA_DESKTOP
+                }),
+                subtitles: None,
+            });
+        }
+
+        let subs = subs_fut.await;
+
+        // Attach subtitles to all streams so whichever is picked has them
         if let Some(ref sub_list) = subs {
             if !sub_list.is_empty() {
                 for stream in streams.iter_mut() {
@@ -252,8 +239,12 @@ impl VidRockClient {
             }
         }
 
-        // Sort by resolution descending
-        streams.sort_by_key(|s| std::cmp::Reverse(s.quality.trim_end_matches('p').parse::<i32>().unwrap_or(0)));
+        // Sort: HLS before MP4 (adaptive streaming preferred)
+        streams.sort_by(|a, b| {
+            let a_hls = a.format == "hls";
+            let b_hls = b.format == "hls";
+            b_hls.cmp(&a_hls)
+        });
 
         Ok(streams)
     }
