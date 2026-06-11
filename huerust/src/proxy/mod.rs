@@ -866,20 +866,15 @@ pub async fn ts_handler(
                 }
             }
 
-            // If worker returned non-success (403/500 etc), try direct as fallback
+            // If upstream returned non-success, try direct with headers
             if !status.is_success() && status != reqwest::StatusCode::PARTIAL_CONTENT {
                 tracing::warn!(
-                    "[ts-proxy] Worker returned {} for {}, trying direct",
+                    "[ts-proxy] Upstream returned {} for {}, trying direct",
                     status.as_u16(),
                     target_url
                 );
                 let mut direct = state.raw_client.get(&target_url);
                 direct = inject_cdn_headers(direct, &target_url, &headers);
-                if let Some(ref h) = headers {
-                    for (k, v) in h {
-                        direct = direct.header(k, v);
-                    }
-                }
                 if let Some(range) = effective_range.as_deref() {
                     direct = direct.header("Range", range);
                 }
@@ -919,6 +914,55 @@ pub async fn ts_handler(
                         }
                         return builder
                             .body(Body::from_stream(direct_resp.bytes_stream()))
+                            .unwrap();
+                    }
+                }
+
+                // Second fallback: try plain request without any custom headers
+                tracing::warn!(
+                    "[ts-proxy] Direct with headers also failed for {}, trying plain",
+                    target_url
+                );
+                let mut plain = state.raw_client.get(&target_url);
+                if let Some(range) = effective_range.as_deref() {
+                    plain = plain.header("Range", range);
+                }
+                if let Ok(plain_resp) = plain.send().await {
+                    let plain_status = plain_resp.status();
+                    if plain_status.is_success()
+                        || plain_status == reqwest::StatusCode::PARTIAL_CONTENT
+                    {
+                        let mut builder = Response::builder().status(StatusCode::OK);
+                        if let Some(ct) = plain_resp.headers().get("content-type") {
+                            if let Ok(ct_str) = ct.to_str() {
+                                builder = builder.header(
+                                    "content-type",
+                                    infer_content_type(ct_str, &target_url),
+                                );
+                            }
+                        }
+                        builder = builder.header("Access-Control-Allow-Origin", "*");
+                        builder =
+                            builder.header("Cache-Control", "public, max-age=86400, immutable");
+                        if let Some(cl) = plain_resp.headers().get("content-length") {
+                            if let Ok(v) = cl.to_str() {
+                                builder = builder.header("content-length", v);
+                            }
+                        }
+                        if let Some(cr) = plain_resp.headers().get("content-range") {
+                            if let Ok(v) = cr.to_str() {
+                                builder = builder.header("content-range", v);
+                            }
+                        }
+                        if params.download.is_some() {
+                            let filename = params.filename.as_deref().unwrap_or("video.mp4");
+                            builder = builder.header(
+                                "Content-Disposition",
+                                format!(r#"attachment; filename="{}""#, filename),
+                            );
+                        }
+                        return builder
+                            .body(Body::from_stream(plain_resp.bytes_stream()))
                             .unwrap();
                     }
                 }
