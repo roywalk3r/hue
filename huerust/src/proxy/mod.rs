@@ -228,9 +228,28 @@ fn inject_cdn_headers(
                 "[inject_cdn_headers] Has Referer, checking for Origin. Keys: {:?}",
                 h.keys().collect::<Vec<_>>()
             );
+
+            let mut referer_val = h.get("Referer").or_else(|| h.get("referer")).cloned();
+
+            // Override outdated Referers for hosts that changed requirements
+            if let Some(ref r) = referer_val {
+                let r_lower = r.to_lowercase();
+                if host.contains("workers.dev")
+                    && (r_lower.contains("vidrock.net") || r_lower.contains("moviebox.ph"))
+                {
+                    tracing::info!(
+                        "[inject_cdn_headers] Overriding Referer {} -> https://vidvault.ru/ for host {}",
+                        r,
+                        host
+                    );
+                    req = req.header("Referer", "https://vidvault.ru/");
+                    referer_val = Some("https://vidvault.ru/".to_string());
+                }
+            }
+
             if !has_header(token_headers, "origin") {
-                if let Some(r) = h.get("Referer").or_else(|| h.get("referer")) {
-                    if let Ok(origin_url) = Url::parse(r) {
+                if let Some(r) = referer_val {
+                    if let Ok(origin_url) = Url::parse(&r) {
                         let mut origin = origin_url.origin().unicode_serialization();
                         if origin.ends_with('/') {
                             origin.pop();
