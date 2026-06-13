@@ -176,6 +176,34 @@ fn resolve_ts_target(
     None
 }
 
+const MOBILE_CLIENT_HEADER: &str = "x-hue-client";
+const MOBILE_CLIENT_VALUE: &str = "hue-mobile/v1";
+
+fn is_mobile_client(headers: &HeaderMap) -> bool {
+    headers
+        .get(MOBILE_CLIENT_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.eq_ignore_ascii_case(MOBILE_CLIENT_VALUE))
+        .unwrap_or(false)
+}
+
+/// Mobile app bypass: web-signed tokens may carry Origin/Referer values that
+/// CDNs reject when paired with a mobile User-Agent. When the Flutter client
+/// identifies itself, drop those token headers so inject_cdn_headers can
+/// derive fresh, host-specific headers.
+fn mobile_bypass_headers(
+    headers: Option<HashMap<String, String>>,
+    req_headers: &HeaderMap,
+) -> Option<HashMap<String, String>> {
+    if !is_mobile_client(req_headers) {
+        return headers;
+    }
+    let mut h = headers.unwrap_or_default();
+    h.retain(|k, _| !k.eq_ignore_ascii_case("origin") && !k.eq_ignore_ascii_case("referer"));
+    tracing::info!("[proxy] mobile client bypass: stripped Origin/Referer from token headers");
+    if h.is_empty() { None } else { Some(h) }
+}
+
 /// Inject CDN-specific headers based on target host
 fn inject_cdn_headers(
     mut req: reqwest::RequestBuilder,
@@ -437,6 +465,7 @@ pub async fn m3u8_handler(
         Some(t) => t,
         None => return (StatusCode::FORBIDDEN, "Invalid or missing signed token").into_response(),
     };
+    let headers = mobile_bypass_headers(headers, &request_headers);
 
     if is_internal_host(&target_url) {
         return (StatusCode::FORBIDDEN, "Blocked internal URL").into_response();
@@ -727,6 +756,7 @@ pub async fn ts_handler(
             return (StatusCode::FORBIDDEN, "Invalid or missing signed token").into_response();
         }
     };
+    let headers = mobile_bypass_headers(headers, &request_headers);
 
     if is_internal_host(&target_url) {
         return (StatusCode::FORBIDDEN, "Blocked internal URL").into_response();
@@ -1153,6 +1183,7 @@ pub async fn sub_handler(
         Some(t) => t,
         None => return (StatusCode::FORBIDDEN, "Invalid or missing signed token").into_response(),
     };
+    let headers = mobile_bypass_headers(headers, &request_headers);
 
     if is_internal_host(&target_url) {
         return (StatusCode::FORBIDDEN, "Blocked internal URL").into_response();

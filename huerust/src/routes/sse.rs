@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio::time::timeout;
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::{
     app::StreamState,
@@ -85,6 +85,11 @@ pub async fn sse_streams_handler(
         })
         .unwrap_or_else(|| "anon".to_string());
 
+    info!(
+        "[SSE] request user={} type={} tmdb={} S{}E{} nocache={}",
+        user_id, m_type, tmdb_id, season, episode, no_cache
+    );
+
     tokio::spawn(async move {
         let cache_key = CacheKey::new(&m_type, &tmdb_id, season, episode);
         let sticky_key = StickyPrefKey::new(&user_id, &m_type, &tmdb_id);
@@ -117,6 +122,7 @@ pub async fn sse_streams_handler(
                 };
                 encrypt_stream_result_urls(&mut streams, &state.kkey);
                 let count = streams.len();
+                info!("[SSE] cache hit for {}/{}: {} streams", m_type, tmdb_id, count);
                 let _ = tx.send(Ok(Event::default().event("cached").data(
                     json!({"streams": streams, "count": count, "cached": true}).to_string()
                 ))).await;
@@ -199,6 +205,12 @@ pub async fn sse_streams_handler(
                     Ok(Ok(streams)) if !streams.is_empty() => {
                         cb.record_success(&entry.provider_real_name);
                         let elapsed_ms = t0.elapsed().as_millis() as u64;
+                        info!(
+                            "[SSE] sticky fast-path {} returned {} streams in {}ms",
+                            entry.provider_real_name,
+                            streams.len(),
+                            elapsed_ms
+                        );
                         let mut display = if state.config.enable_proxy {
                             wrap_with_proxy(streams.clone(), &proxy_base, &state.secret)
                         } else {
@@ -374,6 +386,12 @@ pub async fn sse_streams_handler(
                     Ok(Ok(streams)) if !streams.is_empty() => {
                         cb.record_success(&real_name);
                         stream_count.fetch_add(streams.len(), Ordering::Relaxed);
+                        info!(
+                            "[SSE] provider {} returned {} streams in {}ms",
+                            name,
+                            streams.len(),
+                            elapsed_ms
+                        );
                         let mut display = if enable_proxy {
                             wrap_with_proxy(streams.clone(), &proxy_base, &secret)
                         } else {
@@ -484,6 +502,12 @@ pub async fn sse_streams_handler(
                     Ok(Ok(streams)) if !streams.is_empty() => {
                         cb.record_success(&real_name);
                         stream_count.fetch_add(streams.len(), Ordering::Relaxed);
+                        info!(
+                            "[SSE] provider {} returned {} streams in {}ms",
+                            name,
+                            streams.len(),
+                            elapsed_ms
+                        );
                         let mut display = if enable_proxy {
                             wrap_with_proxy(streams.clone(), &proxy_base, &secret)
                         } else {

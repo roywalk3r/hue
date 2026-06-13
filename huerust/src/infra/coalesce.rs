@@ -8,6 +8,7 @@
 use std::sync::Arc;
 use dashmap::DashMap;
 use tokio::sync::Notify;
+use tracing::info;
 use crate::infra::cache::CacheKey;
 use crate::models::StreamResult;
 use crate::infra::cache::StreamCache;
@@ -39,12 +40,14 @@ impl FetchCoalescer {
     {
         // Fast path: already cached
         if let Some(cached) = cache.get(key).await {
+            info!("[coalescer] cache hit for {:?}", key);
             return Some(cached);
         }
 
         // If another request is already fetching, wait for it
         let existing_notify = self.in_flight.get(key).map(|entry| entry.clone());
         if let Some(notify) = existing_notify {
+            info!("[coalescer] joining in-flight fetch for {:?}", key);
             notify.notified().await;
             return cache.get(key).await;
         }
@@ -52,6 +55,7 @@ impl FetchCoalescer {
         // We are the first request — start fetching
         let notify = Arc::new(Notify::new());
         self.in_flight.insert(key.clone(), notify.clone());
+        info!("[coalescer] starting first fetch for {:?}", key);
 
         let result = fetch().await;
 
