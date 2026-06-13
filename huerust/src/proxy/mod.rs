@@ -179,13 +179,6 @@ fn resolve_ts_target(
 const MOBILE_CLIENT_HEADER: &str = "x-hue-client";
 const MOBILE_CLIENT_VALUE: &str = "hue-mobile/v1";
 
-/// Hosts whose token-signed Origin/Referer must be preserved for mobile.
-/// These CDNs validate per-provider referers and reject generic host-derived ones.
-fn bypass_safe_host(target: &str) -> bool {
-    let lower = target.to_lowercase();
-    lower.contains("storrrrrrm.site")
-}
-
 fn is_mobile_client(headers: &HeaderMap) -> bool {
     headers
         .get(MOBILE_CLIENT_HEADER)
@@ -194,26 +187,19 @@ fn is_mobile_client(headers: &HeaderMap) -> bool {
         .unwrap_or(false)
 }
 
-/// Mobile app bypass: web-signed tokens may carry Origin/Referer values that
-/// CDNs reject when paired with a mobile User-Agent. When the Flutter client
-/// identifies itself, drop those token headers so inject_cdn_headers can
-/// derive fresh, host-specific headers.
+/// Mobile identification only — do not strip token headers. The signed
+/// Origin/Referer are required by nearly every CDN (Luna, VidZee/Hydro, etc.)
+/// and stripping them causes 403/404. Future per-provider overrides can be
+/// added here if a specific CDN needs different mobile headers.
 fn mobile_bypass_headers(
     headers: Option<HashMap<String, String>>,
     req_headers: &HeaderMap,
     target_url: &str,
 ) -> Option<HashMap<String, String>> {
-    if !is_mobile_client(req_headers) {
-        return headers;
+    if is_mobile_client(req_headers) {
+        tracing::info!("[proxy] mobile client identified for {} (token headers preserved)", target_url);
     }
-    if bypass_safe_host(target_url) {
-        tracing::info!("[proxy] mobile bypass skipped for {} (token headers preserved)", target_url);
-        return headers;
-    }
-    let mut h = headers.unwrap_or_default();
-    h.retain(|k, _| !k.eq_ignore_ascii_case("origin") && !k.eq_ignore_ascii_case("referer"));
-    tracing::info!("[proxy] mobile bypass: stripped Origin/Referer from token headers for {}", target_url);
-    if h.is_empty() { None } else { Some(h) }
+    headers
 }
 
 /// Inject CDN-specific headers based on target host

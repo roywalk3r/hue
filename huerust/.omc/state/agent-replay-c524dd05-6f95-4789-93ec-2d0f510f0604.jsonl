@@ -165,3 +165,4 @@
 {"t":0,"agent":"ad1ee19","agent_type":"unknown","event":"agent_stop","success":true}
 {"t":0,"agent":"a6ad308","agent_type":"unknown","event":"agent_stop","success":true}
 {"t":0,"agent":"aa5c58d","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"a1c7f5d","agent_type":"Explore","event":"agent_start","parent_mode":"none"}

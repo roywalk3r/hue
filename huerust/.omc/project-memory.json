@@ -137,8 +137,8 @@
   "hotPaths": [
     {
       "path": "src/proxy/mod.rs",
-      "accessCount": 16,
-      "lastAccessed": 1781197023522,
+      "accessCount": 19,
+      "lastAccessed": 1781337984226,
       "type": "file"
     },
     {
