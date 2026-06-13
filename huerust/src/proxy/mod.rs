@@ -179,6 +179,13 @@ fn resolve_ts_target(
 const MOBILE_CLIENT_HEADER: &str = "x-hue-client";
 const MOBILE_CLIENT_VALUE: &str = "hue-mobile/v1";
 
+/// Hosts whose token-signed Origin/Referer must be preserved for mobile.
+/// These CDNs validate per-provider referers and reject generic host-derived ones.
+fn bypass_safe_host(target: &str) -> bool {
+    let lower = target.to_lowercase();
+    lower.contains("storrrrrrm.site")
+}
+
 fn is_mobile_client(headers: &HeaderMap) -> bool {
     headers
         .get(MOBILE_CLIENT_HEADER)
@@ -194,13 +201,18 @@ fn is_mobile_client(headers: &HeaderMap) -> bool {
 fn mobile_bypass_headers(
     headers: Option<HashMap<String, String>>,
     req_headers: &HeaderMap,
+    target_url: &str,
 ) -> Option<HashMap<String, String>> {
     if !is_mobile_client(req_headers) {
         return headers;
     }
+    if bypass_safe_host(target_url) {
+        tracing::info!("[proxy] mobile bypass skipped for {} (token headers preserved)", target_url);
+        return headers;
+    }
     let mut h = headers.unwrap_or_default();
     h.retain(|k, _| !k.eq_ignore_ascii_case("origin") && !k.eq_ignore_ascii_case("referer"));
-    tracing::info!("[proxy] mobile client bypass: stripped Origin/Referer from token headers");
+    tracing::info!("[proxy] mobile bypass: stripped Origin/Referer from token headers for {}", target_url);
     if h.is_empty() { None } else { Some(h) }
 }
 
@@ -466,7 +478,7 @@ pub async fn m3u8_handler(
         Some(t) => t,
         None => return (StatusCode::FORBIDDEN, "Invalid or missing signed token").into_response(),
     };
-    let headers = mobile_bypass_headers(headers, &request_headers);
+    let headers = mobile_bypass_headers(headers, &request_headers, &target_url);
 
     if is_internal_host(&target_url) {
         return (StatusCode::FORBIDDEN, "Blocked internal URL").into_response();
@@ -766,7 +778,7 @@ pub async fn ts_handler(
             return (StatusCode::FORBIDDEN, "Invalid or missing signed token").into_response();
         }
     };
-    let headers = mobile_bypass_headers(headers, &request_headers);
+    let headers = mobile_bypass_headers(headers, &request_headers, &target_url);
 
     if is_internal_host(&target_url) {
         return (StatusCode::FORBIDDEN, "Blocked internal URL").into_response();
@@ -1193,7 +1205,7 @@ pub async fn sub_handler(
         Some(t) => t,
         None => return (StatusCode::FORBIDDEN, "Invalid or missing signed token").into_response(),
     };
-    let headers = mobile_bypass_headers(headers, &request_headers);
+    let headers = mobile_bypass_headers(headers, &request_headers, &target_url);
 
     if is_internal_host(&target_url) {
         return (StatusCode::FORBIDDEN, "Blocked internal URL").into_response();
