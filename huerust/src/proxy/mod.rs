@@ -228,7 +228,6 @@ fn inject_cdn_headers(
         } else if host.contains("hakunaymatata.com")
             || host.contains("aisports.mobi")
             || host.contains("poocloud.in")
-            || host.contains("storrrrrrm.site")
         {
             Some("https://moviebox.ph/")
         } else if host.contains("mewstream.buzz") || host.contains("animeplay.cfd") {
