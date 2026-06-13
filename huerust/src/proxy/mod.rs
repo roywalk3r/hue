@@ -1343,13 +1343,23 @@ fn rewrite_playlist(
 
         // Tags that carry a URI attribute
         if line.starts_with("#") {
-            if let Some(rewritten_line) =
-                rewrite_hls_tag_uri(line, proxy_base, secret, &base_url, &headers)
+            // ExoPlayer requires BANDWIDTH on every EXT-X-STREAM-INF tag.
+            // Some upstream manifests only include RESOLUTION; inject a
+            // fallback so Android playback works without breaking hls.js.
+            let rewritten_line = if line.starts_with("#EXT-X-STREAM-INF")
+                && !line.contains("BANDWIDTH=")
             {
-                rewritten_lines.push(rewritten_line);
+                format!("{},BANDWIDTH=1000000", line)
+            } else {
+                line.to_string()
+            };
+            if let Some(rewritten_tag) =
+                rewrite_hls_tag_uri(&rewritten_line, proxy_base, secret, &base_url, &headers)
+            {
+                rewritten_lines.push(rewritten_tag);
                 continue;
             }
-            rewritten_lines.push(line.to_string());
+            rewritten_lines.push(rewritten_line);
         } else if !line.trim().is_empty() {
             let line_trim = line.trim();
             let abs_url = unwrap_aisports_worker_url(&resolve_segment_url(&base_url, line_trim));
