@@ -230,6 +230,7 @@ fn inject_cdn_headers(
         } else if host.contains("hakunaymatata.com")
             || host.contains("aisports.mobi")
             || host.contains("poocloud.in")
+            || host.contains("storrrrrrm.site")
         {
             Some("https://moviebox.ph/")
         } else if host.contains("mewstream.buzz") || host.contains("animeplay.cfd") {
@@ -472,6 +473,7 @@ pub async fn m3u8_handler(
     }
 
     let is_vix = is_vixsrc_target(&target_url, &headers);
+    let is_mobile = is_mobile_client(&request_headers);
     let mut req = state.raw_client.get(&worker_routed_url(
         &target_url,
         &state.config.cf_worker_url,
@@ -521,10 +523,9 @@ pub async fn m3u8_handler(
         }
     }
 
-    // Debug: log full request shape for Vixsrc before sending
-    if is_vix {
+    // Debug: log full request shape before sending (always for mobile, Vixsrc only otherwise)
+    {
         let mut header_log = Vec::new();
-        // We can't introspect reqwest::RequestBuilder directly, but we know what we injected
         if let Some(ref h) = headers {
             for (k, v) in h.iter() {
                 header_log.push(format!("{}: {}", k, v));
@@ -536,8 +537,13 @@ pub async fn m3u8_handler(
                 referer_value.as_ref().unwrap()
             ));
         }
+        if has_origin {
+            header_log.push("origin(from-inject): derived".to_string());
+        }
         tracing::info!(
-            "[m3u8-proxy] Vixsrc request → {} | headers: {:?}",
+            "[m3u8-proxy] request mobile={} vix={} → {} | headers: {:?}",
+            is_mobile,
+            is_vix,
             target_url,
             header_log
         );
@@ -546,7 +552,10 @@ pub async fn m3u8_handler(
     let (status, body, ct) =
         match send_m3u8_request(&state.raw_client, req, &target_url, is_vix).await {
             Ok(result) => result,
-            Err(e) => return (StatusCode::BAD_GATEWAY, e).into_response(),
+            Err(e) => {
+                tracing::warn!("[m3u8-proxy] upstream transport error for {}: {}", target_url, e);
+                return (StatusCode::BAD_GATEWAY, e).into_response();
+            }
         };
 
     let body_trim = body.trim_start_matches('\u{feff}').trim_start();
@@ -588,10 +597,11 @@ pub async fn m3u8_handler(
         }
 
         tracing::warn!(
-            "[m3u8-proxy] Upstream returned non-HLS (status={}, ct={}, body_preview={:?}) for {}",
+            "[m3u8-proxy] Upstream returned non-HLS (status={}, ct={}, body_preview={:?}, mobile={}) for {}",
             status.as_u16(),
             ct,
             body.chars().take(80).collect::<String>(),
+            is_mobile,
             target_url
         );
 

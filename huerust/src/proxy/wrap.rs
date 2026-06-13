@@ -51,7 +51,8 @@ pub(crate) fn wrap_with_proxy(
             };
             let is_moviebox_cdn = host.contains("hakunaymatata.com")
                 || host.contains("aisports.mobi")
-                || host.contains("poocloud.in");
+                || host.contains("poocloud.in")
+                || host.contains("storrrrrrm.site");
             let is_pixeldrain = host.contains("pixeldrain.");
             let is_googleusercontent = host == "video-downloads.googleusercontent.com";
             let is_mp4_mkv =
