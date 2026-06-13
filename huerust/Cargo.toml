@@ -66,6 +66,9 @@ regex = "1.10"
 # TLS
 rustls-pemfile = "2.0"
 webpki-roots = "0.26"
+flate2 = "1.0"
+brotli = "6.0"
+zstd = "0.13"
 
 # Documentation (OpenAPI)
 utoipa = { version = "4", features = ["axum_extras"] }

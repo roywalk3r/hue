@@ -14,9 +14,62 @@ use crate::models::{StreamResult, Subtitle};
 use tracing::{info, warn};
 use std::collections::HashMap;
 use std::sync::LazyLock;
+use flate2::read::GzDecoder;
+use brotli::Decompressor;
+use std::io::Read;
+use zstd::stream::read::Decoder as ZstdDecoder;
 
-const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36";
 const VIXSRC_REFERER: &str = "https://vixsrc.to/";
+
+/// vixsrc.to returns compressed bodies without always setting Content-Encoding.
+/// Detect gzip / zstd / brotli by magic and decode before regex scraping.
+fn maybe_decompress_body(body: &[u8]) -> String {
+    if body.is_empty() {
+        return String::new();
+    }
+    // gzip magic: 0x1f 0x8b
+    if body.len() >= 2 && body[0] == 0x1f && body[1] == 0x8b {
+        let mut decoder = GzDecoder::new(body);
+        let mut out = Vec::new();
+        if decoder.read_to_end(&mut out).is_ok() {
+            return String::from_utf8_lossy(&out).to_string();
+        }
+    }
+    // zstd magic: 0x28 0xb5 0x2f 0xfd
+    if body.len() >= 4 && body[0] == 0x28 && body[1] == 0xb5 && body[2] == 0x2f && body[3] == 0xfd {
+        if let Ok(mut decoder) = ZstdDecoder::new(body) {
+            let mut out = Vec::new();
+            if decoder.read_to_end(&mut out).is_ok() && !out.is_empty() {
+                return String::from_utf8_lossy(&out).to_string();
+            }
+        }
+    }
+    // brotli has no fixed magic; try decoding and fall back to lossy UTF-8.
+    {
+        let mut decoder = Decompressor::new(body, 4096);
+        let mut out = Vec::new();
+        if decoder.read_to_end(&mut out).is_ok() && !out.is_empty() {
+            return String::from_utf8_lossy(&out).to_string();
+        }
+    }
+    String::from_utf8_lossy(body).to_string()
+}
+
+/// Realistic browser headers so Cloudflare does not reject our API calls.
+fn vixsrc_browser_headers(referer: &str) -> Vec<(&'static str, String)> {
+    vec![
+        ("Accept", "application/json, text/plain, */*".to_string()),
+        ("Accept-Language", "en-US,en;q=0.9".to_string()),
+        ("Accept-Encoding", "gzip, deflate, br, zstd".to_string()),
+        ("Referer", referer.to_string()),
+        ("Origin", "https://vixsrc.to".to_string()),
+        ("Sec-Fetch-Dest", "empty".to_string()),
+        ("Sec-Fetch-Mode", "cors".to_string()),
+        ("Sec-Fetch-Site", "same-origin".to_string()),
+        ("User-Agent", USER_AGENT.to_string()),
+    ]
+}
 
 // ── Cached regexes (compile once at first use) ──
 static RE_MASTER_PL: LazyLock<Regex> = LazyLock::new(|| {
@@ -130,16 +183,18 @@ impl VixsrcClient {
         };
 
         let mut headers = HashMap::new();
-        headers.insert("Referer".to_string(), page_url.clone());
-        headers.insert("User-Agent".to_string(), USER_AGENT.to_string());
+        for (k, v) in vixsrc_browser_headers(&page_url) {
+            headers.insert(k.to_string(), v);
+        }
 
         // ── Step 1: API call to get embed path ──
-        let embed_url = match self.client
-            .get(&api_url)
-            .header("User-Agent", USER_AGENT)
-            .header("Referer", &page_url)
-            .send()
-            .await
+        let embed_url = match {
+            let mut req = self.client.get(&api_url);
+            for (k, v) in vixsrc_browser_headers(&page_url) {
+                req = req.header(k, v);
+            }
+            req.send().await
+        }
         {
             Ok(resp) if resp.status().is_success() => {
                 match resp.json::<VixsrcApiResponse>().await {
@@ -194,14 +249,16 @@ impl VixsrcClient {
         }
 
         // ── Step 3: Fallback — scrape the detail page directly ──
-        let resp = self.client
-            .get(&page_url)
-            .header("User-Agent", USER_AGENT)
-            .header("Referer", VIXSRC_REFERER)
-            .send()
-            .await?;
+        let resp = {
+            let mut req = self.client.get(&page_url);
+            for (k, v) in vixsrc_browser_headers(VIXSRC_REFERER) {
+                req = req.header(k, v);
+            }
+            req.send().await?
+        };
 
-        let html = resp.text().await?;
+        let body_bytes = resp.bytes().await?;
+        let html = maybe_decompress_body(&body_bytes);
 
         let mut results = Vec::new();
 
@@ -306,18 +363,22 @@ impl VixsrcClient {
         embed_url: &str,
         page_url: &str,
     ) -> Result<(Vec<InternalStream>, Option<Vec<Subtitle>>)> {
-        let resp = self.client
-            .get(embed_url)
-            .header("User-Agent", USER_AGENT)
-            .header("Referer", page_url)
-            .send()
-            .await?;
+        let resp = {
+            let mut req = self.client.get(embed_url);
+            for (k, v) in vixsrc_browser_headers(page_url) {
+                req = req.header(k, v);
+            }
+            req.send().await?
+        };
 
         if !resp.status().is_success() {
             anyhow::bail!("Vixsrc embed page returned {}", resp.status());
         }
 
-        let html = resp.text().await?;
+        let body_bytes = resp.bytes().await?;
+        let html = maybe_decompress_body(&body_bytes);
+        let preview: String = html.chars().take(400).collect();
+        info!("[Vixsrc Rust] embed page length={} preview={}", html.len(), preview);
         let mut streams: Vec<InternalStream> = Vec::new();
         let mut auth_token: Option<String> = None;
         let mut auth_expires: Option<String> = None;
@@ -356,28 +417,37 @@ impl VixsrcClient {
 
         // ── Parse window.streams as JSON array ──
         let re_streams = &*RE_STREAMS_ARR;
+        info!("[Vixsrc Rust] window.masterPlaylist found={} window.streams found={}",
+            re_master.captures(&html).is_some(),
+            re_streams.captures(&html).is_some()
+        );
         if let Some(caps) = re_streams.captures(&html) {
             if let Some(block) = caps.get(1) {
-                if let Ok(servers) = serde_json::from_str::<Vec<VixsrcStream>>(block.as_str()) {
-                    for server in servers {
-                        if let Some(u) = server.url.filter(|s| !s.is_empty()) {
-                            let authed = if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
-                                let sep = if u.contains('?') { '&' } else { '?' };
-                                format!("{}{sep}token={t}&expires={e}&h=1&lang=en", u, sep=sep, t=t, e=e)
-                            } else {
-                                u
-                            };
-                            let name = server.name.as_deref().unwrap_or("Server");
-                            // dedupe by URL
-                            if !streams.iter().any(|s| s.url == authed) {
-                                streams.push(InternalStream {
-                                    url: authed,
-                                    quality: "Auto".to_string(),
-                                    title: format!("Aura - {} - Auto", name),
-                                });
+                info!("[Vixsrc Rust] window.streams block: {}", block.as_str().chars().take(200).collect::<String>());
+                match serde_json::from_str::<Vec<VixsrcStream>>(block.as_str()) {
+                    Ok(servers) => {
+                        info!("[Vixsrc Rust] parsed {} servers from window.streams", servers.len());
+                        for server in servers {
+                            if let Some(u) = server.url.filter(|s| !s.is_empty()) {
+                                let authed = if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
+                                    let sep = if u.contains('?') { '&' } else { '?' };
+                                    format!("{}{sep}token={t}&expires={e}&h=1&lang=en", u, sep=sep, t=t, e=e)
+                                } else {
+                                    u
+                                };
+                                let name = server.name.as_deref().unwrap_or("Server");
+                                // dedupe by URL
+                                if !streams.iter().any(|s| s.url == authed) {
+                                    streams.push(InternalStream {
+                                        url: authed,
+                                        quality: "Auto".to_string(),
+                                        title: format!("Aura - {} - Auto", name),
+                                    });
+                                }
                             }
                         }
                     }
+                    Err(e) => warn!("[Vixsrc Rust] window.streams JSON parse failed: {}", e),
                 }
             }
         }
