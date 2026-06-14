@@ -111,6 +111,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let kissasian_client = Arc::new(crate::providers::kissasian::KissAsianClient::new());
     let hianime_client = Arc::new(crate::clients::hianime::HianimeClient::new());
     let anime_agg = Arc::new(crate::clients::anime_agg::AnimeAggregator::new(
+        Arc::new(crate::clients::aniwave::AniwaveClient::new()),
         hianime_client.clone(),
         Arc::new(crate::clients::aniwatch::AniWatchClient::new()),
         Arc::new(crate::clients::anilist::AniListClient::new()),
@@ -124,7 +125,12 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
                 .pool_max_idle_per_host(2)
                 .pool_idle_timeout(Duration::from_secs(90))
                 .timeout(Duration::from_secs(15))
-                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
+                // vixsrc.to uses Cloudflare bot management. HTTP/2 + rustls is
+                // fingerprinted and 403'd; HTTP/1.1 is accepted but the embed
+                // page body is sometimes sent raw-gzipped without the proper
+                // Content-Encoding header, so we decompress manually in the client.
+                .http1_only()
+                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"),
             "VIXSRC_PROXY_URL",
         ),
     ));

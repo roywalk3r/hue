@@ -7,6 +7,7 @@ use crate::clients::hianime::HianimeClient;
 use crate::clients::aniwatch::AniWatchClient;
 use crate::clients::anilist::AniListClient;
 use crate::clients::animexin::AnimexinClient;
+use crate::clients::aniwave::AniwaveClient;
 use crate::models::anime::{AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, ServerList, StreamPayload, SubtitleTrack, SkipRange};
 
 /// Aggregates anime results from multiple providers.
@@ -14,6 +15,7 @@ use crate::models::anime::{AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchRes
 /// Detail/servers/stream try providers in order until one succeeds.
 #[derive(Clone)]
 pub struct AnimeAggregator {
+    aniwave: Arc<AniwaveClient>,
     hianime: Arc<HianimeClient>,
     aniwatch: Arc<AniWatchClient>,
     anilist: Arc<AniListClient>,
@@ -22,12 +24,13 @@ pub struct AnimeAggregator {
 
 impl AnimeAggregator {
     pub fn new(
+        aniwave: Arc<AniwaveClient>,
         hianime: Arc<HianimeClient>,
         aniwatch: Arc<AniWatchClient>,
         anilist: Arc<AniListClient>,
         animexin: Arc<AnimexinClient>,
     ) -> Self {
-        Self { hianime, aniwatch, anilist, animexin }
+        Self { aniwave, hianime, aniwatch, anilist, animexin }
     }
 
     /// Search across all providers in parallel, merge and deduplicate by title.
@@ -131,7 +134,16 @@ impl AnimeAggregator {
 
     /// Try each provider for detail until one succeeds.
     pub async fn get_detail(&self, id: &str) -> Option<AnimeDetail> {
-        // Try HiAnime first (has most episode data)
+        // Try Aniwave first (most reliable as of June 2026)
+        if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
+            if let Ok(detail) = self.aniwave.get_detail(id).await {
+                if !detail.card.id.is_empty() {
+                    return Some(detail);
+                }
+            }
+        }
+
+        // Try HiAnime
         if let Ok(info) = self.hianime.get_anime_info(id).await {
             let detail = crate::clients::hianime::transform_anime_detail(info);
             if !detail.card.id.is_empty() {
@@ -151,10 +163,19 @@ impl AnimeAggregator {
         None
     }
 
-    /// Get episodes: prefer HiAnime, fallback to AniList (synthetic)
+    /// Get episodes: prefer Aniwave, then HiAnime, then AniList (synthetic)
     pub async fn get_episodes(&self, id: &str, start: u32,
     ) -> Option<Vec<crate::models::anime::EpisodeSummary>> {
-        // Try HiAnime first
+        // Try Aniwave first (slugs end in numeric id like one-piece-81553)
+        if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
+            if let Ok(eps) = self.aniwave.get_episodes(id).await {
+                if !eps.is_empty() {
+                    return Some(eps);
+                }
+            }
+        }
+
+        // Try HiAnime
         if let Ok(ep_data) = self.hianime.get_episodes(id, start).await {
             let episodes: Vec<crate::models::anime::EpisodeSummary> = ep_data.episodes
                 .unwrap_or_default()
@@ -171,15 +192,6 @@ impl AnimeAggregator {
                 .collect();
             if !episodes.is_empty() {
                 return Some(episodes);
-            }
-        }
-
-        // Try AniWatch detail which includes episodes
-        if let Ok(detail) = self.aniwatch.get_detail(id).await {
-            if let Some(eps) = detail.episodes {
-                if !eps.is_empty() {
-                    return Some(eps);
-                }
             }
         }
 
@@ -202,9 +214,22 @@ impl AnimeAggregator {
         None
     }
 
-    /// Get servers: try HiAnime, then Animexin
+    /// Get servers: try Aniwave, then HiAnime, then Animexin
     pub async fn get_servers(&self, id: &str
     ) -> Option<ServerList> {
+        // Aniwave: id is the series slug, episode number is required.
+        // The aggregator's signature doesn't pass episode, so we can't
+        // directly call get_servers here. Fall through to HiAnime.
+        //
+        // (Aniwave streams are still resolved by get_stream which does
+        // get the episode number from the URL.)
+        // Aniwave
+        if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
+            // The aggregator interface only passes `id`; for Aniwave we
+            // need episode number to fetch servers, so leave it to the
+            // stream path. Treat as not-found at the server-list level.
+        }
+
         // HiAnime
         if let Ok(raw) = self.hianime.get_servers(id).await {
             let structured = crate::clients::hianime::transform_server_list(&raw);
@@ -223,7 +248,7 @@ impl AnimeAggregator {
         None
     }
 
-    /// Get stream: try HiAnime, then Animexin
+    /// Get stream: try Aniwave, then HiAnime, then Animexin
     pub async fn get_stream(
         &self,
         id: &str,
@@ -231,6 +256,17 @@ impl AnimeAggregator {
         link_type: &str,
         episode: u32,
     ) -> Option<StreamPayload> {
+        // Aniwave: id is the series slug (e.g. "one-piece-81553"),
+        // episode is the episode number. Skip if id doesn't look like a slug.
+        if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
+            let server_id = server.and_then(|s| s.parse::<u32>().ok());
+            if let Ok(stream) = self.aniwave.get_stream(id, episode, server_id, link_type).await {
+                if !stream.url.is_empty() {
+                    return Some(stream);
+                }
+            }
+        }
+
         // HiAnime first (most reliable streams)
         if let Ok(data) = self.hianime.get_stream(id, server, link_type, episode).await {
             return Some(stream_data_to_payload(data));

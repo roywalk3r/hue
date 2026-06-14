@@ -8,5 +8,6 @@ pub mod vidvault;
 pub mod aisports;
 pub mod anilist;
 pub mod aniwatch;
+pub mod aniwave;
 pub mod animexin;
 pub mod anime_agg;
