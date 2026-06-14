@@ -7,12 +7,12 @@
  * @license MIT
  */
 
-use async_trait::async_trait;
-use crate::providers::StreamProvider;
+use crate::clients::tmdb::TmdbNormalizedInfo;
 use crate::clients::vidsrcembed::VidsrcEmbedClient;
 use crate::models::StreamResult;
-use crate::clients::tmdb::TmdbNormalizedInfo;
+use crate::providers::StreamProvider;
 use anyhow::Result;
+use async_trait::async_trait;
 use std::sync::Arc;
 
 pub struct VidsrcEmbedProvider {
@@ -27,10 +27,18 @@ impl VidsrcEmbedProvider {
 
 #[async_trait]
 impl StreamProvider for VidsrcEmbedProvider {
-    fn name(&self) -> &'static str { "Nebula" }
-    fn real_name(&self) -> &'static str { "vidsrc-embed" }
-    fn is_fast(&self) -> bool { false }
-    fn timeout_secs(&self) -> u64 { 20 }
+    fn name(&self) -> &'static str {
+        "Nebula"
+    }
+    fn real_name(&self) -> &'static str {
+        "vidsrc-embed"
+    }
+    fn is_fast(&self) -> bool {
+        false
+    }
+    fn timeout_secs(&self) -> u64 {
+        20
+    }
 
     async fn fetch(
         &self,
@@ -39,11 +47,21 @@ impl StreamProvider for VidsrcEmbedProvider {
         season: u32,
         episode: u32,
     ) -> Result<Vec<StreamResult>> {
-        self.client.get_streams(
-            &tmdb_info.id.to_string(),
-            media_type,
-            if media_type == "tv" || media_type == "series" { Some(season) } else { None },
-            if media_type == "tv" || media_type == "series" { Some(episode) } else { None },
-        ).await
+        self.client
+            .get_streams(
+                &tmdb_info.id.to_string(),
+                media_type,
+                if media_type == "tv" || media_type == "series" {
+                    Some(season)
+                } else {
+                    None
+                },
+                if media_type == "tv" || media_type == "series" {
+                    Some(episode)
+                } else {
+                    None
+                },
+            )
+            .await
     }
 }

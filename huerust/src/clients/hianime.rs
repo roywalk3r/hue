@@ -8,16 +8,19 @@
  */
 
 use anyhow::{anyhow, Result};
+use moka::future::Cache;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::time::Duration;
 use tracing::warn;
-use moka::future::Cache;
 
 use crate::constants::UA_DESKTOP;
-use crate::models::anime::{AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, EpisodeSummary, ServerEntry, ServerList};
+use crate::models::anime::{
+    AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, EpisodeSummary, ServerEntry,
+    ServerList,
+};
 
 const API_BASE: &str = "https://animedata.cfd/api";
 
@@ -150,13 +153,17 @@ impl HianimeClient {
     fn base_headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
         headers.insert("User-Agent", HeaderValue::from_static(UA_DESKTOP));
-        headers.insert("X-Requested-With", HeaderValue::from_static("XMLHttpRequest"));
+        headers.insert(
+            "X-Requested-With",
+            HeaderValue::from_static("XMLHttpRequest"),
+        );
         headers
     }
 
     pub async fn search(&self, keyword: &str) -> Result<serde_json::Value> {
         let url = format!("{}/search", API_BASE);
-        let resp = self.client
+        let resp = self
+            .client
             .post(&url)
             .headers(self.base_headers())
             .json(&json!({ "title": keyword }))
@@ -173,7 +180,8 @@ impl HianimeClient {
 
     pub async fn get_latest(&self, _page: u32) -> Result<serde_json::Value> {
         let url = format!("{}/latest/anime", API_BASE);
-        let resp = self.client
+        let resp = self
+            .client
             .get(&url)
             .headers(self.base_headers())
             .send()
@@ -181,9 +189,18 @@ impl HianimeClient {
         Ok(resp.json().await?)
     }
 
-    pub async fn get_by_category(&self, typ: &str, page: u32, limit: u32) -> Result<serde_json::Value> {
-        let url = format!("{}/category?type={}&page={}&limit={}", API_BASE, typ, page, limit);
-        let resp = self.client
+    pub async fn get_by_category(
+        &self,
+        typ: &str,
+        page: u32,
+        limit: u32,
+    ) -> Result<serde_json::Value> {
+        let url = format!(
+            "{}/category?type={}&page={}&limit={}",
+            API_BASE, typ, page, limit
+        );
+        let resp = self
+            .client
             .get(&url)
             .headers(self.base_headers())
             .send()
@@ -193,7 +210,8 @@ impl HianimeClient {
 
     pub async fn filter(&self, body: serde_json::Value) -> Result<serde_json::Value> {
         let url = format!("{}/filter", API_BASE);
-        let resp = self.client
+        let resp = self
+            .client
             .post(&url)
             .headers(self.base_headers())
             .json(&body)
@@ -204,7 +222,8 @@ impl HianimeClient {
 
     pub async fn get_home(&self) -> Result<serde_json::Value> {
         let url = format!("{}/home?slugNth=12&includeSlugs=false", API_BASE);
-        let resp = self.client
+        let resp = self
+            .client
             .get(&url)
             .headers(self.base_headers())
             .send()
@@ -214,7 +233,8 @@ impl HianimeClient {
 
     pub async fn get_anime_info(&self, slug: &str) -> Result<serde_json::Value> {
         let url = format!("{}/anime/{}", API_BASE, slug);
-        let resp = self.client
+        let resp = self
+            .client
             .get(&url)
             .headers(self.base_headers())
             .send()
@@ -222,14 +242,19 @@ impl HianimeClient {
         Ok(resp.json().await?)
     }
 
-    pub async fn get_episodes(&self, anime_id: &str, start_episode: u32) -> Result<EpisodeResponse> {
+    pub async fn get_episodes(
+        &self,
+        anime_id: &str,
+        start_episode: u32,
+    ) -> Result<EpisodeResponse> {
         let hex_pattern = regex::Regex::new(r"^[0-9a-fA-F]{24}$").unwrap();
         let resolved_id = if hex_pattern.is_match(anime_id) {
             anime_id.to_string()
         } else {
             // Resolve episode slug → anime _id via detail endpoint
             let detail = self.get_anime_info(anime_id).await?;
-            detail.get("anime")
+            detail
+                .get("anime")
                 .and_then(|a| a.get("_id"))
                 .and_then(|i| i.as_str())
                 .map(|s| s.to_string())
@@ -241,11 +266,15 @@ impl HianimeClient {
             return Ok(cached);
         }
         let url = if start_episode > 0 {
-            format!("{}/episodes/{}?start={}", API_BASE, resolved_id, start_episode)
+            format!(
+                "{}/episodes/{}?start={}",
+                API_BASE, resolved_id, start_episode
+            )
         } else {
             format!("{}/episodes/{}", API_BASE, resolved_id)
         };
-        let resp = self.client
+        let resp = self
+            .client
             .get(&url)
             .headers(self.base_headers())
             .send()
@@ -257,7 +286,8 @@ impl HianimeClient {
 
     pub async fn get_servers(&self, slug: &str) -> Result<ServerResponse> {
         let url = format!("{}/episode/{}", API_BASE, slug);
-        let resp = self.client
+        let resp = self
+            .client
             .get(&url)
             .headers(self.base_headers())
             .send()
@@ -275,12 +305,27 @@ impl HianimeClient {
             let dub = parse_server_links(episode.get("dub").cloned(), "dub");
             Ok(ServerResponse { sub, dub })
         } else {
-            Ok(ServerResponse { sub: vec![], dub: vec![] })
+            Ok(ServerResponse {
+                sub: vec![],
+                dub: vec![],
+            })
         }
     }
 
-    pub async fn get_stream(&self, id: &str, server_name: Option<&str>, link_type: &str, episode: u32) -> Result<StreamData> {
-        let cache_key = format!("{}:{}:{}:{}", id, server_name.unwrap_or(""), link_type, episode);
+    pub async fn get_stream(
+        &self,
+        id: &str,
+        server_name: Option<&str>,
+        link_type: &str,
+        episode: u32,
+    ) -> Result<StreamData> {
+        let cache_key = format!(
+            "{}:{}:{}:{}",
+            id,
+            server_name.unwrap_or(""),
+            link_type,
+            episode
+        );
         if let Some(cached) = self.stream_cache.get(&cache_key).await {
             return Ok(cached);
         }
@@ -292,7 +337,11 @@ impl HianimeClient {
 
         if !hex_pattern.is_match(id) {
             let detail = self.get_anime_info(id).await?;
-            if let Some(hex_id) = detail.get("anime").and_then(|a| a.get("_id")).and_then(|i| i.as_str()) {
+            if let Some(hex_id) = detail
+                .get("anime")
+                .and_then(|a| a.get("_id"))
+                .and_then(|i| i.as_str())
+            {
                 target_id = hex_id.to_string();
             }
         }
@@ -301,21 +350,44 @@ impl HianimeClient {
         if hex_pattern.is_match(&target_id) {
             let ep_data = self.get_episodes(&target_id, episode).await?;
             if let Some(eps) = ep_data.episodes {
-                let target_ep = eps.iter().find(|e| e.episodeNumber == Some(episode))
+                let target_ep = eps
+                    .iter()
+                    .find(|e| e.episodeNumber == Some(episode))
                     .or_else(|| eps.first());
                 if let Some(ep) = target_ep {
-                    target_id = ep.slugs.as_ref().and_then(|s| s.first().cloned())
+                    target_id = ep
+                        .slugs
+                        .as_ref()
+                        .and_then(|s| s.first().cloned())
                         .unwrap_or_else(|| ep._id.clone());
                     if ep.link.as_ref().is_some_and(|l| {
-                        l.sub.as_ref().is_some_and(|v| !v.is_empty()) ||
-                        l.dub.as_ref().is_some_and(|v| !v.is_empty())
+                        l.sub.as_ref().is_some_and(|v| !v.is_empty())
+                            || l.dub.as_ref().is_some_and(|v| !v.is_empty())
                     }) {
-                        let sub = parse_server_links(ep.link.as_ref().and_then(|l| l.sub.as_ref().map(|v| serde_json::Value::Array(
-                            v.iter().map(|s| serde_json::Value::String(s.clone())).collect()
-                        ))), "sub");
-                        let dub = parse_server_links(ep.link.as_ref().and_then(|l| l.dub.as_ref().map(|v| serde_json::Value::Array(
-                            v.iter().map(|s| serde_json::Value::String(s.clone())).collect()
-                        ))), "dub");
+                        let sub = parse_server_links(
+                            ep.link.as_ref().and_then(|l| {
+                                l.sub.as_ref().map(|v| {
+                                    serde_json::Value::Array(
+                                        v.iter()
+                                            .map(|s| serde_json::Value::String(s.clone()))
+                                            .collect(),
+                                    )
+                                })
+                            }),
+                            "sub",
+                        );
+                        let dub = parse_server_links(
+                            ep.link.as_ref().and_then(|l| {
+                                l.dub.as_ref().map(|v| {
+                                    serde_json::Value::Array(
+                                        v.iter()
+                                            .map(|s| serde_json::Value::String(s.clone()))
+                                            .collect(),
+                                    )
+                                })
+                            }),
+                            "dub",
+                        );
                         pre_resolved_servers = Some(ServerResponse { sub, dub });
                     }
                 }
@@ -329,7 +401,11 @@ impl HianimeClient {
             self.get_servers(&target_id).await?
         };
 
-        let list = if link_type == "dub" { &servers.dub } else { &servers.sub };
+        let list = if link_type == "dub" {
+            &servers.dub
+        } else {
+            &servers.sub
+        };
         if list.is_empty() {
             return Err(anyhow!("SERVERS_NOT_FOUND"));
         }
@@ -371,7 +447,10 @@ impl HianimeClient {
             let url = format!("{}/stream/getSources?id={}", stream_dom, resolved_source_id);
             let mut headers = HeaderMap::new();
             headers.insert("User-Agent", HeaderValue::from_static(UA_DESKTOP));
-            headers.insert("X-Requested-With", HeaderValue::from_static("XMLHttpRequest"));
+            headers.insert(
+                "X-Requested-With",
+                HeaderValue::from_static("XMLHttpRequest"),
+            );
             headers.insert("Referer", HeaderValue::from_static(stream_dom));
 
             match self.client.get(&url).headers(headers).send().await {
@@ -410,7 +489,10 @@ impl HianimeClient {
 /// Extract the real `data-id` from a megaplay/animeplay iframe page HTML.
 /// The iframe page contains `<div data-id="36396" data-realid="2142">`;
 /// the site uses `data-id` for `getSources`, not the server ID from the URL.
-async fn extract_data_id_from_iframe(client: &ClientWithMiddleware, iframe_url: &str) -> Option<String> {
+async fn extract_data_id_from_iframe(
+    client: &ClientWithMiddleware,
+    iframe_url: &str,
+) -> Option<String> {
     let mut headers = HeaderMap::new();
     headers.insert("User-Agent", HeaderValue::from_static(UA_DESKTOP));
     headers.insert("Referer", HeaderValue::from_static("https://hianimes.se/"));
@@ -427,7 +509,11 @@ async fn extract_data_id_from_iframe(client: &ClientWithMiddleware, iframe_url: 
             }
         }
         Ok(resp) => {
-            tracing::warn!("[HiAnime] iframe {} returned status {}", iframe_url, resp.status());
+            tracing::warn!(
+                "[HiAnime] iframe {} returned status {}",
+                iframe_url,
+                resp.status()
+            );
         }
         Err(e) => {
             tracing::warn!("[HiAnime] iframe {} fetch error: {}", iframe_url, e);
@@ -442,43 +528,45 @@ fn parse_server_links(links: Option<serde_json::Value>, link_type: &str) -> Vec<
         _ => return vec![],
     };
 
-    arr.iter().filter_map(|link| {
-        let url_str = link.as_str()?;
+    arr.iter()
+        .filter_map(|link| {
+            let url_str = link.as_str()?;
 
-        // Case 1: Internal JSON Server (megaplay/animeplay)
-        let re = regex::Regex::new(r"/s-2/(\d+)").ok()?;
-        if let Some(caps) = re.captures(url_str) {
-            let server_id = caps.get(1)?.as_str().to_string();
-            let name = if url_str.contains("megaplay") {
-                "HD-1"
-            } else {
-                "HD-2"
-            };
-            return Some(ServerLink {
-                id: server_id,
-                name: name.to_string(),
-                link_type: link_type.to_string(),
-                format: "json".to_string(),
-                embed_url: Some(url_str.to_string()),
-            });
-        }
+            // Case 1: Internal JSON Server (megaplay/animeplay)
+            let re = regex::Regex::new(r"/s-2/(\d+)").ok()?;
+            if let Some(caps) = re.captures(url_str) {
+                let server_id = caps.get(1)?.as_str().to_string();
+                let name = if url_str.contains("megaplay") {
+                    "HD-1"
+                } else {
+                    "HD-2"
+                };
+                return Some(ServerLink {
+                    id: server_id,
+                    name: name.to_string(),
+                    link_type: link_type.to_string(),
+                    format: "json".to_string(),
+                    embed_url: Some(url_str.to_string()),
+                });
+            }
 
-        // Case 2: Direct Embed (Vidmoly, Vidwish, etc)
-        if let Ok(parsed) = url::Url::parse(url_str) {
-            let host = parsed.host_str()?;
-            let clean = host.replace("www.", "");
-            let name = clean.split('.').next()?.to_uppercase();
-            return Some(ServerLink {
-                id: url_str.to_string(),
-                name,
-                link_type: link_type.to_string(),
-                format: "embed".to_string(),
-                embed_url: Some(url_str.to_string()),
-            });
-        }
+            // Case 2: Direct Embed (Vidmoly, Vidwish, etc)
+            if let Ok(parsed) = url::Url::parse(url_str) {
+                let host = parsed.host_str()?;
+                let clean = host.replace("www.", "");
+                let name = clean.split('.').next()?.to_uppercase();
+                return Some(ServerLink {
+                    id: url_str.to_string(),
+                    name,
+                    link_type: link_type.to_string(),
+                    format: "embed".to_string(),
+                    embed_url: Some(url_str.to_string()),
+                });
+            }
 
-        None
-    }).collect()
+            None
+        })
+        .collect()
 }
 
 // ─── Data Transformers: Raw Upstream → Clean Models ───────────────────────────
@@ -489,14 +577,17 @@ fn opt_str(v: &serde_json::Value, key: &str) -> Option<String> {
 
 fn opt_u32(v: &serde_json::Value, key: &str) -> Option<u32> {
     v.get(key).and_then(|f| {
-        f.as_u64().map(|n| n as u32)
+        f.as_u64()
+            .map(|n| n as u32)
             .or_else(|| f.as_str().and_then(|s| s.parse().ok()))
     })
 }
 
 fn opt_str_arr(v: &serde_json::Value, key: &str) -> Option<Vec<String>> {
     v.get(key).and_then(|f| f.as_array()).map(|arr| {
-        arr.iter().filter_map(|i| i.as_str().map(|s| s.to_string())).collect()
+        arr.iter()
+            .filter_map(|i| i.as_str().map(|s| s.to_string()))
+            .collect()
     })
 }
 
@@ -524,9 +615,7 @@ fn pick_slug(v: &serde_json::Value) -> Option<String> {
                 .and_then(|a| a.first())
                 .and_then(|f| f.as_str().map(|s| s.to_string()))
         })
-        .or_else(|| {
-            v.get("_id").and_then(|i| i.as_str().map(|s| s.to_string()))
-        })
+        .or_else(|| v.get("_id").and_then(|i| i.as_str().map(|s| s.to_string())))
 }
 
 /// Extract totalSub / totalDub from either top-level fields or episode data.
@@ -577,9 +666,9 @@ pub fn transform_anime_card(v: &serde_json::Value) -> AnimeCard {
                 .or_else(|| opt_str_arr(v, "genreList"))
                 .or_else(|| {
                     // Fallback: comma-separated string under "genre"
-                    v.get("genre").and_then(|g| g.as_str()).map(|s| {
-                        s.split(',').map(|g| g.trim().to_string()).collect()
-                    })
+                    v.get("genre")
+                        .and_then(|g| g.as_str())
+                        .map(|s| s.split(',').map(|g| g.trim().to_string()).collect())
                 });
             arr
         },
@@ -601,19 +690,31 @@ pub fn transform_anime_detail(raw: serde_json::Value) -> AnimeDetail {
     let anime = raw.get("anime").unwrap_or(&raw);
     let card = transform_anime_card(anime);
 
-    let episodes: Option<Vec<EpisodeSummary>> = anime
-        .get("episodes")
-        .and_then(|e| e.as_array())
-        .map(|arr| {
+    let episodes: Option<Vec<EpisodeSummary>> =
+        anime.get("episodes").and_then(|e| e.as_array()).map(|arr| {
             arr.iter()
-                .map(|ep| EpisodeSummary {
-                    id: opt_str(ep, "_id").unwrap_or_default(),
-                    number: opt_u32(ep, "episodeNumber").unwrap_or(0),
-                    title: opt_str(ep, "title"),
-                    sub_count: ep.get("link").and_then(|l| l.get("sub")).and_then(|s| s.as_array()).map(|a| a.len() as u32).unwrap_or(0),
-                    dub_count: ep.get("link").and_then(|l| l.get("dub")).and_then(|s| s.as_array()).map(|a| a.len() as u32).unwrap_or(0),
-                    slug: opt_str(ep, "slug"),
-                    slugs: opt_str_arr(ep, "slugs"),
+                .map(|ep| {
+                    let slug = opt_str(ep, "slug");
+                    EpisodeSummary {
+                        id: opt_str(ep, "_id").unwrap_or_default(),
+                        number: opt_u32(ep, "episodeNumber").unwrap_or(0),
+                        title: opt_str(ep, "title"),
+                        sub_count: ep
+                            .get("link")
+                            .and_then(|l| l.get("sub"))
+                            .and_then(|s| s.as_array())
+                            .map(|a| a.len() as u32)
+                            .unwrap_or(0),
+                        dub_count: ep
+                            .get("link")
+                            .and_then(|l| l.get("dub"))
+                            .and_then(|s| s.as_array())
+                            .map(|a| a.len() as u32)
+                            .unwrap_or(0),
+                        slug: slug.clone(),
+                        series_slug: slug,
+                        slugs: opt_str_arr(ep, "slugs"),
+                    }
                 })
                 .collect()
         });
@@ -651,7 +752,8 @@ pub fn transform_search_results(raw: serde_json::Value, query: &str) -> AnimeSea
 /// Extract a vector of AnimeCard from a raw JSON array or a nested "animes" field.
 fn extract_anime_list(v: &serde_json::Value) -> Vec<AnimeCard> {
     let empty: Vec<serde_json::Value> = vec![];
-    let arr = v.as_array()
+    let arr = v
+        .as_array()
         .or_else(|| v.get("animes").and_then(|a| a.as_array()))
         .unwrap_or(&empty);
     arr.iter().map(transform_anime_card).collect()
@@ -677,12 +779,14 @@ pub fn transform_category_results(raw: serde_json::Value) -> Vec<AnimeCard> {
 /// Transform our internal ServerResponse into the clean ServerList model.
 pub fn transform_server_list(resp: &ServerResponse) -> ServerList {
     fn to_entries(list: &[ServerLink]) -> Vec<ServerEntry> {
-        list.iter().map(|s| ServerEntry {
-            id: s.id.clone(),
-            name: s.name.clone(),
-            audio_type: s.link_type.clone(),
-            format: s.format.clone(),
-        }).collect()
+        list.iter()
+            .map(|s| ServerEntry {
+                id: s.id.clone(),
+                name: s.name.clone(),
+                audio_type: s.link_type.clone(),
+                format: s.format.clone(),
+            })
+            .collect()
     }
     ServerList {
         sub: to_entries(&resp.sub),

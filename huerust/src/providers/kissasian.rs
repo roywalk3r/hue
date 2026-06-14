@@ -5,12 +5,12 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use serde::{Deserialize, Serialize};
-use reqwest_middleware::ClientWithMiddleware;
-use anyhow::Result;
-use tracing::{info, warn};
 use crate::models::StreamResult;
+use anyhow::Result;
 use regex::Regex;
+use reqwest_middleware::ClientWithMiddleware;
+use serde::{Deserialize, Serialize};
+use tracing::{info, warn};
 
 const BASE_URL: &str = "https://kissasian.cam";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -44,10 +44,11 @@ impl KissAsianClient {
         }
     }
 
-    pub async fn search(&self, query: &str,
-    ) -> Result<Vec<KissAsianSearchItem>> {
+    pub async fn search(&self, query: &str) -> Result<Vec<KissAsianSearchItem>> {
         let url = format!("{}/?s={}", BASE_URL, urlencoding::encode(query));
-        let resp = self.client.get(&url)
+        let resp = self
+            .client
+            .get(&url)
             .header("User-Agent", USER_AGENT)
             .send()
             .await?;
@@ -77,16 +78,18 @@ impl KissAsianClient {
         Ok(results)
     }
 
-    pub async fn get_episodes(&self, slug: &str,
-    ) -> Result<Vec<KissAsianEpisode>> {
+    pub async fn get_episodes(&self, slug: &str) -> Result<Vec<KissAsianEpisode>> {
         let url = format!("{}/series/{}/", BASE_URL, urlencoding::encode(slug));
-        let resp = self.client.get(&url)
+        let resp = self
+            .client
+            .get(&url)
             .header("User-Agent", USER_AGENT)
             .send()
             .await?;
         let body = resp.text().await?;
 
-        let ep_re = Regex::new(r#"href="(https://kissasian\.cam/([^"]*episode-(\d+)[^"]*)\/)""#).unwrap();
+        let ep_re =
+            Regex::new(r#"href="(https://kissasian\.cam/([^"]*episode-(\d+)[^"]*)\/)""#).unwrap();
 
         let mut episodes = Vec::new();
         let mut seen = std::collections::HashSet::new();
@@ -116,11 +119,11 @@ impl KissAsianClient {
         Ok(episodes)
     }
 
-    pub async fn get_stream(&self, episode_url: &str,
-    ) -> Result<Vec<StreamResult>> {
+    pub async fn get_stream(&self, episode_url: &str) -> Result<Vec<StreamResult>> {
         let payload = serde_json::json!({ "url": episode_url });
 
-        let resp = self.client
+        let resp = self
+            .client
             .post(format!("{}/scrape/kissasian", self.scraper_url))
             .json(&payload)
             .send()
@@ -144,12 +147,11 @@ impl KissAsianClient {
         }
     }
 
-    pub async fn get_streams_by_slug(
-        &self,
-        slug: &str,
-        episode: u32,
-    ) -> Result<Vec<StreamResult>> {
-        info!("[Pearl] Getting streams for slug={} episode={}", slug, episode);
+    pub async fn get_streams_by_slug(&self, slug: &str, episode: u32) -> Result<Vec<StreamResult>> {
+        info!(
+            "[Pearl] Getting streams for slug={} episode={}",
+            slug, episode
+        );
 
         let episodes = self.get_episodes(slug).await?;
         if episodes.is_empty() {
@@ -180,7 +182,10 @@ impl KissAsianClient {
         season: u32,
         episode: u32,
     ) -> Result<Vec<StreamResult>> {
-        info!("[Pearl] Searching for: \"{}\" S{}E{}", title, season, episode);
+        info!(
+            "[Pearl] Searching for: \"{}\" S{}E{}",
+            title, season, episode
+        );
 
         let search_query = if season > 1 {
             format!("{} Season {}", title, season)
@@ -213,8 +218,7 @@ impl KissAsianClient {
 
         info!(
             "[Pearl] Chose series: \"{}\" (slug={})",
-            best.title,
-            best.slug
+            best.title, best.slug
         );
 
         self.get_streams_by_slug(&best.slug, episode).await

@@ -8,12 +8,12 @@
 use aes::Aes256;
 use cbc::{Decryptor, Encryptor};
 use cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
+use rand::RngCore;
 use scrypt::{scrypt, Params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
-use rand::RngCore;
 
 type Aes256CbcDec = Decryptor<Aes256>;
 type Aes256CbcEnc = Encryptor<Aes256>;
@@ -62,12 +62,15 @@ pub fn jwt_is_expired(raw: &str) -> bool {
     };
     let rest = &raw[start..];
     // JWT ends at any character that cannot appear in a base64url-encoded JWT
-    let end = rest.find(|c: char| c == '%' || c == '"' || c == ';' || c == '\'')
+    let end = rest
+        .find(|c: char| c == '%' || c == '"' || c == ';' || c == '\'')
         .unwrap_or(rest.len());
     let jwt_str = &rest[..end];
 
     let parts: Vec<&str> = jwt_str.splitn(3, '.').collect();
-    if parts.len() < 2 { return true; }
+    if parts.len() < 2 {
+        return true;
+    }
 
     let payload = parts[1];
     let rem = payload.len() % 4;
@@ -77,7 +80,7 @@ pub fn jwt_is_expired(raw: &str) -> bool {
         payload.to_string()
     };
 
-    use base64::{Engine as _, engine::general_purpose};
+    use base64::{engine::general_purpose, Engine as _};
     let bytes = match general_purpose::URL_SAFE.decode(&padded) {
         Ok(b) => b,
         Err(_) => return true,
@@ -99,7 +102,8 @@ pub fn encrypt_url(url: &str, secret: &str, headers: Option<HashMap<String, Stri
         url: url.to_string(),
         expires,
         headers,
-    }).unwrap();
+    })
+    .unwrap();
 
     let mut iv = [0u8; 16];
     rand::thread_rng().fill_bytes(&mut iv);
@@ -113,7 +117,9 @@ pub fn encrypt_url(url: &str, secret: &str, headers: Option<HashMap<String, Stri
 
 pub fn decrypt_url(token: &str, secret: &str) -> Option<DecryptedToken> {
     let parts: Vec<&str> = token.split(':').collect();
-    if parts.len() != 2 { return None; }
+    if parts.len() != 2 {
+        return None;
+    }
 
     let iv = hex::decode(parts[0]).ok()?;
     let encrypted_data = hex::decode(parts[1]).ok()?;

@@ -7,12 +7,12 @@
  * @license MIT
  */
 
-use async_trait::async_trait;
-use crate::providers::StreamProvider;
-use crate::providers::vidzee::VidzeeClient;
-use crate::models::StreamResult;
 use crate::clients::tmdb::TmdbNormalizedInfo;
+use crate::models::StreamResult;
+use crate::providers::vidzee::VidzeeClient;
+use crate::providers::StreamProvider;
 use anyhow::Result;
+use async_trait::async_trait;
 use std::sync::Arc;
 
 pub struct VidzeeProvider {
@@ -27,10 +27,18 @@ impl VidzeeProvider {
 
 #[async_trait]
 impl StreamProvider for VidzeeProvider {
-    fn name(&self) -> &'static str { "VidZee" }
-    fn real_name(&self) -> &'static str { "vidzee" }
-    fn is_fast(&self) -> bool { true }
-    fn timeout_secs(&self) -> u64 { 15 }
+    fn name(&self) -> &'static str {
+        "VidZee"
+    }
+    fn real_name(&self) -> &'static str {
+        "vidzee"
+    }
+    fn is_fast(&self) -> bool {
+        true
+    }
+    fn timeout_secs(&self) -> u64 {
+        15
+    }
 
     async fn fetch(
         &self,
@@ -39,6 +47,8 @@ impl StreamProvider for VidzeeProvider {
         season: u32,
         episode: u32,
     ) -> Result<Vec<StreamResult>> {
-        self.vidzee.get_streams(tmdb_info.id, media_type, Some(season), Some(episode)).await
+        self.vidzee
+            .get_streams(tmdb_info.id, media_type, Some(season), Some(episode))
+            .await
     }
 }

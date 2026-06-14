@@ -7,11 +7,11 @@
 
 #![allow(dead_code)]
 
-use async_trait::async_trait;
-use crate::providers::StreamProvider;
-use crate::models::StreamResult;
 use crate::clients::tmdb::TmdbNormalizedInfo;
+use crate::models::StreamResult;
+use crate::providers::StreamProvider;
 use anyhow::Result;
+use async_trait::async_trait;
 use tracing::info;
 
 pub struct Mp4HydraProvider {
@@ -28,10 +28,18 @@ impl Mp4HydraProvider {
 
 #[async_trait]
 impl StreamProvider for Mp4HydraProvider {
-    fn name(&self) -> &'static str { "Hydra" }
-    fn real_name(&self) -> &'static str { "mp4hydra" }
-    fn is_fast(&self) -> bool { true }
-    fn timeout_secs(&self) -> u64 { 10 }
+    fn name(&self) -> &'static str {
+        "Hydra"
+    }
+    fn real_name(&self) -> &'static str {
+        "mp4hydra"
+    }
+    fn is_fast(&self) -> bool {
+        true
+    }
+    fn timeout_secs(&self) -> u64 {
+        10
+    }
 
     async fn fetch(
         &self,
@@ -40,14 +48,19 @@ impl StreamProvider for Mp4HydraProvider {
         season: u32,
         episode: u32,
     ) -> Result<Vec<StreamResult>> {
-        info!("[Hydra Provider] Fetching for \"{}\" ({}) S{} E{}", tmdb_info.title, media_type, season, episode);
-        self.client.get_streams_normalized(
-            &tmdb_info.title,
-            None,
-            tmdb_info.year,
-            media_type,
-            season,
-            episode,
-        ).await
+        info!(
+            "[Hydra Provider] Fetching for \"{}\" ({}) S{} E{}",
+            tmdb_info.title, media_type, season, episode
+        );
+        self.client
+            .get_streams_normalized(
+                &tmdb_info.title,
+                None,
+                tmdb_info.year,
+                media_type,
+                season,
+                episode,
+            )
+            .await
     }
 }

@@ -6,10 +6,10 @@
 //! @license MIT
 
 use crate::models::{StreamResult, Subtitle};
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use reqwest::{
+    header::{HeaderMap, HeaderValue, AUTHORIZATION, COOKIE, ORIGIN, REFERER, USER_AGENT},
     Client,
-    header::{AUTHORIZATION, COOKIE, HeaderMap, HeaderValue, ORIGIN, REFERER, USER_AGENT},
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -83,16 +83,21 @@ impl MovieBoxClient {
     fn extract_genres(v: &serde_json::Value) -> Option<Vec<String>> {
         for key in &["genreList", "genreTagList", "genres", "genreListVoList"] {
             if let Some(arr) = v[*key].as_array() {
-                let genres: Vec<String> = arr.iter().filter_map(|g| {
-                    g.as_str().or_else(|| g["name"].as_str()).map(String::from)
-                }).collect();
+                let genres: Vec<String> = arr
+                    .iter()
+                    .filter_map(|g| g.as_str().or_else(|| g["name"].as_str()).map(String::from))
+                    .collect();
                 if !genres.is_empty() {
                     return Some(genres);
                 }
             }
         }
         if let Some(s) = v["genre"].as_str() {
-            let genres: Vec<String> = s.split(',').map(|g| g.trim().to_string()).filter(|g| !g.is_empty()).collect();
+            let genres: Vec<String> = s
+                .split(',')
+                .map(|g| g.trim().to_string())
+                .filter(|g| !g.is_empty())
+                .collect();
             if !genres.is_empty() {
                 return Some(genres);
             }
@@ -202,7 +207,14 @@ impl MovieBoxClient {
         }
 
         let mut hosts = vec![self.host.clone()];
-        for host in ["netfilm.world", "themoviebox.org", "movibox.net", "moviebox.ph", "123movienow.cc", "moviebox.to"] {
+        for host in [
+            "netfilm.world",
+            "themoviebox.org",
+            "movibox.net",
+            "moviebox.ph",
+            "123movienow.cc",
+            "moviebox.to",
+        ] {
             if !hosts.iter().any(|h| h == host) {
                 hosts.push(host.to_string());
             }
@@ -636,8 +648,13 @@ impl MovieBoxClient {
                         let end = rest.find('&').unwrap_or(rest.len());
                         if let Ok(ts) = rest[..end].parse::<i64>() {
                             let age = now - ts;
-                            if age > 2700 { // 45 minutes
-                                warn!("[MovieBox Rust] Discarding expired URL (age={}s): {}", age, &url[..url.len().min(80)]);
+                            if age > 2700 {
+                                // 45 minutes
+                                warn!(
+                                    "[MovieBox Rust] Discarding expired URL (age={}s): {}",
+                                    age,
+                                    &url[..url.len().min(80)]
+                                );
                                 return false;
                             }
                         }
@@ -647,7 +664,9 @@ impl MovieBoxClient {
 
                 if let Some(streams) = data.streams {
                     for s in streams {
-                        if !is_url_fresh(&s.url) { continue; }
+                        if !is_url_fresh(&s.url) {
+                            continue;
+                        }
                         results.push(StreamResult {
                             url: s.url,
                             title: format!(
@@ -666,7 +685,9 @@ impl MovieBoxClient {
 
                 if let Some(hls) = data.hls {
                     for s in hls {
-                        if !is_url_fresh(&s.url) { continue; }
+                        if !is_url_fresh(&s.url) {
+                            continue;
+                        }
                         results.push(StreamResult {
                             url: s.url,
                             title: "Cinema - Auto (HLS)".to_string(),
@@ -756,7 +777,10 @@ impl MovieBoxClient {
         let mut rails = Vec::new();
 
         for c in countries {
-            match self.filter(page, per_page, Some(c), sort, channel_id, None).await {
+            match self
+                .filter(page, per_page, Some(c), sort, channel_id, None)
+                .await
+            {
                 Ok(items) if !items.is_empty() => {
                     rails.push(serde_json::json!({
                         "country": c,
@@ -882,7 +906,9 @@ impl MovieBoxClient {
                         .as_array()
                         .map(|arr| {
                             arr.iter()
-                                .filter_map(|v| serde_json::from_value::<MovieBoxItem>(v.clone()).ok())
+                                .filter_map(|v| {
+                                    serde_json::from_value::<MovieBoxItem>(v.clone()).ok()
+                                })
                                 .filter(|item: &MovieBoxItem| !Self::is_english_dub(&item.title))
                                 .collect()
                         })

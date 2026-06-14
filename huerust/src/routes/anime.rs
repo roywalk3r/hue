@@ -8,21 +8,21 @@
  */
 
 use axum::{
-    extract::{Query, State, Path},
+    extract::{Path, Query, State},
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    http::{StatusCode, HeaderMap},
 };
 use serde::Deserialize;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
 use crate::app::AnimeState;
-use crate::proxy::dynamic_proxy_base;
 #[allow(unused_imports)]
 use crate::models::anime::{
-    AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse,
-    ServerList, StreamPayload, SkipRange, SubtitleTrack,
+    AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, EpisodeListResponse, FilterParams,
+    PaginatedResponse, ScheduleEntry, ServerList, SkipRange, StreamPayload, SubtitleTrack,
 };
+use crate::proxy::{dynamic_proxy_base, proxy_anime_stream};
 
 #[derive(Deserialize, ToSchema)]
 pub struct SearchQuery {
@@ -39,6 +39,8 @@ pub struct CategoryQuery {
 #[derive(Deserialize, ToSchema)]
 pub struct ServersQuery {
     pub id: String,
+    pub episode: Option<u32>,
+    pub r#type: Option<String>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -92,39 +94,10 @@ fn proxy_stream_payload(
     proxy_base_url: &str,
     secret: &str,
     enable_proxy: bool,
-    mut payload: StreamPayload,
+    payload: StreamPayload,
 ) -> StreamPayload {
-    if !enable_proxy || payload.stream_type == "iframe" {
-        return payload;
-    }
-
-    let referer = payload.referer.as_deref().unwrap_or("https://megaplay.buzz/");
-    let mut headers = std::collections::HashMap::new();
-    headers.insert("Referer".to_string(), referer.to_string());
-
-    let route_for = |url: &str, kind: &str| -> String {
-        let normalized = url.to_lowercase();
-        if kind == "subtitle" { "/sub-proxy".to_string() }
-        else if normalized.contains(".m3u8") { "/m3u8-proxy".to_string() }
-        else if normalized.contains(".ts") || normalized.contains(".mp4") || normalized.contains(".m4s") || normalized.contains(".mkv") { "/ts-proxy".to_string() }
-        else { "/api/proxy".to_string() }
-    };
-
-    payload.url = {
-        let route = route_for(&payload.url, "stream");
-        let token = crate::security::encrypt_url(&payload.url, secret, Some(headers.clone()));
-        format!("{}{}?h_token={}", proxy_base_url, route, urlencoding::encode(&token))
-    };
-
-    if let Some(ref mut tracks) = payload.subtitles {
-        for t in tracks.iter_mut() {
-            let route = route_for(&t.file, "subtitle");
-            let token = crate::security::encrypt_url(&t.file, secret, Some(headers.clone()));
-            t.file = format!("{}{}?h_token={}", proxy_base_url, route, urlencoding::encode(&token));
-        }
-    }
-
-    payload
+    // Thin shim — actual logic lives in `proxy::proxy_anime_stream`.
+    proxy_anime_stream(proxy_base_url, secret, enable_proxy, payload)
 }
 
 #[utoipa::path(
@@ -157,16 +130,14 @@ pub async fn search_handler(
     ),
 )]
 pub async fn latest_handler(State(state): State<AnimeState>) -> Response {
-    match state.hianime.get_latest(1).await {
-        Ok(raw) => {
-            let structured = crate::clients::hianime::transform_category_results(raw);
-            success_json(structured)
-        }
-        Err(e) => {
-            warn!("[anime] latest error: {}", e);
-            error_json(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
-        }
-    }
+    warn!("[anime] /api/anime/latest is deprecated; use /api/anime/discover?sort=latest");
+    let fp = FilterParams {
+        sort: Some("latest".into()),
+        page: Some(1),
+        limit: Some(20),
+        ..Default::default()
+    };
+    do_discover(&state, fp).await
 }
 
 #[utoipa::path(
@@ -179,33 +150,6 @@ pub async fn latest_handler(State(state): State<AnimeState>) -> Response {
     ),
     responses(
         (status = 200, description = "Category items", body = Vec<AnimeCard>),
-        (status = 500, description = "Internal error"),
-    ),
-)]
-pub async fn category_handler(
-    State(state): State<AnimeState>,
-    Query(params): Query<CategoryQuery>,
-) -> Response {
-    let typ = params.r#type.as_deref().unwrap_or("tv");
-    let page = params.page.unwrap_or(1);
-    let limit = params.limit.unwrap_or(20);
-    match state.hianime.get_by_category(typ, page, limit).await {
-        Ok(raw) => {
-            let structured = crate::clients::hianime::transform_category_results(raw);
-            success_json(structured)
-        }
-        Err(e) => {
-            warn!("[anime] category error: {}", e);
-            error_json(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
-        }
-    }
-}
-
-#[utoipa::path(
-    get,
-    path = "/api/anime/home",
-    responses(
-        (status = 200, description = "Home feed data", body = AnimeHomeFeed),
         (status = 500, description = "Internal error"),
     ),
 )]
@@ -226,10 +170,7 @@ pub async fn home_handler(State(state): State<AnimeState>) -> Response {
         (status = 500, description = "Internal error"),
     ),
 )]
-pub async fn detail_handler(
-    State(state): State<AnimeState>,
-    Path(slug): Path<String>,
-) -> Response {
+pub async fn detail_handler(State(state): State<AnimeState>, Path(slug): Path<String>) -> Response {
     info!("[anime] detail: {}", slug);
     match state.anime_agg.get_detail(&slug).await {
         Some(detail) => {
@@ -250,7 +191,7 @@ pub async fn detail_handler(
         ("start" = Option<u32>, Query, description = "Start episode number for pagination"),
     ),
     responses(
-        (status = 200, description = "Episode list", body = AnimeDetail),
+        (status = 200, description = "Episode list", body = EpisodeListResponse),
         (status = 404, description = "Anime not found"),
         (status = 500, description = "Internal error"),
     ),
@@ -262,15 +203,8 @@ pub async fn episodes_handler(
 ) -> Response {
     let start = params.start.unwrap_or(0);
     info!("[anime] episodes: {} start={}", id, start);
-    match state.anime_agg.get_episodes(&id, start).await {
-        Some(episodes) => {
-            success_json(serde_json::json!({
-                "animeId": id,
-                "start": start,
-                "count": episodes.len(),
-                "episodes": episodes,
-            }))
-        }
+    match state.anime_agg.episodes_response(&id, start).await {
+        Some(resp) => success_json(resp),
         None => {
             warn!("[anime] episodes not found: {}", id);
             error_json(StatusCode::NOT_FOUND, "Episodes not found")
@@ -294,8 +228,17 @@ pub async fn servers_handler(
     State(state): State<AnimeState>,
     Query(params): Query<ServersQuery>,
 ) -> Response {
-    info!("[anime] servers for: {}", params.id);
-    match state.anime_agg.get_servers(&params.id).await {
+    let episode = params.episode.unwrap_or(1);
+    let link_type = params.r#type.as_deref();
+    info!(
+        "[anime] servers for: {} ep={} type={:?}",
+        params.id, episode, link_type
+    );
+    match state
+        .anime_agg
+        .get_servers(&params.id, Some(episode), link_type)
+        .await
+    {
         Some(servers) => success_json(servers),
         None => {
             warn!("[anime] servers not found: {}", params.id);
@@ -327,16 +270,15 @@ pub async fn stream_handler(
 ) -> Response {
     let episode = params.episode.unwrap_or(1);
     let link_type = params.r#type.as_deref().unwrap_or("sub");
-    info!("[anime] stream: {} ep={} type={}", params.id, episode, link_type);
+    info!(
+        "[anime] stream: {} ep={} type={}",
+        params.id, episode, link_type
+    );
 
     let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
     match state
         .anime_agg
-        .get_stream(&params.id,
-            params.server.as_deref(),
-            link_type,
-            episode,
-        )
+        .get_stream(&params.id, params.server.as_deref(), link_type, episode)
         .await
     {
         Some(payload) => {
@@ -358,22 +300,101 @@ pub async fn stream_handler(
 use axum::extract::Json;
 
 #[derive(Deserialize)]
-pub struct FilterBody {
+pub struct LegacyFilterBody {
     #[serde(flatten)]
     pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
+/// Discover anime with a typed filter. Backed by aggregator fan-out.
+pub async fn discover_get_handler(
+    State(state): State<AnimeState>,
+    Query(params): Query<FilterParams>,
+) -> Response {
+    info!("[anime] discover GET: {:?}", params);
+    do_discover(&state, params).await
+}
+
+pub async fn discover_post_handler(
+    State(state): State<AnimeState>,
+    Json(params): Json<FilterParams>,
+) -> Response {
+    info!("[anime] discover POST: {:?}", params);
+    do_discover(&state, params).await
+}
+
+async fn do_discover(state: &AnimeState, params: FilterParams) -> Response {
+    let resp = state.anime_agg.discover(&params).await;
+    success_json(resp)
+}
+
+/// Static metadata for the discover screen.
+pub async fn filter_options_handler(State(state): State<AnimeState>) -> Response {
+    success_json(state.anime_agg.filter_options().await)
+}
+
+#[derive(Deserialize)]
+pub struct ScheduleQuery {
+    /// YYYY-MM-DD. Defaults to today (UTC).
+    pub date: Option<String>,
+    /// IANA timezone, e.g. "America/Los_Angeles". Currently informational;
+    /// AniList returns UTC timestamps and the client should localize.
+    pub tz: Option<String>,
+}
+
+pub async fn schedule_handler(
+    State(state): State<AnimeState>,
+    Query(params): Query<ScheduleQuery>,
+) -> Response {
+    let date = params
+        .date
+        .as_deref()
+        .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
+    let entries = state.anime_agg.schedule(date, params.tz.as_deref()).await;
+    success_json(entries)
+}
+
+// ── Deprecated aliases (kept for backward compat) ───────────────────────────
+
+pub async fn category_handler(
+    State(state): State<AnimeState>,
+    Query(params): Query<CategoryQuery>,
+) -> Response {
+    warn!("[anime] /api/anime/category is deprecated; use /api/anime/discover");
+    let fp = FilterParams {
+        r#type: params.r#type,
+        page: params.page,
+        limit: params.limit,
+        ..Default::default()
+    };
+    do_discover(&state, fp).await
+}
+
 pub async fn filter_handler(
     State(state): State<AnimeState>,
-    Json(body): Json<FilterBody>,
+    Json(body): Json<LegacyFilterBody>,
 ) -> Response {
-    info!("[anime] filter: {:?}", body.extra);
-    let payload = serde_json::to_value(&body.extra).unwrap_or_default();
-    match state.hianime.filter(payload).await {
-        Ok(raw) => success_json(raw),
-        Err(e) => {
-            warn!("[anime] filter error: {}", e);
-            error_json(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
-        }
-    }
+    warn!("[anime] POST /api/anime/filter is deprecated; use POST /api/anime/discover");
+    // Map legacy keys (genres[], type, status, sort, page, limit) onto the
+    // typed struct. Unknown keys are ignored.
+    let fp = FilterParams {
+        r#type: body.extra.get("type").and_then(|v| v.as_str()).map(String::from),
+        genre: body
+            .extra
+            .get("genre")
+            .and_then(|v| v.as_str())
+            .map(String::from)
+            .or_else(|| {
+                body.extra
+                    .get("genres")
+                    .and_then(|v| v.as_array())
+                    .and_then(|a| a.first().and_then(|g| g.as_str().map(String::from)))
+            }),
+        status: body.extra.get("status").and_then(|v| v.as_str()).map(String::from),
+        sort: body.extra.get("sort").and_then(|v| v.as_str()).map(String::from),
+        year: body.extra.get("year").and_then(|v| v.as_u64()).map(|y| y as u32),
+        page: body.extra.get("page").and_then(|v| v.as_u64()).map(|p| p as u32),
+        limit: body.extra.get("limit").and_then(|v| v.as_u64()).map(|l| l as u32),
+        ..Default::default()
+    };
+    do_discover(&state, fp).await
 }

@@ -1,8 +1,11 @@
 use anyhow::{anyhow, Result};
-use reqwest_middleware::ClientWithMiddleware;
 use regex::Regex;
+use reqwest_middleware::ClientWithMiddleware;
 
-use crate::models::anime::{AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, EpisodeSummary, ServerEntry, ServerList, StreamPayload};
+use crate::models::anime::{
+    AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, EpisodeSummary, ServerEntry,
+    ServerList, StreamPayload,
+};
 
 const BASE_URL: &str = "https://animexin.dev";
 const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
@@ -34,7 +37,8 @@ impl AnimexinClient {
         let mut results = Vec::new();
         // (?s) makes . match newlines — article content spans multiple lines
         let article_re = Regex::new(r#"(?s)<article[^>]*class="bs"[^>]*>(.*?)</article>"#)?;
-        let link_re = Regex::new(r#"<a\s+href="https://animexin\.dev/([^"]+)/"[^>]*title="([^"]+)""#)?;
+        let link_re =
+            Regex::new(r#"<a\s+href="https://animexin\.dev/([^"]+)/"[^>]*title="([^"]+)""#)?;
         let img_re = Regex::new(r#"<img[^>]+src="([^"]+)""#)?;
         let type_re = Regex::new(r#"<div\s+class="typez\s+([^"]+)">"#)?;
         let status_re = Regex::new(r#"<div\s+class="status\s+([^"]+)">"#)?;
@@ -42,19 +46,28 @@ impl AnimexinClient {
         for article in article_re.captures_iter(&html) {
             let block = article.get(1).map(|m| m.as_str()).unwrap_or("");
             if let Some(cap) = link_re.captures(block) {
-                let slug = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
-                let title = cap.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+                let slug = cap
+                    .get(1)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default();
+                let title = cap
+                    .get(2)
+                    .map(|m| m.as_str().trim().to_string())
+                    .unwrap_or_default();
                 if slug.is_empty() || title.is_empty() || is_utility_page(&slug) {
                     continue;
                 }
                 if results.iter().any(|c: &AnimeCard| c.id == slug) {
                     continue;
                 }
-                let image = img_re.captures(block)
+                let image = img_re
+                    .captures(block)
                     .and_then(|c| c.get(1).map(|m| m.as_str().to_string()));
-                let anime_type = type_re.captures(block)
+                let anime_type = type_re
+                    .captures(block)
                     .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
-                let status = status_re.captures(block)
+                let status = status_re
+                    .captures(block)
                     .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
 
                 results.push(AnimeCard {
@@ -104,13 +117,20 @@ impl AnimexinClient {
             .map(|t| clean_title(&t))
             .unwrap_or_else(|| clean_title(season_slug));
 
-        let synopsis = extract_meta_content(&html, r#"property="og:description"\s+content="([^"]+)""#)
-            .or_else(|| extract_meta_content(&html, r#"name="description"\s+content="([^"]+)""#));
+        let synopsis =
+            extract_meta_content(&html, r#"property="og:description"\s+content="([^"]+)""#)
+                .or_else(|| {
+                    extract_meta_content(&html, r#"name="description"\s+content="([^"]+)""#)
+                });
 
         let image = extract_meta_content(&html, r#"property="og:image"\s+content="([^"]+)""#);
 
         let episodes = self.extract_episodes_from_html(&html, season_slug).await?;
-        let total_eps = if episodes.is_empty() { None } else { Some(episodes.len() as u32) };
+        let total_eps = if episodes.is_empty() {
+            None
+        } else {
+            Some(episodes.len() as u32)
+        };
 
         let card = AnimeCard {
             id: season_slug.to_string(),
@@ -159,14 +179,21 @@ impl AnimexinClient {
         self.extract_episodes_from_html(&html, season_slug).await
     }
 
-    async fn extract_episodes_from_html(&self, html: &str, series_slug: &str) -> Result<Vec<EpisodeSummary>> {
+    async fn extract_episodes_from_html(
+        &self,
+        html: &str,
+        series_slug: &str,
+    ) -> Result<Vec<EpisodeSummary>> {
         let mut episodes = Vec::new();
         let series_prefix = series_slug.split('-').take(3).collect::<Vec<_>>().join("-");
 
         // Broad episode link regex
         let re = Regex::new(r#"href="https://animexin\.dev/([^"]*episode[^"]*)/""#)?;
         for cap in re.captures_iter(html) {
-            let slug = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
+            let slug = cap
+                .get(1)
+                .map(|m| m.as_str().to_string())
+                .unwrap_or_default();
             if slug.is_empty() {
                 continue;
             }
@@ -184,7 +211,8 @@ impl AnimexinClient {
                 title: None,
                 sub_count: 1,
                 dub_count: 0,
-                slug: Some(slug),
+                slug: Some(slug.clone()),
+                series_slug: Some(slug),
                 slugs: None,
             });
         }
@@ -225,10 +253,18 @@ impl AnimexinClient {
         }
 
         // 2. Direct download links (Terabox, Mediafire, Mirrored.to)
-        let dl_re = Regex::new(r#"<a\s+href="(https://(?:1024terabox\.com|www\.mediafire\.com|mirrored\.to)[^"]*)"[^>]*>([^<]+)</a>"#)?;
+        let dl_re = Regex::new(
+            r#"<a\s+href="(https://(?:1024terabox\.com|www\.mediafire\.com|mirrored\.to)[^"]*)"[^>]*>([^<]+)</a>"#,
+        )?;
         for cap in dl_re.captures_iter(&html) {
-            let link = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
-            let label = cap.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+            let link = cap
+                .get(1)
+                .map(|m| m.as_str().to_string())
+                .unwrap_or_default();
+            let label = cap
+                .get(2)
+                .map(|m| m.as_str().trim().to_string())
+                .unwrap_or_default();
             if link.is_empty() {
                 continue;
             }
@@ -249,14 +285,22 @@ impl AnimexinClient {
     }
 
     /// Get the first available stream as a StreamPayload.
-    pub async fn get_stream(&self, episode_slug: &str, server: Option<&str>) -> Result<StreamPayload> {
+    pub async fn get_stream(
+        &self,
+        episode_slug: &str,
+        server: Option<&str>,
+    ) -> Result<StreamPayload> {
         let servers = self.get_servers(episode_slug).await?;
         let target = if let Some(srv) = server {
-            servers.sub.iter().find(|s| s.name.eq_ignore_ascii_case(srv))
+            servers
+                .sub
+                .iter()
+                .find(|s| s.name.eq_ignore_ascii_case(srv))
                 .or_else(|| servers.sub.first())
         } else {
             servers.sub.first()
-        }.ok_or_else(|| anyhow!("No stream sources found"))?;
+        }
+        .ok_or_else(|| anyhow!("No stream sources found"))?;
 
         Ok(StreamPayload {
             url: target.id.clone(),
@@ -280,7 +324,8 @@ impl AnimexinClient {
 
         // (?s) makes . match newlines — article content spans multiple lines
         let article_re = Regex::new(r#"(?s)<article[^>]*class="bs"[^>]*>(.*?)</article>"#)?;
-        let link_re = Regex::new(r#"<a\s+href="https://animexin\.dev/([^"]+)/"[^>]*title="([^"]+)""#)?;
+        let link_re =
+            Regex::new(r#"<a\s+href="https://animexin\.dev/([^"]+)/"[^>]*title="([^"]+)""#)?;
         let img_re = Regex::new(r#"<img[^>]+src="([^"]+)""#)?;
         let type_re = Regex::new(r#"<div\s+class="typez\s+([^"]+)">"#)?;
         let status_re = Regex::new(r#"<div\s+class="status\s+([^"]+)">"#)?;
@@ -288,8 +333,14 @@ impl AnimexinClient {
         for cap in article_re.captures_iter(&html) {
             let block = cap.get(1).map(|m| m.as_str()).unwrap_or("");
             if let Some(link_cap) = link_re.captures(block) {
-                let slug = link_cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
-                let title = link_cap.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+                let slug = link_cap
+                    .get(1)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default();
+                let title = link_cap
+                    .get(2)
+                    .map(|m| m.as_str().trim().to_string())
+                    .unwrap_or_default();
                 if slug.is_empty() || title.is_empty() || is_utility_page(&slug) {
                     continue;
                 }
@@ -298,11 +349,14 @@ impl AnimexinClient {
                 }
                 seen.insert(slug.clone());
 
-                let image = img_re.captures(block)
+                let image = img_re
+                    .captures(block)
                     .and_then(|c| c.get(1).map(|m| m.as_str().to_string()));
-                let anime_type = type_re.captures(block)
+                let anime_type = type_re
+                    .captures(block)
                     .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
-                let status = status_re.captures(block)
+                let status = status_re
+                    .captures(block)
                     .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
 
                 let is_episode = slug.contains("episode");
@@ -339,10 +393,18 @@ impl AnimexinClient {
         }
 
         Ok(AnimeHomeFeed {
-            trending: if trending.is_empty() { None } else { Some(trending) },
+            trending: if trending.is_empty() {
+                None
+            } else {
+                Some(trending)
+            },
             currently_airing: None,
             featured: None,
-            latest: if latest.is_empty() { None } else { Some(latest) },
+            latest: if latest.is_empty() {
+                None
+            } else {
+                Some(latest)
+            },
             popular: None,
             finished_airing: None,
         })
@@ -360,13 +422,18 @@ fn extract_meta_content(html: &str, pattern: &str) -> Option<String> {
 }
 
 fn extract_server_name_from_url(url: &str) -> String {
-    let host = url.trim_start_matches("https://")
+    let host = url
+        .trim_start_matches("https://")
         .trim_start_matches("http://")
         .trim_start_matches("//")
         .split('/')
         .next()
         .unwrap_or("Unknown");
-    let name = host.trim_start_matches("www.").split('.').next().unwrap_or("Unknown");
+    let name = host
+        .trim_start_matches("www.")
+        .split('.')
+        .next()
+        .unwrap_or("Unknown");
     match name.to_lowercase().as_str() {
         "geo" => "DAILYMOTION".to_string(),
         "odysee" => "ODYSEE".to_string(),
@@ -389,7 +456,10 @@ fn extract_episode_number(slug: &str) -> u32 {
     let re = Regex::new(r#"-episode-(\d+)-(\d+)[-\/]"#).ok();
     if let Some(re) = re {
         if let Some(cap) = re.captures_iter(slug).next() {
-            return cap.get(2).and_then(|m| m.as_str().parse().ok()).unwrap_or(0);
+            return cap
+                .get(2)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0);
         }
     }
 
@@ -397,7 +467,10 @@ fn extract_episode_number(slug: &str) -> u32 {
     let re = Regex::new(r#"-episode-(\d+)(?:-subtitle|-indonesia|-english|-sub)?"#).ok();
     if let Some(re) = re {
         if let Some(cap) = re.captures_iter(slug).next() {
-            return cap.get(1).and_then(|m| m.as_str().parse().ok()).unwrap_or(0);
+            return cap
+                .get(1)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0);
         }
     }
 

@@ -5,12 +5,12 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use async_trait::async_trait;
-use crate::providers::StreamProvider;
+use crate::clients::tmdb::TmdbNormalizedInfo;
 use crate::clients::vidrock::VidRockClient;
 use crate::models::{StreamResult, Subtitle};
-use crate::clients::tmdb::TmdbNormalizedInfo;
+use crate::providers::StreamProvider;
 use anyhow::Result;
+use async_trait::async_trait;
 use std::sync::Arc;
 
 pub struct VidrockProvider {
@@ -25,10 +25,18 @@ impl VidrockProvider {
 
 #[async_trait]
 impl StreamProvider for VidrockProvider {
-    fn name(&self) -> &'static str { "Luna" }
-    fn real_name(&self) -> &'static str { "vidrock" }
-    fn is_fast(&self) -> bool { true }
-    fn timeout_secs(&self) -> u64 { 15 }
+    fn name(&self) -> &'static str {
+        "Luna"
+    }
+    fn real_name(&self) -> &'static str {
+        "vidrock"
+    }
+    fn is_fast(&self) -> bool {
+        true
+    }
+    fn timeout_secs(&self) -> u64 {
+        15
+    }
 
     async fn fetch(
         &self,
@@ -38,12 +46,10 @@ impl StreamProvider for VidrockProvider {
         episode: u32,
     ) -> Result<Vec<StreamResult>> {
         let tmdb_id = tmdb_info.id.to_string();
-        let streams = self.client.get_streams(
-            &tmdb_id,
-            media_type,
-            Some(season),
-            Some(episode),
-        ).await?;
+        let streams = self
+            .client
+            .get_streams(&tmdb_id, media_type, Some(season), Some(episode))
+            .await?;
 
         let mut results = Vec::with_capacity(streams.len());
         for s in streams {
@@ -56,7 +62,11 @@ impl StreamProvider for VidrockProvider {
                             h.insert(k, vs.to_string());
                         }
                     }
-                    if h.is_empty() { None } else { Some(h) }
+                    if h.is_empty() {
+                        None
+                    } else {
+                        Some(h)
+                    }
                 }
                 _ => None,
             };

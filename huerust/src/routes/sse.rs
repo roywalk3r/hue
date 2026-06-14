@@ -5,32 +5,32 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
+use axum::{
+    extract::{Path, Query, State},
+    http::{HeaderMap, StatusCode},
+    response::sse::{Event, KeepAlive, Sse},
+};
+use serde_json::json;
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use axum::{
-    extract::{Path, Query, State},
-    response::sse::{Event, KeepAlive, Sse},
-    http::{HeaderMap, StatusCode},
-};
-use serde_json::json;
-use std::collections::HashMap;
 use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
 use tokio::time::timeout;
+use tokio_stream::wrappers::ReceiverStream;
 use tracing::{info, warn};
 
 use crate::{
     app::StreamState,
+    filters::apply_filters,
     infra::{
         cache::CacheKey,
         sticky_pref::{StickyPrefEntry, StickyPrefKey},
     },
-    filters::apply_filters,
-    proxy::wrap::wrap_with_proxy,
     providers::StreamProvider,
     proxy::dynamic_proxy_base,
+    proxy::wrap::wrap_with_proxy,
     security::encrypt_stream_result_urls,
 };
 
@@ -66,8 +66,14 @@ pub async fn sse_streams_handler(
     Path((m_type, tmdb_id)): Path<(String, String)>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Sse<ReceiverStream<Result<Event, Infallible>>> {
-    let season = params.get("season").and_then(|s| s.parse::<u32>().ok()).unwrap_or(1);
-    let episode = params.get("episode").and_then(|e| e.parse::<u32>().ok()).unwrap_or(1);
+    let season = params
+        .get("season")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(1);
+    let episode = params
+        .get("episode")
+        .and_then(|e| e.parse::<u32>().ok())
+        .unwrap_or(1);
     let no_cache = params.get("nocache").map(|v| v == "1").unwrap_or(false);
 
     let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
@@ -81,7 +87,11 @@ pub async fn sse_streams_handler(
         .map(str::trim)
         .find_map(|pair| {
             let (k, v) = pair.split_once('=')?;
-            if k == "hue_anon" { Some(v.to_string()) } else { None }
+            if k == "hue_anon" {
+                Some(v.to_string())
+            } else {
+                None
+            }
         })
         .unwrap_or_else(|| "anon".to_string());
 
@@ -96,10 +106,16 @@ pub async fn sse_streams_handler(
         let cb = state.registry.circuit_breaker();
 
         // Fetch TMDB info once — needed for cache refresh, sticky path, and fan-out
-        let tmdb_info = match state.tmdb.get_details(&m_type, tmdb_id.parse().unwrap_or(0)).await {
+        let tmdb_info = match state
+            .tmdb
+            .get_details(&m_type, tmdb_id.parse().unwrap_or(0))
+            .await
+        {
             Ok(info) => info,
             Err(e) => {
-                let _ = tx.send(Ok(Event::default().event("error").data(e.to_string()))).await;
+                let _ = tx
+                    .send(Ok(Event::default().event("error").data(e.to_string())))
+                    .await;
                 return;
             }
         };
@@ -122,13 +138,20 @@ pub async fn sse_streams_handler(
                 };
                 encrypt_stream_result_urls(&mut streams, &state.kkey);
                 let count = streams.len();
-                info!("[SSE] cache hit for {}/{}: {} streams", m_type, tmdb_id, count);
-                let _ = tx.send(Ok(Event::default().event("cached").data(
-                    json!({"streams": streams, "count": count, "cached": true}).to_string()
-                ))).await;
-                let _ = tx.send(Ok(Event::default().event("done").data(
-                    json!({"total": count, "cached": true}).to_string()
-                ))).await;
+                info!(
+                    "[SSE] cache hit for {}/{}: {} streams",
+                    m_type, tmdb_id, count
+                );
+                let _ = tx
+                    .send(Ok(Event::default().event("cached").data(
+                        json!({"streams": streams, "count": count, "cached": true}).to_string(),
+                    )))
+                    .await;
+                let _ = tx
+                    .send(Ok(Event::default()
+                        .event("done")
+                        .data(json!({"total": count, "cached": true}).to_string())))
+                    .await;
                 return;
             }
         }
@@ -148,19 +171,22 @@ pub async fn sse_streams_handler(
         // Global score fallback: if no sticky preference exists, try the
         // globally most successful provider for this title.
         if sticky_hit.is_none() {
-            if let Some(top_provider) = state.provider_score.get_top_provider(&m_type, &tmdb_id).await {
+            if let Some(top_provider) = state
+                .provider_score
+                .get_top_provider(&m_type, &tmdb_id)
+                .await
+            {
                 if cb.is_healthy(&top_provider) {
-                    sticky_hit = Some(crate::infra::sticky_pref::StickyPrefEntry::fresh(&top_provider));
+                    sticky_hit = Some(crate::infra::sticky_pref::StickyPrefEntry::fresh(
+                        &top_provider,
+                    ));
                 }
             }
         }
 
-        // Try the sticky provider alone first — but only short-circuit
-        // if it's already a priority provider. Otherwise we still spawn
-        // the priority fan-out (Luna/Aura) in parallel so they get their
-        // headstart; the sticky provider joins the race and the fastest
-        // one wins. This stops a non-priority sticky entry from blocking
-        // the priority providers indefinitely.
+        // Sticky fast-path only for non-priority providers. Priority sticky
+        // providers (Luna/Aura) join the normal priority fan-out below so
+        // they race with each other and the user gets the fastest source.
         if let Some(entry) = sticky_hit.clone() {
             let sticky_is_priority = state
                 .registry
@@ -170,87 +196,104 @@ pub async fn sse_streams_handler(
                 .map(|p| matches!(p.name(), "Luna" | "Aura"))
                 .unwrap_or(false);
 
-            if sticky_is_priority {
-            if let Some(provider) = state
-                .registry
-                .list_all_arc()
-                .into_iter()
-                .find(|p| p.real_name() == entry.provider_real_name)
-            {
-                let (provider_season, provider_episode) = state.config.map_season_episode(
-                    &entry.provider_real_name, &tmdb_id, season, episode
-                );
-                let t0 = std::time::Instant::now();
-                let mut result = timeout(
-                    Duration::from_secs(3),
-                    provider.fetch(&tmdb_info, &m_type, provider_season, provider_episode),
-                ).await;
-
-                // Auto-detect season split: if season 1 returns empty and
-                // episode > 12, try season 2 with episode shifted by 12.
-                if matches!(result, Ok(Ok(ref s)) if s.is_empty())
-                    && season == 1
-                    && episode > 12
+            if !sticky_is_priority {
+                if let Some(provider) = state
+                    .registry
+                    .list_all_arc()
+                    .into_iter()
+                    .find(|p| p.real_name() == entry.provider_real_name)
                 {
-                    let fallback = timeout(
+                    let (provider_season, provider_episode) = state.config.map_season_episode(
+                        &entry.provider_real_name,
+                        &tmdb_id,
+                        season,
+                        episode,
+                    );
+                    let t0 = std::time::Instant::now();
+                    let mut result = timeout(
                         Duration::from_secs(3),
-                        provider.fetch(&tmdb_info, &m_type, 2, episode - 12),
-                    ).await;
-                    if matches!(fallback, Ok(Ok(ref s)) if !s.is_empty()) {
-                        result = fallback;
+                        provider.fetch(&tmdb_info, &m_type, provider_season, provider_episode),
+                    )
+                    .await;
+
+                    // Auto-detect season split: if season 1 returns empty and
+                    // episode > 12, try season 2 with episode shifted by 12.
+                    if matches!(result, Ok(Ok(ref s)) if s.is_empty())
+                        && season == 1
+                        && episode > 12
+                    {
+                        let fallback = timeout(
+                            Duration::from_secs(3),
+                            provider.fetch(&tmdb_info, &m_type, 2, episode - 12),
+                        )
+                        .await;
+                        if matches!(fallback, Ok(Ok(ref s)) if !s.is_empty()) {
+                            result = fallback;
+                        }
                     }
+
+                    match result {
+                        Ok(Ok(streams)) if !streams.is_empty() => {
+                            cb.record_success(&entry.provider_real_name);
+                            let elapsed_ms = t0.elapsed().as_millis() as u64;
+                            info!(
+                                "[SSE] sticky fast-path {} returned {} streams in {}ms",
+                                entry.provider_real_name,
+                                streams.len(),
+                                elapsed_ms
+                            );
+                            let mut display = if state.config.enable_proxy {
+                                wrap_with_proxy(streams.clone(), &proxy_base, &state.secret)
+                            } else {
+                                streams.clone()
+                            };
+                            encrypt_stream_result_urls(&mut display, &state.kkey);
+                            let _ = tx
+                                .send(Ok(Event::default().event("provider").data(
+                                    json!({
+                                        "provider": provider.name(),
+                                        "streams": display,
+                                        "count": display.len(),
+                                        "elapsed_ms": elapsed_ms,
+                                        "sticky": true
+                                    })
+                                    .to_string(),
+                                )))
+                                .await;
+                            state
+                                .sticky_pref
+                                .record_success(&sticky_key, &entry.provider_real_name)
+                                .await;
+
+                            // Also populate the regular stream cache so future
+                            // requests can short-circuit entirely.
+                            let mut seen = std::collections::HashSet::new();
+                            let deduped: Vec<_> = streams
+                                .into_iter()
+                                .filter(|s| seen.insert(s.url.clone()))
+                                .collect();
+                            state.cache.set(&cache_key, deduped).await;
+
+                            let _ = tx
+                                .send(Ok(Event::default().event("done").data(
+                                    json!({"total": 1, "cached": false, "sticky": true})
+                                        .to_string(),
+                                )))
+                                .await;
+                            return;
+                        }
+                        _ => {
+                            warn!(
+                                "[SSE] Sticky provider {} failed fast-path for {} — falling back to fan-out",
+                                entry.provider_real_name, tmdb_id
+                            );
+                            state.sticky_pref.record_failure(&sticky_key).await;
+                        }
+                    }
+                } else {
+                    state.sticky_pref.record_failure(&sticky_key).await;
                 }
-
-                match result {
-                    Ok(Ok(streams)) if !streams.is_empty() => {
-                        cb.record_success(&entry.provider_real_name);
-                        let elapsed_ms = t0.elapsed().as_millis() as u64;
-                        info!(
-                            "[SSE] sticky fast-path {} returned {} streams in {}ms",
-                            entry.provider_real_name,
-                            streams.len(),
-                            elapsed_ms
-                        );
-                        let mut display = if state.config.enable_proxy {
-                            wrap_with_proxy(streams.clone(), &proxy_base, &state.secret)
-                        } else {
-                            streams.clone()
-                        };
-                        encrypt_stream_result_urls(&mut display, &state.kkey);
-                        let _ = tx.send(Ok(Event::default().event("provider").data(
-                            json!({
-                                "provider": provider.name(),
-                                "streams": display,
-                                "count": display.len(),
-                                "elapsed_ms": elapsed_ms,
-                                "sticky": true
-                            }).to_string()
-                        ))).await;
-                        state.sticky_pref.record_success(&sticky_key, &entry.provider_real_name).await;
-
-                        // Also populate the regular stream cache so future
-                        // requests can short-circuit entirely.
-                        let mut seen = std::collections::HashSet::new();
-                        let deduped: Vec<_> = streams.into_iter().filter(|s| seen.insert(s.url.clone())).collect();
-                        state.cache.set(&cache_key, deduped).await;
-
-                        let _ = tx.send(Ok(Event::default().event("done").data(
-                            json!({"total": 1, "cached": false, "sticky": true}).to_string()
-                        ))).await;
-                        return;
-                    }
-                    _ => {
-                        warn!(
-                            "[SSE] Sticky provider {} failed fast-path for {} — falling back to fan-out",
-                            entry.provider_real_name, tmdb_id
-                        );
-                        state.sticky_pref.record_failure(&sticky_key).await;
-                    }
-                }
-            } else {
-                state.sticky_pref.record_failure(&sticky_key).await;
             }
-            } // end sticky_is_priority guard
         }
 
         // If the sticky provider is NOT a priority provider, we still
@@ -293,15 +336,28 @@ pub async fn sse_streams_handler(
         let mut raw_all: Vec<crate::models::StreamResult> = Vec::new();
 
         let priority_names = ["Luna", "Aura"];
-        let (mut priority, rest): (Vec<_>, Vec<_>) =
-            all_providers.into_iter().partition(|p| priority_names.contains(&p.name()));
+        let (mut priority, rest): (Vec<_>, Vec<_>) = all_providers
+            .into_iter()
+            .partition(|p| priority_names.contains(&p.name()));
+
+        info!(
+            "[SSE] priority phase providers: {:?} | health: {:?}",
+            priority.iter().map(|p| p.name()).collect::<Vec<_>>(),
+            priority
+                .iter()
+                .map(|p| (p.name(), cb.is_healthy(p.real_name())))
+                .collect::<Vec<_>>()
+        );
 
         // If we have a sticky entry whose provider is NOT in the priority
         // list, the priority fan-out alone would let a non-priority sticky
         // block Luna/Aura. Promote it to the priority phase so it races
         // with Luna/Aura; the fastest winner is recorded as the new sticky.
         if let Some(sticky_provider) = non_priority_sticky {
-            if !priority.iter().any(|p| p.real_name() == sticky_provider.real_name()) {
+            if !priority
+                .iter()
+                .any(|p| p.real_name() == sticky_provider.real_name())
+            {
                 priority.push(sticky_provider);
             }
         }
@@ -321,9 +377,11 @@ pub async fn sse_streams_handler(
             tokio::time::sleep(Duration::from_secs(10)).await;
             let count = stream_count_partial.load(Ordering::Relaxed);
             if count > 0 && !done_sent_partial.load(Ordering::Relaxed) {
-                let _ = tx_partial.send(Ok(Event::default().event("partial").data(
-                    json!({"total_so_far": count, "partial": true}).to_string()
-                ))).await;
+                let _ = tx_partial
+                    .send(Ok(Event::default().event("partial").data(
+                        json!({"total_so_far": count, "partial": true}).to_string(),
+                    )))
+                    .await;
             }
         });
 
@@ -346,36 +404,46 @@ pub async fn sse_streams_handler(
                 let real_name = provider.real_name().to_string();
                 let timeout_secs = provider.timeout_secs();
                 if !cb.is_healthy(&real_name) {
+                    info!("[SSE] provider {} skipped — circuit open", name);
+                    let _ = tx
+                        .send(Ok(Event::default().event("provider_skip").data(
+                            json!({"provider": name, "reason": "circuit_open"}).to_string(),
+                        )))
+                        .await;
                     return vec![];
                 }
-                let (provider_season, provider_episode) = config.map_season_episode(
-                    &real_name, &tmdb_id, season, episode
-                );
+                let (provider_season, provider_episode) =
+                    config.map_season_episode(&real_name, &tmdb_id, season, episode);
                 let t0 = std::time::Instant::now();
+                info!(
+                    "[SSE] spawning provider {} (timeout {}s)",
+                    name, timeout_secs
+                );
                 let mut result = timeout(
                     Duration::from_secs(timeout_secs),
                     provider.fetch(&tmdb, &mtype, provider_season, provider_episode),
-                ).await;
+                )
+                .await;
 
                 // Retry once on transient error or timeout (not on empty success)
                 if matches!(result, Ok(Err(_)) | Err(_)) {
+                    info!("[SSE] provider {} retrying after initial failure", name);
                     let retry = timeout(
                         Duration::from_secs(3),
                         provider.fetch(&tmdb, &mtype, provider_season, provider_episode),
-                    ).await;
+                    )
+                    .await;
                     result = retry;
                 }
 
                 // Auto-detect season split: if season 1 returns empty and
                 // episode > 12, try season 2 with episode shifted by 12.
-                if matches!(result, Ok(Ok(ref s)) if s.is_empty())
-                    && season == 1
-                    && episode > 12
-                {
+                if matches!(result, Ok(Ok(ref s)) if s.is_empty()) && season == 1 && episode > 12 {
                     let fallback = timeout(
                         Duration::from_secs(3),
                         provider.fetch(&tmdb, &mtype, 2, episode - 12),
-                    ).await;
+                    )
+                    .await;
                     if matches!(fallback, Ok(Ok(ref s)) if !s.is_empty()) {
                         result = fallback;
                     }
@@ -398,27 +466,44 @@ pub async fn sse_streams_handler(
                             streams.clone()
                         };
                         encrypt_stream_result_urls(&mut display, &kkey);
-                        let _ = tx.send(Ok(Event::default().event("provider").data(
-                            json!({
-                                "provider": name,
-                                "streams": display,
-                                "count": display.len(),
-                                "elapsed_ms": elapsed_ms
-                            }).to_string()
-                        ))).await;
+                        let _ = tx
+                            .send(Ok(Event::default().event("provider").data(
+                                json!({
+                                    "provider": name,
+                                    "streams": display,
+                                    "count": display.len(),
+                                    "elapsed_ms": elapsed_ms
+                                })
+                                .to_string(),
+                            )))
+                            .await;
                         streams
                     }
                     Ok(Err(e)) => {
                         warn!("[SSE] Provider {} failed: {}", name, e);
                         cb.record_failure(&real_name);
+                        info!(
+                            "[SSE] provider {} outcome=failure elapsed_ms={}",
+                            name, elapsed_ms
+                        );
                         vec![]
                     }
                     Err(_) => {
                         warn!("[SSE] Provider {} timed out after {}s", name, timeout_secs);
                         cb.record_failure(&real_name);
+                        info!(
+                            "[SSE] provider {} outcome=timeout elapsed_ms={}",
+                            name, elapsed_ms
+                        );
                         vec![]
                     }
-                    _ => vec![],
+                    _ => {
+                        info!(
+                            "[SSE] provider {} outcome=empty elapsed_ms={}",
+                            name, elapsed_ms
+                        );
+                        vec![]
+                    }
                 }
             });
         }
@@ -436,10 +521,15 @@ pub async fn sse_streams_handler(
                         priority_streams_found = true;
                     }
                 }
-            }).await {
-                Ok(_) => {},
+            })
+            .await
+            {
+                Ok(_) => {}
                 Err(_) => {
-                    warn!("[SSE] Priority phase deadline reached, {} streams collected", raw_all.len());
+                    warn!(
+                        "[SSE] Priority phase deadline reached, {} streams collected",
+                        raw_all.len()
+                    );
                 }
             }
         }
@@ -448,9 +538,11 @@ pub async fn sse_streams_handler(
         // player can start, then continue with the rest in the background.
         if priority_streams_found && !done_sent.load(Ordering::Relaxed) {
             done_sent.store(true, Ordering::Relaxed);
-            let _ = tx.send(Ok(Event::default().event("done").data(
-                json!({"total": raw_all.len(), "cached": false, "early": true}).to_string()
-            ))).await;
+            let _ = tx
+                .send(Ok(Event::default().event("done").data(
+                    json!({"total": raw_all.len(), "cached": false, "early": true}).to_string(),
+                )))
+                .await;
         }
 
         // Phase 2: spawn remaining providers (all for TV, rest for movies)
@@ -473,25 +565,23 @@ pub async fn sse_streams_handler(
                 if !cb.is_healthy(&real_name) {
                     return vec![];
                 }
-                let (provider_season, provider_episode) = config.map_season_episode(
-                    &real_name, &tmdb_id, season, episode
-                );
+                let (provider_season, provider_episode) =
+                    config.map_season_episode(&real_name, &tmdb_id, season, episode);
                 let t0 = std::time::Instant::now();
                 let mut result = timeout(
                     Duration::from_secs(timeout_secs),
                     provider.fetch(&tmdb, &mtype, provider_season, provider_episode),
-                ).await;
+                )
+                .await;
 
                 // Auto-detect season split: if season 1 returns empty and
                 // episode > 12, try season 2 with episode shifted by 12.
-                if matches!(result, Ok(Ok(ref s)) if s.is_empty())
-                    && season == 1
-                    && episode > 12
-                {
+                if matches!(result, Ok(Ok(ref s)) if s.is_empty()) && season == 1 && episode > 12 {
                     let fallback = timeout(
                         Duration::from_secs(3),
                         provider.fetch(&tmdb, &mtype, 2, episode - 12),
-                    ).await;
+                    )
+                    .await;
                     if matches!(fallback, Ok(Ok(ref s)) if !s.is_empty()) {
                         result = fallback;
                     }
@@ -514,27 +604,44 @@ pub async fn sse_streams_handler(
                             streams.clone()
                         };
                         encrypt_stream_result_urls(&mut display, &kkey);
-                        let _ = tx.send(Ok(Event::default().event("provider").data(
-                            json!({
-                                "provider": name,
-                                "streams": display,
-                                "count": display.len(),
-                                "elapsed_ms": elapsed_ms
-                            }).to_string()
-                        ))).await;
+                        let _ = tx
+                            .send(Ok(Event::default().event("provider").data(
+                                json!({
+                                    "provider": name,
+                                    "streams": display,
+                                    "count": display.len(),
+                                    "elapsed_ms": elapsed_ms
+                                })
+                                .to_string(),
+                            )))
+                            .await;
                         streams
                     }
                     Ok(Err(e)) => {
                         warn!("[SSE] Provider {} failed: {}", name, e);
                         cb.record_failure(&real_name);
+                        info!(
+                            "[SSE] provider {} outcome=failure elapsed_ms={}",
+                            name, elapsed_ms
+                        );
                         vec![]
                     }
                     Err(_) => {
                         warn!("[SSE] Provider {} timed out after {}s", name, timeout_secs);
                         cb.record_failure(&real_name);
+                        info!(
+                            "[SSE] provider {} outcome=timeout elapsed_ms={}",
+                            name, elapsed_ms
+                        );
                         vec![]
                     }
-                    _ => vec![],
+                    _ => {
+                        info!(
+                            "[SSE] provider {} outcome=empty elapsed_ms={}",
+                            name, elapsed_ms
+                        );
+                        vec![]
+                    }
                 }
             });
         }
@@ -547,17 +654,30 @@ pub async fn sse_streams_handler(
                 // If this is the first successful provider and we're still
                 // within the fast window, emit "done" early so the frontend
                 // can start playing without waiting for stragglers.
-                if !had_any && !raw_all.is_empty() && !done_sent.load(Ordering::Relaxed) && std::time::Instant::now() < fast_cutoff {
+                if !had_any
+                    && !raw_all.is_empty()
+                    && !done_sent.load(Ordering::Relaxed)
+                    && std::time::Instant::now() < fast_cutoff
+                {
                     done_sent.store(true, Ordering::Relaxed);
-                    let _ = tx.send(Ok(Event::default().event("done").data(
-                        json!({"total": raw_all.len(), "cached": false, "early": true}).to_string()
-                    ))).await;
+                    let _ = tx
+                        .send(Ok(Event::default().event("done").data(
+                            json!({"total": raw_all.len(), "cached": false, "early": true})
+                                .to_string(),
+                        )))
+                        .await;
                 }
             }
-        }).await {
-            Ok(_) => {},
+        })
+        .await
+        {
+            Ok(_) => {}
             Err(_) => {
-                warn!("[SSE] Aggregate deadline ({:?}) reached, {} streams collected", aggregate_deadline, raw_all.len());
+                warn!(
+                    "[SSE] Aggregate deadline ({:?}) reached, {} streams collected",
+                    aggregate_deadline,
+                    raw_all.len()
+                );
             }
         }
 
@@ -579,14 +699,18 @@ pub async fn sse_streams_handler(
                 };
                 encrypt_stream_result_urls(&mut streams, &state.kkey);
                 let count = streams.len();
-                let _ = tx.send(Ok(Event::default().event("stale").data(
-                    json!({"streams": streams, "count": count, "stale": true}).to_string()
-                ))).await;
+                let _ = tx
+                    .send(Ok(Event::default().event("stale").data(
+                        json!({"streams": streams, "count": count, "stale": true}).to_string(),
+                    )))
+                    .await;
                 if !done_sent.load(Ordering::Relaxed) {
                     done_sent.store(true, Ordering::Relaxed);
-                    let _ = tx.send(Ok(Event::default().event("done").data(
-                        json!({"total": count, "cached": false, "stale": true}).to_string()
-                    ))).await;
+                    let _ = tx
+                        .send(Ok(Event::default().event("done").data(
+                            json!({"total": count, "cached": false, "stale": true}).to_string(),
+                        )))
+                        .await;
                 }
                 return;
             }
@@ -608,13 +732,18 @@ pub async fn sse_streams_handler(
         // Record global provider popularity so future users benefit from
         // the collective success of this title.
         if let Some(best) = crate::providers::best_provider_real_name(&raw_all) {
-            state.provider_score.record_success(&m_type, &tmdb_id, best).await;
+            state
+                .provider_score
+                .record_success(&m_type, &tmdb_id, best)
+                .await;
         }
 
         if !done_sent.load(Ordering::Relaxed) {
-            let _ = tx.send(Ok(Event::default().event("done").data(
-                json!({"total": raw_all.len(), "cached": false}).to_string()
-            ))).await;
+            let _ = tx
+                .send(Ok(Event::default().event("done").data(
+                    json!({"total": raw_all.len(), "cached": false}).to_string(),
+                )))
+                .await;
         }
     });
 
@@ -629,8 +758,14 @@ pub async fn warm_handler(
     Path((m_type, tmdb_id)): Path<(String, String)>,
     Query(params): Query<HashMap<String, String>>,
 ) -> StatusCode {
-    let season = params.get("season").and_then(|s| s.parse::<u32>().ok()).unwrap_or(1);
-    let episode = params.get("episode").and_then(|e| e.parse::<u32>().ok()).unwrap_or(1);
+    let season = params
+        .get("season")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(1);
+    let episode = params
+        .get("episode")
+        .and_then(|e| e.parse::<u32>().ok())
+        .unwrap_or(1);
     let cache_key = CacheKey::new(&m_type, &tmdb_id, season, episode);
 
     // Skip if cache is already fresh
@@ -639,7 +774,11 @@ pub async fn warm_handler(
     }
 
     tokio::spawn(async move {
-        let tmdb_info = match state.tmdb.get_details(&m_type, tmdb_id.parse().unwrap_or(0)).await {
+        let tmdb_info = match state
+            .tmdb
+            .get_details(&m_type, tmdb_id.parse().unwrap_or(0))
+            .await
+        {
             Ok(info) => info,
             Err(_) => return,
         };
@@ -667,24 +806,22 @@ pub async fn warm_handler(
                 if !cb.is_healthy(&real_name) {
                     return vec![];
                 }
-                let (provider_season, provider_episode) = config.map_season_episode(
-                    &real_name, &tmdb_id, season, episode
-                );
+                let (provider_season, provider_episode) =
+                    config.map_season_episode(&real_name, &tmdb_id, season, episode);
                 let mut result = timeout(
                     Duration::from_secs(timeout_secs),
                     provider.fetch(&tmdb, &mtype, provider_season, provider_episode),
-                ).await;
+                )
+                .await;
 
                 // Auto-detect season split: if season 1 returns empty and
                 // episode > 12, try season 2 with episode shifted by 12.
-                if matches!(result, Ok(Ok(ref s)) if s.is_empty())
-                    && season == 1
-                    && episode > 12
-                {
+                if matches!(result, Ok(Ok(ref s)) if s.is_empty()) && season == 1 && episode > 12 {
                     let fallback = timeout(
                         Duration::from_secs(3),
                         provider.fetch(&tmdb, &mtype, 2, episode - 12),
-                    ).await;
+                    )
+                    .await;
                     if matches!(fallback, Ok(Ok(ref s)) if !s.is_empty()) {
                         result = fallback;
                     }
@@ -709,9 +846,14 @@ pub async fn warm_handler(
             while let Some(Ok(streams)) = tasks.join_next().await {
                 raw_all.extend(streams);
             }
-        }).await {
-            Ok(_) => {},
-            Err(_) => warn!("[Warm] Deadline reached for {} {} s{}e{}", m_type, tmdb_id, season, episode),
+        })
+        .await
+        {
+            Ok(_) => {}
+            Err(_) => warn!(
+                "[Warm] Deadline reached for {} {} s{}e{}",
+                m_type, tmdb_id, season, episode
+            ),
         }
 
         if !raw_all.is_empty() {
@@ -719,7 +861,10 @@ pub async fn warm_handler(
             raw_all.retain(|s| seen.insert(s.url.clone()));
             state.cache.set(&cache_key, raw_all.clone()).await;
             if let Some(best) = crate::providers::best_provider_real_name(&raw_all) {
-                state.provider_score.record_success(&m_type, &tmdb_id, best).await;
+                state
+                    .provider_score
+                    .record_success(&m_type, &tmdb_id, best)
+                    .await;
             }
         }
     });

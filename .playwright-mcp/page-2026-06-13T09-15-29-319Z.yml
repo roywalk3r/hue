@@ -1,0 +1,80 @@
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - link "Vexli Vexli" [ref=e7] [cursor=pointer]:
+        - /url: /
+        - img "Vexli" [ref=e8]
+        - generic [ref=e9]: Vexli
+      - generic [ref=e10]:
+        - link "Home" [ref=e11] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e12]: Home
+        - link "Browse" [ref=e13] [cursor=pointer]:
+          - /url: /browse
+          - generic [ref=e14]: Browse
+        - link "Films" [ref=e15] [cursor=pointer]:
+          - /url: /movies
+          - generic [ref=e16]: Films
+        - link "Series" [ref=e17] [cursor=pointer]:
+          - /url: /tv
+          - generic [ref=e18]: Series
+        - link "Anime" [ref=e19] [cursor=pointer]:
+          - /url: /anime
+          - generic [ref=e20]: Anime
+        - link "Drama" [ref=e21] [cursor=pointer]:
+          - /url: /drama
+          - generic [ref=e22]: Drama
+      - generic [ref=e23]:
+        - button "Search" [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+          - generic [ref=e28]: Search
+          - generic [ref=e29]: Ctrl K
+        - link "Sign in" [ref=e31] [cursor=pointer]:
+          - /url: /auth/login
+  - main [ref=e32]
+  - navigation [ref=e36]:
+    - generic [ref=e37]:
+      - link "Home" [ref=e38] [cursor=pointer]:
+        - /url: /
+        - img [ref=e39]
+        - generic [ref=e42]: Home
+      - link "Browse" [ref=e43] [cursor=pointer]:
+        - /url: /browse
+        - img [ref=e44]
+        - generic [ref=e47]: Browse
+      - link "Movies" [ref=e48] [cursor=pointer]:
+        - /url: /movies
+        - img [ref=e49]
+        - generic [ref=e51]: Movies
+      - link "Anime" [ref=e52] [cursor=pointer]:
+        - /url: /anime
+        - img [ref=e53]
+        - generic [ref=e56]: Anime
+      - link "Drama" [ref=e57] [cursor=pointer]:
+        - /url: /drama
+        - img [ref=e58]
+        - generic [ref=e63]: Drama
+  - contentinfo [ref=e65]:
+    - generic [ref=e66]:
+      - generic [ref=e67]:
+        - link "Vexli Vexli" [ref=e68] [cursor=pointer]:
+          - /url: /
+          - img "Vexli" [ref=e69]
+          - generic [ref=e70]: Vexli
+        - paragraph [ref=e71]: Movies, series, anime, and drama in one quiet streaming catalog.
+      - navigation "Footer navigation" [ref=e72]:
+        - link "Movies" [ref=e73] [cursor=pointer]:
+          - /url: /movies
+        - link "TV Shows" [ref=e74] [cursor=pointer]:
+          - /url: /tv
+        - link "Anime" [ref=e75] [cursor=pointer]:
+          - /url: /anime
+        - link "Dramas" [ref=e76] [cursor=pointer]:
+          - /url: /drama
+        - link "Search" [ref=e77] [cursor=pointer]:
+          - /url: /search
+        - link "Library" [ref=e78] [cursor=pointer]:
+          - /url: /library
+    - generic [ref=e79]:
+      - generic [ref=e80]: © 2026 Vexli
+      - generic [ref=e81]: Movies, series, anime, and drama.

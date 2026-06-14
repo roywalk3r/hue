@@ -5,10 +5,10 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
+use anyhow::{anyhow, Result};
 use reqwest::Client;
 use serde::de::DeserializeOwned;
 use tracing::{info, warn};
-use anyhow::{Result, anyhow};
 
 #[allow(dead_code)]
 fn microservice_url() -> String {
@@ -32,18 +32,17 @@ pub async fn scrape_via_microservice<T: DeserializeOwned>(
     let url = format!("{}/scrape/{}", microservice_url(), provider);
     info!("[microservice] Calling {} with payload: {}", url, payload);
 
-    let resp = client
-        .post(&url)
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|e| {
-            warn!("[microservice] Request to {} failed: {}", url, e);
-            anyhow!("Microservice request failed: {}", e)
-        })?;
+    let resp = client.post(&url).json(&payload).send().await.map_err(|e| {
+        warn!("[microservice] Request to {} failed: {}", url, e);
+        anyhow!("Microservice request failed: {}", e)
+    })?;
 
     if !resp.status().is_success() {
-        warn!("[microservice] Non-success status from {}: {}", url, resp.status());
+        warn!(
+            "[microservice] Non-success status from {}: {}",
+            url,
+            resp.status()
+        );
         return Ok(None);
     }
 
@@ -72,18 +71,17 @@ pub async fn scrape_streams_via_microservice(
     let url = format!("{}/scrape/{}", microservice_url(), provider);
     info!("[microservice] Calling {} for streams", url);
 
-    let resp = client
-        .post(&url)
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|e| {
-            warn!("[microservice] Request to {} failed: {}", url, e);
-            anyhow!("Microservice request failed: {}", e)
-        })?;
+    let resp = client.post(&url).json(&payload).send().await.map_err(|e| {
+        warn!("[microservice] Request to {} failed: {}", url, e);
+        anyhow!("Microservice request failed: {}", e)
+    })?;
 
     if !resp.status().is_success() {
-        warn!("[microservice] Non-success status from {}: {}", url, resp.status());
+        warn!(
+            "[microservice] Non-success status from {}: {}",
+            url,
+            resp.status()
+        );
         return Ok(vec![]);
     }
 

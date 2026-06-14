@@ -5,15 +5,15 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-pub mod download;
-pub mod hitv;
-pub mod play;
-pub mod streams;
-pub mod drama;
-pub mod sse;
-pub mod providers;
-pub mod moviebox;
 pub mod anime;
+pub mod download;
+pub mod drama;
+pub mod hitv;
+pub mod moviebox;
+pub mod play;
+pub mod providers;
 pub mod sports;
+pub mod sse;
+pub mod streams;
 pub mod system;
 pub mod tmdb;

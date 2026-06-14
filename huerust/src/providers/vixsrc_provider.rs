@@ -5,12 +5,12 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use async_trait::async_trait;
-use crate::providers::StreamProvider;
-use crate::providers::vixsrc::VixsrcClient;
-use crate::models::StreamResult;
 use crate::clients::tmdb::TmdbNormalizedInfo;
+use crate::models::StreamResult;
+use crate::providers::vixsrc::VixsrcClient;
+use crate::providers::StreamProvider;
 use anyhow::Result;
+use async_trait::async_trait;
 use std::sync::Arc;
 
 pub struct VixsrcProvider {
@@ -25,10 +25,18 @@ impl VixsrcProvider {
 
 #[async_trait]
 impl StreamProvider for VixsrcProvider {
-    fn name(&self) -> &'static str { "Aura" }
-    fn real_name(&self) -> &'static str { "vixsrc" }
-    fn is_fast(&self) -> bool { true }
-    fn timeout_secs(&self) -> u64 { 15 }
+    fn name(&self) -> &'static str {
+        "Aura"
+    }
+    fn real_name(&self) -> &'static str {
+        "vixsrc"
+    }
+    fn is_fast(&self) -> bool {
+        true
+    }
+    fn timeout_secs(&self) -> u64 {
+        15
+    }
 
     async fn fetch(
         &self,
@@ -37,6 +45,8 @@ impl StreamProvider for VixsrcProvider {
         season: u32,
         episode: u32,
     ) -> Result<Vec<StreamResult>> {
-        self.vixsrc.get_streams_normalized(tmdb_info.id, media_type, season, episode).await
+        self.vixsrc
+            .get_streams_normalized(tmdb_info.id, media_type, season, episode)
+            .await
     }
 }

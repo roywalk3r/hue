@@ -1,11 +1,15 @@
 use anyhow::{anyhow, Result};
 use moka::future::Cache;
 use reqwest::header::{HeaderMap, HeaderValue};
-use reqwest_middleware::ClientWithMiddleware;
+use reqwest::StatusCode;
 use serde::Deserialize;
 use std::time::Duration;
+use tokio::process::Command;
 
-use crate::models::anime::{AnimeCard, AnimeDetail, EpisodeSummary, ServerEntry, ServerList, SkipRange, StreamPayload, SubtitleTrack};
+use crate::models::anime::{
+    AnimeCard, AnimeDetail, EpisodeSummary, ServerEntry, ServerList, SkipRange, StreamPayload,
+    SubtitleTrack,
+};
 
 const UA_DESKTOP: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36";
 
@@ -27,7 +31,7 @@ const AJAX: &str = "https://aniwaves.ru/ajax";
 ///    parse the `id` query param out and call
 ///    `GET <host>/embed-1/getSources?id=<id>` to get the m3u8.
 pub struct AniwaveClient {
-    client: ClientWithMiddleware,
+    client: reqwest::Client,
     episode_cache: Cache<String, Vec<AniwaveEpisode>>,
     stream_cache: Cache<String, AniwaveStream>,
 }
@@ -46,6 +50,8 @@ struct AniwaveEpisode {
 struct AniwaveStream {
     url: String,
     server_id: u32,
+    server_name: String,
+    referer: String,
     intro: Option<SkipRange>,
     outro: Option<SkipRange>,
     /// Subtitle tracks parsed from the iframe page (m3u8 + lang).
@@ -68,7 +74,7 @@ impl AniwaveClient {
             .build()
             .unwrap();
         Self {
-            client: crate::http_client::wrap_with_retry(client),
+            client,
             episode_cache: Cache::builder()
                 .max_capacity(500)
                 .time_to_live(Duration::from_secs(60 * 60))
@@ -83,13 +89,38 @@ impl AniwaveClient {
     fn base_headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
         headers.insert("User-Agent", HeaderValue::from_static(UA_DESKTOP));
-        headers.insert("X-Requested-With", HeaderValue::from_static("XMLHttpRequest"));
+        headers.insert(
+            "X-Requested-With",
+            HeaderValue::from_static("XMLHttpRequest"),
+        );
         headers
     }
 
-    /// Resolve a slug (e.g. "one-piece-81553") to the numeric show id.
-    /// Slugs follow `<name>-<id>`; the id is the trailing numeric.
+    /// Resolve a slug to the numeric show id. Accepts:
+    ///   - series slug:   "one-piece-81553"  -> "81553"
+    ///   - per-ep slug:   "81553-ep1"        -> "81553"
+    ///   - bare numeric:  "81553"            -> "81553"
     fn show_id_from_slug(slug: &str) -> Option<String> {
+        if slug.is_empty() {
+            return None;
+        }
+        // Bare numeric
+        if slug.chars().all(|c| c.is_ascii_digit()) {
+            return Some(slug.to_string());
+        }
+        // Per-episode slug: "<digits>-ep<digits>" — take the leading digits.
+        if let Some(idx) = slug.find("-ep") {
+            if idx > 0 {
+                let head = &slug[..idx];
+                if !head.is_empty() && head.chars().all(|c| c.is_ascii_digit()) {
+                    let tail = &slug[idx + 3..];
+                    if !tail.is_empty() && tail.chars().all(|c| c.is_ascii_digit()) {
+                        return Some(head.to_string());
+                    }
+                }
+            }
+        }
+        // Series slug: "<name>-<digits>" — take the trailing digits segment.
         slug.rsplit('-')
             .next()
             .filter(|s| !s.is_empty() && s.chars().all(|c| c.is_ascii_digit()))
@@ -98,33 +129,35 @@ impl AniwaveClient {
 
     /// Fetch the episode list for a series. `slug_or_id` may be either a
     /// series slug (`one-piece-81553`) or a numeric show id (`81553`).
-    pub async fn get_episodes(
-        &self,
-        slug_or_id: &str,
-    ) -> Result<Vec<EpisodeSummary>> {
-        let show_id = AniwaveClient::show_id_from_slug(slug_or_id)
-            .unwrap_or_else(|| slug_or_id.to_string());
+    pub async fn get_episodes(&self, slug_or_id: &str) -> Result<Vec<EpisodeSummary>> {
+        let show_id =
+            AniwaveClient::show_id_from_slug(slug_or_id).unwrap_or_else(|| slug_or_id.to_string());
         if let Some(cached) = self.episode_cache.get(&show_id).await {
             return Ok(to_episode_summaries(cached));
         }
 
-        let url = format!("{}/ajax/episode/list/{}?vrf=", AJAX, show_id);
-        let resp = self
-            .client
-            .get(&url)
-            .header("Referer", BASE_URL)
-            .headers(self.base_headers())
-            .send()
-            .await?;
-        let status = resp.status();
-        let text = resp.text().await?;
+        let url = format!("{}/episode/list/{}?vrf=", AJAX, show_id);
+        let (status, text) = self.fetch_text(&url, BASE_URL, true).await?;
         if !status.is_success() {
-            return Err(anyhow!("aniwave: episode list status {} body={}", status, &text[..text.len().min(200)]));
+            return Err(anyhow!(
+                "aniwave: episode list status {} body={}",
+                status,
+                &text[..text.len().min(200)]
+            ));
         }
-        let parsed: AniwaveListResponse = serde_json::from_str(&text)
-            .map_err(|e| anyhow!("aniwave: parse episode list: {} body={}", e, &text[..text.len().min(200)]))?;
+        let parsed: AniwaveListResponse = serde_json::from_str(&text).map_err(|e| {
+            anyhow!(
+                "aniwave: parse episode list: {} body={}",
+                e,
+                &text[..text.len().min(200)]
+            )
+        })?;
         if parsed.status != 200 {
-            return Err(anyhow!("aniwave: episode list status={} body={}", parsed.status, &parsed.result));
+            return Err(anyhow!(
+                "aniwave: episode list status={} body={}",
+                parsed.status,
+                &parsed.result
+            ));
         }
         let episodes = parse_episode_list(&show_id, &parsed.result);
         self.episode_cache.insert(show_id, episodes.clone()).await;
@@ -146,21 +179,25 @@ impl AniwaveClient {
             .find(|e| e.number == episode)
             .or_else(|| episodes.first())
             .ok_or_else(|| anyhow!("aniwave: no episode {} for {}", episode, show_id))?;
-        let url = format!("{}/ajax/server/list?servers={}&eps={}", AJAX, ep.show_id, ep.number);
-        let resp = self
-            .client
-            .get(&url)
-            .header("Referer", BASE_URL)
-            .headers(self.base_headers())
-            .send()
-            .await?;
-        let status = resp.status();
-        let text = resp.text().await?;
+        let url = format!(
+            "{}/server/list?servers={}&eps={}",
+            AJAX, ep.show_id, ep.number
+        );
+        let (status, text) = self.fetch_text(&url, BASE_URL, true).await?;
         if !status.is_success() {
-            return Err(anyhow!("aniwave: server list status {} body={}", status, &text[..text.len().min(200)]));
+            return Err(anyhow!(
+                "aniwave: server list status {} body={}",
+                status,
+                &text[..text.len().min(200)]
+            ));
         }
-        let parsed: AniwaveListResponse = serde_json::from_str(&text)
-            .map_err(|e| anyhow!("aniwave: parse server list: {} body={}", e, &text[..text.len().min(200)]))?;
+        let parsed: AniwaveListResponse = serde_json::from_str(&text).map_err(|e| {
+            anyhow!(
+                "aniwave: parse server list: {} body={}",
+                e,
+                &text[..text.len().min(200)]
+            )
+        })?;
         if parsed.status != 200 {
             return Err(anyhow!("aniwave: server list status={}", parsed.status));
         }
@@ -177,7 +214,13 @@ impl AniwaveClient {
         audio_type: &str,
     ) -> Result<StreamPayload> {
         let audio = if audio_type == "dub" { "dub" } else { "sub" };
-        let cache_key = format!("{}:{}:{}:{}", show_id, episode, server_id.unwrap_or(0), audio);
+        let cache_key = format!(
+            "{}:{}:{}:{}",
+            show_id,
+            episode,
+            server_id.unwrap_or(0),
+            audio
+        );
         if let Some(cached) = self.stream_cache.get(&cache_key).await {
             return Ok(stream_to_payload(&cached, audio));
         }
@@ -190,15 +233,11 @@ impl AniwaveClient {
             .ok_or_else(|| anyhow!("aniwave: no episode {} for {}", episode, show_id))?;
 
         // 1. List servers for the episode so we can pick the right encoded link id
-        let url = format!("{}/ajax/server/list?servers={}&eps={}", AJAX, ep.show_id, ep.number);
-        let resp = self
-            .client
-            .get(&url)
-            .header("Referer", BASE_URL)
-            .headers(self.base_headers())
-            .send()
-            .await?;
-        let text = resp.text().await?;
+        let url = format!(
+            "{}/server/list?servers={}&eps={}",
+            AJAX, ep.show_id, ep.number
+        );
+        let (_, text) = self.fetch_text(&url, BASE_URL, true).await?;
         let parsed: AniwaveListResponse = serde_json::from_str(&text)?;
         let links = parse_server_links(&parsed.result, audio);
         let link = match server_id {
@@ -208,18 +247,8 @@ impl AniwaveClient {
         .ok_or_else(|| anyhow!("aniwave: no {} servers for ep {}", audio, episode))?;
 
         // 2. /ajax/sources?id=<encoded>&asi=0&autoPlay=0 returns the iframe URL
-        let sources_url = format!(
-            "{}/sources?id={}&asi=0&autoPlay=0",
-            AJAX, link.encoded_id
-        );
-        let resp = self
-            .client
-            .get(&sources_url)
-            .header("Referer", BASE_URL)
-            .headers(self.base_headers())
-            .send()
-            .await?;
-        let text = resp.text().await?;
+        let sources_url = format!("{}/sources?id={}&asi=0&autoPlay=0", AJAX, link.encoded_id);
+        let (_, text) = self.fetch_text(&sources_url, BASE_URL, true).await?;
         let parsed: AniwaveSourcesResponse = serde_json::from_str(&text)?;
         if parsed.status != 200 {
             return Err(anyhow!("aniwave: sources status={}", parsed.status));
@@ -229,47 +258,42 @@ impl AniwaveClient {
             return Err(anyhow!("aniwave: empty stream url"));
         }
 
-        // 3. Extract `id=` query param from the embed URL and call getSources
-        let embed_id = url
-            .split('?')
-            .next()
-            .and_then(|_| url.split("id=").nth(1))
-            .and_then(|s| s.split('&').next())
-            .unwrap_or("");
+        // 3. Extract the path id from URLs like:
+        //    https://play.echovideo.ru/embed-1/<id>?v=1&asi=0&autoPlay=0&ao=0
+        let (embed_base, embed_id) = extract_embed_endpoint(&url)
+            .ok_or_else(|| anyhow!("aniwave: could not extract embed id from {}", url))?;
         if embed_id.is_empty() {
             return Err(anyhow!("aniwave: could not extract embed id from {}", url));
         }
-        // Derive the embed host (e.g. https://play.echovideo.ru/embed-1/)
-        let embed_base = url
-            .split("/embed-")
-            .next()
-            .map(|s| format!("{}/embed-1/", s))
-            .unwrap_or_else(|| url.clone());
         let get_sources_url = format!("{}getSources?id={}", embed_base, embed_id);
-        let resp = self
-            .client
-            .get(&get_sources_url)
-            .header("Referer", &url)
-            .headers(self.base_headers())
-            .send()
-            .await?;
-        let text = resp.text().await?;
-        let parsed: EmbedSourcesResponse = serde_json::from_str(&text)
-            .map_err(|e| anyhow!("aniwave: parse embed sources: {} body={}", e, &text[..text.len().min(200)]))?;
+        let (_, text) = self.fetch_text(&get_sources_url, &url, false).await?;
+        let parsed: EmbedSourcesResponse = serde_json::from_str(&text).map_err(|e| {
+            anyhow!(
+                "aniwave: parse embed sources: {} body={}",
+                e,
+                &text[..text.len().min(200)]
+            )
+        })?;
         let stream_url = parsed.sources;
         if stream_url.is_empty() {
             return Err(anyhow!("aniwave: empty embed sources url"));
         }
         let intro = parsed.intro.and_then(|i| {
             if i.end > i.start {
-                Some(SkipRange { start: i.start as u32, end: i.end as u32 })
+                Some(SkipRange {
+                    start: i.start as u32,
+                    end: i.end as u32,
+                })
             } else {
                 None
             }
         });
         let outro = parsed.outro.and_then(|o| {
             if o.end > o.start {
-                Some(SkipRange { start: o.start as u32, end: o.end as u32 })
+                Some(SkipRange {
+                    start: o.start as u32,
+                    end: o.end as u32,
+                })
             } else {
                 None
             }
@@ -278,21 +302,31 @@ impl AniwaveClient {
         let stream = AniwaveStream {
             url: stream_url.clone(),
             server_id: link.server_id,
+            server_name: link.name.clone(),
+            referer: url.clone(),
             intro: intro.clone(),
             outro: outro.clone(),
             tracks: vec![],
         };
         self.stream_cache.insert(cache_key, stream.clone()).await;
         let is_hls = stream.url.contains(".m3u8");
-        let subtitles = if stream.tracks.is_empty() { None } else { Some(stream.tracks) };
+        let subtitles = if stream.tracks.is_empty() {
+            None
+        } else {
+            Some(stream.tracks)
+        };
         Ok(StreamPayload {
             url: stream.url,
-            stream_type: if is_hls { "hls".to_string() } else { "mp4".to_string() },
+            stream_type: if is_hls {
+                "hls".to_string()
+            } else {
+                "mp4".to_string()
+            },
             subtitles,
             intro: stream.intro,
             outro: stream.outro,
             server: Some(format!("aniwave-{}", link.name)),
-            referer: Some(embed_base.trim_end_matches('/').to_string()),
+            referer: Some(stream.referer),
         })
     }
 
@@ -316,6 +350,37 @@ impl AniwaveClient {
     }
 
     // ── helpers ───────────────────────────────────────────────────────────
+
+    async fn fetch_text(
+        &self,
+        url: &str,
+        referer: &str,
+        ajax: bool,
+    ) -> Result<(StatusCode, String)> {
+        let mut request = self
+            .client
+            .get(url)
+            .header("Referer", referer)
+            .header("Accept", "application/json, text/javascript, */*; q=0.01")
+            .header("Accept-Language", "en-US,en;q=0.9")
+            .headers(self.base_headers());
+        if !ajax {
+            request = request.header(
+                "X-Requested-With",
+                HeaderValue::from_static("XMLHttpRequest"),
+            );
+        }
+
+        let resp = request.send().await?;
+        let status = resp.status();
+        let text = resp.text().await?;
+        if !status.is_success() || !text.is_empty() {
+            return Ok((status, text));
+        }
+
+        let fallback = curl_fetch_text(url, referer, ajax).await?;
+        Ok((status, fallback))
+    }
 
     async fn get_episodes_raw(&self, show_id_or_slug: &str) -> Result<Vec<AniwaveEpisode>> {
         let show_id = AniwaveClient::show_id_from_slug(show_id_or_slug)
@@ -386,6 +451,49 @@ struct EmbedSourcesResponse {
     outro: Option<AniwaveIntroOutro>,
 }
 
+async fn curl_fetch_text(url: &str, referer: &str, ajax: bool) -> Result<String> {
+    let mut cmd = Command::new("/usr/bin/curl");
+    cmd.arg("-fsSL")
+        .arg("--compressed")
+        .arg("--http1.1")
+        .arg("--max-time")
+        .arg("20")
+        .arg("--write-out")
+        .arg("%{stderr}curl_meta http=%{http_code} size=%{size_download} url=%{url_effective}\n")
+        .arg("-A")
+        .arg(UA_DESKTOP)
+        .arg("-H")
+        .arg("Accept: application/json, text/javascript, */*; q=0.01")
+        .arg("-H")
+        .arg("Accept-Language: en-US,en;q=0.9")
+        .arg("-H")
+        .arg(format!("Referer: {}", referer));
+
+    if ajax {
+        cmd.arg("-H").arg("X-Requested-With: XMLHttpRequest");
+    }
+
+    let output = cmd.arg(url).output().await?;
+    if !output.status.success() {
+        return Err(anyhow!(
+            "aniwave: curl fallback failed status={} stderr={}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    let text = String::from_utf8(output.stdout)
+        .map_err(|e| anyhow!("aniwave: curl fallback returned non-utf8 body: {}", e))?;
+    if text.trim().is_empty() {
+        return Err(anyhow!(
+            "aniwave: curl fallback returned empty body url={} stderr={}",
+            url,
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    Ok(text)
+}
+
 // ── HTML parsing ───────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug)]
@@ -404,13 +512,13 @@ fn parse_episode_list(show_id: &str, html: &str) -> Vec<AniwaveEpisode> {
     //   </ul>
     let mut out = Vec::new();
     // Split on `<li ...>` to find each episode block
-    for li in html.split("<li ").skip(1) {
+    for li in html.split("<li").skip(1) {
         let li_end = match li.find("</li>") {
             Some(i) => &li[..i],
             None => li,
         };
         // Anchor is the first <a ...>...</a> inside
-        let a_start = match li_end.find("<a ") {
+        let a_start = match li_end.find("<a") {
             Some(i) => i,
             None => continue,
         };
@@ -459,9 +567,15 @@ fn parse_server_list(html: &str, audio_type: &str) -> ServerList {
             .collect()
     };
     if audio_type == "dub" {
-        ServerList { sub: vec![], dub: to_entries(&links) }
+        ServerList {
+            sub: vec![],
+            dub: to_entries(&links),
+        }
     } else {
-        ServerList { sub: to_entries(&links), dub: vec![] }
+        ServerList {
+            sub: to_entries(&links),
+            dub: vec![],
+        }
     }
 }
 
@@ -469,9 +583,20 @@ fn parse_server_links(html: &str, audio_type: &str) -> Vec<AniwaveServerLink> {
     let mut out = Vec::new();
     // Each <li data-ep-id="..." data-sv-id="N" data-link-id="<base64>">SERVERNAME</li>
     // The audio type wrapper is `<div class="type" data-type="sub"> ... </div>`
-    // We capture all <li> and rely on the requested audio_type filter
-    // (the wrapper would be more robust but the page returns both anyway).
-    for li in html.split("<li ").skip(1) {
+    let sections = server_sections_for_audio(html, audio_type);
+    let scan_blocks: Vec<&str> = if sections.is_empty() {
+        vec![html]
+    } else {
+        sections
+    };
+    for block in scan_blocks {
+        parse_server_links_block(block, &mut out);
+    }
+    out
+}
+
+fn parse_server_links_block(block: &str, out: &mut Vec<AniwaveServerLink>) {
+    for li in block.split("<li").skip(1) {
         let li_end = match li.find("</li>") {
             Some(i) => &li[..i],
             None => li,
@@ -486,12 +611,7 @@ fn parse_server_links(html: &str, audio_type: &str) -> Vec<AniwaveServerLink> {
             None => continue,
         };
         // Server name is the text after the last `>` and before `</li>`
-        let name = li_end
-            .rsplit('>')
-            .next()
-            .unwrap_or("")
-            .trim()
-            .to_string();
+        let name = li_end.rsplit('>').next().unwrap_or("").trim().to_string();
         if sv_id == 0 || link_id.is_empty() || name.is_empty() {
             continue;
         }
@@ -501,13 +621,64 @@ fn parse_server_links(html: &str, audio_type: &str) -> Vec<AniwaveServerLink> {
             encoded_id: link_id,
         });
     }
-    out
+}
+
+fn server_sections_for_audio<'a>(html: &'a str, audio_type: &str) -> Vec<&'a str> {
+    let target = if audio_type == "dub" { "dub" } else { "sub" };
+    let mut markers = Vec::new();
+    for needle in ["data-type=\"", "data-type='"] {
+        let mut offset = 0;
+        while let Some(pos) = html[offset..].find(needle) {
+            let absolute = offset + pos;
+            let value_start = absolute + needle.len();
+            let quote = if needle.ends_with('"') { '"' } else { '\'' };
+            let value_end = html[value_start..]
+                .find(quote)
+                .map(|i| value_start + i)
+                .unwrap_or(html.len());
+            markers.push((absolute, &html[value_start..value_end]));
+            offset = value_end.saturating_add(1);
+        }
+    }
+    markers.sort_by_key(|(pos, _)| *pos);
+    markers
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, (start, value))| {
+            if *value != target {
+                return None;
+            }
+            let end = markers
+                .get(idx + 1)
+                .map(|(next, _)| *next)
+                .unwrap_or(html.len());
+            Some(&html[*start..end])
+        })
+        .collect()
+}
+
+fn extract_embed_endpoint(embed_url: &str) -> Option<(String, String)> {
+    let parsed = url::Url::parse(embed_url).ok()?;
+    let segments: Vec<_> = parsed.path_segments()?.collect();
+    let embed_idx = segments
+        .iter()
+        .position(|segment| segment.starts_with("embed-"))?;
+    let embed_segment = *segments.get(embed_idx)?;
+    let embed_id = segments.get(embed_idx + 1)?.to_string();
+    if embed_id.is_empty() {
+        return None;
+    }
+    let origin = parsed.origin().ascii_serialization();
+    Some((format!("{}/{}/", origin, embed_segment), embed_id))
 }
 
 fn parse_watch_page(html: &str, slug: &str) -> Result<AnimeDetail> {
-    // Title: <div class="watch_title"> ... <h2 ...>TITLE</h2>
-    let title = extract_between(html, "<h2", "</h2>")
+    // Title: <h1 itemprop="name" class="title d-title" data-jp="...">TITLE</h1>
+    // (older pages also have a <div class="watch_title"> ... <h2>TITLE</h2>)
+    let title = extract_between(html, "<h1", "</h1>")
+        .or_else(|| extract_between(html, "<h2", "</h2>"))
         .map(|s| strip_tags(&s).trim().to_string())
+        .filter(|s| !s.is_empty() && s != "404 Not Found")
         .unwrap_or_else(|| slug.to_string());
     // Poster: <img ... data-src="URL" or src="URL" ...>
     let poster = extract_attr(html, "data-src")
@@ -537,7 +708,7 @@ fn parse_watch_page(html: &str, slug: &str) -> Result<AnimeDetail> {
         has_sub: true,
         has_dub: true,
     };
-    let mut detail = AnimeDetail {
+    let detail = AnimeDetail {
         card,
         broadcast: None,
         premiered: None,
@@ -562,23 +733,32 @@ fn to_episode_summaries(episodes: Vec<AniwaveEpisode>) -> Vec<EpisodeSummary> {
             title: None,
             sub_count: if e.has_sub { 1 } else { 0 },
             dub_count: if e.has_dub { 1 } else { 0 },
-            slug: None,
+            slug: Some(format!("{}-ep{}", e.show_id, e.number)),
+            series_slug: Some(e.show_id.clone()),
             slugs: Some(vec![format!("{}-ep{}", e.show_id, e.number)]),
         })
         .collect()
 }
 
-fn stream_to_payload(s: &AniwaveStream, audio: &str) -> StreamPayload {
+fn stream_to_payload(s: &AniwaveStream, _audio: &str) -> StreamPayload {
     let is_hls = s.url.contains(".m3u8");
-    let subtitles = if s.tracks.is_empty() { None } else { Some(s.tracks.clone()) };
+    let subtitles = if s.tracks.is_empty() {
+        None
+    } else {
+        Some(s.tracks.clone())
+    };
     StreamPayload {
         url: s.url.clone(),
-        stream_type: if is_hls { "hls".to_string() } else { "mp4".to_string() },
+        stream_type: if is_hls {
+            "hls".to_string()
+        } else {
+            "mp4".to_string()
+        },
         subtitles,
         intro: s.intro.clone(),
         outro: s.outro.clone(),
-        server: Some(format!("aniwave-{}", audio)),
-        referer: None,
+        server: Some(format!("aniwave-{}", s.server_name)),
+        referer: Some(s.referer.clone()),
     }
 }
 
@@ -622,3 +802,68 @@ fn strip_tags(s: &str) -> String {
     out
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extracts_echovideo_embed_endpoint_from_path_id() {
+        let (base, id) = extract_embed_endpoint(
+            "https://play.echovideo.ru/embed-1/clwcEG3J9yTpXHxLHJXp?v=1&asi=0&autoPlay=0&ao=0",
+        )
+        .expect("embed endpoint");
+
+        assert_eq!(base, "https://play.echovideo.ru/embed-1/");
+        assert_eq!(id, "clwcEG3J9yTpXHxLHJXp");
+    }
+
+    #[test]
+    fn filters_server_links_by_audio_type_section() {
+        let html = r#"
+            <div class="type" data-type="sub">
+                <ul>
+                    <li data-ep-id="1" data-sv-id="4" data-link-id="sub-link">Vidplay</li>
+                </ul>
+            </div>
+            <div class="type" data-type="dub">
+                <ul>
+                    <li data-ep-id="1" data-sv-id="4" data-link-id="dub-link">Vidplay</li>
+                    <li data-ep-id="1" data-sv-id="1" data-link-id="dub-b">BYFMS</li>
+                </ul>
+            </div>
+        "#;
+
+        let sub = parse_server_links(html, "sub");
+        let dub = parse_server_links(html, "dub");
+
+        assert_eq!(sub.len(), 1);
+        assert_eq!(sub[0].encoded_id, "sub-link");
+        assert_eq!(dub.len(), 2);
+        assert_eq!(dub[0].encoded_id, "dub-link");
+        assert_eq!(dub[1].encoded_id, "dub-b");
+    }
+
+    #[test]
+    fn parses_episode_list_with_padded_tags() {
+        let html = r##"
+            <ul class="ep-range" data-range="001-003" style="display: block">
+                <li        title="Episode 1" data-html="true">
+                    <a href="#" data-ids="82510&eps=1" data-num="1" data-slug="1" data-sub="1" data-dub="0" data-ids="" class="">1</a>
+                </li>
+                <li        title="Episode 2" data-html="true">
+                    <a        href="#" data-ids="82510&eps=2" data-num="2" data-slug="2" data-sub="1" data-dub="1" class="">2</a>
+                </li>
+            </ul>
+        "##;
+
+        let episodes = parse_episode_list("82510", html);
+
+        assert_eq!(episodes.len(), 2);
+        assert_eq!(episodes[0].number, 1);
+        assert_eq!(episodes[0].ep_ids, "82510&eps=1");
+        assert!(episodes[0].has_sub);
+        assert!(!episodes[0].has_dub);
+        assert_eq!(episodes[1].number, 2);
+        assert!(episodes[1].has_dub);
+    }
+}

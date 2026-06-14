@@ -6,9 +6,9 @@
 //!      body: { type: "movie"|"tv", tmdbId: "..." }
 //!   3. Response contains mp4Data (streams + captions) + mkvV3Data (direct MKV links)
 
+use anyhow::{anyhow, Result};
 use reqwest::header::HeaderValue;
 use serde::{Deserialize, Serialize};
-use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 
 const API_BASE: &str = "https://vidvault.ru/api";
@@ -131,14 +131,18 @@ impl VidVaultClient {
     }
 
     async fn get_token(&self) -> Result<String> {
-        let resp = self.client
+        let resp = self
+            .client
             .get(format!("{}/get-token", API_BASE))
             .header("Accept", "application/json")
             .send()
             .await?;
 
         if !resp.status().is_success() {
-            return Err(anyhow!("VidVault token endpoint returned {}", resp.status()));
+            return Err(anyhow!(
+                "VidVault token endpoint returned {}",
+                resp.status()
+            ));
         }
 
         let data: TokenResponse = resp.json().await?;
@@ -166,7 +170,8 @@ impl VidVaultClient {
             payload["episode"] = _episode.to_string().into();
         }
 
-        let resp = self.client
+        let resp = self
+            .client
             .post(format!("{}/download-proxy", API_BASE))
             .header("Accept", "application/json")
             .header("Content-Type", "application/json")
@@ -178,7 +183,10 @@ impl VidVaultClient {
             .await?;
 
         if !resp.status().is_success() {
-            return Err(anyhow!("VidVault download-proxy returned {}", resp.status()));
+            return Err(anyhow!(
+                "VidVault download-proxy returned {}",
+                resp.status()
+            ));
         }
 
         let data: ProxyResponse = resp.json().await?;
@@ -248,7 +256,8 @@ impl VidVaultClient {
             payload["episode"] = episode.into();
         }
 
-        let resp = self.client
+        let resp = self
+            .client
             .post(format!("{}/download-proxy", API_BASE))
             .header("Accept", "application/json")
             .header("Content-Type", "application/json")
@@ -260,7 +269,10 @@ impl VidVaultClient {
             .await?;
 
         if !resp.status().is_success() {
-            return Err(anyhow!("VidVault download-proxy returned {}", resp.status()));
+            return Err(anyhow!(
+                "VidVault download-proxy returned {}",
+                resp.status()
+            ));
         }
 
         let data: ProxyResponse = resp.json().await?;
@@ -268,13 +280,21 @@ impl VidVaultClient {
 
         for src in [data.mkv_data, data.mkv_v2_data].into_iter().flatten() {
             for f in src.files {
-                files.push(DownloadFile { url: f.url, size: f.size, format: "mkv".to_string() });
+                files.push(DownloadFile {
+                    url: f.url,
+                    size: f.size,
+                    format: "mkv".to_string(),
+                });
             }
         }
 
         if let Some(mkv3) = data.mkv_v3_data {
             for d in mkv3.downloads {
-                files.push(DownloadFile { url: d.url, size: d._size, format: "mkv".to_string() });
+                files.push(DownloadFile {
+                    url: d.url,
+                    size: d._size,
+                    format: "mkv".to_string(),
+                });
             }
         }
 

@@ -28,11 +28,7 @@ impl Default for FilterConfig {
 fn extract_quality(text: &str) -> Option<u32> {
     use regex::Regex;
     let re = Regex::new(r"(\d{3,4})[pP]?").ok()?;
-    re.captures(text)?
-        .get(1)?
-        .as_str()
-        .parse::<u32>()
-        .ok()
+    re.captures(text)?.get(1)?.as_str().parse::<u32>().ok()
 }
 
 /// Apply filters to a list of streams, returning only those that pass
@@ -44,7 +40,9 @@ pub fn apply_filters(streams: Vec<StreamResult>, config: &FilterConfig) -> Vec<S
         if let Some(min) = config.min_quality {
             match extract_quality(&stream.quality) {
                 Some(q) if q >= min => {}
-                _ => { continue; }
+                _ => {
+                    continue;
+                }
             }
         }
 
@@ -57,7 +55,9 @@ pub fn apply_filters(streams: Vec<StreamResult>, config: &FilterConfig) -> Vec<S
                 break;
             }
         }
-        if excluded { continue; }
+        if excluded {
+            continue;
+        }
 
         // Check excluded providers
         let provider_lower = stream.provider.to_lowercase();
@@ -67,7 +67,9 @@ pub fn apply_filters(streams: Vec<StreamResult>, config: &FilterConfig) -> Vec<S
                 break;
             }
         }
-        if excluded { continue; }
+        if excluded {
+            continue;
+        }
 
         results.push(stream);
     }
@@ -158,10 +160,7 @@ mod tests {
             exclude_providers: vec!["Nova".to_string()],
             ..Default::default()
         };
-        let streams = vec![
-            stream("A", "1080p", "Nova"),
-            stream("B", "1080p", "Zenith"),
-        ];
+        let streams = vec![stream("A", "1080p", "Nova"), stream("B", "1080p", "Zenith")];
 
         let filtered = apply_filters(streams, &config);
         assert_eq!(filtered.len(), 1);

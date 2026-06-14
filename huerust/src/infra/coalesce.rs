@@ -5,13 +5,13 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use std::sync::Arc;
+use crate::infra::cache::CacheKey;
+use crate::infra::cache::StreamCache;
+use crate::models::StreamResult;
 use dashmap::DashMap;
+use std::sync::Arc;
 use tokio::sync::Notify;
 use tracing::info;
-use crate::infra::cache::CacheKey;
-use crate::models::StreamResult;
-use crate::infra::cache::StreamCache;
 
 /// Coalesces concurrent fetch requests for the same content.
 /// First request performs the fetch; subsequent requests wait and read from cache.

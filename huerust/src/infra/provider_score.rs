@@ -4,8 +4,8 @@
 //! across all users. When a title has a clear winner (e.g. MovieBox for
 //! Deadpool), that provider gets priority treatment for all future requests.
 
-use std::time::Duration;
 use std::collections::HashMap;
+use std::time::Duration;
 
 enum ScoreBackend {
     Memory(moka::future::Cache<String, HashMap<String, u32>>),
@@ -36,7 +36,10 @@ impl ProviderScoreCache {
                     cache
                 }
                 Err(e) => {
-                    tracing::warn!("[ProviderScore] Redis connection failed ({}), falling back to memory", e);
+                    tracing::warn!(
+                        "[ProviderScore] Redis connection failed ({}), falling back to memory",
+                        e
+                    );
                     Self::new_memory(cfg.stale_cache_ttl_secs)
                 }
             }
@@ -52,7 +55,7 @@ impl ProviderScoreCache {
                 moka::future::Cache::builder()
                     .max_capacity(50_000)
                     .time_to_live(Duration::from_secs(ttl_secs))
-                    .build()
+                    .build(),
             ),
             ttl_secs,
         }
@@ -75,11 +78,7 @@ impl ProviderScoreCache {
         format!("hue:score:{}:{}", media_type, tmdb_id)
     }
 
-    pub async fn record_success(&self,
-        media_type: &str,
-        tmdb_id: &str,
-        provider_real_name: &str,
-    ) {
+    pub async fn record_success(&self, media_type: &str, tmdb_id: &str, provider_real_name: &str) {
         let title = Self::title_key(media_type, tmdb_id);
         match &self.backend {
             ScoreBackend::Memory(cache) => {
@@ -105,17 +104,15 @@ impl ProviderScoreCache {
     }
 
     /// Return the provider with the highest success count for this title.
-    pub async fn get_top_provider(&self,
-        media_type: &str,
-        tmdb_id: &str,
-    ) -> Option<String> {
+    pub async fn get_top_provider(&self, media_type: &str, tmdb_id: &str) -> Option<String> {
         let title = Self::title_key(media_type, tmdb_id);
         match &self.backend {
-            ScoreBackend::Memory(cache) => {
-                cache.get(&title).await.and_then(|scores| {
-                    scores.into_iter().max_by_key(|(_, count)| *count).map(|(p, _)| p)
-                })
-            }
+            ScoreBackend::Memory(cache) => cache.get(&title).await.and_then(|scores| {
+                scores
+                    .into_iter()
+                    .max_by_key(|(_, count)| *count)
+                    .map(|(p, _)| p)
+            }),
             ScoreBackend::Redis(conn) => {
                 let key = Self::redis_title_key(media_type, tmdb_id);
                 let result: redis::RedisResult<Option<Vec<String>>> = redis::cmd("ZRANGE")

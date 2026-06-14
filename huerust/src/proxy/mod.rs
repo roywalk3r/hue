@@ -197,7 +197,10 @@ fn mobile_bypass_headers(
     target_url: &str,
 ) -> Option<HashMap<String, String>> {
     if is_mobile_client(req_headers) {
-        tracing::info!("[proxy] mobile client identified for {} (token headers preserved)", target_url);
+        tracing::info!(
+            "[proxy] mobile client identified for {} (token headers preserved)",
+            target_url
+        );
     }
     headers
 }
@@ -550,7 +553,11 @@ pub async fn m3u8_handler(
         match send_m3u8_request(&state.raw_client, req, &target_url, is_vix).await {
             Ok(result) => result,
             Err(e) => {
-                tracing::warn!("[m3u8-proxy] upstream transport error for {}: {}", target_url, e);
+                tracing::warn!(
+                    "[m3u8-proxy] upstream transport error for {}: {}",
+                    target_url,
+                    e
+                );
                 return (StatusCode::BAD_GATEWAY, e).into_response();
             }
         };
@@ -794,7 +801,11 @@ pub async fn ts_handler(
 
     let mut req = state.raw_client.get(&worker_routed_url(
         &target_url,
-        if is_download { &None } else { &state.config.cf_worker_url },
+        if is_download {
+            &None
+        } else {
+            &state.config.cf_worker_url
+        },
         &state.config.worker_upstream_hosts,
     ));
     req = inject_cdn_headers(req, &target_url, &headers);
@@ -1396,7 +1407,13 @@ fn rewrite_playlist(
                     .unwrap_or_default();
                 format!(
                     "{}/{}?url={}&mode=url{}{}{}{}",
-                    proxy_base, route, encoded_url, header_part, force_type_param, range_part, nonce
+                    proxy_base,
+                    route,
+                    encoded_url,
+                    header_part,
+                    force_type_param,
+                    range_part,
+                    nonce
                 )
             } else {
                 let token = security::encrypt_url(&abs_url, secret, headers.clone());
@@ -1801,7 +1818,9 @@ pub async fn generic_proxy_handler(
                     }
                 }
             } else {
-                builder.body(Body::from_stream(resp.bytes_stream())).unwrap()
+                builder
+                    .body(Body::from_stream(resp.bytes_stream()))
+                    .unwrap()
             }
         }
         Err(e) => {
@@ -2068,4 +2087,76 @@ Second cue"#;
             "video/x-matroska"
         );
     }
+}
+
+// ── Anime stream proxy helper ───────────────────────────────────────────────
+//
+// Used by `/api/anime/stream` to wrap the upstream's HLS / TS / subtitle
+// URLs with a server-side proxy token. Without this, players hit CDN
+// referer checks and 403. Lives here (not in `routes/anime.rs`) so any
+// future anime-adjacent route can reuse it.
+
+use crate::models::anime::StreamPayload;
+
+/// Wrap a `StreamPayload` in proxy URLs. No-op for `iframe` streams or
+/// when the proxy is disabled in config.
+pub fn proxy_anime_stream(
+    proxy_base_url: &str,
+    secret: &str,
+    enable_proxy: bool,
+    mut payload: StreamPayload,
+) -> StreamPayload {
+    if !enable_proxy || payload.stream_type == "iframe" {
+        return payload;
+    }
+
+    let referer = payload
+        .referer
+        .as_deref()
+        .unwrap_or("https://megaplay.buzz/");
+    let mut headers = std::collections::HashMap::new();
+    headers.insert("Referer".to_string(), referer.to_string());
+
+    let route_for = |url: &str, kind: &str| -> String {
+        let normalized = url.to_lowercase();
+        if kind == "subtitle" {
+            "/sub-proxy".to_string()
+        } else if normalized.contains(".m3u8") {
+            "/m3u8-proxy".to_string()
+        } else if normalized.contains(".ts")
+            || normalized.contains(".mp4")
+            || normalized.contains(".m4s")
+            || normalized.contains(".mkv")
+        {
+            "/ts-proxy".to_string()
+        } else {
+            "/api/proxy".to_string()
+        }
+    };
+
+    payload.url = {
+        let route = route_for(&payload.url, "stream");
+        let token = crate::security::encrypt_url(&payload.url, secret, Some(headers.clone()));
+        format!(
+            "{}{}?h_token={}",
+            proxy_base_url,
+            route,
+            urlencoding::encode(&token)
+        )
+    };
+
+    if let Some(ref mut tracks) = payload.subtitles {
+        for t in tracks.iter_mut() {
+            let route = route_for(&t.file, "subtitle");
+            let token = crate::security::encrypt_url(&t.file, secret, Some(headers.clone()));
+            t.file = format!(
+                "{}{}?h_token={}",
+                proxy_base_url,
+                route,
+                urlencoding::encode(&token)
+            );
+        }
+    }
+
+    payload
 }

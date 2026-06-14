@@ -5,13 +5,16 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use serde::Deserialize;
-use reqwest::{Client, header::{HeaderMap, HeaderValue, REFERER, CONTENT_TYPE}};
-use anyhow::Result;
-use std::collections::HashMap;
-use tracing::{info, warn};
 use crate::clients::moviebox::StreamData;
 use crate::models::{StreamResult, Subtitle};
+use anyhow::Result;
+use reqwest::{
+    header::{HeaderMap, HeaderValue, CONTENT_TYPE, REFERER},
+    Client,
+};
+use serde::Deserialize;
+use std::collections::HashMap;
+use tracing::{info, warn};
 
 const BASE_URL: &str = "https://sflix.film";
 const API_BASE: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff";
@@ -44,8 +47,8 @@ struct SflixCaption {
 impl SflixClient {
     pub fn new() -> Self {
         // Warn once at startup if the fallback credential is expired
-        let cookie = crate::user_config::HueUserConfig::get_live()
-            .sflix_cookie_or_env(DEFAULT_COOKIE);
+        let cookie =
+            crate::user_config::HueUserConfig::get_live().sflix_cookie_or_env(DEFAULT_COOKIE);
         if cookie == DEFAULT_COOKIE && crate::security::jwt_is_expired(DEFAULT_COOKIE) {
             warn!("[SFlix] Default JWT is expired. Set sflix_cookie in user-config.json to restore functionality.");
         }
@@ -63,8 +66,8 @@ impl SflixClient {
     }
 
     fn get_base_headers(&self) -> HeaderMap {
-        let cookie = crate::user_config::HueUserConfig::get_live()
-            .sflix_cookie_or_env(DEFAULT_COOKIE);
+        let cookie =
+            crate::user_config::HueUserConfig::get_live().sflix_cookie_or_env(DEFAULT_COOKIE);
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
@@ -78,7 +81,7 @@ impl SflixClient {
     pub async fn search(&self, keyword: &str, media_type: &str) -> Result<Vec<serde_json::Value>> {
         let url = format!("{}/subject/search", API_BASE);
         let subject_type = if media_type == "tv" { 2 } else { 1 };
-        
+
         let payload = serde_json::json!({
             "keyword": keyword,
             "page": "1",
@@ -86,18 +89,30 @@ impl SflixClient {
             "subjectType": subject_type
         });
 
-        let resp = self.client.post(&url)
+        let resp = self
+            .client
+            .post(&url)
             .headers(self.get_base_headers())
             .json(&payload)
             .send()
             .await?;
 
         let data: serde_json::Value = resp.json().await?;
-        let items = data["data"]["items"].as_array().cloned().unwrap_or_default();
+        let items = data["data"]["items"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
         Ok(items)
     }
 
-    pub async fn get_streams(&self, slug: &str, subject_id: &str, media_type: &str, season: u32, episode: u32) -> Result<Option<StreamData>> {
+    pub async fn get_streams(
+        &self,
+        slug: &str,
+        subject_id: &str,
+        media_type: &str,
+        season: u32,
+        episode: u32,
+    ) -> Result<Option<StreamData>> {
         let se = season;
         let ep = episode;
 
@@ -107,19 +122,28 @@ impl SflixClient {
             ("movies", "/movie/detail")
         };
 
-        let referer_url = format!("{}/spa/videoPlayPage/{}/{}?id={}&type={}&lang=en",
-            BASE_URL, type_path, slug, subject_id, urlencoding::encode(type_query));
+        let referer_url = format!(
+            "{}/spa/videoPlayPage/{}/{}?id={}&type={}&lang=en",
+            BASE_URL,
+            type_path,
+            slug,
+            subject_id,
+            urlencoding::encode(type_query)
+        );
 
-        let play_url = format!("{}/wefeed-h5api-bff/subject/play?subjectId={}&se={}&ep={}&detailPath={}", 
-            BASE_URL, subject_id, se, ep, slug);
+        let play_url = format!(
+            "{}/wefeed-h5api-bff/subject/play?subjectId={}&se={}&ep={}&detailPath={}",
+            BASE_URL, subject_id, se, ep, slug
+        );
 
         let mut headers = self.get_base_headers();
-        headers.insert(REFERER, HeaderValue::from_str(&referer_url).unwrap_or_else(|_| HeaderValue::from_static(BASE_URL)));
+        headers.insert(
+            REFERER,
+            HeaderValue::from_str(&referer_url)
+                .unwrap_or_else(|_| HeaderValue::from_static(BASE_URL)),
+        );
 
-        let resp = self.client.get(&play_url)
-            .headers(headers)
-            .send()
-            .await?;
+        let resp = self.client.get(&play_url).headers(headers).send().await?;
 
         let data: serde_json::Value = resp.json().await?;
         if data["code"] == 0 {
@@ -145,12 +169,13 @@ impl SflixClient {
         stream_id: Option<&str>,
         format: &str,
     ) -> Result<Vec<Subtitle>> {
-        let effective_id = stream_id
-            .filter(|id| !id.is_empty())
-            .unwrap_or(subject_id);
+        let effective_id = stream_id.filter(|id| !id.is_empty()).unwrap_or(subject_id);
 
         if effective_id == subject_id {
-            warn!("[SFlix] stream_id missing for subject_id={}, using subject_id as fallback", subject_id);
+            warn!(
+                "[SFlix] stream_id missing for subject_id={}, using subject_id as fallback",
+                subject_id
+            );
         }
 
         let url = format!(
@@ -162,7 +187,8 @@ impl SflixClient {
             urlencoding::encode(detail_path),
         );
 
-        let resp = self.client
+        let resp = self
+            .client
             .get(&url)
             .headers(self.get_base_headers())
             .send()
@@ -194,11 +220,23 @@ impl SflixClient {
             .collect())
     }
 
-    pub async fn get_streams_normalized(&self, title: &str, media_type: &str, year: Option<u32>, season: u32, episode: u32) -> Result<Vec<StreamResult>> {
-        info!("[SFlix Rust] Searching for: \"{}\" ({}) S{} E{}", title, media_type, season, episode);
+    pub async fn get_streams_normalized(
+        &self,
+        title: &str,
+        media_type: &str,
+        year: Option<u32>,
+        season: u32,
+        episode: u32,
+    ) -> Result<Vec<StreamResult>> {
+        info!(
+            "[SFlix Rust] Searching for: \"{}\" ({}) S{} E{}",
+            title, media_type, season, episode
+        );
 
         let items = self.search(title, media_type).await?;
-        if items.is_empty() { return Ok(vec![]); }
+        if items.is_empty() {
+            return Ok(vec![]);
+        }
 
         // Debug: dump each candidate's title/year for diagnosis
         for (i, item) in items.iter().enumerate() {
@@ -227,7 +265,10 @@ impl SflixClient {
         let slug = best_match["detailPath"].as_str().unwrap_or_default();
         let subject_id = best_match["subjectId"].as_str().unwrap_or_default();
 
-        match self.get_streams(slug, subject_id, media_type, season, episode).await? {
+        match self
+            .get_streams(slug, subject_id, media_type, season, episode)
+            .await?
+        {
             Some(data) => {
                 let mut results = Vec::new();
                 let mut headers = HashMap::new();
@@ -242,11 +283,18 @@ impl SflixClient {
                             .unwrap_or_default();
                         results.push(StreamResult {
                             url: s.url,
-                            title: format!("Nova - {}p (MP4)", s.resolutions.unwrap_or_else(|| "Auto".to_string())),
+                            title: format!(
+                                "Nova - {}p (MP4)",
+                                s.resolutions.unwrap_or_else(|| "Auto".to_string())
+                            ),
                             quality: s.quality.unwrap_or_else(|| "Auto".to_string()),
                             provider: "Nova".to_string(),
                             format: "mp4".to_string(),
-                            subtitles: if subtitles.is_empty() { None } else { Some(subtitles) },
+                            subtitles: if subtitles.is_empty() {
+                                None
+                            } else {
+                                Some(subtitles)
+                            },
                             headers: Some(headers.clone()),
                             extra_metadata: None,
                         });
@@ -265,7 +313,11 @@ impl SflixClient {
                             quality: "Auto".to_string(),
                             provider: "Nova".to_string(),
                             format: "hls".to_string(),
-                            subtitles: if subtitles.is_empty() { None } else { Some(subtitles) },
+                            subtitles: if subtitles.is_empty() {
+                                None
+                            } else {
+                                Some(subtitles)
+                            },
                             headers: Some(headers.clone()),
                             extra_metadata: None,
                         });
@@ -274,7 +326,10 @@ impl SflixClient {
                 Ok(results)
             }
             None => {
-                warn!("[SFlix Rust] API returned no streams for {} ({})", slug, media_type);
+                warn!(
+                    "[SFlix Rust] API returned no streams for {} ({})",
+                    slug, media_type
+                );
                 Ok(vec![])
             }
         }
@@ -322,13 +377,18 @@ fn title_score(query: &str, candidate: &str) -> f32 {
 }
 
 fn extract_year(item: &serde_json::Value) -> Option<u32> {
-    let release = item["releaseDate"].as_str()
+    let release = item["releaseDate"]
+        .as_str()
         .or_else(|| item["release_date"].as_str())
         .or_else(|| item["year"].as_str())?;
     release.get(..4)?.parse().ok()
 }
 
-fn pick_best_match<'a>(items: &'a [serde_json::Value], title: &str, year: Option<u32>) -> Option<&'a serde_json::Value> {
+fn pick_best_match<'a>(
+    items: &'a [serde_json::Value],
+    title: &str,
+    year: Option<u32>,
+) -> Option<&'a serde_json::Value> {
     // Reject if there's no plausible title match. Without a minimum title
     // similarity threshold, a year-only "match" can pick a totally unrelated
     // show (e.g. searching "Black Noir" returning "Off Campus" because the

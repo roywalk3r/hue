@@ -5,8 +5,8 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use std::time::Duration;
 use crate::models::StreamResult;
+use std::time::Duration;
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct CacheKey {
@@ -27,19 +27,31 @@ impl CacheKey {
     }
 
     pub fn redis_key(&self) -> String {
-        format!("huerust:streams:{}:{}:{}:{}", self.media_type, self.tmdb_id, self.season, self.episode)
+        format!(
+            "huerust:streams:{}:{}:{}:{}",
+            self.media_type, self.tmdb_id, self.season, self.episode
+        )
     }
 
     pub fn stale_redis_key(&self) -> String {
-        format!("huerust:streams:stale:{}:{}:{}:{}", self.media_type, self.tmdb_id, self.season, self.episode)
+        format!(
+            "huerust:streams:stale:{}:{}:{}:{}",
+            self.media_type, self.tmdb_id, self.season, self.episode
+        )
     }
 
     fn moka_key(&self) -> String {
-        format!("{}:{}:{}:{}", self.media_type, self.tmdb_id, self.season, self.episode)
+        format!(
+            "{}:{}:{}:{}",
+            self.media_type, self.tmdb_id, self.season, self.episode
+        )
     }
 
     fn stale_moka_key(&self) -> String {
-        format!("stale:{}:{}:{}:{}", self.media_type, self.tmdb_id, self.season, self.episode)
+        format!(
+            "stale:{}:{}:{}:{}",
+            self.media_type, self.tmdb_id, self.season, self.episode
+        )
     }
 }
 
@@ -72,24 +84,41 @@ impl StreamCache {
     /// Create from config: uses Redis if `CACHE_BACKEND=redis`, otherwise in-memory
     pub async fn new_from_config(cfg: &crate::config::AppConfig) -> Self {
         if cfg.cache_backend == "redis" {
-            match Self::new_redis(&cfg.redis_url, cfg.cache_ttl_secs, cfg.stale_cache_ttl_secs).await {
+            match Self::new_redis(&cfg.redis_url, cfg.cache_ttl_secs, cfg.stale_cache_ttl_secs)
+                .await
+            {
                 Ok(cache) => {
                     tracing::info!("[Cache] Using Redis backend at {}", cfg.redis_url);
                     cache
                 }
                 Err(e) => {
-                    tracing::warn!("[Cache] Redis connection failed ({}), falling back to memory", e);
-                    Self::new_memory(cfg.cache_max_capacity, cfg.cache_ttl_secs, cfg.stale_cache_ttl_secs)
+                    tracing::warn!(
+                        "[Cache] Redis connection failed ({}), falling back to memory",
+                        e
+                    );
+                    Self::new_memory(
+                        cfg.cache_max_capacity,
+                        cfg.cache_ttl_secs,
+                        cfg.stale_cache_ttl_secs,
+                    )
                 }
             }
         } else {
             tracing::info!("[Cache] Using in-memory backend");
-            Self::new_memory(cfg.cache_max_capacity, cfg.cache_ttl_secs, cfg.stale_cache_ttl_secs)
+            Self::new_memory(
+                cfg.cache_max_capacity,
+                cfg.cache_ttl_secs,
+                cfg.stale_cache_ttl_secs,
+            )
         }
     }
 
     pub fn new() -> Self {
-        Self::new_memory(1000, Duration::from_secs(4 * 60 * 60).as_secs(), Duration::from_secs(24 * 60 * 60).as_secs())
+        Self::new_memory(
+            1000,
+            Duration::from_secs(4 * 60 * 60).as_secs(),
+            Duration::from_secs(24 * 60 * 60).as_secs(),
+        )
     }
 
     #[allow(dead_code)]
@@ -103,20 +132,24 @@ impl StreamCache {
                 moka::future::Cache::builder()
                     .max_capacity(max_capacity)
                     .time_to_live(Duration::from_secs(ttl_secs))
-                    .build()
+                    .build(),
             ),
             stale_backend: CacheBackend::Memory(
                 moka::future::Cache::builder()
                     .max_capacity(max_capacity)
                     .time_to_live(Duration::from_secs(stale_ttl_secs))
-                    .build()
+                    .build(),
             ),
             ttl_secs,
             stale_ttl_secs,
         }
     }
 
-    async fn new_redis(redis_url: &str, ttl_secs: u64, stale_ttl_secs: u64) -> anyhow::Result<Self> {
+    async fn new_redis(
+        redis_url: &str,
+        ttl_secs: u64,
+        stale_ttl_secs: u64,
+    ) -> anyhow::Result<Self> {
         let client = redis::Client::open(redis_url)?;
         let conn = client.get_multiplexed_tokio_connection().await?;
         Ok(Self {
@@ -143,7 +176,11 @@ impl StreamCache {
         }?;
 
         let streams = filter_cacheable_streams(streams);
-        if streams.is_empty() { None } else { Some(streams) }
+        if streams.is_empty() {
+            None
+        } else {
+            Some(streams)
+        }
     }
 
     /// Get stale fallback — returns the last cached result even if past normal TTL,
@@ -164,7 +201,11 @@ impl StreamCache {
         }?;
 
         let streams = filter_cacheable_streams(streams);
-        if streams.is_empty() { None } else { Some(streams) }
+        if streams.is_empty() {
+            None
+        } else {
+            Some(streams)
+        }
     }
 
     pub async fn set(&self, key: &CacheKey, streams: Vec<StreamResult>) {
@@ -211,7 +252,8 @@ impl StreamCache {
     pub async fn add(&self, key: &CacheKey, new_streams: Vec<StreamResult>) {
         let existing = self.get(key).await.unwrap_or_default();
         let mut merged = existing;
-        let existing_urls: std::collections::HashSet<String> = merged.iter().map(|s| s.url.clone()).collect();
+        let existing_urls: std::collections::HashSet<String> =
+            merged.iter().map(|s| s.url.clone()).collect();
 
         for stream in new_streams {
             if !existing_urls.contains(&stream.url) {
@@ -266,11 +308,17 @@ impl StreamCache {
                                 .arg(&keys)
                                 .query_async(&mut conn.clone())
                                 .await;
-                            if next == 0 { break; }
+                            if next == 0 {
+                                break;
+                            }
                             cursor = next;
                         }
-                        Ok((next, _)) if next == 0 => { break; }
-                        Ok((next, _)) => { cursor = next; }
+                        Ok((next, _)) if next == 0 => {
+                            break;
+                        }
+                        Ok((next, _)) => {
+                            cursor = next;
+                        }
                         Err(e) => {
                             tracing::warn!("[Cache] Redis SCAN failed during clear: {}", e);
                             break;
@@ -363,10 +411,15 @@ mod tests {
         let key = CacheKey::new("tv", "456", 2, 3);
 
         cache.set(&key, vec![dummy_stream("http://a.com")]).await;
-        cache.add(&key, vec![
-            dummy_stream("http://a.com"), // duplicate
-            dummy_stream("http://b.com"), // new
-        ]).await;
+        cache
+            .add(
+                &key,
+                vec![
+                    dummy_stream("http://a.com"), // duplicate
+                    dummy_stream("http://b.com"), // new
+                ],
+            )
+            .await;
 
         let got = cache.get(&key).await.unwrap();
         assert_eq!(got.len(), 2);

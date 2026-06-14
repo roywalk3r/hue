@@ -12,8 +12,8 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::app::DramaState;
 use crate::app::kisskh_enabled;
+use crate::app::DramaState;
 
 use crate::proxy::dynamic_proxy_base;
 use crate::proxy::wrap::wrap_with_proxy;
@@ -402,11 +402,7 @@ pub async fn kissasian_streams_handler(
 ) -> Response {
     tracing::info!("[drama] kissasian_streams: id={} ep={}", id, episode);
     let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
-    match state
-        .kissasian
-        .get_streams_by_slug(&id, episode)
-        .await
-    {
+    match state.kissasian.get_streams_by_slug(&id, episode).await {
         Ok(streams) => {
             tracing::info!("[drama] kissasian_streams: {} streams", streams.len());
             let mut proxied = wrap_with_proxy(streams, &proxy_base, &state.secret);
@@ -552,7 +548,8 @@ pub async fn moviebox_streams_direct_handler(
                     .or_else(|| detail["subjectId"].as_str());
                 tracing::info!(
                     "[drama] moviebox detail: subjectType={:?} subjectId={:?}",
-                    subject_type, sid
+                    subject_type,
+                    sid
                 );
                 sid.map(str::to_string).unwrap_or_default()
             }
@@ -586,7 +583,11 @@ pub async fn moviebox_streams_direct_handler(
             } else {
                 "tv"
             };
-            tracing::info!("[drama] moviebox media_type inferred: {} (subject_type={:?})", mt, subject_type);
+            tracing::info!(
+                "[drama] moviebox media_type inferred: {} (subject_type={:?})",
+                mt,
+                subject_type
+            );
             mt
         });
 
@@ -828,7 +829,11 @@ pub async fn moviebox_detail_rec_handler(
         page,
         per_page
     );
-    match state.moviebox.get_detail_rec(&params.id, page, per_page).await {
+    match state
+        .moviebox
+        .get_detail_rec(&params.id, page, per_page)
+        .await
+    {
         Ok(items) => {
             tracing::info!("[drama] moviebox_detail_rec: {} items", items.len());
             let body = serde_json::json!({ "success": true, "items": items });
@@ -837,7 +842,11 @@ pub async fn moviebox_detail_rec_handler(
         Err(e) => {
             tracing::warn!("[drama] moviebox_detail_rec error: {}", e);
             let body = serde_json::json!({ "success": false, "error": e.to_string() });
-            (StatusCode::INTERNAL_SERVER_ERROR, serde_json::to_string(&body).unwrap()).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                serde_json::to_string(&body).unwrap(),
+            )
+                .into_response()
         }
     }
 }

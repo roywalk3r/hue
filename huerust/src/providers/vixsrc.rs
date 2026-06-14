@@ -5,18 +5,18 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
+use crate::models::{StreamResult, Subtitle};
 use anyhow::Result;
-use reqwest_middleware::ClientWithMiddleware;
+use brotli::Decompressor;
+use flate2::read::GzDecoder;
 use regex::Regex;
+use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
 use serde_json::Value;
-use crate::models::{StreamResult, Subtitle};
-use tracing::{info, warn};
 use std::collections::HashMap;
-use std::sync::LazyLock;
-use flate2::read::GzDecoder;
-use brotli::Decompressor;
 use std::io::Read;
+use std::sync::LazyLock;
+use tracing::{info, warn};
 use zstd::stream::read::Decoder as ZstdDecoder;
 
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36";
@@ -75,30 +75,22 @@ fn vixsrc_browser_headers(referer: &str) -> Vec<(&'static str, String)> {
 static RE_MASTER_PL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"window\.masterPlaylist\s*=\s*(\{[\s\S]*?\n\s*\})\s*[;\n]"#).unwrap()
 });
-static RE_STREAMS_ARR: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"window\.streams\s*=\s*(\[[\s\S]*?\]);"#).unwrap()
-});
-static RE_TOKEN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"['"]?token['"]?\s*:\s*['"]([^'"]+)['"]"#).unwrap()
-});
-static RE_EXPIRES: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"['"]?expires['"]?\s*:\s*['"]([^'"]+)['"]"#).unwrap()
-});
-static RE_M3U8_RAW: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(https?://[^'"\s]+\.m3u8[^'"\s]*)"#).unwrap()
-});
-static RE_SUBTITLE_URL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"window\.subtitleUrl\s*=\s*['"]([^'"]+)['"]"#).unwrap()
-});
-static RE_SUBTITLE_ARR: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"subtitles\s*:\s*(\[[^\]]*\])"#).unwrap()
-});
-static RE_SUBTITLE_VAL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"subtitle[s]?\s*[:=]\s*['"]([^'"]+)['"]"#).unwrap()
-});
-static RE_MASTER_URL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"url\s*:\s*['"]([^'"]+)['"]"#).unwrap()
-});
+static RE_STREAMS_ARR: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"window\.streams\s*=\s*(\[[\s\S]*?\]);"#).unwrap());
+static RE_TOKEN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"['"]?token['"]?\s*:\s*['"]([^'"]+)['"]"#).unwrap());
+static RE_EXPIRES: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"['"]?expires['"]?\s*:\s*['"]([^'"]+)['"]"#).unwrap());
+static RE_M3U8_RAW: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(https?://[^'"\s]+\.m3u8[^'"\s]*)"#).unwrap());
+static RE_SUBTITLE_URL: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"window\.subtitleUrl\s*=\s*['"]([^'"]+)['"]"#).unwrap());
+static RE_SUBTITLE_ARR: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"subtitles\s*:\s*(\[[^\]]*\])"#).unwrap());
+static RE_SUBTITLE_VAL: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"subtitle[s]?\s*[:=]\s*['"]([^'"]+)['"]"#).unwrap());
+static RE_MASTER_URL: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"url\s*:\s*['"]([^'"]+)['"]"#).unwrap());
 
 pub struct VixsrcClient {
     client: ClientWithMiddleware,
@@ -129,26 +121,54 @@ impl VixsrcClient {
     }
 
     /// Fetch subtitles from external API (sub.vdrk.site).
-    async fn fetch_external_subtitles(&self, tmdb_id: u64, media_type: &str, season: u32, episode: u32) -> Option<Vec<Subtitle>> {
+    async fn fetch_external_subtitles(
+        &self,
+        tmdb_id: u64,
+        media_type: &str,
+        season: u32,
+        episode: u32,
+    ) -> Option<Vec<Subtitle>> {
         let url = if media_type == "movie" {
             format!("https://sub.vdrk.site/v2/movie/{}", tmdb_id)
         } else {
-            format!("https://sub.vdrk.site/v2/tv/{}/{}/{}", tmdb_id, season, episode)
+            format!(
+                "https://sub.vdrk.site/v2/tv/{}/{}/{}",
+                tmdb_id, season, episode
+            )
         };
 
-        match self.client.get(&url).header("User-Agent", USER_AGENT).send().await {
+        match self
+            .client
+            .get(&url)
+            .header("User-Agent", USER_AGENT)
+            .send()
+            .await
+        {
             Ok(resp) if resp.status().is_success() => {
                 match resp.json::<Vec<ExternalSubTrack>>().await {
                     Ok(tracks) if !tracks.is_empty() => {
-                        let subs: Vec<Subtitle> = tracks.into_iter().map(|t| {
-                            let lang = t.label.to_lowercase().split_whitespace().next().unwrap_or("en").to_string();
-                            Subtitle {
-                                url: t.file,
-                                lang: lang.clone(),
-                                label: t.label,
-                            }
-                        }).collect();
-                        info!("[Vixsrc Rust] External subs: {} tracks for TMDB {}", subs.len(), tmdb_id);
+                        let subs: Vec<Subtitle> = tracks
+                            .into_iter()
+                            .map(|t| {
+                                let lang = t
+                                    .label
+                                    .to_lowercase()
+                                    .split_whitespace()
+                                    .next()
+                                    .unwrap_or("en")
+                                    .to_string();
+                                Subtitle {
+                                    url: t.file,
+                                    lang: lang.clone(),
+                                    label: t.label,
+                                }
+                            })
+                            .collect();
+                        info!(
+                            "[Vixsrc Rust] External subs: {} tracks for TMDB {}",
+                            subs.len(),
+                            tmdb_id
+                        );
                         return Some(subs);
                     }
                     Ok(_) => {}
@@ -168,7 +188,10 @@ impl VixsrcClient {
         season: u32,
         episode: u32,
     ) -> Result<Vec<StreamResult>> {
-        info!("[Vixsrc Rust] Fetching: TMDB {} ({}) S{} E{}", tmdb_id, media_type, season, episode);
+        info!(
+            "[Vixsrc Rust] Fetching: TMDB {} ({}) S{} E{}",
+            tmdb_id, media_type, season, episode
+        );
 
         let page_url = if media_type == "movie" {
             format!("https://vixsrc.to/movie/{}", tmdb_id)
@@ -179,7 +202,10 @@ impl VixsrcClient {
         let api_url = if media_type == "movie" {
             format!("https://vixsrc.to/api/movie/{}", tmdb_id)
         } else {
-            format!("https://vixsrc.to/api/tv/{}/{}/{}", tmdb_id, season, episode)
+            format!(
+                "https://vixsrc.to/api/tv/{}/{}/{}",
+                tmdb_id, season, episode
+            )
         };
 
         let mut headers = HashMap::new();
@@ -194,8 +220,7 @@ impl VixsrcClient {
                 req = req.header(k, v);
             }
             req.send().await
-        }
-        {
+        } {
             Ok(resp) if resp.status().is_success() => {
                 match resp.json::<VixsrcApiResponse>().await {
                     Ok(api) => api.src.filter(|s| !s.trim().is_empty()).map(|src| {
@@ -225,7 +250,9 @@ impl VixsrcClient {
         if let Some(ref url) = embed_url {
             match self.extract_from_embed_page(url, &page_url).await {
                 Ok((streams, _embed_subtitles)) if !streams.is_empty() => {
-                    let external_subs = self.fetch_external_subtitles(tmdb_id, media_type, season, episode).await;
+                    let external_subs = self
+                        .fetch_external_subtitles(tmdb_id, media_type, season, episode)
+                        .await;
                     let mut results = Vec::new();
                     for s in streams {
                         let mut h = headers.clone();
@@ -243,7 +270,10 @@ impl VixsrcClient {
                     }
                     return Ok(results);
                 }
-                Ok(_) => warn!("[Vixsrc Rust] Embed page yielded no streams for TMDB {}", tmdb_id),
+                Ok(_) => warn!(
+                    "[Vixsrc Rust] Embed page yielded no streams for TMDB {}",
+                    tmdb_id
+                ),
                 Err(e) => warn!("[Vixsrc Rust] Embed extraction failed: {}", e),
             }
         }
@@ -282,7 +312,13 @@ impl VixsrcClient {
                         let mut master_url = url_match.as_str().to_string();
                         if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
                             let sep = if master_url.contains('?') { '&' } else { '?' };
-                            master_url = format!("{}{sep}token={t}&expires={e}&h=1&lang=en", master_url, sep=sep, t=t, e=e);
+                            master_url = format!(
+                                "{}{sep}token={t}&expires={e}&h=1&lang=en",
+                                master_url,
+                                sep = sep,
+                                t = t,
+                                e = e
+                            );
                         }
                         results.push(InternalStream {
                             url: master_url,
@@ -301,12 +337,19 @@ impl VixsrcClient {
                 if let Ok(servers) = serde_json::from_str::<Vec<VixsrcStream>>(block.as_str()) {
                     for server in servers {
                         if let Some(u) = server.url.filter(|s| !s.is_empty()) {
-                            let authed = if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
-                                let sep = if u.contains('?') { '&' } else { '?' };
-                                format!("{}{sep}token={t}&expires={e}&h=1&lang=en", u, sep=sep, t=t, e=e)
-                            } else {
-                                u
-                            };
+                            let authed =
+                                if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
+                                    let sep = if u.contains('?') { '&' } else { '?' };
+                                    format!(
+                                        "{}{sep}token={t}&expires={e}&h=1&lang=en",
+                                        u,
+                                        sep = sep,
+                                        t = t,
+                                        e = e
+                                    )
+                                } else {
+                                    u
+                                };
                             let name = server.name.as_deref().unwrap_or("Server");
                             results.push(InternalStream {
                                 url: authed,
@@ -340,18 +383,23 @@ impl VixsrcClient {
             return Ok(vec![]);
         }
 
-        let external_subs = self.fetch_external_subtitles(tmdb_id, media_type, season, episode).await;
+        let external_subs = self
+            .fetch_external_subtitles(tmdb_id, media_type, season, episode)
+            .await;
 
-        let out: Vec<StreamResult> = results.into_iter().map(|s| StreamResult {
-            url: s.url,
-            title: s.title,
-            quality: s.quality,
-            provider: "Aura".to_string(),
-            format: "hls".to_string(),
-            subtitles: external_subs.clone(),
-            headers: Some(headers.clone()),
-            extra_metadata: None,
-        }).collect();
+        let out: Vec<StreamResult> = results
+            .into_iter()
+            .map(|s| StreamResult {
+                url: s.url,
+                title: s.title,
+                quality: s.quality,
+                provider: "Aura".to_string(),
+                format: "hls".to_string(),
+                subtitles: external_subs.clone(),
+                headers: Some(headers.clone()),
+                extra_metadata: None,
+            })
+            .collect();
 
         Ok(out)
     }
@@ -378,7 +426,11 @@ impl VixsrcClient {
         let body_bytes = resp.bytes().await?;
         let html = maybe_decompress_body(&body_bytes);
         let preview: String = html.chars().take(400).collect();
-        info!("[Vixsrc Rust] embed page length={} preview={}", html.len(), preview);
+        info!(
+            "[Vixsrc Rust] embed page length={} preview={}",
+            html.len(),
+            preview
+        );
         let mut streams: Vec<InternalStream> = Vec::new();
         let mut auth_token: Option<String> = None;
         let mut auth_expires: Option<String> = None;
@@ -403,7 +455,13 @@ impl VixsrcClient {
                         let mut master_url = url_match.as_str().to_string();
                         if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
                             let sep = if master_url.contains('?') { '&' } else { '?' };
-                            master_url = format!("{}{sep}token={t}&expires={e}&h=1&lang=en", master_url, sep=sep, t=t, e=e);
+                            master_url = format!(
+                                "{}{sep}token={t}&expires={e}&h=1&lang=en",
+                                master_url,
+                                sep = sep,
+                                t = t,
+                                e = e
+                            );
                         }
                         streams.push(InternalStream {
                             url: master_url,
@@ -417,21 +475,36 @@ impl VixsrcClient {
 
         // ── Parse window.streams as JSON array ──
         let re_streams = &*RE_STREAMS_ARR;
-        info!("[Vixsrc Rust] window.masterPlaylist found={} window.streams found={}",
+        info!(
+            "[Vixsrc Rust] window.masterPlaylist found={} window.streams found={}",
             re_master.captures(&html).is_some(),
             re_streams.captures(&html).is_some()
         );
         if let Some(caps) = re_streams.captures(&html) {
             if let Some(block) = caps.get(1) {
-                info!("[Vixsrc Rust] window.streams block: {}", block.as_str().chars().take(200).collect::<String>());
+                info!(
+                    "[Vixsrc Rust] window.streams block: {}",
+                    block.as_str().chars().take(200).collect::<String>()
+                );
                 match serde_json::from_str::<Vec<VixsrcStream>>(block.as_str()) {
                     Ok(servers) => {
-                        info!("[Vixsrc Rust] parsed {} servers from window.streams", servers.len());
+                        info!(
+                            "[Vixsrc Rust] parsed {} servers from window.streams",
+                            servers.len()
+                        );
                         for server in servers {
                             if let Some(u) = server.url.filter(|s| !s.is_empty()) {
-                                let authed = if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
+                                let authed = if let (Some(ref t), Some(ref e)) =
+                                    (&auth_token, &auth_expires)
+                                {
                                     let sep = if u.contains('?') { '&' } else { '?' };
-                                    format!("{}{sep}token={t}&expires={e}&h=1&lang=en", u, sep=sep, t=t, e=e)
+                                    format!(
+                                        "{}{sep}token={t}&expires={e}&h=1&lang=en",
+                                        u,
+                                        sep = sep,
+                                        t = t,
+                                        e = e
+                                    )
                                 } else {
                                     u
                                 };

@@ -3,12 +3,18 @@ use std::sync::Arc;
 use tokio::task::JoinSet;
 use tracing::warn;
 
-use crate::clients::hianime::HianimeClient;
-use crate::clients::aniwatch::AniWatchClient;
+use chrono::NaiveDate;
+
 use crate::clients::anilist::AniListClient;
 use crate::clients::animexin::AnimexinClient;
+use crate::clients::aniwatch::AniWatchClient;
 use crate::clients::aniwave::AniwaveClient;
-use crate::models::anime::{AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, ServerList, StreamPayload, SubtitleTrack, SkipRange};
+use crate::clients::hianime::HianimeClient;
+use crate::models::anime::{
+    AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, EpisodeListResponse, FilterChoice,
+    FilterOptions, FilterParams, PaginatedResponse, ScheduleEntry, ServerList, SkipRange,
+    StreamPayload, SubtitleTrack,
+};
 
 /// Aggregates anime results from multiple providers.
 /// Search fans out to all providers and merges results.
@@ -30,7 +36,13 @@ impl AnimeAggregator {
         anilist: Arc<AniListClient>,
         animexin: Arc<AnimexinClient>,
     ) -> Self {
-        Self { aniwave, hianime, aniwatch, anilist, animexin }
+        Self {
+            aniwave,
+            hianime,
+            aniwatch,
+            anilist,
+            animexin,
+        }
     }
 
     /// Search across all providers in parallel, merge and deduplicate by title.
@@ -136,10 +148,13 @@ impl AnimeAggregator {
     pub async fn get_detail(&self, id: &str) -> Option<AnimeDetail> {
         // Try Aniwave first (most reliable as of June 2026)
         if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
-            if let Ok(detail) = self.aniwave.get_detail(id).await {
-                if !detail.card.id.is_empty() {
-                    return Some(detail);
+            match self.aniwave.get_detail(id).await {
+                Ok(detail) => {
+                    if !detail.card.id.is_empty() {
+                        return Some(detail);
+                    }
                 }
+                Err(e) => warn!("[AnimeAgg] Aniwave detail error for {}: {}", id, e),
             }
         }
 
@@ -164,29 +179,47 @@ impl AnimeAggregator {
     }
 
     /// Get episodes: prefer Aniwave, then HiAnime, then AniList (synthetic)
-    pub async fn get_episodes(&self, id: &str, start: u32,
+    pub async fn get_episodes(
+        &self,
+        id: &str,
+        start: u32,
     ) -> Option<Vec<crate::models::anime::EpisodeSummary>> {
         // Try Aniwave first (slugs end in numeric id like one-piece-81553)
         if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
-            if let Ok(eps) = self.aniwave.get_episodes(id).await {
-                if !eps.is_empty() {
-                    return Some(eps);
+            match self.aniwave.get_episodes(id).await {
+                Ok(eps) => {
+                    if !eps.is_empty() {
+                        return Some(eps);
+                    }
                 }
+                Err(e) => warn!("[AnimeAgg] Aniwave episodes error for {}: {}", id, e),
             }
         }
 
         // Try HiAnime
         if let Ok(ep_data) = self.hianime.get_episodes(id, start).await {
-            let episodes: Vec<crate::models::anime::EpisodeSummary> = ep_data.episodes
+            let episodes: Vec<crate::models::anime::EpisodeSummary> = ep_data
+                .episodes
                 .unwrap_or_default()
                 .into_iter()
                 .map(|ep| crate::models::anime::EpisodeSummary {
                     id: ep._id,
                     number: ep.episodeNumber.unwrap_or(0),
                     title: None,
-                    sub_count: ep.link.as_ref().and_then(|l| l.sub.as_ref()).map(|v| v.len() as u32).unwrap_or(0),
-                    dub_count: ep.link.as_ref().and_then(|l| l.dub.as_ref()).map(|v| v.len() as u32).unwrap_or(0),
+                    sub_count: ep
+                        .link
+                        .as_ref()
+                        .and_then(|l| l.sub.as_ref())
+                        .map(|v| v.len() as u32)
+                        .unwrap_or(0),
+                    dub_count: ep
+                        .link
+                        .as_ref()
+                        .and_then(|l| l.dub.as_ref())
+                        .map(|v| v.len() as u32)
+                        .unwrap_or(0),
                     slug: ep.slugs.as_ref().and_then(|s| s.first().cloned()),
+                    series_slug: ep.slugs.as_ref().and_then(|s| s.first().cloned()),
                     slugs: ep.slugs,
                 })
                 .collect();
@@ -215,19 +248,37 @@ impl AnimeAggregator {
     }
 
     /// Get servers: try Aniwave, then HiAnime, then Animexin
-    pub async fn get_servers(&self, id: &str
+    pub async fn get_servers(
+        &self,
+        id: &str,
+        episode: Option<u32>,
+        audio_type: Option<&str>,
     ) -> Option<ServerList> {
-        // Aniwave: id is the series slug, episode number is required.
-        // The aggregator's signature doesn't pass episode, so we can't
-        // directly call get_servers here. Fall through to HiAnime.
-        //
-        // (Aniwave streams are still resolved by get_stream which does
-        // get the episode number from the URL.)
-        // Aniwave
         if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
-            // The aggregator interface only passes `id`; for Aniwave we
-            // need episode number to fetch servers, so leave it to the
-            // stream path. Treat as not-found at the server-list level.
+            let ep = episode.unwrap_or(1);
+            let audio = audio_type.unwrap_or("");
+            if audio == "sub" || audio == "dub" {
+                match self.aniwave.get_servers(id, ep, audio).await {
+                    Ok(servers) if !servers.sub.is_empty() || !servers.dub.is_empty() => {
+                        return Some(servers);
+                    }
+                    Ok(_) => {}
+                    Err(e) => warn!(
+                        "[AnimeAgg] Aniwave servers error for {} ep={} type={}: {}",
+                        id, ep, audio, e
+                    ),
+                }
+            } else {
+                let sub = self.aniwave.get_servers(id, ep, "sub").await.ok();
+                let dub = self.aniwave.get_servers(id, ep, "dub").await.ok();
+                let servers = ServerList {
+                    sub: sub.map(|s| s.sub).unwrap_or_default(),
+                    dub: dub.map(|s| s.dub).unwrap_or_default(),
+                };
+                if !servers.sub.is_empty() || !servers.dub.is_empty() {
+                    return Some(servers);
+                }
+            }
         }
 
         // HiAnime
@@ -260,15 +311,29 @@ impl AnimeAggregator {
         // episode is the episode number. Skip if id doesn't look like a slug.
         if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
             let server_id = server.and_then(|s| s.parse::<u32>().ok());
-            if let Ok(stream) = self.aniwave.get_stream(id, episode, server_id, link_type).await {
-                if !stream.url.is_empty() {
-                    return Some(stream);
+            match self
+                .aniwave
+                .get_stream(id, episode, server_id, link_type)
+                .await
+            {
+                Ok(stream) => {
+                    if !stream.url.is_empty() {
+                        return Some(stream);
+                    }
                 }
+                Err(e) => warn!(
+                    "[AnimeAgg] Aniwave stream error for {} ep={} type={}: {}",
+                    id, episode, link_type, e
+                ),
             }
         }
 
         // HiAnime first (most reliable streams)
-        if let Ok(data) = self.hianime.get_stream(id, server, link_type, episode).await {
+        if let Ok(data) = self
+            .hianime
+            .get_stream(id, server, link_type, episode)
+            .await
+        {
             return Some(stream_data_to_payload(data));
         }
 
@@ -291,18 +356,7 @@ impl AnimeAggregator {
             finished_airing: None,
         };
 
-        // HiAnime home
-        if let Ok(raw) = self.hianime.get_home().await {
-            let hi_feed = crate::clients::hianime::transform_home_feed(raw);
-            feed.trending = hi_feed.trending;
-            feed.currently_airing = hi_feed.currently_airing;
-            feed.featured = hi_feed.featured;
-            feed.latest = hi_feed.latest;
-            feed.popular = hi_feed.popular;
-            feed.finished_airing = hi_feed.finished_airing;
-        }
-
-        // AniWatch home (merge into same fields)
+        // AniWatch home (merge into same fields) — fast, no upstream scrape
         if let Ok(aw_feed) = self.aniwatch.get_home().await {
             feed.trending = merge_optional_vecs(feed.trending, aw_feed.trending);
             feed.latest = merge_optional_vecs(feed.latest, aw_feed.latest);
@@ -317,13 +371,237 @@ impl AnimeAggregator {
 
         feed
     }
+
+    /// Discover / browse using the typed `FilterParams`. Fans out across
+    /// providers that support the requested filter. AniList is the spine
+    /// (supports the most filters); AniWatch and HiAnime backfill when
+    /// their individual filters match. The result is normalized, deduped
+    /// by title, and paginated locally.
+    pub async fn discover(&self, params: &FilterParams) -> PaginatedResponse<AnimeCard> {
+        let page = params.page.unwrap_or(1).max(1) as usize;
+        let limit = params.limit.unwrap_or(20).clamp(1, 50) as usize;
+        let want_more = (page * limit) + 1; // over-fetch to know if there's another page
+        let want_more_u32 = want_more as u32;
+
+        let mut tasks: JoinSet<Vec<AnimeCard>> = JoinSet::new();
+
+        // AniList: always try, supports the most filters
+        let al = self.anilist.clone();
+        let p = params.clone();
+        tasks.spawn(async move { al.discover(&p).await.unwrap_or_default() });
+
+        // AniWatch: only when type/genre/status is set
+        if params.r#type.is_some() || params.genre.is_some() || params.status.is_some() {
+            let aw = self.aniwatch.clone();
+            let p = params.clone();
+            tasks.spawn(async move { aw.discover(&p).await.unwrap_or_default() });
+        }
+
+        // HiAnime: only for type filter (mapped to category)
+        if let Some(typ) = params.r#type.clone() {
+            let hi = self.hianime.clone();
+            tasks.spawn(async move {
+                hi.get_by_category(&typ, 1, want_more_u32)
+                    .await
+                    .ok()
+                    .map(crate::clients::hianime::transform_category_results)
+                    .unwrap_or_default()
+            });
+        }
+
+        let mut seen: HashMap<String, AnimeCard> = HashMap::new();
+        while let Some(Ok(cards)) = tasks.join_next().await {
+            for card in cards {
+                let key = normalize_title(&card.title);
+                if key.is_empty() {
+                    continue;
+                }
+                if let Some(existing) = seen.get_mut(&key) {
+                    // Prefer items with images + episode counts
+                    if existing.image.is_none() && card.image.is_some() {
+                        existing.image = card.image.clone();
+                    }
+                    if existing.total_episodes.is_none() && card.total_episodes.is_some() {
+                        existing.total_episodes = card.total_episodes;
+                    }
+                    if !existing.has_sub && card.has_sub {
+                        existing.has_sub = true;
+                    }
+                    if !existing.has_dub && card.has_dub {
+                        existing.has_dub = true;
+                    }
+                } else {
+                    seen.insert(key, card);
+                }
+            }
+        }
+
+        let mut items: Vec<AnimeCard> = seen.into_values().collect();
+        items.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+        let total = items.len() as u32;
+        let start = ((page - 1) * limit).min(items.len());
+        let end = (start + limit).min(items.len());
+        let page_items = items[start..end].to_vec();
+        let has_more = end < items.len();
+        PaginatedResponse {
+            items: page_items,
+            total,
+            page: page as u32,
+            limit: limit as u32,
+            has_more,
+        }
+    }
+
+    /// Static metadata for the discover screen. Years are generated at
+    /// call time so the current year is always present.
+    pub async fn filter_options(&self) -> FilterOptions {
+        let current_year = chrono::Utc::now().format("%Y").to_string().parse::<u32>().unwrap_or(2026);
+        let years: Vec<FilterChoice> = (1960..=current_year)
+            .rev()
+            .map(|y| FilterChoice {
+                value: y.to_string(),
+                label: y.to_string(),
+            })
+            .collect();
+        FilterOptions {
+            types: vec![
+                FilterChoice { value: "tv".into(), label: "TV".into() },
+                FilterChoice { value: "movie".into(), label: "Movie".into() },
+                FilterChoice { value: "ova".into(), label: "OVA".into() },
+                FilterChoice { value: "ona".into(), label: "ONA".into() },
+                FilterChoice { value: "special".into(), label: "Special".into() },
+                FilterChoice { value: "music".into(), label: "Music".into() },
+            ],
+            statuses: vec![
+                FilterChoice { value: "airing".into(), label: "Currently Airing".into() },
+                FilterChoice { value: "finished".into(), label: "Finished Airing".into() },
+                FilterChoice { value: "upcoming".into(), label: "Not Yet Aired".into() },
+            ],
+            sorts: vec![
+                FilterChoice { value: "popularity".into(), label: "Popularity".into() },
+                FilterChoice { value: "score".into(), label: "Score".into() },
+                FilterChoice { value: "trending".into(), label: "Trending".into() },
+                FilterChoice { value: "latest".into(), label: "Latest".into() },
+                FilterChoice { value: "alphabetical".into(), label: "A–Z".into() },
+            ],
+            genres: ANILIST_GENRES.iter().map(|(v, l)| FilterChoice { value: (*v).into(), label: (*l).into() }).collect(),
+            years,
+            seasons: vec![
+                FilterChoice { value: "winter".into(), label: "Winter".into() },
+                FilterChoice { value: "spring".into(), label: "Spring".into() },
+                FilterChoice { value: "summer".into(), label: "Summer".into() },
+                FilterChoice { value: "fall".into(), label: "Fall".into() },
+            ],
+            languages: vec![
+                FilterChoice { value: "japanese".into(), label: "Japanese".into() },
+                FilterChoice { value: "english".into(), label: "English".into() },
+                FilterChoice { value: "chinese".into(), label: "Chinese".into() },
+                FilterChoice { value: "korean".into(), label: "Korean".into() },
+            ],
+            scores: vec![
+                FilterChoice { value: "all".into(), label: "All".into() },
+                FilterChoice { value: "8".into(), label: "8+".into() },
+                FilterChoice { value: "7".into(), label: "7+".into() },
+                FilterChoice { value: "6".into(), label: "6+".into() },
+                FilterChoice { value: "5".into(), label: "5+".into() },
+            ],
+            ratings: vec![
+                FilterChoice { value: "g".into(), label: "G".into() },
+                FilterChoice { value: "pg".into(), label: "PG".into() },
+                FilterChoice { value: "pg13".into(), label: "PG-13".into() },
+                FilterChoice { value: "r".into(), label: "R".into() },
+                FilterChoice { value: "rplus".into(), label: "R+".into() },
+                FilterChoice { value: "rx".into(), label: "Rx".into() },
+            ],
+        }
+    }
+
+    /// Airings for a single date. Currently AniList only; other providers
+    /// don't expose a schedule API.
+    pub async fn schedule(
+        &self,
+        date: Option<NaiveDate>,
+        _tz: Option<&str>,
+    ) -> Vec<ScheduleEntry> {
+        match self.anilist.schedule(date).await {
+            Ok(v) => v,
+            Err(e) => {
+                warn!("[AnimeAgg] schedule error: {}", e);
+                Vec::new()
+            }
+        }
+    }
+
+    /// Build a typed episode list response for the route handler.
+    pub async fn episodes_response(
+        &self,
+        id: &str,
+        start: u32,
+    ) -> Option<EpisodeListResponse> {
+        let episodes = self.get_episodes(id, start).await?;
+        let total = episodes.len() as u32;
+        Some(EpisodeListResponse {
+            anime_id: id.to_string(),
+            start,
+            total,
+            episodes,
+        })
+    }
 }
+
+/// Canonical AniList genre slugs. Source: https://anilist.co/genre
+const ANILIST_GENRES: &[(&str, &str)] = &[
+    ("Action", "Action"),
+    ("Adventure", "Adventure"),
+    ("Cars", "Cars"),
+    ("Comedy", "Comedy"),
+    ("Dementia", "Dementia"),
+    ("Demons", "Demons"),
+    ("Drama", "Drama"),
+    ("Ecchi", "Ecchi"),
+    ("Fantasy", "Fantasy"),
+    ("Game", "Game"),
+    ("Harem", "Harem"),
+    ("Historical", "Historical"),
+    ("Horror", "Horror"),
+    ("Isekai", "Isekai"),
+    ("Josei", "Josei"),
+    ("Kids", "Kids"),
+    ("Magic", "Magic"),
+    ("Martial Arts", "Martial Arts"),
+    ("Mecha", "Mecha"),
+    ("Military", "Military"),
+    ("Music", "Music"),
+    ("Mystery", "Mystery"),
+    ("Parody", "Parody"),
+    ("Police", "Police"),
+    ("Psychological", "Psychological"),
+    ("Romance", "Romance"),
+    ("Samurai", "Samurai"),
+    ("School", "School"),
+    ("Sci-Fi", "Sci-Fi"),
+    ("Seinen", "Seinen"),
+    ("Shoujo", "Shoujo"),
+    ("Shoujo Ai", "Shoujo Ai"),
+    ("Shounen", "Shounen"),
+    ("Shounen Ai", "Shounen Ai"),
+    ("Slice of Life", "Slice of Life"),
+    ("Space", "Space"),
+    ("Sports", "Sports"),
+    ("Super Power", "Super Power"),
+    ("Supernatural", "Supernatural"),
+    ("Thriller", "Thriller"),
+    ("Vampire", "Vampire"),
+];
 
 fn normalize_title(title: &str) -> String {
     title.to_lowercase().trim().to_string()
 }
 
-fn merge_optional_vecs(a: Option<Vec<AnimeCard>>, b: Option<Vec<AnimeCard>>) -> Option<Vec<AnimeCard>> {
+fn merge_optional_vecs(
+    a: Option<Vec<AnimeCard>>,
+    b: Option<Vec<AnimeCard>>,
+) -> Option<Vec<AnimeCard>> {
     match (a, b) {
         (Some(mut av), Some(bv)) => {
             let mut seen = std::collections::HashSet::new();
@@ -348,15 +626,24 @@ fn stream_data_to_payload(data: crate::clients::hianime::StreamData) -> StreamPa
         url: data.link.file,
         stream_type: data.link.link_type,
         subtitles: data.tracks.map(|tracks| {
-            tracks.into_iter().map(|t| SubtitleTrack {
-                file: t.file,
-                label: t.label,
-                kind: t.kind,
-                default: t.default,
-            }).collect()
+            tracks
+                .into_iter()
+                .map(|t| SubtitleTrack {
+                    file: t.file,
+                    label: t.label,
+                    kind: t.kind,
+                    default: t.default,
+                })
+                .collect()
         }),
-        intro: data.intro.map(|i| SkipRange { start: i.start, end: i.end }),
-        outro: data.outro.map(|o| SkipRange { start: o.start, end: o.end }),
+        intro: data.intro.map(|i| SkipRange {
+            start: i.start,
+            end: i.end,
+        }),
+        outro: data.outro.map(|o| SkipRange {
+            start: o.start,
+            end: o.end,
+        }),
         server: data.server,
         referer: data.referer,
     }

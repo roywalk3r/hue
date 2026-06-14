@@ -25,7 +25,10 @@ impl StickyPrefKey {
     }
 
     pub fn redis_key(&self) -> String {
-        format!("hue:sticky:{}:{}:{}", self.user_id, self.media_type, self.tmdb_id)
+        format!(
+            "hue:sticky:{}:{}:{}",
+            self.user_id, self.media_type, self.tmdb_id
+        )
     }
 
     fn moka_key(&self) -> String {
@@ -79,13 +82,22 @@ impl StickyPrefCache {
             return Self::disabled(cfg.sticky_pref_ttl_secs, cfg.sticky_pref_failure_threshold);
         }
         if cfg.cache_backend == "redis" {
-            match Self::new_redis(&cfg.redis_url, cfg.sticky_pref_ttl_secs, cfg.sticky_pref_failure_threshold).await {
+            match Self::new_redis(
+                &cfg.redis_url,
+                cfg.sticky_pref_ttl_secs,
+                cfg.sticky_pref_failure_threshold,
+            )
+            .await
+            {
                 Ok(cache) => {
                     tracing::info!("[StickyPref] Using Redis backend");
                     cache
                 }
                 Err(e) => {
-                    tracing::warn!("[StickyPref] Redis connection failed ({}), falling back to memory", e);
+                    tracing::warn!(
+                        "[StickyPref] Redis connection failed ({}), falling back to memory",
+                        e
+                    );
                     Self::new_memory(cfg.sticky_pref_ttl_secs, cfg.sticky_pref_failure_threshold)
                 }
             }
@@ -123,7 +135,11 @@ impl StickyPrefCache {
         }
     }
 
-    async fn new_redis(redis_url: &str, ttl_secs: u64, failure_threshold: u32) -> anyhow::Result<Self> {
+    async fn new_redis(
+        redis_url: &str,
+        ttl_secs: u64,
+        failure_threshold: u32,
+    ) -> anyhow::Result<Self> {
         let client = redis::Client::open(redis_url)?;
         let conn = client.get_multiplexed_tokio_connection().await?;
         Ok(Self {
@@ -273,7 +289,10 @@ mod tests {
         assert_eq!(after_one.provider_real_name, "moviebox");
 
         cache.record_failure(&key).await;
-        assert!(cache.get(&key).await.is_none(), "should be cleared at threshold");
+        assert!(
+            cache.get(&key).await.is_none(),
+            "should be cleared at threshold"
+        );
     }
 
     #[tokio::test]

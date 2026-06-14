@@ -1,3 +1,5 @@
+use crate::clients::tmdb::TmdbClient;
+use crate::clients::vidvault::VidVaultClient;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -7,8 +9,6 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::clients::tmdb::TmdbClient;
-use crate::clients::vidvault::VidVaultClient;
 
 #[derive(Clone)]
 pub struct DownloadState {
@@ -85,17 +85,18 @@ pub async fn download_handler(
             // MP4 files from blocked CDNs link to VidVault's own page instead.
             let blocked_hosts = ["hakunaymatata.com", "vidsrc.xyz"];
 
-            let vidvault_url = format!(
-                "https://vidvault.ru/{}/{}",
-                media_type, tmdb_id
-            );
+            let vidvault_url = format!("https://vidvault.ru/{}/{}", media_type, tmdb_id);
 
             let files: Vec<DownloadFileOut> = links
                 .files
                 .into_iter()
                 .map(|f| {
                     let ext = f.format.clone();
-                    let year_str = if year > 0 { format!(" ({})", year) } else { String::new() };
+                    let year_str = if year > 0 {
+                        format!(" ({})", year)
+                    } else {
+                        String::new()
+                    };
                     let base = match media_type.as_str() {
                         "tv" => format!(
                             "{}{} S{:02}E{:02}.{}",
@@ -130,13 +131,11 @@ pub async fn download_handler(
                         } else {
                             // MP4 from accessible CDN — proxy through ts-proxy
                             let mut headers = HashMap::new();
-                            headers.insert("Referer".to_string(), "https://vidvault.ru/".to_string());
+                            headers
+                                .insert("Referer".to_string(), "https://vidvault.ru/".to_string());
                             headers.insert("Origin".to_string(), "https://vidvault.ru".to_string());
-                            let token = crate::security::encrypt_url(
-                                &f.url,
-                                &state.secret,
-                                Some(headers),
-                            );
+                            let token =
+                                crate::security::encrypt_url(&f.url, &state.secret, Some(headers));
                             let proxied = format!(
                                 "{}/ts-proxy?h_token={}&download=1&filename={}",
                                 state.proxy_base_url,

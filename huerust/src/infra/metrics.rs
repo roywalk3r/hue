@@ -19,14 +19,19 @@ impl Metrics {
     pub fn record_request(&self, provider: &str, latency_ms: u64, success: bool, timed_out: bool) {
         let p = provider.to_string();
         metrics::counter!("huerust_provider_requests_total", "provider" => p.clone()).increment(1);
-        metrics::counter!("huerust_provider_latency_ms_total", "provider" => p.clone()).increment(latency_ms);
+        metrics::counter!("huerust_provider_latency_ms_total", "provider" => p.clone())
+            .increment(latency_ms);
         if timed_out {
-            metrics::counter!("huerust_provider_timeouts_total", "provider" => p.clone()).increment(1);
-            metrics::counter!("huerust_provider_failures_total", "provider" => p.clone()).increment(1);
+            metrics::counter!("huerust_provider_timeouts_total", "provider" => p.clone())
+                .increment(1);
+            metrics::counter!("huerust_provider_failures_total", "provider" => p.clone())
+                .increment(1);
         } else if success {
-            metrics::counter!("huerust_provider_successes_total", "provider" => p.clone()).increment(1);
+            metrics::counter!("huerust_provider_successes_total", "provider" => p.clone())
+                .increment(1);
         } else {
-            metrics::counter!("huerust_provider_failures_total", "provider" => p.clone()).increment(1);
+            metrics::counter!("huerust_provider_failures_total", "provider" => p.clone())
+                .increment(1);
         }
     }
 

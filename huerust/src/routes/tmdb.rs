@@ -63,11 +63,27 @@ pub struct SearchQuery {
 }
 
 fn list_response(items: Vec<TmdbNormalizedInfo>) -> Response {
-    (StatusCode::OK, serde_json::to_string(&TmdbListResponse { success: true, items }).unwrap()).into_response()
+    (
+        StatusCode::OK,
+        serde_json::to_string(&TmdbListResponse {
+            success: true,
+            items,
+        })
+        .unwrap(),
+    )
+        .into_response()
 }
 
 fn error_response() -> Response {
-    (StatusCode::BAD_GATEWAY, serde_json::to_string(&TmdbListResponse { success: false, items: vec![] }).unwrap()).into_response()
+    (
+        StatusCode::BAD_GATEWAY,
+        serde_json::to_string(&TmdbListResponse {
+            success: false,
+            items: vec![],
+        })
+        .unwrap(),
+    )
+        .into_response()
 }
 
 pub async fn home_handler(
@@ -101,7 +117,15 @@ pub async fn home_handler(
         shelves.insert("horror".to_string(), horror.unwrap_or_default());
         shelves.insert("sci_fi".to_string(), sci_fi.unwrap_or_default());
 
-        (StatusCode::OK, serde_json::to_string(&TmdbHomeResponse { success: true, shelves }).unwrap()).into_response()
+        (
+            StatusCode::OK,
+            serde_json::to_string(&TmdbHomeResponse {
+                success: true,
+                shelves,
+            })
+            .unwrap(),
+        )
+            .into_response()
     } else {
         let (popular, top_rated, now_playing, trending, action, comedy, drama, horror, sci_fi) = tokio::join!(
             state.tmdb.movie_popular(page),
@@ -126,7 +150,15 @@ pub async fn home_handler(
         shelves.insert("horror".to_string(), horror.unwrap_or_default());
         shelves.insert("sci_fi".to_string(), sci_fi.unwrap_or_default());
 
-        (StatusCode::OK, serde_json::to_string(&TmdbHomeResponse { success: true, shelves }).unwrap()).into_response()
+        (
+            StatusCode::OK,
+            serde_json::to_string(&TmdbHomeResponse {
+                success: true,
+                shelves,
+            })
+            .unwrap(),
+        )
+            .into_response()
     }
 }
 
@@ -210,7 +242,11 @@ pub async fn discover_handler(
     if genre_id.is_empty() {
         return (StatusCode::BAD_REQUEST, "Missing 'genre' parameter").into_response();
     }
-    match state.tmdb.discover(m_type, genre_id, params.page.unwrap_or(1)).await {
+    match state
+        .tmdb
+        .discover(m_type, genre_id, params.page.unwrap_or(1))
+        .await
+    {
         Ok(items) => list_response(items),
         Err(_) => error_response(),
     }

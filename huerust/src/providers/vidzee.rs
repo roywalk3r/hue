@@ -15,31 +15,30 @@
 //!   3. AES-256-CBC decrypt each link using actual key → m3u8 playlist URL
 //!   4. Tracks (subtitles) returned inline in the API response
 
-use std::sync::LazyLock;
-use reqwest_middleware::ClientWithMiddleware;
-use anyhow::{Result, anyhow};
 use aes::Aes256;
-use cbc::Decryptor as CbcDecryptor;
-use cbc::cipher::{KeyIvInit, BlockDecryptMut};
-use cbc::cipher::block_padding::Pkcs7;
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
-use sha2::{Sha256, Digest};
+use anyhow::{anyhow, Result};
 use base64::Engine;
+use cbc::cipher::block_padding::Pkcs7;
+use cbc::cipher::{BlockDecryptMut, KeyIvInit};
+use cbc::Decryptor as CbcDecryptor;
 use regex::Regex;
+use reqwest_middleware::ClientWithMiddleware;
+use sha2::{Digest, Sha256};
+use std::sync::LazyLock;
 
-static CHUNK_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"/_next/static/chunks/app/embed/[^"]+\.js"#).unwrap()
-});
+static CHUNK_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"/_next/static/chunks/app/embed/[^"]+\.js"#).unwrap());
 static SECRET_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"let a="([a-f0-9]{32})",l="(https://core\.vidzee\.wtf/api-key)""#).unwrap()
 });
-use tracing::{info, warn};
 use crate::models::{StreamResult, Subtitle};
 use std::collections::HashMap;
 use tokio::sync::OnceCell;
+use tracing::{info, warn};
 
 type Aes256Cbc = CbcDecryptor<Aes256>;
 
@@ -65,7 +64,10 @@ async fn fetch_secrets(client: &ClientWithMiddleware) -> &VidzeeSecrets {
         .get_or_init(|| async {
             match try_fetch_secrets(client).await {
                 Ok(s) => {
-                    info!("[VidZee] Self-healed: hex_secret={}, key_api={}", s.hex_secret, s.key_api);
+                    info!(
+                        "[VidZee] Self-healed: hex_secret={}, key_api={}",
+                        s.hex_secret, s.key_api
+                    );
                     s
                 }
                 Err(e) => {
@@ -138,7 +140,8 @@ impl VidzeeClient {
     async fn get_cbc_key(&self) -> Result<String> {
         let secrets = fetch_secrets(&self.client).await;
 
-        let resp = self.client
+        let resp = self
+            .client
             .get(&secrets.key_api)
             .header("Referer", "https://player.vidzee.wtf/")
             .header("User-Agent", UA_DESKTOP)
@@ -164,8 +167,7 @@ impl VidzeeClient {
         hasher.update(secrets.hex_secret.as_bytes());
         let gcm_key: [u8; 32] = hasher.finalize().into();
 
-        let cipher = Aes256Gcm::new_from_slice(&gcm_key)
-            .map_err(|e| anyhow!("GCM init: {}", e))?;
+        let cipher = Aes256Gcm::new_from_slice(&gcm_key).map_err(|e| anyhow!("GCM init: {}", e))?;
         let nonce = Nonce::from_slice(gcm_iv);
 
         // ciphertext || auth_tag
@@ -173,7 +175,8 @@ impl VidzeeClient {
         combined.extend_from_slice(gcm_ct);
         combined.extend_from_slice(gcm_tag);
 
-        let plaintext = cipher.decrypt(nonce, combined.as_slice())
+        let plaintext = cipher
+            .decrypt(nonce, combined.as_slice())
             .map_err(|_| anyhow!("GCM decrypt failed"))?;
 
         String::from_utf8(plaintext).map_err(|e| anyhow!("utf8 after GCM: {}", e))
@@ -236,7 +239,10 @@ impl VidzeeClient {
         season: Option<u32>,
         episode: Option<u32>,
     ) -> Result<Vec<StreamResult>> {
-        info!("[VidZee] Fetching: TMDB {} ({}) S{:?} E{:?}", tmdb_id, media_type, season, episode);
+        info!(
+            "[VidZee] Fetching: TMDB {} ({}) S{:?} E{:?}",
+            tmdb_id, media_type, season, episode
+        );
 
         // Step 1: Get the dynamic CBC key
         let cbc_key = match self.get_cbc_key().await {
@@ -270,7 +276,10 @@ impl VidzeeClient {
 
                 let resp = match client
                     .get(&url)
-                    .header("Referer", format!("https://player.vidzee.wtf/embed/movie/{}", tmdb))
+                    .header(
+                        "Referer",
+                        format!("https://player.vidzee.wtf/embed/movie/{}", tmdb),
+                    )
                     .header("User-Agent", UA_DESKTOP)
                     .timeout(std::time::Duration::from_secs(10))
                     .send()
@@ -293,10 +302,9 @@ impl VidzeeClient {
                 let mut subtitles = Vec::new();
                 if let Some(tracks) = data["tracks"].as_array() {
                     for track in tracks {
-                        if let (Some(u), Some(lang)) = (
-                            track["url"].as_str(),
-                            track["lang"].as_str(),
-                        ) {
+                        if let (Some(u), Some(lang)) =
+                            (track["url"].as_str(), track["lang"].as_str())
+                        {
                             let lang_code = match lang.to_lowercase().as_str() {
                                 "english" => "en",
                                 "arabic" => "ar",
@@ -332,19 +340,32 @@ impl VidzeeClient {
                             None => continue,
                         };
 
-                        let title = format!("VidZee {} - {} - {}", name, lang, stream_type.to_uppercase());
+                        let title = format!(
+                            "VidZee {} - {} - {}",
+                            name,
+                            lang,
+                            stream_type.to_uppercase()
+                        );
                         let mut headers = HashMap::new();
                         headers.insert("Referer".to_string(), VIDZEE_REFERER.to_string());
                         headers.insert("User-Agent".to_string(), UA_DESKTOP.to_string());
 
-                        let subs = if subtitles.is_empty() { None } else { Some(subtitles.clone()) };
+                        let subs = if subtitles.is_empty() {
+                            None
+                        } else {
+                            Some(subtitles.clone())
+                        };
 
                         streams.push(StreamResult {
                             url: decoded,
                             title,
                             quality: "Auto".to_string(),
                             provider: "VidZee".to_string(),
-                            format: if stream_type == "hls" { "hls".to_string() } else { "mp4".to_string() },
+                            format: if stream_type == "hls" {
+                                "hls".to_string()
+                            } else {
+                                "mp4".to_string()
+                            },
                             subtitles: subs,
                             headers: Some(headers.clone()),
                             extra_metadata: None,

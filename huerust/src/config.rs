@@ -89,7 +89,9 @@ impl AppConfig {
             redis_url: env::var("REDIS_URL")
                 .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string()),
             kkey: env::var("KKEY").unwrap_or_else(|_| "hue-kkey-2026-default".to_string()),
-            cf_worker_url: env::var("CF_WORKER_URL").ok().filter(|s| !s.trim().is_empty()),
+            cf_worker_url: env::var("CF_WORKER_URL")
+                .ok()
+                .filter(|s| !s.trim().is_empty()),
             worker_upstream_hosts: env::var("WORKER_UPSTREAM_HOSTS")
                 .unwrap_or_default()
                 .split(|c| c == ',' || c == ';' || c == '\n')
@@ -112,9 +114,7 @@ impl AppConfig {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(86400),
-            season_splits: parse_season_splits(
-                &env::var("SEASON_SPLITS").unwrap_or_default()
-            ),
+            season_splits: parse_season_splits(&env::var("SEASON_SPLITS").unwrap_or_default()),
         }
     }
 
@@ -170,7 +170,13 @@ impl AppConfig {
     /// Map TMDB season/episode to provider season/episode for shows where
     /// TMDB lists as one season but a specific provider splits into multiple seasons.
     /// Returns (provider_season, provider_episode).
-    pub fn map_season_episode(&self, provider: &str, tmdb_id: &str, season: u32, episode: u32) -> (u32, u32) {
+    pub fn map_season_episode(
+        &self,
+        provider: &str,
+        tmdb_id: &str,
+        season: u32,
+        episode: u32,
+    ) -> (u32, u32) {
         if season != 1 {
             return (season, episode);
         }
@@ -219,9 +225,7 @@ fn parse_season_splits(raw: &str) -> HashMap<String, HashMap<String, Vec<u32>>> 
             .filter(|n| *n > 0)
             .collect();
         if !counts.is_empty() {
-            map.entry(provider)
-                .or_default()
-                .insert(tmdb_id, counts);
+            map.entry(provider).or_default().insert(tmdb_id, counts);
         }
     }
     map
@@ -262,8 +266,14 @@ mod tests {
 
         // Test parsing of the new per-provider format
         let parsed = parse_season_splits("moviebox:127532:12,13;sflix:127532:12,13");
-        assert_eq!(parsed.get("moviebox").unwrap().get("127532").unwrap(), &vec![12, 13]);
-        assert_eq!(parsed.get("sflix").unwrap().get("127532").unwrap(), &vec![12, 13]);
+        assert_eq!(
+            parsed.get("moviebox").unwrap().get("127532").unwrap(),
+            &vec![12, 13]
+        );
+        assert_eq!(
+            parsed.get("sflix").unwrap().get("127532").unwrap(),
+            &vec![12, 13]
+        );
         assert!(parsed.get("vidrock").is_none());
     }
 

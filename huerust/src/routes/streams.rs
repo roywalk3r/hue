@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-use crate::providers::dispatch::{ProviderTiming, fetch_from_providers};
+use crate::providers::dispatch::{fetch_from_providers, ProviderTiming};
 use crate::proxy::dynamic_proxy_base;
 use crate::proxy::wrap::wrap_with_proxy;
 use crate::{

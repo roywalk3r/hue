@@ -5,12 +5,12 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use async_trait::async_trait;
-use crate::providers::StreamProvider;
-use crate::models::StreamResult;
-use crate::clients::tmdb::TmdbNormalizedInfo;
 use crate::clients::moviebox::MovieBoxClient;
+use crate::clients::tmdb::TmdbNormalizedInfo;
+use crate::models::StreamResult;
+use crate::providers::StreamProvider;
 use anyhow::Result;
+use async_trait::async_trait;
 use std::sync::Arc;
 
 pub struct MovieBoxProvider {
@@ -25,10 +25,18 @@ impl MovieBoxProvider {
 
 #[async_trait]
 impl StreamProvider for MovieBoxProvider {
-    fn name(&self) -> &'static str { "Cinema" }
-    fn real_name(&self) -> &'static str { "moviebox" }
-    fn is_fast(&self) -> bool { true }
-    fn timeout_secs(&self) -> u64 { 15 }
+    fn name(&self) -> &'static str {
+        "Cinema"
+    }
+    fn real_name(&self) -> &'static str {
+        "moviebox"
+    }
+    fn is_fast(&self) -> bool {
+        true
+    }
+    fn timeout_secs(&self) -> u64 {
+        15
+    }
 
     async fn fetch(
         &self,
@@ -37,12 +45,14 @@ impl StreamProvider for MovieBoxProvider {
         season: u32,
         episode: u32,
     ) -> Result<Vec<StreamResult>> {
-        self.client.get_streams_normalized(
-            &tmdb_info.title,
-            media_type,
-            tmdb_info.year,
-            season,
-            episode,
-        ).await
+        self.client
+            .get_streams_normalized(
+                &tmdb_info.title,
+                media_type,
+                tmdb_info.year,
+                season,
+                episode,
+            )
+            .await
     }
 }

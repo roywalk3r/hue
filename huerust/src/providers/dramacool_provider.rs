@@ -5,12 +5,12 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use async_trait::async_trait;
-use crate::providers::StreamProvider;
-use crate::models::StreamResult;
 use crate::clients::tmdb::TmdbNormalizedInfo;
+use crate::models::StreamResult;
 use crate::providers::dramacool::DramacoolClient;
+use crate::providers::StreamProvider;
 use anyhow::Result;
+use async_trait::async_trait;
 use std::sync::Arc;
 
 pub struct DramacoolProvider {
@@ -25,10 +25,18 @@ impl DramacoolProvider {
 
 #[async_trait]
 impl StreamProvider for DramacoolProvider {
-    fn name(&self) -> &'static str { "Orient" }
-    fn real_name(&self) -> &'static str { "dramacool" }
-    fn is_fast(&self) -> bool { false }
-    fn timeout_secs(&self) -> u64 { 20 }
+    fn name(&self) -> &'static str {
+        "Orient"
+    }
+    fn real_name(&self) -> &'static str {
+        "dramacool"
+    }
+    fn is_fast(&self) -> bool {
+        false
+    }
+    fn timeout_secs(&self) -> u64 {
+        20
+    }
 
     async fn fetch(
         &self,
@@ -37,6 +45,8 @@ impl StreamProvider for DramacoolProvider {
         season: u32,
         episode: u32,
     ) -> Result<Vec<StreamResult>> {
-        self.client.get_streams_normalized(&tmdb_info.title, season, episode).await
+        self.client
+            .get_streams_normalized(&tmdb_info.title, season, episode)
+            .await
     }
 }

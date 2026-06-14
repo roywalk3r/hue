@@ -19,9 +19,9 @@ const MAX_RECOVERY_TIMEOUT: Duration = Duration::from_secs(900); // 15 min
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CircuitState {
-    Closed,     // Normal operation
-    Open,       // Failing, skip requests
-    HalfOpen,   // Testing if recovered
+    Closed,   // Normal operation
+    Open,     // Failing, skip requests
+    HalfOpen, // Testing if recovered
 }
 
 #[derive(Debug)]
@@ -77,9 +77,7 @@ impl CircuitEntry {
             CircuitState::Open => {
                 let last = *self.last_failure.lock().unwrap();
                 match last {
-                    Some(t) if t.elapsed() > self.get_recovery_timeout() => {
-                        true
-                    }
+                    Some(t) if t.elapsed() > self.get_recovery_timeout() => true,
                     _ => false,
                 }
             }
@@ -107,7 +105,10 @@ impl CircuitBreaker {
 
     /// Check if a provider is healthy enough to attempt a request
     pub fn is_healthy(&self, provider: &str) -> bool {
-        let mut entry = self.states.entry(provider.to_string()).or_insert_with(CircuitEntry::new);
+        let mut entry = self
+            .states
+            .entry(provider.to_string())
+            .or_insert_with(CircuitEntry::new);
 
         match entry.state {
             CircuitState::Closed => true,
@@ -146,13 +147,21 @@ impl CircuitBreaker {
 
     /// Record a failed request
     pub fn record_failure(&self, provider: &str) {
-        let mut entry = self.states.entry(provider.to_string()).or_insert_with(CircuitEntry::new);
+        let mut entry = self
+            .states
+            .entry(provider.to_string())
+            .or_insert_with(CircuitEntry::new);
         let should_open = entry.record_failure();
         let count = entry.consecutive_failures.load(Ordering::SeqCst);
 
         if should_open && entry.state != CircuitState::Open {
             let timeout = entry.get_recovery_timeout();
-            warn!("[CircuitBreaker] {} opened after {} consecutive failures. Cooldown: {}min", provider, count, timeout.as_secs() / 60);
+            warn!(
+                "[CircuitBreaker] {} opened after {} consecutive failures. Cooldown: {}min",
+                provider,
+                count,
+                timeout.as_secs() / 60
+            );
             entry.state = CircuitState::Open;
             if let Ok(guard) = self.metrics.read() {
                 if let Some(ref m) = *guard {
@@ -180,7 +189,6 @@ impl Default for CircuitBreaker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     #[tokio::test]
     async fn test_circuit_closed_by_default() {
@@ -212,7 +220,8 @@ mod tests {
 
         // Simulate recovery time passing
         if let Some(entry) = cb.states.get_mut("test") {
-            *entry.last_failure.lock().unwrap() = Some(Instant::now() - MIN_RECOVERY_TIMEOUT - Duration::from_secs(1));
+            *entry.last_failure.lock().unwrap() =
+                Some(Instant::now() - MIN_RECOVERY_TIMEOUT - Duration::from_secs(1));
         }
 
         assert!(cb.is_healthy("test"));

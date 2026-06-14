@@ -5,8 +5,8 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use utoipa::OpenApi;
 use crate::models::{StreamResult, Subtitle};
+use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(

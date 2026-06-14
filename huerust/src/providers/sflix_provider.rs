@@ -5,12 +5,12 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use async_trait::async_trait;
-use crate::providers::StreamProvider;
-use crate::models::StreamResult;
 use crate::clients::tmdb::TmdbNormalizedInfo;
+use crate::models::StreamResult;
 use crate::providers::sflix::SflixClient;
+use crate::providers::StreamProvider;
 use anyhow::Result;
+use async_trait::async_trait;
 use chrono::{NaiveDate, Utc};
 use std::sync::Arc;
 
@@ -38,10 +38,18 @@ fn is_recent_or_unreleased(release_date: Option<&str>, window_days: i64) -> bool
 
 #[async_trait]
 impl StreamProvider for SflixProvider {
-    fn name(&self) -> &'static str { "Nova" }
-    fn real_name(&self) -> &'static str { "sflix" }
-    fn is_fast(&self) -> bool { true }
-    fn timeout_secs(&self) -> u64 { 15 }
+    fn name(&self) -> &'static str {
+        "Nova"
+    }
+    fn real_name(&self) -> &'static str {
+        "sflix"
+    }
+    fn is_fast(&self) -> bool {
+        true
+    }
+    fn timeout_secs(&self) -> u64 {
+        15
+    }
 
     async fn fetch(
         &self,
@@ -59,6 +67,14 @@ impl StreamProvider for SflixProvider {
             return Ok(vec![]);
         }
 
-        self.client.get_streams_normalized(&tmdb_info.title, media_type, tmdb_info.year, season, episode).await
+        self.client
+            .get_streams_normalized(
+                &tmdb_info.title,
+                media_type,
+                tmdb_info.year,
+                season,
+                episode,
+            )
+            .await
     }
 }

@@ -5,12 +5,12 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use async_trait::async_trait;
-use crate::providers::StreamProvider;
-use crate::models::StreamResult;
 use crate::clients::tmdb::TmdbNormalizedInfo;
+use crate::models::StreamResult;
 use crate::providers::kissasian::KissAsianClient;
+use crate::providers::StreamProvider;
 use anyhow::Result;
+use async_trait::async_trait;
 use std::sync::Arc;
 
 pub struct KissAsianProvider {
@@ -25,10 +25,18 @@ impl KissAsianProvider {
 
 #[async_trait]
 impl StreamProvider for KissAsianProvider {
-    fn name(&self) -> &'static str { "Pearl" }
-    fn real_name(&self) -> &'static str { "kissasian" }
-    fn is_fast(&self) -> bool { false }
-    fn timeout_secs(&self) -> u64 { 25 }
+    fn name(&self) -> &'static str {
+        "Pearl"
+    }
+    fn real_name(&self) -> &'static str {
+        "kissasian"
+    }
+    fn is_fast(&self) -> bool {
+        false
+    }
+    fn timeout_secs(&self) -> u64 {
+        25
+    }
 
     async fn fetch(
         &self,

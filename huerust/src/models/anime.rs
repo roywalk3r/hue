@@ -128,10 +128,16 @@ pub struct EpisodeSummary {
     pub sub_count: u32,
     /// Number of available dub servers
     pub dub_count: u32,
-    /// Primary slug for stream resolution
+    /// Per-episode slug used to resolve the stream (e.g. "81553-ep1").
+    /// Pass this as the `id` query param to `/api/anime/stream`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slug: Option<String>,
-    /// All available slugs for fallback
+    /// Series slug (e.g. "one-piece-81553" or "81553"). Use this to fetch
+    /// the full episode list or open the detail page; do NOT use it to
+    /// resolve an individual stream.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub series_slug: Option<String>,
+    /// All available slug variants for fallback
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slugs: Option<Vec<String>>,
 }
@@ -235,4 +241,130 @@ pub struct AnimeSearchResponse {
     pub page: u32,
     pub limit: u32,
     pub results: Vec<AnimeCard>,
+}
+
+// ── Unified paginated envelope ──────────────────────────────────────────────
+//
+// All NEW list endpoints (discover, schedule-as-list, future browse feeds)
+// return this shape. `AnimeSearchResponse` above keeps its existing shape
+// to avoid breaking the search route; documented in OpenAPI.
+
+/// Standard pagination wrapper. Use this for any new list endpoint.
+///
+/// `ToSchema` is implemented manually (via [`PaginatedResponse::schema_name`])
+/// rather than via derive because generic `T: ToSchema` isn't supported by
+/// utoipa's derive macro. The runtime type at the route level is concrete
+/// (e.g. `PaginatedResponse<AnimeCard>`), and the OpenAPI spec references
+/// the concrete schema.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PaginatedResponse<T> {
+    pub items: Vec<T>,
+    pub total: u32,
+    pub page: u32,
+    pub limit: u32,
+    pub has_more: bool,
+}
+
+// ── Filter discovery ────────────────────────────────────────────────────────
+
+/// A single (value, label) pair in a `FilterOptions` dropdown. The frontend
+/// renders these in the order they appear.
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FilterChoice {
+    pub value: String,
+    pub label: String,
+}
+
+/// Static metadata for the discover screen. Years are generated at call
+/// time so they always include the current year. The genre list is the
+/// canonical AniList list; the others are also stable across providers.
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FilterOptions {
+    pub types: Vec<FilterChoice>,
+    pub statuses: Vec<FilterChoice>,
+    pub sorts: Vec<FilterChoice>,
+    pub genres: Vec<FilterChoice>,
+    pub years: Vec<FilterChoice>,
+    pub seasons: Vec<FilterChoice>,
+    pub languages: Vec<FilterChoice>,
+    pub scores: Vec<FilterChoice>,
+    pub ratings: Vec<FilterChoice>,
+}
+
+/// Query/body params accepted by `/api/anime/discover`. Every field is
+/// optional. Unknown fields cause a 400 (replaces the previous permissive
+/// `serde_json::Value` passthrough).
+#[derive(Debug, Default, Clone, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FilterParams {
+    /// TV, movie, ova, ona, special, music
+    #[serde(default)]
+    pub r#type: Option<String>,
+    /// Single genre slug (e.g. "Action", "Sci-Fi"). Multi-genre is a
+    /// future extension.
+    #[serde(default)]
+    pub genre: Option<String>,
+    /// airing | finished | upcoming
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub year: Option<u32>,
+    /// winter | spring | summer | fall
+    #[serde(default)]
+    pub season: Option<String>,
+    /// popularity | score | trending | latest | alphabetical
+    #[serde(default)]
+    pub sort: Option<String>,
+    /// japanese | english | chinese | korean
+    #[serde(default)]
+    pub language: Option<String>,
+    /// "1".."10" or "all"
+    #[serde(default)]
+    pub score: Option<String>,
+    /// G | PG | PG-13 | R | R+ | Rx
+    #[serde(default)]
+    pub rating: Option<String>,
+    #[serde(default)]
+    pub page: Option<u32>,
+    #[serde(default)]
+    pub limit: Option<u32>,
+}
+
+// ── Schedule ────────────────────────────────────────────────────────────────
+
+/// A single airing in the daily schedule.
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ScheduleEntry {
+    pub anime_id: String,
+    pub anime_title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slug: Option<String>,
+    pub episode: u32,
+    /// sub | dub if known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_type: Option<String>,
+    /// Unix seconds, UTC
+    pub airs_at: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub countdown_seconds: Option<u64>,
+}
+
+// ── Episode list wrapper ────────────────────────────────────────────────────
+
+/// Response shape for `/api/anime/episodes/{id}`. Replaces the inline
+/// `json!({ animeId, start, count, episodes })` previously assembled in
+/// the route handler.
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EpisodeListResponse {
+    pub anime_id: String,
+    pub start: u32,
+    pub total: u32,
+    pub episodes: Vec<EpisodeSummary>,
 }

@@ -5,13 +5,13 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use serde::{Deserialize, Serialize};
-use reqwest_middleware::ClientWithMiddleware;
-use anyhow::{Result, anyhow};
-use std::sync::Arc;
 use crate::clients::tmdb::{TmdbClient, TmdbNormalizedInfo};
-use tokio::sync::RwLock;
+use anyhow::{anyhow, Result};
+use reqwest_middleware::ClientWithMiddleware;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use tracing::info;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -91,7 +91,8 @@ impl HiTvClient {
                 for page in 1u32..=5 {
                     let slf = self.clone();
                     set.spawn(async move {
-                        slf.browse_hitv(page, 60, country, category, "All", "Hottest", None).await
+                        slf.browse_hitv(page, 60, country, category, "All", "Hottest", None)
+                            .await
                     });
                 }
             }
@@ -111,16 +112,17 @@ impl HiTvClient {
 
         let count = all_items.len();
         *self.library_cache.write().await = all_items;
-        info!("[HiTV Rust] Library built successfully with {} items", count);
+        info!(
+            "[HiTV Rust] Library built successfully with {} items",
+            count
+        );
         Ok(())
     }
 
     pub async fn get_detail(&self, id: &str) -> Result<Option<HiTvItem>> {
         let url = format!("{}/detail?subjectId={}&lang=en", BASE_URL, id);
 
-        let resp = self.client.get(&url)
-            .send()
-            .await?;
+        let resp = self.client.get(&url).send().await?;
 
         let data: serde_json::Value = resp.json().await?;
         if data["code"] != 0 {
@@ -141,7 +143,12 @@ impl HiTvClient {
         }))
     }
 
-    pub async fn search(&self, query: &str, page: u32, page_size: u32) -> Result<HiTvBrowseResponse> {
+    pub async fn search(
+        &self,
+        query: &str,
+        page: u32,
+        page_size: u32,
+    ) -> Result<HiTvBrowseResponse> {
         let url = format!("{}/subject/search", BASE_URL);
         let payload = serde_json::json!({
             "keyword": query,
@@ -149,39 +156,50 @@ impl HiTvClient {
             "perPage": page_size
         });
 
-        let resp = self.client.post(&url)
-            .json(&payload)
-            .send()
-            .await?;
+        let resp = self.client.post(&url).json(&payload).send().await?;
 
         let data: serde_json::Value = resp.json().await?;
         if data["code"] != 0 {
-            return Ok(HiTvBrowseResponse { items: vec![], total: 0 });
+            return Ok(HiTvBrowseResponse {
+                items: vec![],
+                total: 0,
+            });
         }
 
-        let items = data["data"]["items"].as_array().map(|arr| {
-            arr.iter().map(|v| HiTvItem {
-                id: v["subjectId"].as_str().unwrap_or_default().to_string(),
-                title: v["title"].as_str().unwrap_or_default().to_string(),
-                cover: v["cover"]["url"].as_str().map(String::from),
-                backdrop: None,
-                rating: v["imdbRatingValue"].as_f64().map(|s| s.to_string()),
-                year: v["releaseDate"].as_str().map(String::from),
-                genre: v["genre"].as_str().map(String::from),
-                tmdb_id: v["tmdbId"].as_u64(),
-                overview: None,
-            }).collect()
-        }).unwrap_or_default();
+        let items = data["data"]["items"]
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .map(|v| HiTvItem {
+                        id: v["subjectId"].as_str().unwrap_or_default().to_string(),
+                        title: v["title"].as_str().unwrap_or_default().to_string(),
+                        cover: v["cover"]["url"].as_str().map(String::from),
+                        backdrop: None,
+                        rating: v["imdbRatingValue"].as_f64().map(|s| s.to_string()),
+                        year: v["releaseDate"].as_str().map(String::from),
+                        genre: v["genre"].as_str().map(String::from),
+                        tmdb_id: v["tmdbId"].as_u64(),
+                        overview: None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
 
         let total = data["data"]["pager"]["totalCount"].as_u64().unwrap_or(0) as u32;
 
-        Ok(HiTvBrowseResponse {
-            items,
-            total,
-        })
+        Ok(HiTvBrowseResponse { items, total })
     }
 
-    pub async fn browse_hitv(&self, page: u32, page_size: u32, country: &str, category: &str, genre: &str, sort: &str, year: Option<&str>) -> Result<HiTvBrowseResponse> {
+    pub async fn browse_hitv(
+        &self,
+        page: u32,
+        page_size: u32,
+        country: &str,
+        category: &str,
+        genre: &str,
+        sort: &str,
+        year: Option<&str>,
+    ) -> Result<HiTvBrowseResponse> {
         let url = format!("{}/subject/filter", BASE_URL);
 
         let channel_id = match category.to_lowercase().as_str() {
@@ -206,35 +224,34 @@ impl HiTvClient {
             payload["year"] = serde_json::Value::String(y.to_string());
         }
 
-        let resp = self.client.post(&url)
-            .json(&payload)
-            .send()
-            .await?;
+        let resp = self.client.post(&url).json(&payload).send().await?;
 
         let data: serde_json::Value = resp.json().await?;
         if data["code"] != 0 {
             return Err(anyhow!("HiTV API error: {}", data["message"]));
         }
 
-        let items = data["data"]["items"].as_array().map(|arr| {
-            arr.iter().map(|v| HiTvItem {
-                id: v["subjectId"].as_str().unwrap_or_default().to_string(),
-                title: v["title"].as_str().unwrap_or_default().to_string(),
-                cover: v["cover"]["url"].as_str().map(String::from),
-                backdrop: None,
-                rating: v["imdbRatingValue"].as_f64().map(|s| s.to_string()),
-                year: v["releaseDate"].as_str().map(String::from),
-                genre: v["genre"].as_str().map(String::from),
-                tmdb_id: None,
-                overview: None,
-            }).collect()
-        }).unwrap_or_default();
+        let items = data["data"]["items"]
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .map(|v| HiTvItem {
+                        id: v["subjectId"].as_str().unwrap_or_default().to_string(),
+                        title: v["title"].as_str().unwrap_or_default().to_string(),
+                        cover: v["cover"]["url"].as_str().map(String::from),
+                        backdrop: None,
+                        rating: v["imdbRatingValue"].as_f64().map(|s| s.to_string()),
+                        year: v["releaseDate"].as_str().map(String::from),
+                        genre: v["genre"].as_str().map(String::from),
+                        tmdb_id: None,
+                        overview: None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
 
         let total = data["data"]["pager"]["totalCount"].as_u64().unwrap_or(0) as u32;
 
-        Ok(HiTvBrowseResponse {
-            items,
-            total,
-        })
+        Ok(HiTvBrowseResponse { items, total })
     }
 }

@@ -1,7 +1,21 @@
-mod security; mod clients; mod providers; mod models; mod infra; mod filters; mod routes; mod microservice; mod config; mod proxy; mod user_config; mod openapi; mod constants; mod app; mod http_client;
+mod app;
+mod clients;
+mod config;
+mod constants;
+mod filters;
+mod http_client;
+mod infra;
+mod microservice;
+mod models;
+mod openapi;
+mod providers;
+mod proxy;
+mod routes;
+mod security;
+mod user_config;
 
-use tracing::info;
 use std::net::SocketAddr;
+use tracing::info;
 
 #[tokio::main]
 async fn main() {
@@ -16,16 +30,35 @@ async fn main() {
     }
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 1 && args[1] == "--encrypt" {
-        if args.len() < 3 { println!("Usage: huerust --encrypt <url> [referer]"); return; }
+        if args.len() < 3 {
+            println!("Usage: huerust --encrypt <url> [referer]");
+            return;
+        }
         let cfg = config::AppConfig::from_env();
         let mut headers = std::collections::HashMap::new();
-        if let Some(r) = args.get(3).cloned() { headers.insert("Referer".to_string(), r); }
-        println!("{}", security::encrypt_url(&args[2], &cfg.secret, if headers.is_empty() { None } else { Some(headers) }));
+        if let Some(r) = args.get(3).cloned() {
+            headers.insert("Referer".to_string(), r);
+        }
+        println!(
+            "{}",
+            security::encrypt_url(
+                &args[2],
+                &cfg.secret,
+                if headers.is_empty() {
+                    None
+                } else {
+                    Some(headers)
+                }
+            )
+        );
         return;
     }
     tracing_subscriber::fmt::init();
     let cfg = config::AppConfig::from_env();
-    info!("[Config] CF_WORKER_URL={:?} WORKER_UPSTREAM_HOSTS={:?}", cfg.cf_worker_url, cfg.worker_upstream_hosts);
+    info!(
+        "[Config] CF_WORKER_URL={:?} WORKER_UPSTREAM_HOSTS={:?}",
+        cfg.cf_worker_url, cfg.worker_upstream_hosts
+    );
     if let Err(err) = cfg.validate_runtime() {
         eprintln!("Configuration error: {err}");
         std::process::exit(1);
@@ -33,18 +66,32 @@ async fn main() {
     let state = app::build_state(&cfg).await;
     app::spawn_background_tasks(&state);
     let router = app::build_router(state);
-    let addr: SocketAddr = format!("{}:{}", cfg.host, cfg.port).parse().expect("Invalid RUST_HOST or RUST_PORT");
+    let addr: SocketAddr = format!("{}:{}", cfg.host, cfg.port)
+        .parse()
+        .expect("Invalid RUST_HOST or RUST_PORT");
     info!("Huerust Engine Active on {}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     info!("Huerust Engine listening on {}", addr);
-    axum::serve(listener, router).with_graceful_shutdown(shutdown_signal()).await.unwrap();
+    axum::serve(listener, router)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .unwrap();
     info!("Huerust Engine shutdown complete");
 }
 
 async fn shutdown_signal() {
-    let ctrl_c = async { tokio::signal::ctrl_c().await.expect("failed to install Ctrl+C handler"); };
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
     #[cfg(unix)]
-    let terminate = async { tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).expect("failed to install SIGTERM handler").recv().await; };
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
     #[cfg(not(unix))]
     let terminate = std::future::pending::<()>();
     tokio::select! { _ = ctrl_c => {}, _ = terminate => {}, }

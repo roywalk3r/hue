@@ -16,15 +16,15 @@
 //!   3. GET hls2.vdrk.site/playlist/{id} → resolution-specific MP4 URLs
 //!   4. GET sub.vdrk.site/v2/{type}/{tmdbId} → VTT subtitle files
 
-use serde::{Deserialize, Serialize};
-use reqwest_middleware::ClientWithMiddleware;
-use anyhow::{Result, anyhow};
-use aes::Aes256;
-use cbc::Encryptor;
-use cbc::cipher::{KeyIvInit, BlockEncryptMut};
-use cbc::cipher::block_padding::Pkcs7;
-use base64::Engine;
 use crate::constants::UA_DESKTOP;
+use aes::Aes256;
+use anyhow::{anyhow, Result};
+use base64::Engine;
+use cbc::cipher::block_padding::Pkcs7;
+use cbc::cipher::{BlockEncryptMut, KeyIvInit};
+use cbc::Encryptor;
+use reqwest_middleware::ClientWithMiddleware;
+use serde::{Deserialize, Serialize};
 
 type Aes256Cbc = Encryptor<Aes256>;
 
@@ -95,7 +95,11 @@ fn encrypt_item_id(item_id: &str) -> Result<String> {
 
     // base64url: + → -, / → _, strip =
     let b64 = base64::engine::general_purpose::STANDARD.encode(encrypted);
-    let b64url = b64.replace('+', "-").replace('/', "_").trim_end_matches('=').to_string();
+    let b64url = b64
+        .replace('+', "-")
+        .replace('/', "_")
+        .trim_end_matches('=')
+        .to_string();
 
     Ok(b64url)
 }
@@ -122,21 +126,30 @@ impl VidRockClient {
         }
     }
 
-    pub async fn get_streams(&self, tmdb_id: &str, media_type: &str, season: Option<u32>, episode: Option<u32>) -> Result<Vec<VidRockStream>> {
-        let (item_id, api_type) = if media_type == "tv" || media_type == "series" || media_type == "anime" {
-            let s = season.unwrap_or(1);
-            let e = episode.unwrap_or(1);
-            (format!("{}_{}_{}", tmdb_id, s, e), "tv")
-        } else {
-            (tmdb_id.to_string(), "movie")
-        };
+    pub async fn get_streams(
+        &self,
+        tmdb_id: &str,
+        media_type: &str,
+        season: Option<u32>,
+        episode: Option<u32>,
+    ) -> Result<Vec<VidRockStream>> {
+        let (item_id, api_type) =
+            if media_type == "tv" || media_type == "series" || media_type == "anime" {
+                let s = season.unwrap_or(1);
+                let e = episode.unwrap_or(1);
+                (format!("{}_{}_{}", tmdb_id, s, e), "tv")
+            } else {
+                (tmdb_id.to_string(), "movie")
+            };
 
         let encrypted = encrypt_item_id(&item_id)?;
         let api_url = format!("{}/api/{}/{}", API_BASE, api_type, encrypted);
         let referer_url = format!("{}/{}/{}", API_BASE, api_type, tmdb_id);
 
         // Fetch source map from API
-        let resp = self.client.get(&api_url)
+        let resp = self
+            .client
+            .get(&api_url)
             .header("Referer", &referer_url)
             .header("Origin", API_BASE)
             .header("Accept", "application/json, text/plain, */*")
@@ -151,22 +164,35 @@ impl VidRockClient {
 
         // Fetch subtitles in parallel
         let sub_url = if api_type == "tv" {
-            format!("{}/v2/{}/{}/{}/{}", SUB_BASE, api_type, tmdb_id, season.unwrap_or(1), episode.unwrap_or(1))
+            format!(
+                "{}/v2/{}/{}/{}/{}",
+                SUB_BASE,
+                api_type,
+                tmdb_id,
+                season.unwrap_or(1),
+                episode.unwrap_or(1)
+            )
         } else {
             format!("{}/v2/{}/{}", SUB_BASE, api_type, tmdb_id)
         };
         let subs_fut = async {
-            match self.client.get(&sub_url)
+            match self
+                .client
+                .get(&sub_url)
                 .header("Referer", API_BASE)
-                .send().await
+                .send()
+                .await
             {
                 Ok(r) if r.status().is_success() => {
                     r.json::<Vec<SubtitleEntry>>().await.ok().map(|entries| {
-                        entries.into_iter().map(|s| SubtitleInfo {
-                            url: s.file,
-                            lang: s.label.split(',').next().unwrap_or(&s.label).to_string(),
-                            label: s.label,
-                        }).collect::<Vec<_>>()
+                        entries
+                            .into_iter()
+                            .map(|s| SubtitleInfo {
+                                url: s.file,
+                                lang: s.label.split(',').next().unwrap_or(&s.label).to_string(),
+                                label: s.label,
+                            })
+                            .collect::<Vec<_>>()
                     })
                 }
                 _ => None,
@@ -184,7 +210,9 @@ impl VidRockClient {
 
         for (provider_name, entry) in &sources {
             let Some(ref url) = entry.url else { continue };
-            if url.is_empty() { continue; }
+            if url.is_empty() {
+                continue;
+            }
 
             // Reject URLs with expired signatures (t= older than 45 min)
             if let Some(pos) = url.find("t=") {
@@ -193,7 +221,11 @@ impl VidRockClient {
                 if let Ok(ts) = rest[..end].parse::<i64>() {
                     let age = now - ts;
                     if age > 2700 {
-                        tracing::warn!("[VidRock] Discarding expired URL (age={}s): {}", age, &url[..url.len().min(80)]);
+                        tracing::warn!(
+                            "[VidRock] Discarding expired URL (age={}s): {}",
+                            age,
+                            &url[..url.len().min(80)]
+                        );
                         continue;
                     }
                 }
@@ -201,8 +233,15 @@ impl VidRockClient {
 
             let fmt = entry.source_type.as_deref().unwrap_or("mp4");
             let is_hls = url.contains(".m3u8") || fmt == "hls";
-            let format = if is_hls { "hls".to_string() } else { fmt.to_string() };
-            let lang = entry.language.clone().unwrap_or_else(|| "Unknown".to_string());
+            let format = if is_hls {
+                "hls".to_string()
+            } else {
+                fmt.to_string()
+            };
+            let lang = entry
+                .language
+                .clone()
+                .unwrap_or_else(|| "Unknown".to_string());
 
             // Per-sub-provider headers: use the sub-provider's domain as Origin
             // for workers.dev / storm / hellstorm URLs so the CDN sees the right referrer.
@@ -215,7 +254,12 @@ impl VidRockClient {
 
             streams.push(VidRockStream {
                 url: url.clone(),
-                title: format!("VidRock {} - {} - {}", provider_name, if is_hls { "HLS" } else { "MP4" }, lang),
+                title: format!(
+                    "VidRock {} - {} - {}",
+                    provider_name,
+                    if is_hls { "HLS" } else { "MP4" },
+                    lang
+                ),
                 quality: "Auto".to_string(),
                 format,
                 provider: format!("VidRock/{}", provider_name),

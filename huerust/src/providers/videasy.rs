@@ -13,11 +13,11 @@
 //!   1. GET api.videasy.net/cdn/sources-with-title?title=... → hex response
 //!   2. POST daemon /scrape/videasy { hexResponse, tmdbId } → decrypted streams
 
-use reqwest_middleware::ClientWithMiddleware;
-use anyhow::Result;
-use tracing::{info, warn};
 use crate::models::StreamResult;
+use anyhow::Result;
+use reqwest_middleware::ClientWithMiddleware;
 use std::collections::HashMap;
+use tracing::{info, warn};
 
 const API_BASE: &str = "https://api.videasy.net";
 const DAEMON_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
@@ -56,9 +56,16 @@ impl VideasyClient {
         season: u32,
         episode: u32,
     ) -> Result<Vec<StreamResult>> {
-        info!("[Vortex Rust] Fetching: \"{}\" ({}) S{} E{}", title, media_type, season, episode);
+        info!(
+            "[Vortex Rust] Fetching: \"{}\" ({}) S{} E{}",
+            title, media_type, season, episode
+        );
 
-        let media_type_param = if media_type == "tv" || media_type == "series" { "tv" } else { "movie" };
+        let media_type_param = if media_type == "tv" || media_type == "series" {
+            "tv"
+        } else {
+            "movie"
+        };
 
         // Step 1: Fetch hex response from videasy.net API
         let mut api_url = format!(
@@ -79,7 +86,8 @@ impl VideasyClient {
 
         info!("[Vortex Rust] API: {}", api_url);
 
-        let resp = self.client
+        let resp = self
+            .client
             .get(&api_url)
             .header("Accept", "*/*")
             .header("Referer", "https://cineby.sc/")
@@ -99,7 +107,8 @@ impl VideasyClient {
             "tmdbId": tmdb_id,
         });
 
-        let daemon_resp = self.client
+        let daemon_resp = self
+            .client
             .post(format!("{}/scrape/videasy", self.daemon_url))
             .json(&payload)
             .send()
@@ -126,7 +135,10 @@ impl VideasyClient {
         }
 
         if !daemon_resp.status().is_success() {
-            return Err(anyhow::anyhow!("[Vortex Rust] Daemon returned {}", daemon_resp.status()));
+            return Err(anyhow::anyhow!(
+                "[Vortex Rust] Daemon returned {}",
+                daemon_resp.status()
+            ));
         }
 
         let data: DaemonResponse = daemon_resp.json().await?;
@@ -139,22 +151,34 @@ impl VideasyClient {
         headers.insert("Referer".to_string(), "https://cineby.sc/".to_string());
         headers.insert("User-Agent".to_string(), DAEMON_UA.to_string());
 
-        let subs: Vec<crate::models::Subtitle> = data.subtitles.into_iter().map(|s| {
-            crate::models::Subtitle { url: s.url, lang: s.lang, label: s.label }
-        }).collect();
+        let subs: Vec<crate::models::Subtitle> = data
+            .subtitles
+            .into_iter()
+            .map(|s| crate::models::Subtitle {
+                url: s.url,
+                lang: s.lang,
+                label: s.label,
+            })
+            .collect();
 
-        let mut results: Vec<StreamResult> = data.streams.into_iter().map(|s| {
-            StreamResult {
+        let mut results: Vec<StreamResult> = data
+            .streams
+            .into_iter()
+            .map(|s| StreamResult {
                 url: s.url,
                 title: format!("Vortex - {}", s.quality.as_deref().unwrap_or("Auto")),
                 quality: s.quality.unwrap_or_else(|| "Auto".to_string()),
                 provider: "Vortex".to_string(),
                 format: "hls".to_string(),
-                subtitles: if subs.is_empty() { None } else { Some(subs.clone()) },
+                subtitles: if subs.is_empty() {
+                    None
+                } else {
+                    Some(subs.clone())
+                },
                 headers: Some(headers.clone()),
                 extra_metadata: None,
-            }
-        }).collect();
+            })
+            .collect();
 
         // Attach subtitles only to first stream
         if !subs.is_empty() && !results.is_empty() {

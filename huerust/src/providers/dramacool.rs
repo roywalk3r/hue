@@ -5,12 +5,12 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use serde::{Deserialize, Serialize};
-use reqwest_middleware::ClientWithMiddleware;
-use anyhow::Result;
-use tracing::{info, warn};
 use crate::models::StreamResult;
+use anyhow::Result;
+use reqwest_middleware::ClientWithMiddleware;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tracing::{info, warn};
 
 const XYRA_BASE: &str = "https://api.xyra.stream/v1/dramacool";
 const XYRA_KEY: &str = "key1";
@@ -63,7 +63,11 @@ impl DramacoolClient {
         }
     }
 
-    async fn make_request<T: for<'de> Deserialize<'de>>(&self, endpoint: &str, params: Vec<(&str, &str)>) -> Result<XyraResponse<T>> {
+    async fn make_request<T: for<'de> Deserialize<'de>>(
+        &self,
+        endpoint: &str,
+        params: Vec<(&str, &str)>,
+    ) -> Result<XyraResponse<T>> {
         let mut url = format!("{}{}?api_key={}", XYRA_BASE, endpoint, XYRA_KEY);
         for (k, v) in params {
             url.push_str(&format!("&{}={}", k, urlencoding::encode(v)));
@@ -75,17 +79,23 @@ impl DramacoolClient {
     }
 
     pub async fn search(&self, query: &str) -> Result<Vec<XyraSearchItem>> {
-        let res = self.make_request::<Vec<XyraSearchItem>>("/search", vec![("query", query)]).await?;
+        let res = self
+            .make_request::<Vec<XyraSearchItem>>("/search", vec![("query", query)])
+            .await?;
         Ok(res.data.unwrap_or_default())
     }
 
     pub async fn get_info(&self, id: &str) -> Result<Option<XyraDramaInfo>> {
-        let res = self.make_request::<XyraDramaInfo>("/info", vec![("id", id)]).await?;
+        let res = self
+            .make_request::<XyraDramaInfo>("/info", vec![("id", id)])
+            .await?;
         Ok(res.data)
     }
 
     pub async fn get_stream(&self, episode_id: &str) -> Result<Option<XyraStreamData>> {
-        let res = self.make_request::<XyraStreamData>("/stream", vec![("episode_id", episode_id)]).await?;
+        let res = self
+            .make_request::<XyraStreamData>("/stream", vec![("episode_id", episode_id)])
+            .await?;
         Ok(res.data)
     }
 
@@ -94,7 +104,9 @@ impl DramacoolClient {
     #[allow(dead_code)]
     pub async fn get_detail(&self, title: &str) -> Result<Option<(XyraSearchItem, XyraDramaInfo)>> {
         let search_results = self.search(title).await?;
-        if search_results.is_empty() { return Ok(None); }
+        if search_results.is_empty() {
+            return Ok(None);
+        }
         let best = &search_results[0];
         let info = match self.get_info(&best.id).await? {
             Some(i) => i,
@@ -103,22 +115,35 @@ impl DramacoolClient {
         Ok(Some((best.clone(), info)))
     }
 
-    pub async fn get_streams_normalized(&self, title: &str, _season: u32, episode: u32) -> Result<Vec<StreamResult>> {
+    pub async fn get_streams_normalized(
+        &self,
+        title: &str,
+        _season: u32,
+        episode: u32,
+    ) -> Result<Vec<StreamResult>> {
         info!("[Dramacool Rust] Searching for: \"{}\" E{}", title, episode);
-        
+
         let search_results = self.search(title).await?;
-        if search_results.is_empty() { return Ok(vec![]); }
+        if search_results.is_empty() {
+            return Ok(vec![]);
+        }
 
         let best_match = &search_results[0];
-        
+
         let info = match self.get_info(&best_match.id).await? {
             Some(i) => i,
             None => return Ok(vec![]),
         };
 
-        let ep_id = info.episodes.iter().find(|e| {
-            e.title.to_lowercase().contains(&format!("episode {}", episode))
-        }).map(|e| e.episode_id.clone());
+        let ep_id = info
+            .episodes
+            .iter()
+            .find(|e| {
+                e.title
+                    .to_lowercase()
+                    .contains(&format!("episode {}", episode))
+            })
+            .map(|e| e.episode_id.clone());
 
         let ep_id = match ep_id {
             Some(id) => id,
@@ -142,45 +167,48 @@ impl DramacoolClient {
                             format: "hls".to_string(),
                             subtitles: None,
                             headers: Some(headers),
-                        extra_metadata: None,
+                            extra_metadata: None,
                         });
                         return Ok(results);
                     }
                 }
-                
+
                 // Fallback to Microservice
                 if let Some(server_url) = data.server_url {
                     info!("[Dramacool Rust] API direct link failed, delegating to Node.js Scraper Microservice for URL: {}", server_url);
-                    
+
                     let payload = serde_json::json!({
                         "url": server_url
                     });
 
-                    match self.client.post(format!("{}/scrape/dramacool", self.scraper_url))
+                    match self
+                        .client
+                        .post(format!("{}/scrape/dramacool", self.scraper_url))
                         .json(&payload)
                         .send()
-                        .await {
-                            Ok(scraper_resp) => {
-                                if scraper_resp.status().is_success() {
-                                    #[derive(Deserialize)]
-                                    struct ScraperResponse {
-                                        success: bool,
-                                        streams: Vec<StreamResult>,
-                                    }
-                                    if let Ok(data) = scraper_resp.json::<ScraperResponse>().await {
-                                        if data.success {
-                                            return Ok(data.streams);
-                                        }
+                        .await
+                    {
+                        Ok(scraper_resp) => {
+                            if scraper_resp.status().is_success() {
+                                #[derive(Deserialize)]
+                                struct ScraperResponse {
+                                    success: bool,
+                                    streams: Vec<StreamResult>,
+                                }
+                                if let Ok(data) = scraper_resp.json::<ScraperResponse>().await {
+                                    if data.success {
+                                        return Ok(data.streams);
                                     }
                                 }
-                            },
-                            Err(e) => warn!("[Dramacool Rust] Scraper microservice call failed: {}", e),
+                            }
                         }
+                        Err(e) => warn!("[Dramacool Rust] Scraper microservice call failed: {}", e),
+                    }
                 }
-                
+
                 Ok(results)
             }
-            None => Ok(vec![])
+            None => Ok(vec![]),
         }
     }
 }

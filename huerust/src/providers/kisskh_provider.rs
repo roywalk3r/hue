@@ -5,12 +5,12 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use async_trait::async_trait;
-use crate::providers::StreamProvider;
-use crate::models::StreamResult;
 use crate::clients::tmdb::TmdbNormalizedInfo;
+use crate::models::StreamResult;
 use crate::providers::kisskh::KissKhClient;
+use crate::providers::StreamProvider;
 use anyhow::Result;
+use async_trait::async_trait;
 use std::sync::Arc;
 
 pub struct KissKhProvider {
@@ -25,10 +25,18 @@ impl KissKhProvider {
 
 #[async_trait]
 impl StreamProvider for KissKhProvider {
-    fn name(&self) -> &'static str { "Zenith" }
-    fn real_name(&self) -> &'static str { "kisskh" }
-    fn is_fast(&self) -> bool { false }
-    fn timeout_secs(&self) -> u64 { 20 }
+    fn name(&self) -> &'static str {
+        "Zenith"
+    }
+    fn real_name(&self) -> &'static str {
+        "kisskh"
+    }
+    fn is_fast(&self) -> bool {
+        false
+    }
+    fn timeout_secs(&self) -> u64 {
+        20
+    }
 
     async fn fetch(
         &self,
@@ -41,6 +49,8 @@ impl StreamProvider for KissKhProvider {
         if media_type == "movie" || media_type == "tv" {
             return Ok(vec![]);
         }
-        self.client.get_streams_normalized(&tmdb_info.title, season, episode).await
+        self.client
+            .get_streams_normalized(&tmdb_info.title, season, episode)
+            .await
     }
 }

@@ -5,18 +5,14 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
+use crate::{app::HiTvState, clients::hitv::HiTvItem, proxy::dynamic_proxy_base};
 use axum::{
-    extract::{Query, State, Path},
+    extract::{Path, Query, State},
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    http::{StatusCode, HeaderMap},
 };
-use std::collections::HashMap;
 use serde::Serialize;
-use crate::{
-    app::HiTvState,
-    clients::hitv::HiTvItem,
-    proxy::dynamic_proxy_base,
-};
+use std::collections::HashMap;
 use tracing::{info, warn};
 
 #[derive(Serialize)]
@@ -43,28 +39,54 @@ pub async fn browse_handler(
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
     let country = params.get("country").map(|s| s.as_str()).unwrap_or("All");
-    let category = params.get("category").map(|s| s.as_str()).unwrap_or("Drama");
+    let category = params
+        .get("category")
+        .map(|s| s.as_str())
+        .unwrap_or("Drama");
     let genre = params.get("genre").map(|s| s.as_str()).unwrap_or("All");
     let sort = params.get("sort").map(|s| s.as_str()).unwrap_or("Hottest");
     let year = params.get("year").map(|s| s.as_str());
-    let page = params.get("page").and_then(|s| s.parse::<u32>().ok()).unwrap_or(1);
-    let page_size = params.get("page_size").and_then(|s| s.parse::<u32>().ok()).unwrap_or(60);
+    let page = params
+        .get("page")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(1);
+    let page_size = params
+        .get("page_size")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(60);
 
-    info!("[hitv] Browse: country={} category={} genre={} sort={} page={}", country, category, genre, sort, page);
+    info!(
+        "[hitv] Browse: country={} category={} genre={} sort={} page={}",
+        country, category, genre, sort, page
+    );
 
-    match state.hitv.browse_hitv(page, page_size, country, category, genre, sort, year).await {
-        Ok(res) => (StatusCode::OK, serde_json::to_string(&HitvListResponse {
-            success: true,
-            items: res.items,
-            total: res.total,
-        }).unwrap()).into_response(),
+    match state
+        .hitv
+        .browse_hitv(page, page_size, country, category, genre, sort, year)
+        .await
+    {
+        Ok(res) => (
+            StatusCode::OK,
+            serde_json::to_string(&HitvListResponse {
+                success: true,
+                items: res.items,
+                total: res.total,
+            })
+            .unwrap(),
+        )
+            .into_response(),
         Err(e) => {
             warn!("[hitv] Browse failed: {}", e);
-            (StatusCode::BAD_GATEWAY, serde_json::to_string(&HitvListResponse {
-                success: false,
-                items: vec![],
-                total: 0,
-            }).unwrap()).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                serde_json::to_string(&HitvListResponse {
+                    success: false,
+                    items: vec![],
+                    total: 0,
+                })
+                .unwrap(),
+            )
+                .into_response()
         }
     }
 }
@@ -74,8 +96,14 @@ pub async fn search_handler(
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
     let query = params.get("q").map(|s| s.as_str()).unwrap_or("");
-    let page = params.get("page").and_then(|s| s.parse::<u32>().ok()).unwrap_or(1);
-    let page_size = params.get("page_size").and_then(|s| s.parse::<u32>().ok()).unwrap_or(60);
+    let page = params
+        .get("page")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(1);
+    let page_size = params
+        .get("page_size")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(60);
 
     if query.is_empty() {
         return (StatusCode::BAD_REQUEST, "Missing 'q' parameter").into_response();
@@ -84,18 +112,28 @@ pub async fn search_handler(
     info!("[hitv] Search: q={} page={}", query, page);
 
     match state.hitv.search(query, page, page_size).await {
-        Ok(res) => (StatusCode::OK, serde_json::to_string(&HitvListResponse {
-            success: true,
-            items: res.items,
-            total: res.total,
-        }).unwrap()).into_response(),
+        Ok(res) => (
+            StatusCode::OK,
+            serde_json::to_string(&HitvListResponse {
+                success: true,
+                items: res.items,
+                total: res.total,
+            })
+            .unwrap(),
+        )
+            .into_response(),
         Err(e) => {
             warn!("[hitv] Search failed: {}", e);
-            (StatusCode::BAD_GATEWAY, serde_json::to_string(&HitvListResponse {
-                success: false,
-                items: vec![],
-                total: 0,
-            }).unwrap()).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                serde_json::to_string(&HitvListResponse {
+                    success: false,
+                    items: vec![],
+                    total: 0,
+                })
+                .unwrap(),
+            )
+                .into_response()
         }
     }
 }
@@ -105,24 +143,47 @@ pub async fn latest_handler(
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
     let country = params.get("country").map(|s| s.as_str()).unwrap_or("All");
-    let category = params.get("category").map(|s| s.as_str()).unwrap_or("Drama");
+    let category = params
+        .get("category")
+        .map(|s| s.as_str())
+        .unwrap_or("Drama");
     let genre = params.get("genre").map(|s| s.as_str()).unwrap_or("All");
-    let page = params.get("page").and_then(|s| s.parse::<u32>().ok()).unwrap_or(1);
-    let page_size = params.get("page_size").and_then(|s| s.parse::<u32>().ok()).unwrap_or(60);
+    let page = params
+        .get("page")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(1);
+    let page_size = params
+        .get("page_size")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(60);
 
-    match state.hitv.browse_hitv(page, page_size, country, category, genre, "Newest", None).await {
-        Ok(res) => (StatusCode::OK, serde_json::to_string(&HitvListResponse {
-            success: true,
-            items: res.items,
-            total: res.total,
-        }).unwrap()).into_response(),
+    match state
+        .hitv
+        .browse_hitv(page, page_size, country, category, genre, "Newest", None)
+        .await
+    {
+        Ok(res) => (
+            StatusCode::OK,
+            serde_json::to_string(&HitvListResponse {
+                success: true,
+                items: res.items,
+                total: res.total,
+            })
+            .unwrap(),
+        )
+            .into_response(),
         Err(e) => {
             warn!("[hitv] Latest failed: {}", e);
-            (StatusCode::BAD_GATEWAY, serde_json::to_string(&HitvListResponse {
-                success: false,
-                items: vec![],
-                total: 0,
-            }).unwrap()).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                serde_json::to_string(&HitvListResponse {
+                    success: false,
+                    items: vec![],
+                    total: 0,
+                })
+                .unwrap(),
+            )
+                .into_response()
         }
     }
 }
@@ -132,24 +193,47 @@ pub async fn trending_handler(
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
     let country = params.get("country").map(|s| s.as_str()).unwrap_or("All");
-    let category = params.get("category").map(|s| s.as_str()).unwrap_or("Drama");
+    let category = params
+        .get("category")
+        .map(|s| s.as_str())
+        .unwrap_or("Drama");
     let genre = params.get("genre").map(|s| s.as_str()).unwrap_or("All");
-    let page = params.get("page").and_then(|s| s.parse::<u32>().ok()).unwrap_or(1);
-    let page_size = params.get("page_size").and_then(|s| s.parse::<u32>().ok()).unwrap_or(60);
+    let page = params
+        .get("page")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(1);
+    let page_size = params
+        .get("page_size")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(60);
 
-    match state.hitv.browse_hitv(page, page_size, country, category, genre, "Hottest", None).await {
-        Ok(res) => (StatusCode::OK, serde_json::to_string(&HitvListResponse {
-            success: true,
-            items: res.items,
-            total: res.total,
-        }).unwrap()).into_response(),
+    match state
+        .hitv
+        .browse_hitv(page, page_size, country, category, genre, "Hottest", None)
+        .await
+    {
+        Ok(res) => (
+            StatusCode::OK,
+            serde_json::to_string(&HitvListResponse {
+                success: true,
+                items: res.items,
+                total: res.total,
+            })
+            .unwrap(),
+        )
+            .into_response(),
         Err(e) => {
             warn!("[hitv] Trending failed: {}", e);
-            (StatusCode::BAD_GATEWAY, serde_json::to_string(&HitvListResponse {
-                success: false,
-                items: vec![],
-                total: 0,
-            }).unwrap()).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                serde_json::to_string(&HitvListResponse {
+                    success: false,
+                    items: vec![],
+                    total: 0,
+                })
+                .unwrap(),
+            )
+                .into_response()
         }
     }
 }
@@ -158,11 +242,16 @@ pub async fn hero_handler(State(state): State<HiTvState>) -> Response {
     let library = state.hitv.get_library().await;
     let items: Vec<HiTvItem> = library.into_iter().take(10).collect();
 
-    (StatusCode::OK, serde_json::to_string(&HitvListResponse {
-        success: true,
-        items,
-        total: 10,
-    }).unwrap()).into_response()
+    (
+        StatusCode::OK,
+        serde_json::to_string(&HitvListResponse {
+            success: true,
+            items,
+            total: 10,
+        })
+        .unwrap(),
+    )
+        .into_response()
 }
 
 pub async fn drama_handler(
@@ -172,47 +261,79 @@ pub async fn drama_handler(
     let country = params.get("country").map(|s| s.as_str()).unwrap_or("All");
     let genre = params.get("genre").map(|s| s.as_str()).unwrap_or("All");
     let sort = params.get("sort").map(|s| s.as_str()).unwrap_or("Hottest");
-    let page = params.get("page").and_then(|s| s.parse::<u32>().ok()).unwrap_or(1);
-    let page_size = params.get("page_size").and_then(|s| s.parse::<u32>().ok()).unwrap_or(60);
+    let page = params
+        .get("page")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(1);
+    let page_size = params
+        .get("page_size")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(60);
 
-    match state.hitv.browse_hitv(page, page_size, country, "Drama", genre, sort, None).await {
-        Ok(res) => (StatusCode::OK, serde_json::to_string(&HitvListResponse {
-            success: true,
-            items: res.items,
-            total: res.total,
-        }).unwrap()).into_response(),
+    match state
+        .hitv
+        .browse_hitv(page, page_size, country, "Drama", genre, sort, None)
+        .await
+    {
+        Ok(res) => (
+            StatusCode::OK,
+            serde_json::to_string(&HitvListResponse {
+                success: true,
+                items: res.items,
+                total: res.total,
+            })
+            .unwrap(),
+        )
+            .into_response(),
         Err(e) => {
             warn!("[hitv] Drama browse failed: {}", e);
-            (StatusCode::BAD_GATEWAY, serde_json::to_string(&HitvListResponse {
-                success: false,
-                items: vec![],
-                total: 0,
-            }).unwrap()).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                serde_json::to_string(&HitvListResponse {
+                    success: false,
+                    items: vec![],
+                    total: 0,
+                })
+                .unwrap(),
+            )
+                .into_response()
         }
     }
 }
 
-pub async fn info_handler(
-    State(state): State<HiTvState>,
-    Path(id): Path<String>,
-) -> Response {
+pub async fn info_handler(State(state): State<HiTvState>, Path(id): Path<String>) -> Response {
     info!("[hitv] Info: id={}", id);
 
     match state.hitv.get_detail(&id).await {
-        Ok(Some(item)) => (StatusCode::OK, serde_json::to_string(&HitvDetailResponse {
-            success: true,
-            item: Some(item),
-        }).unwrap()).into_response(),
-        Ok(None) => (StatusCode::NOT_FOUND, serde_json::to_string(&HitvDetailResponse {
-            success: false,
-            item: None,
-        }).unwrap()).into_response(),
-        Err(e) => {
-            warn!("[hitv] Info failed: {}", e);
-            (StatusCode::BAD_GATEWAY, serde_json::to_string(&HitvDetailResponse {
+        Ok(Some(item)) => (
+            StatusCode::OK,
+            serde_json::to_string(&HitvDetailResponse {
+                success: true,
+                item: Some(item),
+            })
+            .unwrap(),
+        )
+            .into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            serde_json::to_string(&HitvDetailResponse {
                 success: false,
                 item: None,
-            }).unwrap()).into_response()
+            })
+            .unwrap(),
+        )
+            .into_response(),
+        Err(e) => {
+            warn!("[hitv] Info failed: {}", e);
+            (
+                StatusCode::BAD_GATEWAY,
+                serde_json::to_string(&HitvDetailResponse {
+                    success: false,
+                    item: None,
+                })
+                .unwrap(),
+            )
+                .into_response()
         }
     }
 }
@@ -225,7 +346,10 @@ pub async fn play_handler(
 ) -> Response {
     info!("[hitv] Play: id={} episode={}", id, episode);
 
-    let season = params.get("season").and_then(|s| s.parse::<u32>().ok()).unwrap_or(1);
+    let season = params
+        .get("season")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(1);
 
     // Reverse-map HiTV internal ID to TMDB ID
     let tmdb_id = match state.hitv.get_detail(&id).await {
@@ -233,7 +357,8 @@ pub async fn play_handler(
             if let Some(tid) = item.tmdb_id {
                 tid.to_string()
             } else {
-                let clean_title = item.title
+                let clean_title = item
+                    .title
                     .replace(" (TV Series)", "")
                     .replace(" (Movie)", "")
                     .replace(" [Korean Drama]", "")
@@ -245,7 +370,8 @@ pub async fn play_handler(
                     Ok(results) if !results.is_empty() => results[0].id.to_string(),
                     _ => {
                         warn!("[hitv] Could not map HiTV ID {} to TMDB", id);
-                        return (StatusCode::NOT_FOUND, "Could not resolve TMDB ID").into_response();
+                        return (StatusCode::NOT_FOUND, "Could not resolve TMDB ID")
+                            .into_response();
                     }
                 }
             }
@@ -265,40 +391,79 @@ pub async fn play_handler(
     // For simplicity, redirect to /api/play/tv/{tmdb_id}?season={season}&episode={episode}
 
     let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
-    let redirect_url = format!("{}/api/play/tv/{}?season={}&episode={}", proxy_base, tmdb_id, season, episode);
-    (StatusCode::TEMPORARY_REDIRECT, [("Location", redirect_url)], "").into_response()
+    let redirect_url = format!(
+        "{}/api/play/tv/{}?season={}&episode={}",
+        proxy_base, tmdb_id, season, episode
+    );
+    (
+        StatusCode::TEMPORARY_REDIRECT,
+        [("Location", redirect_url)],
+        "",
+    )
+        .into_response()
 }
 
 pub async fn countries_handler() -> Response {
     let countries = vec!["Korea", "China", "Thailand", "Japan"];
-    (StatusCode::OK, serde_json::to_string(&StaticListResponse {
-        success: true,
-        items: countries.into_iter().map(String::from).collect(),
-    }).unwrap()).into_response()
+    (
+        StatusCode::OK,
+        serde_json::to_string(&StaticListResponse {
+            success: true,
+            items: countries.into_iter().map(String::from).collect(),
+        })
+        .unwrap(),
+    )
+        .into_response()
 }
 
 pub async fn categories_handler() -> Response {
     let categories = vec!["Drama", "Movie", "Variety"];
-    (StatusCode::OK, serde_json::to_string(&StaticListResponse {
-        success: true,
-        items: categories.into_iter().map(String::from).collect(),
-    }).unwrap()).into_response()
+    (
+        StatusCode::OK,
+        serde_json::to_string(&StaticListResponse {
+            success: true,
+            items: categories.into_iter().map(String::from).collect(),
+        })
+        .unwrap(),
+    )
+        .into_response()
 }
 
 pub async fn genres_handler() -> Response {
-    let genres = vec!["All", "Romance", "Comedy", "Action", "Thriller", "Horror", "Fantasy", "Historical", "Mystery", "Family"];
-    (StatusCode::OK, serde_json::to_string(&StaticListResponse {
-        success: true,
-        items: genres.into_iter().map(String::from).collect(),
-    }).unwrap()).into_response()
+    let genres = vec![
+        "All",
+        "Romance",
+        "Comedy",
+        "Action",
+        "Thriller",
+        "Horror",
+        "Fantasy",
+        "Historical",
+        "Mystery",
+        "Family",
+    ];
+    (
+        StatusCode::OK,
+        serde_json::to_string(&StaticListResponse {
+            success: true,
+            items: genres.into_iter().map(String::from).collect(),
+        })
+        .unwrap(),
+    )
+        .into_response()
 }
 
 pub async fn sorts_handler() -> Response {
     let sorts = vec!["Hottest", "Newest", "TopRated"];
-    (StatusCode::OK, serde_json::to_string(&StaticListResponse {
-        success: true,
-        items: sorts.into_iter().map(String::from).collect(),
-    }).unwrap()).into_response()
+    (
+        StatusCode::OK,
+        serde_json::to_string(&StaticListResponse {
+            success: true,
+            items: sorts.into_iter().map(String::from).collect(),
+        })
+        .unwrap(),
+    )
+        .into_response()
 }
 
 pub async fn dynamic_browse_handler(
@@ -306,25 +471,51 @@ pub async fn dynamic_browse_handler(
     Path((country, sort, genre)): Path<(String, String, String)>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
-    let category = params.get("category").map(|s| s.as_str()).unwrap_or("Drama");
-    let page = params.get("page").and_then(|s| s.parse::<u32>().ok()).unwrap_or(1);
-    let page_size = params.get("page_size").and_then(|s| s.parse::<u32>().ok()).unwrap_or(60);
+    let category = params
+        .get("category")
+        .map(|s| s.as_str())
+        .unwrap_or("Drama");
+    let page = params
+        .get("page")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(1);
+    let page_size = params
+        .get("page_size")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(60);
 
-    info!("[hitv] Dynamic browse: {}/{}/{} category={} page={}", country, sort, genre, category, page);
+    info!(
+        "[hitv] Dynamic browse: {}/{}/{} category={} page={}",
+        country, sort, genre, category, page
+    );
 
-    match state.hitv.browse_hitv(page, page_size, &country, category, &genre, &sort, None).await {
-        Ok(res) => (StatusCode::OK, serde_json::to_string(&HitvListResponse {
-            success: true,
-            items: res.items,
-            total: res.total,
-        }).unwrap()).into_response(),
+    match state
+        .hitv
+        .browse_hitv(page, page_size, &country, category, &genre, &sort, None)
+        .await
+    {
+        Ok(res) => (
+            StatusCode::OK,
+            serde_json::to_string(&HitvListResponse {
+                success: true,
+                items: res.items,
+                total: res.total,
+            })
+            .unwrap(),
+        )
+            .into_response(),
         Err(e) => {
             warn!("[hitv] Dynamic browse failed: {}", e);
-            (StatusCode::BAD_GATEWAY, serde_json::to_string(&HitvListResponse {
-                success: false,
-                items: vec![],
-                total: 0,
-            }).unwrap()).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                serde_json::to_string(&HitvListResponse {
+                    success: false,
+                    items: vec![],
+                    total: 0,
+                })
+                .unwrap(),
+            )
+                .into_response()
         }
     }
 }

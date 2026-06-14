@@ -4,11 +4,11 @@
 //!   POST daemon /scrape/vidsrc-embed { tmdbId, mediaType, season, episode }
 //!   → { success, streams: [{ url, quality, subtitles, headers }] }
 
-use reqwest_middleware::ClientWithMiddleware;
-use anyhow::Result;
-use tracing::{info, warn};
 use crate::models::StreamResult;
+use anyhow::Result;
+use reqwest_middleware::ClientWithMiddleware;
 use std::collections::HashMap;
+use tracing::{info, warn};
 
 const DAEMON_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 
@@ -43,7 +43,10 @@ impl VidsrcEmbedClient {
         season: Option<u32>,
         episode: Option<u32>,
     ) -> Result<Vec<StreamResult>> {
-        info!("[Nebula] Delegating to daemon for TMDB {} ({}) S{:?} E{:?}", tmdb_id, media_type, season, episode);
+        info!(
+            "[Nebula] Delegating to daemon for TMDB {} ({}) S{:?} E{:?}",
+            tmdb_id, media_type, season, episode
+        );
 
         let payload = serde_json::json!({
             "tmdbId": tmdb_id,
@@ -52,7 +55,8 @@ impl VidsrcEmbedClient {
             "episode": episode,
         });
 
-        let resp = self.client
+        let resp = self
+            .client
             .post(format!("{}/scrape/vidsrc-embed", self.daemon_url))
             .json(&payload)
             .send()
@@ -80,7 +84,10 @@ impl VidsrcEmbedClient {
         }
 
         if !resp.status().is_success() {
-            return Err(anyhow::anyhow!("[Nebula] Daemon returned {}", resp.status()));
+            return Err(anyhow::anyhow!(
+                "[Nebula] Daemon returned {}",
+                resp.status()
+            ));
         }
 
         let data: DaemonResponse = resp.json().await?;
@@ -108,7 +115,11 @@ impl VidsrcEmbedClient {
                 quality: s.quality.unwrap_or_else(|| "Auto".to_string()),
                 provider: "Nebula".to_string(),
                 format: "hls".to_string(),
-                subtitles: if subs.as_ref().map(|v| v.is_empty()).unwrap_or(true) { None } else { subs },
+                subtitles: if subs.as_ref().map(|v| v.is_empty()).unwrap_or(true) {
+                    None
+                } else {
+                    subs
+                },
                 headers: s.headers,
                 extra_metadata: None,
             });

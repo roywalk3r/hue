@@ -5,33 +5,33 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-pub mod registry;
 pub mod dispatch;
-pub mod vixsrc;
-pub mod kisskh;
-pub mod sflix;
 pub mod dramacool;
-pub mod kissasian;
-pub mod mp4hydra;
-pub mod vidzee;
-pub mod videasy;
-pub mod moviebox_provider;
-pub mod kisskh_provider;
-pub mod sflix_provider;
 pub mod dramacool_provider;
+pub mod kissasian;
 pub mod kissasian_provider;
-pub mod vixsrc_provider;
+pub mod kisskh;
+pub mod kisskh_provider;
+pub mod moviebox_provider;
+pub mod mp4hydra;
 pub mod mp4hydra_provider;
-pub mod vidzee_provider;
+pub mod registry;
+pub mod sflix;
+pub mod sflix_provider;
+pub mod videasy;
 pub mod videasy_provider;
 pub mod vidrock_provider;
-pub mod vidvault_provider;
 pub mod vidsrcembed_provider;
+pub mod vidvault_provider;
+pub mod vidzee;
+pub mod vidzee_provider;
+pub mod vixsrc;
+pub mod vixsrc_provider;
 
-use async_trait::async_trait;
-use crate::models::StreamResult;
 use crate::clients::tmdb::TmdbNormalizedInfo;
+use crate::models::StreamResult;
 use anyhow::Result;
+use async_trait::async_trait;
 
 #[async_trait]
 pub trait StreamProvider: Send + Sync {

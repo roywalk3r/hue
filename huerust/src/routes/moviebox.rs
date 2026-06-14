@@ -437,15 +437,20 @@ fn moviebox_detail_episodes(detail_data: &serde_json::Value) -> Vec<serde_json::
 }
 
 fn moviebox_detail_cast(detail_data: &serde_json::Value) -> Vec<serde_json::Value> {
-    let stars = detail_data["data"]["stars"].as_array()
+    let stars = detail_data["data"]["stars"]
+        .as_array()
         .or_else(|| detail_data["data"]["subject"]["stars"].as_array());
 
-    let Some(list) = stars else { return Vec::new(); };
+    let Some(list) = stars else {
+        return Vec::new();
+    };
 
     list.iter()
         .filter_map(|star| {
             let name = star["name"].as_str()?.trim();
-            if name.is_empty() { return None; }
+            if name.is_empty() {
+                return None;
+            }
             let avatar = star["avatarUrl"].as_str().unwrap_or("");
             let character = star["character"].as_str().unwrap_or("");
             Some(serde_json::json!({

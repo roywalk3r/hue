@@ -43,8 +43,8 @@ use crate::providers::{
     // videasy::VideasyClient,       // disabled — upstream 500
     // videasy_provider::VideasyProvider,
     vidrock_provider::VidrockProvider,
-    vidvault_provider::VidvaultProvider,
     vidsrcembed_provider::VidsrcEmbedProvider,
+    vidvault_provider::VidvaultProvider,
     vidzee::VidzeeClient,
     vidzee_provider::VidzeeProvider,
     vixsrc::VixsrcClient,
@@ -98,7 +98,8 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let cache = Arc::new(StreamCache::new_from_config(&cfg).await);
     let circuit_breaker = Arc::new(CircuitBreaker::new());
     let metrics = Arc::new(Metrics::new(&[
-        "Cinema", "Nova", "Zenith", "Orient", "Pearl", "Aura", "Hydra", "Luna", "Vault", "VidZee", "Nebula",
+        "Cinema", "Nova", "Zenith", "Orient", "Pearl", "Aura", "Hydra", "Luna", "Vault", "VidZee",
+        "Nebula",
     ]));
     circuit_breaker.set_metrics(metrics.clone());
     let filter_config = Arc::new(FilterConfig::default());
@@ -492,6 +493,19 @@ pub fn build_router(state: AppState) -> Router {
             axum::routing::post(crate::routes::anime::filter_handler),
         )
         .route(
+            "/api/anime/discover",
+            get(crate::routes::anime::discover_get_handler)
+                .post(crate::routes::anime::discover_post_handler),
+        )
+        .route(
+            "/api/anime/filters",
+            get(crate::routes::anime::filter_options_handler),
+        )
+        .route(
+            "/api/anime/schedule",
+            get(crate::routes::anime::schedule_handler),
+        )
+        .route(
             "/api/aisports/leagues",
             get(crate::routes::sports::leagues_handler),
         )
@@ -682,7 +696,11 @@ async fn hue_anon_middleware(mut req: Request<Body>, next: Next) -> Response {
         .map(str::trim)
         .find_map(|pair| {
             let (k, v) = pair.split_once('=')?;
-            if k == HUE_ANON_COOKIE { Some(v.to_string()) } else { None }
+            if k == HUE_ANON_COOKIE {
+                Some(v.to_string())
+            } else {
+                None
+            }
         });
 
     let is_new = existing.is_none();
@@ -692,10 +710,12 @@ async fn hue_anon_middleware(mut req: Request<Body>, next: Next) -> Response {
     let mut response = next.run(req).await;
 
     if is_new {
-        if let Ok(val) = axum::http::HeaderValue::from_str(
-            &format!("{HUE_ANON_COOKIE}={id}; Path=/; Max-Age=63072000; HttpOnly; SameSite=Lax"),
-        ) {
-            response.headers_mut().append(axum::http::header::SET_COOKIE, val);
+        if let Ok(val) = axum::http::HeaderValue::from_str(&format!(
+            "{HUE_ANON_COOKIE}={id}; Path=/; Max-Age=63072000; HttpOnly; SameSite=Lax"
+        )) {
+            response
+                .headers_mut()
+                .append(axum::http::header::SET_COOKIE, val);
         }
     }
     response

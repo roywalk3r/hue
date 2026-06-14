@@ -4,8 +4,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
 
-use crate::models::anime::{AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, EpisodeSummary, ServerEntry, ServerList, SkipRange, StreamPayload, SubtitleTrack};
 use crate::constants::UA_DESKTOP;
+use crate::models::anime::{
+    AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, EpisodeSummary, FilterParams,
+    ServerEntry, ServerList, SkipRange, StreamPayload, SubtitleTrack,
+};
 
 const BASE_URL: &str = "https://aniwatch.to";
 const AJAX_URL: &str = "https://aniwatch.to/ajax";
@@ -171,8 +174,13 @@ impl AniWatchClient {
     }
 
     pub async fn search(&self, keyword: &str) -> Result<AnimeSearchResponse> {
-        let url = format!("{}/search/suggest?keyword={}", AJAX_URL, urlencoding::encode(keyword));
-        let resp = self.client
+        let url = format!(
+            "{}/search/suggest?keyword={}",
+            AJAX_URL,
+            urlencoding::encode(keyword)
+        );
+        let resp = self
+            .client
             .get(&url)
             .header("Referer", BASE_URL)
             .header("X-Requested-With", "XMLHttpRequest")
@@ -195,9 +203,39 @@ impl AniWatchClient {
         })
     }
 
+    /// Browse / discover. AniWatch's `/filter` endpoint returns a page of
+    /// anime cards filtered by category. Genre/status not wired in this
+    /// client — AniList carries the more comprehensive filter data.
+    pub async fn discover(&self, p: &FilterParams) -> Result<Vec<AnimeCard>> {
+        let typ = p.r#type.as_deref().unwrap_or("tv");
+        let category = match typ {
+            "movie" => "movie",
+            "ova" | "ona" | "special" => "special",
+            _ => "tv",
+        };
+        let page = p.page.unwrap_or(1);
+        let url = format!(
+            "{}/filter?category={}&page={}",
+            AJAX_URL, category, page
+        );
+        let resp = self
+            .client
+            .get(&url)
+            .header("Referer", BASE_URL)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("AniWatch filter returned {}", resp.status()));
+        }
+        let html = resp.text().await?;
+        Ok(parse_search_html(&html))
+    }
+
     pub async fn get_detail(&self, id: &str) -> Result<AnimeDetail> {
         let url = format!("{}/anime/info?id={}", BASE_URL, urlencoding::encode(id));
-        let resp = self.client
+        let resp = self
+            .client
             .get(&url)
             .header("Referer", BASE_URL)
             .header("X-Requested-With", "XMLHttpRequest")
@@ -210,25 +248,53 @@ impl AniWatchClient {
 
         let info: AnimeInfoResponse = resp.json().await?;
 
-        let total_eps = info.stats.as_ref().and_then(|s| s.eps.as_ref()).and_then(|e| e.sub).unwrap_or(0);
-        let has_dub = info.stats.as_ref().and_then(|s| s.eps.as_ref()).and_then(|e| e.dub).unwrap_or(0) > 0;
+        let total_eps = info
+            .stats
+            .as_ref()
+            .and_then(|s| s.eps.as_ref())
+            .and_then(|e| e.sub)
+            .unwrap_or(0);
+        let has_dub = info
+            .stats
+            .as_ref()
+            .and_then(|s| s.eps.as_ref())
+            .and_then(|e| e.dub)
+            .unwrap_or(0)
+            > 0;
 
-        let episodes: Vec<EpisodeSummary> = info.episodes.iter().map(|ep| EpisodeSummary {
-            id: ep.id.clone(),
-            number: ep.number,
-            title: if ep.title.is_empty() { None } else { Some(ep.title.clone()) },
-            sub_count: 1,
-            dub_count: if has_dub { 1 } else { 0 },
-            slug: Some(ep.id.clone()),
-            slugs: None,
-        }).collect();
+        let episodes: Vec<EpisodeSummary> = info
+            .episodes
+            .iter()
+            .map(|ep| EpisodeSummary {
+                id: ep.id.clone(),
+                number: ep.number,
+                title: if ep.title.is_empty() {
+                    None
+                } else {
+                    Some(ep.title.clone())
+                },
+                sub_count: 1,
+                dub_count: if has_dub { 1 } else { 0 },
+                slug: Some(ep.id.clone()),
+                series_slug: Some(info.id.clone()),
+                slugs: None,
+            })
+            .collect();
 
         let card = AnimeCard {
             id: info.id.clone(),
             title: info.name.clone(),
             japanese_title: None,
-            synopsis: if info.description.is_empty() { None } else { Some(info.description.clone()) },
-            image: if info.poster.is_empty() { None } else { Some(info.poster.clone()) },
+            synopsis: if info.description.is_empty() {
+                None
+            } else {
+                Some(info.description.clone())
+            },
+            image: if info.poster.is_empty() {
+                None
+            } else {
+                Some(info.poster.clone())
+            },
             banner_image: None,
             anime_type: info.stats.as_ref().map(|s| s.type_.clone()),
             status: None,
@@ -263,8 +329,13 @@ impl AniWatchClient {
     }
 
     pub async fn get_servers(&self, episode_id: &str) -> Result<ServerList> {
-        let url = format!("{}/episode/servers?episodeId={}", BASE_URL, urlencoding::encode(episode_id));
-        let resp = self.client
+        let url = format!(
+            "{}/episode/servers?episodeId={}",
+            BASE_URL,
+            urlencoding::encode(episode_id)
+        );
+        let resp = self
+            .client
             .get(&url)
             .header("Referer", BASE_URL)
             .header("X-Requested-With", "XMLHttpRequest")
@@ -277,32 +348,41 @@ impl AniWatchClient {
 
         let data: ServersResponse = resp.json().await?;
 
-        let sub = data.sub.iter().map(|s| ServerEntry {
-            id: s.server_id.to_string(),
-            name: s.server_name.clone(),
-            audio_type: "sub".to_string(),
-            format: if s.server_name == "hd-1" || s.server_name == "hd-2" {
-                "json".to_string()
-            } else {
-                "embed".to_string()
-            },
-        }).collect();
+        let sub = data
+            .sub
+            .iter()
+            .map(|s| ServerEntry {
+                id: s.server_id.to_string(),
+                name: s.server_name.clone(),
+                audio_type: "sub".to_string(),
+                format: if s.server_name == "hd-1" || s.server_name == "hd-2" {
+                    "json".to_string()
+                } else {
+                    "embed".to_string()
+                },
+            })
+            .collect();
 
-        let dub = data.dub.iter().map(|s| ServerEntry {
-            id: s.server_id.to_string(),
-            name: s.server_name.clone(),
-            audio_type: "dub".to_string(),
-            format: if s.server_name == "hd-1" || s.server_name == "hd-2" {
-                "json".to_string()
-            } else {
-                "embed".to_string()
-            },
-        }).collect();
+        let dub = data
+            .dub
+            .iter()
+            .map(|s| ServerEntry {
+                id: s.server_id.to_string(),
+                name: s.server_name.clone(),
+                audio_type: "dub".to_string(),
+                format: if s.server_name == "hd-1" || s.server_name == "hd-2" {
+                    "json".to_string()
+                } else {
+                    "embed".to_string()
+                },
+            })
+            .collect();
 
         Ok(ServerList { sub, dub })
     }
 
-    pub async fn get_stream(&self,
+    pub async fn get_stream(
+        &self,
         episode_id: &str,
         server_name: &str,
         category: &str,
@@ -314,7 +394,8 @@ impl AniWatchClient {
             urlencoding::encode(server_name),
             urlencoding::encode(category)
         );
-        let resp = self.client
+        let resp = self
+            .client
             .get(&url)
             .header("Referer", BASE_URL)
             .header("X-Requested-With", "XMLHttpRequest")
@@ -327,7 +408,9 @@ impl AniWatchClient {
 
         let data: SourcesResponse = resp.json().await?;
 
-        let source = data.sources.first()
+        let source = data
+            .sources
+            .first()
             .ok_or_else(|| anyhow!("No sources found"))?;
 
         let stream_type = if source.url.contains(".m3u8") || source.type_.to_lowercase() == "hls" {
@@ -339,16 +422,28 @@ impl AniWatchClient {
         let subtitles = if data.tracks.is_empty() {
             None
         } else {
-            Some(data.tracks.iter().filter(|t| t.kind == "captions").map(|t| SubtitleTrack {
-                file: t.file.clone(),
-                label: t.label.clone(),
-                kind: t.kind.clone(),
-                default: t.is_default,
-            }).collect())
+            Some(
+                data.tracks
+                    .iter()
+                    .filter(|t| t.kind == "captions")
+                    .map(|t| SubtitleTrack {
+                        file: t.file.clone(),
+                        label: t.label.clone(),
+                        kind: t.kind.clone(),
+                        default: t.is_default,
+                    })
+                    .collect(),
+            )
         };
 
-        let intro = data.intro.map(|i| SkipRange { start: i.start, end: i.end });
-        let outro = data.outro.map(|o| SkipRange { start: o.start, end: o.end });
+        let intro = data.intro.map(|i| SkipRange {
+            start: i.start,
+            end: i.end,
+        });
+        let outro = data.outro.map(|o| SkipRange {
+            start: o.start,
+            end: o.end,
+        });
 
         Ok(StreamPayload {
             url: source.url.clone(),
@@ -363,7 +458,8 @@ impl AniWatchClient {
 
     pub async fn get_home(&self) -> Result<AnimeHomeFeed> {
         let url = format!("{}/home", BASE_URL);
-        let resp = self.client
+        let resp = self
+            .client
             .get(&url)
             .header("Referer", BASE_URL)
             .send()
@@ -396,11 +492,18 @@ fn parse_search_html(html: &str) -> Vec<AnimeCard> {
     let mut results = Vec::new();
 
     // Simple regex-like parsing for film-poster items
-    let re = regex::Regex::new(r#"film-pa[^"]*"[^>]*data-id="([^"]+)"[^>]*film-name[^>]*>([^<]+)"#).ok();
+    let re =
+        regex::Regex::new(r#"film-pa[^"]*"[^>]*data-id="([^"]+)"[^>]*film-name[^>]*>([^<]+)"#).ok();
     if let Some(re) = re {
         for cap in re.captures_iter(html) {
-            let id = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
-            let title = cap.get(2).map(|m| m.as_str().to_string()).unwrap_or_default();
+            let id = cap
+                .get(1)
+                .map(|m| m.as_str().to_string())
+                .unwrap_or_default();
+            let title = cap
+                .get(2)
+                .map(|m| m.as_str().to_string())
+                .unwrap_or_default();
             if !id.is_empty() && !title.is_empty() {
                 results.push(AnimeCard {
                     id: id.clone(),
@@ -436,11 +539,18 @@ fn extract_section_cards(html: &str, _section: &str) -> Option<Vec<AnimeCard>> {
     // Extract anime cards from a section of the home page HTML
     let mut cards = Vec::new();
 
-    let re = regex::Regex::new(r#"film-pa[^"]*"[^>]*data-id="([^"]+)"[^>]*film-name[^>]*>([^<]+)"#).ok();
+    let re =
+        regex::Regex::new(r#"film-pa[^"]*"[^>]*data-id="([^"]+)"[^>]*film-name[^>]*>([^<]+)"#).ok();
     if let Some(re) = re {
         for cap in re.captures_iter(html) {
-            let id = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
-            let title = cap.get(2).map(|m| m.as_str().to_string()).unwrap_or_default();
+            let id = cap
+                .get(1)
+                .map(|m| m.as_str().to_string())
+                .unwrap_or_default();
+            let title = cap
+                .get(2)
+                .map(|m| m.as_str().to_string())
+                .unwrap_or_default();
             if !id.is_empty() && !title.is_empty() {
                 cards.push(AnimeCard {
                     id: id.clone(),
@@ -469,5 +579,9 @@ fn extract_section_cards(html: &str, _section: &str) -> Option<Vec<AnimeCard>> {
         }
     }
 
-    if cards.is_empty() { None } else { Some(cards) }
+    if cards.is_empty() {
+        None
+    } else {
+        Some(cards)
+    }
 }

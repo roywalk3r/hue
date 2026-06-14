@@ -5,16 +5,16 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use serde::{Deserialize, Serialize};
-use reqwest_middleware::ClientWithMiddleware;
-use anyhow::{Result, anyhow};
-use base64::{Engine as _, engine::general_purpose};
-use tracing::{info, warn};
 use crate::models::{StreamResult, Subtitle};
+use anyhow::{anyhow, Result};
+use base64::{engine::general_purpose, Engine as _};
+use reqwest_middleware::ClientWithMiddleware;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::process::Command;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
+use tracing::{info, warn};
 
 const API_BASE: &str = "https://kisskh.ovh/api";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -104,7 +104,9 @@ impl KissKhClient {
     fn load_cookies_from_file() -> Option<String> {
         let raw = std::fs::read_to_string(kisskh_cookie_file()).ok()?;
         let parsed: CookieFile = serde_json::from_str(&raw).ok()?;
-        if parsed.cookie_header.is_empty() { return None; }
+        if parsed.cookie_header.is_empty() {
+            return None;
+        }
         Some(parsed.cookie_header)
     }
 
@@ -133,10 +135,13 @@ impl KissKhClient {
         }
 
         // Fetch common.js (with cookies to bypass CF)
-        let js_code = self.get("https://kisskh.ovh/common.js")
-            .send().await
+        let js_code = self
+            .get("https://kisskh.ovh/common.js")
+            .send()
+            .await
             .map_err(|e| anyhow!("Failed to fetch common.js: {}", e))?
-            .text().await
+            .text()
+            .await
             .map_err(|e| anyhow!("Failed to read common.js: {}", e))?;
 
         // Cache it
@@ -175,7 +180,8 @@ console.log(token);
             .spawn()
             .map_err(|e| anyhow!("Failed to spawn node for kkey generation: {}", e))?;
 
-        let output = child.wait_with_output()
+        let output = child
+            .wait_with_output()
             .map_err(|e| anyhow!("Node kkey process failed: {}", e))?;
 
         if !output.status.success() {
@@ -191,7 +197,11 @@ console.log(token);
     }
 
     pub async fn search(&self, title: &str) -> Result<Vec<KissKhSearchItem>> {
-        let url = format!("{}/DramaList/Search?q={}", API_BASE, urlencoding::encode(title));
+        let url = format!(
+            "{}/DramaList/Search?q={}",
+            API_BASE,
+            urlencoding::encode(title)
+        );
         let resp = self.get(&url).send().await?;
         let data = resp.json::<Vec<KissKhSearchItem>>().await?;
         Ok(data)
@@ -201,8 +211,11 @@ console.log(token);
         let url = format!("{}/DramaList/Drama/{}?is_series=1", API_BASE, show_id);
         let resp = self.get(&url).send().await?;
         let data = resp.json::<KissKhDramaDetail>().await?;
-        
-        let ep = data.episodes.iter().find(|e| e.number.floor() as u32 == ep_num);
+
+        let ep = data
+            .episodes
+            .iter()
+            .find(|e| e.number.floor() as u32 == ep_num);
         Ok(ep.map(|e| e.id))
     }
 
@@ -211,12 +224,18 @@ console.log(token);
         let kkey = match self.generate_kkey(ep_id, KISSKH_STREAM_VIGUID).await {
             Ok(k) => k,
             Err(e) => {
-                warn!("[KissKH] kkey generation failed: {}, falling back to kkey=0", e);
+                warn!(
+                    "[KissKH] kkey generation failed: {}, falling back to kkey=0",
+                    e
+                );
                 "0".to_string()
             }
         };
 
-        let url = format!("{}/DramaList/Episode/{}.png?err=false&ts=0&time=0&kkey={}", API_BASE, ep_id, kkey);
+        let url = format!(
+            "{}/DramaList/Episode/{}.png?err=false&ts=0&time=0&kkey={}",
+            API_BASE, ep_id, kkey
+        );
         let resp = self.get(&url).send().await?;
 
         let text = resp.text().await?;
@@ -244,7 +263,10 @@ console.log(token);
         let kkey = match self.generate_kkey(ep_id, KISSKH_SUB_VIGUID).await {
             Ok(k) => k,
             Err(e) => {
-                warn!("[KissKH] subtitle kkey generation failed: {}, falling back to kkey=0", e);
+                warn!(
+                    "[KissKH] subtitle kkey generation failed: {}, falling back to kkey=0",
+                    e
+                );
                 "0".to_string()
             }
         };
@@ -274,21 +296,36 @@ console.log(token);
         Ok(vec![])
     }
 
-    pub async fn get_streams_normalized(&self, title: &str, _season: u32, ep_num: u32) -> Result<Vec<StreamResult>> {
+    pub async fn get_streams_normalized(
+        &self,
+        title: &str,
+        _season: u32,
+        ep_num: u32,
+    ) -> Result<Vec<StreamResult>> {
         info!("[KissKH Rust] Searching for: \"{}\" E{}", title, ep_num);
 
         let results = self.search(title).await?;
-        if results.is_empty() { return Ok(vec![]); }
+        if results.is_empty() {
+            return Ok(vec![]);
+        }
 
         let mut sorted = results;
         sorted.sort_by_key(|i| i.title.len());
         let best_match = &sorted[0];
 
-        self.resolve_episode_streams(best_match.id, ep_num, title).await
+        self.resolve_episode_streams(best_match.id, ep_num, title)
+            .await
     }
 
-    pub async fn get_streams_direct(&self, id_or_title: &str, ep_num: u32) -> Result<Vec<StreamResult>> {
-        info!("[KissKH Rust] Smart Fetch for: \"{}\" E{}", id_or_title, ep_num);
+    pub async fn get_streams_direct(
+        &self,
+        id_or_title: &str,
+        ep_num: u32,
+    ) -> Result<Vec<StreamResult>> {
+        info!(
+            "[KissKH Rust] Smart Fetch for: \"{}\" E{}",
+            id_or_title, ep_num
+        );
 
         let show_id = if let Ok(id) = id_or_title.parse::<u64>() {
             id
@@ -303,14 +340,23 @@ console.log(token);
             sorted[0].id
         };
 
-        self.resolve_episode_streams(show_id, ep_num, id_or_title).await
+        self.resolve_episode_streams(show_id, ep_num, id_or_title)
+            .await
     }
 
-    async fn resolve_episode_streams(&self, show_id: u64, ep_num: u32, title: &str) -> Result<Vec<StreamResult>> {
+    async fn resolve_episode_streams(
+        &self,
+        show_id: u64,
+        ep_num: u32,
+        title: &str,
+    ) -> Result<Vec<StreamResult>> {
         let ep_id = match self.get_episode_id(show_id, ep_num).await? {
             Some(id) => id,
             None => {
-                info!("[KissKH Rust] Episode {} not found for \"{}\"", ep_num, title);
+                info!(
+                    "[KissKH Rust] Episode {} not found for \"{}\"",
+                    ep_num, title
+                );
                 return Ok(vec![]);
             }
         };
@@ -324,20 +370,28 @@ console.log(token);
 
                 // Subtitles may come from the stream payload or a separate endpoint
                 let subs = if let Some(s_list) = data.subtitles {
-                    Some(s_list.into_iter().map(|s| Subtitle {
-                        url: s.src,
-                        lang: s.lang.unwrap_or_else(|| "en".to_string()),
-                        label: s.label.unwrap_or_else(|| "English".to_string()),
-                    }).collect())
-                } else {
-                    match self.get_subtitles(ep_id).await {
-                        Ok(s_list) if !s_list.is_empty() => {
-                            Some(s_list.into_iter().map(|s| Subtitle {
+                    Some(
+                        s_list
+                            .into_iter()
+                            .map(|s| Subtitle {
                                 url: s.src,
                                 lang: s.lang.unwrap_or_else(|| "en".to_string()),
                                 label: s.label.unwrap_or_else(|| "English".to_string()),
-                            }).collect())
-                        }
+                            })
+                            .collect(),
+                    )
+                } else {
+                    match self.get_subtitles(ep_id).await {
+                        Ok(s_list) if !s_list.is_empty() => Some(
+                            s_list
+                                .into_iter()
+                                .map(|s| Subtitle {
+                                    url: s.src,
+                                    lang: s.lang.unwrap_or_else(|| "en".to_string()),
+                                    label: s.label.unwrap_or_else(|| "English".to_string()),
+                                })
+                                .collect(),
+                        ),
                         _ => None,
                     }
                 };
@@ -374,7 +428,7 @@ console.log(token);
                 }
                 Ok(results)
             }
-            None => Ok(vec![])
+            None => Ok(vec![]),
         }
     }
 
@@ -385,7 +439,15 @@ console.log(token);
         Ok(data)
     }
 
-    pub async fn get_list(&self, page: u32, type_: u32, sub: u32, country: u32, status: u32, order: u32) -> Result<serde_json::Value> {
+    pub async fn get_list(
+        &self,
+        page: u32,
+        type_: u32,
+        sub: u32,
+        country: u32,
+        status: u32,
+        order: u32,
+    ) -> Result<serde_json::Value> {
         let url = format!(
             "{}/DramaList/List?page={}&type={}&sub={}&country={}&status={}&order={}",
             API_BASE, page, type_, sub, country, status, order
@@ -416,6 +478,3 @@ console.log(token);
         Ok(data)
     }
 }
-
-
-

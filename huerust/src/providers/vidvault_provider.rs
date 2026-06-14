@@ -5,12 +5,12 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use async_trait::async_trait;
-use crate::providers::StreamProvider;
+use crate::clients::tmdb::TmdbNormalizedInfo;
 use crate::clients::vidvault::VidVaultClient;
 use crate::models::{StreamResult, Subtitle};
-use crate::clients::tmdb::TmdbNormalizedInfo;
+use crate::providers::StreamProvider;
 use anyhow::Result;
+use async_trait::async_trait;
 use std::sync::Arc;
 
 pub struct VidvaultProvider {
@@ -25,10 +25,18 @@ impl VidvaultProvider {
 
 #[async_trait]
 impl StreamProvider for VidvaultProvider {
-    fn name(&self) -> &'static str { "Vault" }
-    fn real_name(&self) -> &'static str { "vidvault" }
-    fn is_fast(&self) -> bool { true }
-    fn timeout_secs(&self) -> u64 { 20 }
+    fn name(&self) -> &'static str {
+        "Vault"
+    }
+    fn real_name(&self) -> &'static str {
+        "vidvault"
+    }
+    fn is_fast(&self) -> bool {
+        true
+    }
+    fn timeout_secs(&self) -> u64 {
+        20
+    }
 
     async fn fetch(
         &self,
@@ -38,12 +46,10 @@ impl StreamProvider for VidvaultProvider {
         episode: u32,
     ) -> Result<Vec<StreamResult>> {
         let tmdb_id = tmdb_info.id.to_string();
-        let streams = self.client.get_downloads(
-            &tmdb_id,
-            media_type,
-            season,
-            episode,
-        ).await?;
+        let streams = self
+            .client
+            .get_downloads(&tmdb_id, media_type, season, episode)
+            .await?;
 
         let mut results = Vec::with_capacity(streams.len());
         for s in streams {

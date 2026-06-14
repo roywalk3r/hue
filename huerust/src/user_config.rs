@@ -8,8 +8,8 @@
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
 use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 use tracing::warn;
 
 static CONFIG_CACHE: OnceLock<Mutex<(HueUserConfig, Instant)>> = OnceLock::new();
@@ -35,16 +35,17 @@ impl HueUserConfig {
                 Ok(cfg) => return cfg,
                 Err(e) => warn!("[HueConfig] Failed to parse {}: {}", path.display(), e),
             },
-            Err(_) => warn!("[HueConfig] user-config.json not found at {}", path.display()),
+            Err(_) => warn!(
+                "[HueConfig] user-config.json not found at {}",
+                path.display()
+            ),
         }
         HueUserConfig::default()
     }
 
     /// Returns a cached config, reloading from disk if older than 5 minutes.
     pub fn get_live() -> Self {
-        let cache = CONFIG_CACHE.get_or_init(|| {
-            Mutex::new((Self::load(), Instant::now()))
-        });
+        let cache = CONFIG_CACHE.get_or_init(|| Mutex::new((Self::load(), Instant::now())));
         let mut guard = cache.lock().unwrap();
         if guard.1.elapsed() > CACHE_TTL {
             *guard = (Self::load(), Instant::now());
@@ -56,7 +57,8 @@ impl HueUserConfig {
     pub fn invalidate() {
         if let Some(cache) = CONFIG_CACHE.get() {
             if let Ok(mut guard) = cache.lock() {
-                guard.1 = Instant::now().checked_sub(CACHE_TTL + Duration::from_secs(1))
+                guard.1 = Instant::now()
+                    .checked_sub(CACHE_TTL + Duration::from_secs(1))
                     .unwrap_or(Instant::now());
             }
         }
@@ -160,11 +162,13 @@ impl HueUserConfig {
         let payload = Self::base64url_decode(parts[1]).ok()?;
         let json: serde_json::Value = serde_json::from_slice(&payload).ok()?;
 
-        let user_id = json.get("uid")
+        let user_id = json
+            .get("uid")
             .or_else(|| json.get("sub"))
             .or_else(|| json.get("userId"))
             .and_then(|v| {
-                v.as_str().map(|s| s.to_string())
+                v.as_str()
+                    .map(|s| s.to_string())
                     .or_else(|| v.as_u64().map(|n| n.to_string()))
                     .or_else(|| v.as_i64().map(|n| n.to_string()))
             })?;
@@ -194,7 +198,7 @@ impl HueUserConfig {
     }
 
     fn base64url_decode(input: &str) -> Result<Vec<u8>, ()> {
-        use base64::{Engine as _, engine::general_purpose};
+        use base64::{engine::general_purpose, Engine as _};
 
         let mut padded = input.replace('-', "+").replace('_', "/");
         let pad_len = (4 - padded.len() % 4) % 4;
