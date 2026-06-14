@@ -139,16 +139,6 @@ impl AnimeAggregator {
             }
         }
 
-        // Try AniWatch
-        if let Ok(detail) = self.aniwatch.get_detail(id).await {
-            return Some(detail);
-        }
-
-        // Try AniList (metadata only)
-        if let Ok(detail) = self.anilist.get_detail(id).await {
-            return Some(detail);
-        }
-
         // Try Animexin for WordPress slug-based series pages
         if id.contains('-') && !id.contains('/') {
             if let Ok(detail) = self.animexin.get_detail(id).await {
@@ -161,7 +151,7 @@ impl AnimeAggregator {
         None
     }
 
-    /// Get episodes: prefer HiAnime, fallback to AniWatch, then AniList (synthetic)
+    /// Get episodes: prefer HiAnime, fallback to AniList (synthetic)
     pub async fn get_episodes(&self, id: &str, start: u32,
     ) -> Option<Vec<crate::models::anime::EpisodeSummary>> {
         // Try HiAnime first
@@ -212,16 +202,9 @@ impl AnimeAggregator {
         None
     }
 
-    /// Get servers: try AniWatch, then HiAnime, then Animexin
+    /// Get servers: try HiAnime, then Animexin
     pub async fn get_servers(&self, id: &str
     ) -> Option<ServerList> {
-        // AniWatch uses episode ID directly
-        if let Ok(servers) = self.aniwatch.get_servers(id).await {
-            if !servers.sub.is_empty() || !servers.dub.is_empty() {
-                return Some(servers);
-            }
-        }
-
         // HiAnime
         if let Ok(raw) = self.hianime.get_servers(id).await {
             let structured = crate::clients::hianime::transform_server_list(&raw);
@@ -240,7 +223,7 @@ impl AnimeAggregator {
         None
     }
 
-    /// Get stream: try HiAnime, then AniWatch, then Animexin
+    /// Get stream: try HiAnime, then Animexin
     pub async fn get_stream(
         &self,
         id: &str,
@@ -251,13 +234,6 @@ impl AnimeAggregator {
         // HiAnime first (most reliable streams)
         if let Ok(data) = self.hianime.get_stream(id, server, link_type, episode).await {
             return Some(stream_data_to_payload(data));
-        }
-
-        // AniWatch
-        let server_name = server.unwrap_or("hd-1");
-        let category = if link_type == "dub" { "dub" } else { "sub" };
-        if let Ok(stream) = self.aniwatch.get_stream(id, server_name, category).await {
-            return Some(stream);
         }
 
         // Animexin fallback (iframe embeds)
