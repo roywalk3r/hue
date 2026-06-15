@@ -163,6 +163,7 @@ query SearchAnime($search: String, $page: Int, $perPage: Int) {
                     view_count: None,
                     aired: year,
                     duration,
+                    country: None,
                     has_sub: false,
                     has_dub: false,
                 })
@@ -345,6 +346,7 @@ query AnimeDetail($id: Int) {
             view_count: None,
             aired: year,
             duration,
+            country: None,
             has_sub: false,
             has_dub: false,
         };
@@ -550,6 +552,7 @@ query DiscoverAnime(
                 view_count: None,
                 aired: year,
                 duration,
+                country: None,
                 has_sub: false,
                 has_dub: false,
             });

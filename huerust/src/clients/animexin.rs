@@ -90,6 +90,7 @@ impl AnimexinClient {
                     view_count: None,
                     aired: None,
                     duration: None,
+                    country: Some("CN".into()),
                     has_sub: true,
                     has_dub: false,
                 });
@@ -152,6 +153,7 @@ impl AnimexinClient {
             view_count: None,
             aired: None,
             duration: None,
+            country: Some("CN".into()),
             has_sub: true,
             has_dub: false,
         };
@@ -380,6 +382,7 @@ impl AnimexinClient {
                     view_count: None,
                     aired: None,
                     duration: None,
+                    country: Some("CN".into()),
                     has_sub: true,
                     has_dub: false,
                 };

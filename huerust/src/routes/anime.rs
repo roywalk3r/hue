@@ -27,6 +27,8 @@ use crate::proxy::{dynamic_proxy_base, proxy_anime_stream};
 #[derive(Deserialize, ToSchema)]
 pub struct SearchQuery {
     pub q: String,
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -105,6 +107,8 @@ fn proxy_stream_payload(
     path = "/api/anime/search",
     params(
         ("q" = String, Query, description = "Search keyword"),
+        ("page" = Option<u32>, Query, description = "Page number"),
+        ("limit" = Option<u32>, Query, description = "Items per page"),
     ),
     responses(
         (status = 200, description = "Search results", body = AnimeSearchResponse),
@@ -116,8 +120,10 @@ pub async fn search_handler(
     State(state): State<AnimeState>,
     Query(params): Query<SearchQuery>,
 ) -> Response {
-    info!("[anime] search: {}", params.q);
-    let response = state.anime_agg.search(&params.q, 1, 50).await;
+    let page = params.page.unwrap_or(1).max(1);
+    let limit = params.limit.unwrap_or(50).clamp(1, 50);
+    info!("[anime] search: {} page={} limit={}", params.q, page, limit);
+    let response = state.anime_agg.search(&params.q, page, limit).await;
     success_json(response)
 }
 

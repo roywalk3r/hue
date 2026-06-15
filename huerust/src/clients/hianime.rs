@@ -680,6 +680,7 @@ pub fn transform_anime_card(v: &serde_json::Value) -> AnimeCard {
         view_count: opt_u32(v, "recentViewsCount"),
         aired: opt_str(v, "Aired"),
         duration: opt_str(v, "Duration"),
+        country: None,
         has_sub,
         has_dub,
     }

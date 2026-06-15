@@ -32,8 +32,16 @@ const MULTI_DECRYPT_API: &str = "https://enc-dec.app/api";
 const LORDFLIX_REFERER: &str = "https://lordflix.org";
 
 const SERVERS: &[&str] = &[
-    "Berlin", "Marseille", "Backrooms", "Phoenix", "Oslo",
-    "Luna", "Sakura", "Rio", "Ativa", "Moscow",
+    "Berlin",
+    "Marseille",
+    "Backrooms",
+    "Phoenix",
+    "Oslo",
+    "Luna",
+    "Sakura",
+    "Rio",
+    "Ativa",
+    "Moscow",
 ];
 
 fn browser_headers() -> Vec<(&'static str, String)> {
@@ -105,13 +113,15 @@ impl LordflixClient {
         if title.is_empty() || imdb_id.is_empty() {
             warn!(
                 "[Lordflix] Missing title or imdbId for TMDB {} (title='{}' imdb_id={:?})",
-                tmdb_info.id,
-                title,
-                tmdb_info.imdb_id
+                tmdb_info.id, title, tmdb_info.imdb_id
             );
             return Ok(vec![]);
         }
-        let type_param = if media_type == "tv" { "series" } else { "movie" };
+        let type_param = if media_type == "tv" {
+            "series"
+        } else {
+            "movie"
+        };
         let title_enc = url_encode_quote(&title);
         let tmdb_id_s = tmdb_info.id.to_string();
 

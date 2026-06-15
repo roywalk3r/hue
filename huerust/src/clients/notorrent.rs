@@ -87,9 +87,7 @@ impl NoTorrentClient {
         };
 
         let api_url = if media_type == "tv" {
-            format!(
-                "{NOTORRENT_API}/stream/series/{imdb_id}:{season}:{episode}.json"
-            )
+            format!("{NOTORRENT_API}/stream/series/{imdb_id}:{season}:{episode}.json")
         } else {
             format!("{NOTORRENT_API}/stream/movie/{imdb_id}.json")
         };
@@ -140,7 +138,10 @@ impl NoTorrentClient {
                         if let Some(obj) = req.as_object() {
                             for (k, v) in obj {
                                 if let Some(s) = v.as_str() {
-                                    headers.insert(k.clone(), serde_json::Value::String(s.to_string()));
+                                    headers.insert(
+                                        k.clone(),
+                                        serde_json::Value::String(s.to_string()),
+                                    );
                                 }
                             }
                         }
@@ -164,7 +165,11 @@ impl NoTorrentClient {
                 provider: "NoTorrent".to_string(),
                 format: format.to_string(),
                 subtitles: None::<Vec<Subtitle>>,
-                headers: if headers_map.is_empty() { None } else { Some(headers_map) },
+                headers: if headers_map.is_empty() {
+                    None
+                } else {
+                    Some(headers_map)
+                },
                 extra_metadata: None,
             });
             let _ = name;
@@ -190,7 +195,13 @@ fn extract_quality(s: &str) -> String {
             && bytes[i + 2].is_ascii_digit()
             && bytes[i + 3] == b'p'
         {
-            return format!("{}{}{}{}", bytes[i] as char, bytes[i + 1] as char, bytes[i + 2] as char, 'p');
+            return format!(
+                "{}{}{}{}",
+                bytes[i] as char,
+                bytes[i + 1] as char,
+                bytes[i + 2] as char,
+                'p'
+            );
         }
     }
     if s.to_uppercase().contains("FREE") {

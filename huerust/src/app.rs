@@ -37,12 +37,12 @@ use crate::providers::{
     kissasian_provider::KissAsianProvider,
     kisskh::KissKhClient,
     kisskh_provider::KissKhProvider,
+    lordflix_provider::LordflixProvider,
     moviebox_provider::MovieBoxProvider,
+    notorrent_provider::NoTorrentProvider,
     // mp4hydra_provider::Mp4HydraProvider, // disabled — endpoint times out
     sflix_provider::SflixProvider,
     vidlink_provider::VidlinkProvider,
-    lordflix_provider::LordflixProvider,
-    notorrent_provider::NoTorrentProvider,
     // videasy::VideasyClient,       // disabled — upstream 500
     // videasy_provider::VideasyProvider,
     vidrock_provider::VidrockProvider,

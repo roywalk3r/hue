@@ -69,6 +69,9 @@ pub struct AnimeCard {
     /// Episode duration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<String>,
+    /// Country of origin: "JP" | "CN" | "KR" | "US"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub country: Option<String>,
     /// Whether this anime has at least one episode with sub servers
     pub has_sub: bool,
     /// Whether this anime has at least one episode with dub servers
@@ -290,6 +293,9 @@ pub struct FilterOptions {
     pub years: Vec<FilterChoice>,
     pub seasons: Vec<FilterChoice>,
     pub languages: Vec<FilterChoice>,
+    /// Country of origin filter: "JP" | "CN" | "KR" | "US"
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub countries: Vec<FilterChoice>,
     pub scores: Vec<FilterChoice>,
     pub ratings: Vec<FilterChoice>,
 }

@@ -155,12 +155,24 @@ impl AnimeAggregator {
         }
 
         let mut results: Vec<AnimeCard> = seen.into_values().collect();
-        // Sort by title
-        results.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+        let normalized_query = normalize_title(keyword);
+        results.sort_by(|a, b| {
+            search_match_rank(&a.title, &normalized_query)
+                .cmp(&search_match_rank(&b.title, &normalized_query))
+                .then_with(|| source_rank(b).cmp(&source_rank(a)))
+                .then_with(|| a.title.to_lowercase().cmp(&b.title.to_lowercase()))
+        });
+        let total = results.len();
+        let start = page.saturating_sub(1).saturating_mul(per_page) as usize;
+        let results = results
+            .into_iter()
+            .skip(start)
+            .take(per_page as usize)
+            .collect();
 
         AnimeSearchResponse {
             query: keyword.to_string(),
-            total: results.len(),
+            total,
             page,
             limit: per_page,
             results,
@@ -634,6 +646,20 @@ impl AnimeAggregator {
                     label: "Korean".into(),
                 },
             ],
+            countries: vec![
+                FilterChoice {
+                    value: "CN".into(),
+                    label: "China".into(),
+                },
+                FilterChoice {
+                    value: "JP".into(),
+                    label: "Japan".into(),
+                },
+                FilterChoice {
+                    value: "KR".into(),
+                    label: "Korea".into(),
+                },
+            ],
             scores: vec![
                 FilterChoice {
                     value: "all".into(),
@@ -759,6 +785,20 @@ fn normalize_title(title: &str) -> String {
     title.to_lowercase().trim().to_string()
 }
 
+fn search_match_rank(title: &str, normalized_query: &str) -> u8 {
+    let title = normalize_title(title);
+    if title == normalized_query {
+        return 0;
+    }
+    if title.starts_with(normalized_query) {
+        return 1;
+    }
+    if title.contains(normalized_query) {
+        return 2;
+    }
+    3
+}
+
 fn is_aniwave_slug(slug: &str) -> bool {
     slug.rsplit('-')
         .next()
@@ -824,6 +864,20 @@ fn merge_cards(mut primary: AnimeCard, secondary: AnimeCard) -> AnimeCard {
     }
     if primary.total_dubbed.is_none() {
         primary.total_dubbed = secondary.total_dubbed;
+    }
+    let primary_metadata_slug = primary
+        .slug
+        .as_deref()
+        .map(|slug| slug.starts_with("mal-"))
+        .unwrap_or(true);
+    let secondary_playable_slug = secondary
+        .slug
+        .as_deref()
+        .map(|slug| !slug.starts_with("mal-"))
+        .unwrap_or(false);
+    if primary_metadata_slug && secondary_playable_slug {
+        primary.slug = secondary.slug;
+        primary.id = secondary.id;
     }
     if primary.mal_id.is_none() {
         primary.mal_id = secondary.mal_id;
@@ -897,5 +951,61 @@ fn stream_data_to_payload(data: crate::clients::hianime::StreamData) -> StreamPa
         }),
         server: data.server,
         referer: data.referer,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_card(id: &str, title: &str, slug: &str) -> AnimeCard {
+        AnimeCard {
+            id: id.to_string(),
+            title: title.to_string(),
+            japanese_title: None,
+            synopsis: None,
+            image: None,
+            banner_image: None,
+            anime_type: None,
+            status: None,
+            score: None,
+            rating: None,
+            genres: None,
+            total_episodes: None,
+            total_subbed: None,
+            total_dubbed: None,
+            slug: Some(slug.to_string()),
+            mal_id: None,
+            view_count: None,
+            aired: None,
+            duration: None,
+            country: None,
+            has_sub: false,
+            has_dub: false,
+        }
+    }
+
+    #[test]
+    fn ranks_exact_search_match_before_partial_matches() {
+        let query = normalize_title("one piece");
+
+        assert_eq!(search_match_rank("One Piece", &query), 0);
+        assert_eq!(
+            search_match_rank("One Piece: Episode of East Blue", &query),
+            1
+        );
+        assert_eq!(search_match_rank("Koisuru ONE PIECE", &query), 2);
+        assert_eq!(search_match_rank("Naruto", &query), 3);
+    }
+
+    #[test]
+    fn merge_prefers_playable_slug_over_mal_metadata_slug() {
+        let metadata = test_card("21", "ONE PIECE", "mal-21");
+        let playable = test_card("81553", "One Piece", "one-piece-81553");
+
+        let merged = merge_cards(metadata, playable);
+
+        assert_eq!(merged.id, "81553");
+        assert_eq!(merged.slug.as_deref(), Some("one-piece-81553"));
     }
 }

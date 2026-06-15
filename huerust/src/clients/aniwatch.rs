@@ -306,6 +306,7 @@ impl AniWatchClient {
             view_count: None,
             aired: None,
             duration: info.stats.as_ref().map(|s| s.duration.clone()),
+            country: None,
             has_sub: total_eps > 0,
             has_dub,
         };
@@ -522,6 +523,7 @@ fn parse_search_html(html: &str) -> Vec<AnimeCard> {
                     view_count: None,
                     aired: None,
                     duration: None,
+                    country: None,
                     has_sub: false,
                     has_dub: false,
                 });
@@ -569,6 +571,7 @@ fn extract_section_cards(html: &str, _section: &str) -> Option<Vec<AnimeCard>> {
                     view_count: None,
                     aired: None,
                     duration: None,
+                    country: None,
                     has_sub: false,
                     has_dub: false,
                 });

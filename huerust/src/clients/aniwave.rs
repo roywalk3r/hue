@@ -912,6 +912,7 @@ fn parse_watch_page(html: &str, slug: &str) -> Result<AnimeDetail> {
         view_count: None,
         aired,
         duration: None,
+        country: None,
         has_sub: true,
         has_dub: true,
     };
@@ -991,6 +992,7 @@ fn parse_card_block(block: &str) -> Option<AnimeCard> {
         view_count,
         aired: None,
         duration: None,
+        country: None,
         has_sub: total_subbed.unwrap_or(0) > 0,
         has_dub: total_dubbed.unwrap_or(0) > 0,
     })
