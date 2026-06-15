@@ -477,6 +477,25 @@ impl AnimeAggregator {
             });
         }
 
+        // Animexin: Chinese (donghua) source. Always included because it's
+        // the only upstream that populates the `country` field.
+        let ax = self.animexin.clone();
+        tasks.spawn(async move {
+            ax.get_home()
+                .await
+                .ok()
+                .map(|feed| {
+                    feed.latest
+                        .unwrap_or_default()
+                        .into_iter()
+                        .chain(feed.featured.unwrap_or_default())
+                        .chain(feed.popular.unwrap_or_default())
+                        .chain(feed.trending.unwrap_or_default())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
+        });
+
         let mut seen: HashMap<String, AnimeCard> = HashMap::new();
         while let Some(Ok(cards)) = tasks.join_next().await {
             for card in cards {
@@ -509,6 +528,18 @@ impl AnimeAggregator {
         }
 
         let mut items: Vec<AnimeCard> = seen.into_values().collect();
+
+        // Country is a post-merge filter because most upstreams don't expose it.
+        if let Some(want) = params.country.as_deref() {
+            let want_upper = want.to_ascii_uppercase();
+            items.retain(|c| {
+                c.country
+                    .as_deref()
+                    .map(|v| v.to_ascii_uppercase() == want_upper)
+                    .unwrap_or(false)
+            });
+        }
+
         items.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
         let total = items.len() as u32;
         let start = ((page - 1) * limit).min(items.len());

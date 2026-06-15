@@ -327,6 +327,9 @@ pub struct FilterParams {
     /// japanese | english | chinese | korean
     #[serde(default)]
     pub language: Option<String>,
+    /// CN | JP | KR | US
+    #[serde(default)]
+    pub country: Option<String>,
     /// "1".."10" or "all"
     #[serde(default)]
     pub score: Option<String>,
