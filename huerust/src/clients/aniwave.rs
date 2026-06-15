@@ -7,8 +7,8 @@ use std::time::Duration;
 use tokio::process::Command;
 
 use crate::models::anime::{
-    AnimeCard, AnimeDetail, EpisodeSummary, ServerEntry, ServerList, SkipRange, StreamPayload,
-    SubtitleTrack,
+    AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, EpisodeSummary, FilterParams,
+    PaginatedResponse, ServerEntry, ServerList, SkipRange, StreamPayload, SubtitleTrack,
 };
 
 const UA_DESKTOP: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36";
@@ -34,6 +34,7 @@ pub struct AniwaveClient {
     client: reqwest::Client,
     episode_cache: Cache<String, Vec<AniwaveEpisode>>,
     stream_cache: Cache<String, AniwaveStream>,
+    card_cache: Cache<String, Vec<AnimeCard>>,
 }
 
 #[derive(Clone, Debug)]
@@ -82,6 +83,10 @@ impl AniwaveClient {
             stream_cache: Cache::builder()
                 .max_capacity(500)
                 .time_to_live(Duration::from_secs(15 * 60))
+                .build(),
+            card_cache: Cache::builder()
+                .max_capacity(200)
+                .time_to_live(Duration::from_secs(10 * 60))
                 .build(),
         }
     }
@@ -330,6 +335,79 @@ impl AniwaveClient {
         })
     }
 
+    /// Search Aniwave's filter page and return normalized cards.
+    pub async fn search(
+        &self,
+        keyword: &str,
+        page: u32,
+        limit: u32,
+    ) -> Result<AnimeSearchResponse> {
+        let page = page.max(1);
+        let limit = limit.clamp(1, 50);
+        let url = format!(
+            "{}/filter?keyword={}&page={}",
+            BASE_URL,
+            urlencoding::encode(keyword),
+            page
+        );
+        let cards = self.fetch_cards_cached(&url, BASE_URL).await?;
+        Ok(AnimeSearchResponse {
+            query: keyword.to_string(),
+            total: cards.len(),
+            page,
+            limit,
+            results: cards.into_iter().take(limit as usize).collect(),
+        })
+    }
+
+    /// Home feed using Aniwave's public widgets/pages.
+    pub async fn get_home(&self) -> Result<AnimeHomeFeed> {
+        let trending = self.fetch_widget_cards("trending", 1).await.ok();
+        let latest = self
+            .fetch_cards_cached(&format!("{}/updated", BASE_URL), BASE_URL)
+            .await
+            .ok();
+        let featured = self
+            .fetch_cards_cached(&format!("{}/added", BASE_URL), BASE_URL)
+            .await
+            .ok();
+        let currently_airing = self
+            .fetch_cards_cached(&format!("{}/ongoing", BASE_URL), BASE_URL)
+            .await
+            .ok();
+        let popular = self
+            .fetch_widget_cards("trending", 2)
+            .await
+            .ok()
+            .filter(|cards| !cards.is_empty());
+
+        Ok(AnimeHomeFeed {
+            trending: trending.and_then(non_empty),
+            currently_airing: currently_airing.and_then(non_empty),
+            featured: featured.and_then(non_empty),
+            latest: latest.and_then(non_empty),
+            popular: popular.and_then(non_empty),
+            finished_airing: None,
+        })
+    }
+
+    /// Browse Aniwave with the same typed params as the shared discover API.
+    pub async fn discover(&self, params: &FilterParams) -> Result<PaginatedResponse<AnimeCard>> {
+        let page = params.page.unwrap_or(1).max(1);
+        let limit = params.limit.unwrap_or(20).clamp(1, 50);
+        let url = self.discover_url(params, page);
+        let cards = self.fetch_cards_cached(&url, BASE_URL).await?;
+        let total = cards.len() as u32;
+        let items = cards.into_iter().take(limit as usize).collect::<Vec<_>>();
+        Ok(PaginatedResponse {
+            has_more: total > limit,
+            items,
+            total,
+            page,
+            limit,
+        })
+    }
+
     /// Look up the series page to extract title/poster/synopsis for the
     /// detail endpoint.
     pub async fn get_detail(&self, slug: &str) -> Result<AnimeDetail> {
@@ -346,7 +424,21 @@ impl AniwaveClient {
         if !status.is_success() {
             return Err(anyhow!("aniwave: watch page status {}", status));
         }
-        parse_watch_page(&text, slug)
+        let mut detail = parse_watch_page(&text, slug)?;
+        if let Ok(episodes) = self.get_episodes(slug).await {
+            if !episodes.is_empty() {
+                let total = episodes.len() as u32;
+                let subbed = episodes.iter().filter(|e| e.sub_count > 0).count() as u32;
+                let dubbed = episodes.iter().filter(|e| e.dub_count > 0).count() as u32;
+                detail.card.total_episodes = detail.card.total_episodes.or(Some(total));
+                detail.card.total_subbed = detail.card.total_subbed.or(Some(subbed));
+                detail.card.total_dubbed = detail.card.total_dubbed.or(Some(dubbed));
+                detail.card.has_sub = subbed > 0;
+                detail.card.has_dub = dubbed > 0;
+                detail.episodes = Some(episodes);
+            }
+        }
+        Ok(detail)
     }
 
     // ── helpers ───────────────────────────────────────────────────────────
@@ -393,6 +485,77 @@ impl AniwaveClient {
             .get(&show_id)
             .await
             .ok_or_else(|| anyhow!("aniwave: episode list empty after fetch"))
+    }
+
+    async fn fetch_widget_cards(&self, widget: &str, page: u32) -> Result<Vec<AnimeCard>> {
+        let url = format!("{}/home/widget/{}?page={}", AJAX, widget, page.max(1));
+        if let Some(cached) = self.card_cache.get(&url).await {
+            return Ok(cached);
+        }
+        let (status, text) = self
+            .fetch_text(&url, &format!("{}/home", BASE_URL), true)
+            .await?;
+        if !status.is_success() {
+            return Err(anyhow!("aniwave: widget status {}", status));
+        }
+        let parsed: AniwaveListResponse = serde_json::from_str(&text)?;
+        if parsed.status != 200 {
+            return Err(anyhow!("aniwave: widget status={}", parsed.status));
+        }
+        let cards = parse_card_list(&parsed.result);
+        self.card_cache.insert(url, cards.clone()).await;
+        Ok(cards)
+    }
+
+    async fn fetch_cards_cached(&self, url: &str, referer: &str) -> Result<Vec<AnimeCard>> {
+        if let Some(cached) = self.card_cache.get(url).await {
+            return Ok(cached);
+        }
+        let (status, text) = self.fetch_text(url, referer, false).await?;
+        if !status.is_success() {
+            return Err(anyhow!("aniwave: list page status {}", status));
+        }
+        let cards = parse_card_list(&text);
+        self.card_cache.insert(url.to_string(), cards.clone()).await;
+        Ok(cards)
+    }
+
+    fn discover_url(&self, params: &FilterParams, page: u32) -> String {
+        if let Some(sort) = params.sort.as_deref() {
+            match normalize_filter_value(sort).as_str() {
+                "trending" | "popularity" => return format!("{}/home", BASE_URL),
+                "latest" => return format!("{}/updated?page={}", BASE_URL, page),
+                "alphabetical" => {
+                    return format!(
+                        "{}/filter?keyword=&sort_by=title_az&page={}",
+                        BASE_URL, page
+                    )
+                }
+                "score" => {
+                    return format!("{}/filter?keyword=&sort_by=score&page={}", BASE_URL, page)
+                }
+                _ => {}
+            }
+        }
+
+        if let Some(typ) = params.r#type.as_deref().and_then(type_slug) {
+            return format!("{}/type/{}?page={}", BASE_URL, typ, page);
+        }
+        if let Some(status) = params.status.as_deref().and_then(status_path) {
+            return format!("{}/{}?page={}", BASE_URL, status, page);
+        }
+        if let Some(genre) = params.genre.as_deref() {
+            return format!("{}/genre/{}?page={}", BASE_URL, slugify(genre), page);
+        }
+        if let Some(language) = params.language.as_deref() {
+            if normalize_filter_value(language) == "chinese" {
+                return format!(
+                    "{}/filter?keyword=&country%5B%5D=2&sort_by=last_updated&page={}",
+                    BASE_URL, page
+                );
+            }
+        }
+        format!("{}/updated?page={}", BASE_URL, page)
     }
 }
 
@@ -673,37 +836,81 @@ fn extract_embed_endpoint(embed_url: &str) -> Option<(String, String)> {
 }
 
 fn parse_watch_page(html: &str, slug: &str) -> Result<AnimeDetail> {
-    // Title: <h1 itemprop="name" class="title d-title" data-jp="...">TITLE</h1>
-    // (older pages also have a <div class="watch_title"> ... <h2>TITLE</h2>)
-    let title = extract_between(html, "<h1", "</h1>")
-        .or_else(|| extract_between(html, "<h2", "</h2>"))
-        .map(|s| strip_tags(&s).trim().to_string())
+    let json_ld = extract_json_ld_series(html);
+    let title = json_ld
+        .as_ref()
+        .and_then(|v| json_string(v, "name"))
+        .or_else(|| {
+            extract_between(html, "<h1", "</h1>")
+                .or_else(|| extract_between(html, "<h2", "</h2>"))
+                .map(|s| strip_tags(&s).trim().to_string())
+        })
+        .map(|s| decode_html_entities(&s))
         .filter(|s| !s.is_empty() && s != "404 Not Found")
         .unwrap_or_else(|| slug.to_string());
-    // Poster: <img ... data-src="URL" or src="URL" ...>
-    let poster = extract_attr(html, "data-src")
-        .or_else(|| extract_attr(html, "src=\"https://static.aniwaves.ru"))
-        .map(|s| s.trim().to_string());
+    let japanese_title = json_ld
+        .as_ref()
+        .and_then(|v| json_string(v, "alternateName"))
+        .map(|s| decode_html_entities(&s));
+    let synopsis = json_ld
+        .as_ref()
+        .and_then(|v| json_string(v, "description"))
+        .or_else(|| meta_content(html, "description"))
+        .map(|s| decode_html_entities(&s));
+    let image = json_ld
+        .as_ref()
+        .and_then(|v| json_string(v, "image"))
+        .or_else(|| meta_property(html, "og:image"))
+        .or_else(|| extract_attr(html, "data-src"))
+        .map(|s| absolutize_url(&decode_html_entities(&s)));
+    let banner_image = meta_property(html, "og:image")
+        .map(|s| absolutize_url(&decode_html_entities(&s)))
+        .or_else(|| image.clone());
+    let anime_type = title_from_meta_title(html)
+        .or_else(|| json_ld.as_ref().and_then(|v| json_string(v, "@type")))
+        .or_else(|| Some("TV".to_string()));
+    let rating = json_ld
+        .as_ref()
+        .and_then(|v| json_string(v, "contentRating"));
+    let genres = json_ld.as_ref().and_then(json_genres);
+    let total_episodes = json_ld
+        .as_ref()
+        .and_then(|v| json_u32(v, "numberOfEpisodes"))
+        .or_else(|| {
+            json_ld
+                .as_ref()
+                .and_then(|v| json_additional_u32(v, "Subbed episodes released"))
+        });
+    let score = json_ld
+        .as_ref()
+        .and_then(|v| v.get("aggregateRating"))
+        .and_then(|v| json_f64(v, "ratingValue"))
+        .map(trim_float);
+    let aired = json_ld
+        .as_ref()
+        .and_then(|v| json_string(v, "datePublished"))
+        .or_else(|| json_ld.as_ref().and_then(|v| json_string(v, "startDate")));
+    let producers = json_ld.as_ref().and_then(json_producers);
     let show_id = AniwaveClient::show_id_from_slug(slug).unwrap_or_default();
     let card = AnimeCard {
         id: show_id,
         title,
-        japanese_title: None,
-        synopsis: None,
-        image: poster,
-        banner_image: None,
-        anime_type: None,
+        japanese_title,
+        synopsis,
+        image,
+        banner_image,
+        anime_type,
         status: None,
-        score: None,
-        rating: None,
-        genres: None,
-        total_episodes: None,
+        score,
+        rating,
+        genres,
+        total_episodes,
         total_subbed: None,
         total_dubbed: None,
         slug: Some(slug.to_string()),
         mal_id: None,
         view_count: None,
-        aired: None,
+        aired,
         duration: None,
         has_sub: true,
         has_dub: true,
@@ -712,7 +919,7 @@ fn parse_watch_page(html: &str, slug: &str) -> Result<AnimeDetail> {
         card,
         broadcast: None,
         premiered: None,
-        producers: None,
+        producers,
         licensors: None,
         source: None,
         members: None,
@@ -722,6 +929,360 @@ fn parse_watch_page(html: &str, slug: &str) -> Result<AnimeDetail> {
         episodes: None,
     };
     Ok(detail)
+}
+
+fn parse_card_list(html: &str) -> Vec<AnimeCard> {
+    let mut cards = Vec::new();
+    for item in html.split("<div class=\"item").skip(1) {
+        if let Some(card) = parse_card_block(item) {
+            cards.push(card);
+        }
+    }
+    cards
+}
+
+fn parse_card_block(block: &str) -> Option<AnimeCard> {
+    let href = extract_attr(block, "href")?;
+    if !href.contains("/watch/") {
+        return None;
+    }
+    let slug = href
+        .trim_start_matches('/')
+        .strip_prefix("watch/")
+        .unwrap_or(&href)
+        .trim_matches('/')
+        .to_string();
+    let id = extract_attr(block, "data-tip").or_else(|| AniwaveClient::show_id_from_slug(&slug))?;
+    let image = extract_attr(block, "src").map(|s| absolutize_url(&s));
+    let title_block = extract_named_class_block(block, "name d-title")
+        .or_else(|| extract_between(block, "<a", "</a>"))
+        .unwrap_or_default();
+    let title = decode_html_entities(strip_tags(&title_block).trim());
+    if title.is_empty() {
+        return None;
+    }
+    let japanese_title = extract_attr(block, "data-jp").map(|s| decode_html_entities(&s));
+    let genres = parse_genre_links(block);
+    let total_subbed = parse_ep_status(block, "sub");
+    let total_dubbed = parse_ep_status(block, "dub");
+    let total_episodes = parse_ep_status(block, "total")
+        .or(total_subbed)
+        .or(total_dubbed);
+    let anime_type = extract_card_type(block);
+    let score = extract_card_score(block);
+    let view_count = extract_card_users(block);
+    Some(AnimeCard {
+        id,
+        title,
+        japanese_title,
+        synopsis: None,
+        image,
+        banner_image: None,
+        anime_type,
+        status: None,
+        score,
+        rating: None,
+        genres,
+        total_episodes,
+        total_subbed,
+        total_dubbed,
+        slug: Some(slug),
+        mal_id: None,
+        view_count,
+        aired: None,
+        duration: None,
+        has_sub: total_subbed.unwrap_or(0) > 0,
+        has_dub: total_dubbed.unwrap_or(0) > 0,
+    })
+}
+
+fn extract_json_ld_series(html: &str) -> Option<serde_json::Value> {
+    let mut offset = 0;
+    while let Some(pos) = html[offset..].find(r#"<script type="application/ld+json">"#) {
+        let start = offset + pos + r#"<script type="application/ld+json">"#.len();
+        let end = html[start..].find("</script>").map(|i| start + i)?;
+        let text = html[start..end].trim();
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(text) {
+            if is_media_json_ld(&value) {
+                return Some(value);
+            }
+            if let Some(found) = value
+                .get("@graph")
+                .and_then(|g| g.as_array())
+                .and_then(|arr| arr.iter().find(|v| is_media_json_ld(v)))
+            {
+                return Some(found.clone());
+            }
+        }
+        offset = end + "</script>".len();
+    }
+    None
+}
+
+fn is_media_json_ld(v: &serde_json::Value) -> bool {
+    matches!(
+        v.get("@type").and_then(|t| t.as_str()),
+        Some("TVSeries") | Some("Movie") | Some("VideoObject")
+    )
+}
+
+fn json_string(v: &serde_json::Value, key: &str) -> Option<String> {
+    v.get(key)?.as_str().map(ToString::to_string)
+}
+
+fn json_u32(v: &serde_json::Value, key: &str) -> Option<u32> {
+    v.get(key)?.as_u64().map(|n| n as u32)
+}
+
+fn json_f64(v: &serde_json::Value, key: &str) -> Option<f64> {
+    v.get(key)?.as_f64()
+}
+
+fn json_genres(v: &serde_json::Value) -> Option<Vec<String>> {
+    let genres = match v.get("genre")? {
+        serde_json::Value::Array(arr) => arr
+            .iter()
+            .filter_map(|g| g.as_str().map(decode_html_entities))
+            .collect::<Vec<_>>(),
+        serde_json::Value::String(s) => vec![decode_html_entities(s)],
+        _ => vec![],
+    };
+    non_empty(genres)
+}
+
+fn json_producers(v: &serde_json::Value) -> Option<String> {
+    let arr = v.get("productionCompany")?.as_array()?;
+    let names = arr
+        .iter()
+        .filter_map(|p| p.get("name").and_then(|n| n.as_str()))
+        .map(decode_html_entities)
+        .collect::<Vec<_>>();
+    non_empty(names).map(|v| v.join(", "))
+}
+
+fn json_additional_u32(v: &serde_json::Value, name: &str) -> Option<u32> {
+    let arr = v.get("additionalProperty")?.as_array()?;
+    arr.iter().find_map(|entry| {
+        let entry_name = entry.get("name")?.as_str()?;
+        if entry_name.eq_ignore_ascii_case(name) {
+            entry.get("value")?.as_u64().map(|n| n as u32)
+        } else {
+            None
+        }
+    })
+}
+
+fn meta_property(html: &str, property: &str) -> Option<String> {
+    extract_meta_content(html, "property", property)
+}
+
+fn meta_content(html: &str, name: &str) -> Option<String> {
+    extract_meta_content(html, "name", name)
+}
+
+fn extract_meta_content(html: &str, attr: &str, value: &str) -> Option<String> {
+    let needle_a = format!(r#"{attr}="{value}""#);
+    let needle_b = format!(r#"{attr}='{value}'"#);
+    for meta in html.split("<meta").skip(1) {
+        let meta = meta.split('>').next().unwrap_or(meta);
+        if meta.contains(&needle_a) || meta.contains(&needle_b) {
+            return extract_attr(meta, "content");
+        }
+    }
+    None
+}
+
+fn title_from_meta_title(html: &str) -> Option<String> {
+    let title = strip_tags(&extract_between(html, "<title", "</title>")?);
+    if title.contains(" Movie ") {
+        Some("Movie".to_string())
+    } else if title.contains(" ONA ") {
+        Some("ONA".to_string())
+    } else if title.contains(" OVA ") {
+        Some("OVA".to_string())
+    } else if title.contains(" Special ") {
+        Some("Special".to_string())
+    } else {
+        Some("TV".to_string())
+    }
+}
+
+fn parse_genre_links(block: &str) -> Option<Vec<String>> {
+    let mut out = Vec::new();
+    for part in block.split(r#"/genre/"#).skip(1) {
+        let anchor = match part.find('>') {
+            Some(i) => &part[i + 1..],
+            None => continue,
+        };
+        let text = anchor.split("</a>").next().unwrap_or("").trim();
+        if !text.is_empty() {
+            out.push(decode_html_entities(text));
+        }
+    }
+    non_empty(out)
+}
+
+fn parse_ep_status(block: &str, class_name: &str) -> Option<u32> {
+    let needle = format!(r#"ep-status {}"#, class_name);
+    let idx = block.find(&needle)?;
+    let span = &block[idx..block.len().min(idx + 180)];
+    parse_u32_text(&strip_tags(span))
+}
+
+fn extract_card_type(block: &str) -> Option<String> {
+    let idx = block.find(r#"<div class="right">"#)?;
+    let tail = &block[idx + r#"<div class="right">"#.len()..];
+    let value = tail.split("</div>").next().unwrap_or("").trim();
+    if value.is_empty() {
+        None
+    } else {
+        Some(decode_html_entities(value))
+    }
+}
+
+fn extract_card_score(block: &str) -> Option<String> {
+    let idx = block.find(r#"m-item rated"#)?;
+    let tail = &block[idx..block.len().min(idx + 160)];
+    parse_u32_text(&strip_tags(tail)).map(|n| n.to_string())
+}
+
+fn extract_card_users(block: &str) -> Option<u32> {
+    let idx = block.find(r#"m-item favourited"#)?;
+    let tail = &block[idx..block.len().min(idx + 180)];
+    parse_compact_count(&strip_tags(tail))
+}
+
+fn extract_named_class_block(html: &str, class_name: &str) -> Option<String> {
+    let idx = html.find(class_name)?;
+    let start = html[..idx].rfind('<').unwrap_or(idx);
+    let rest = &html[start..];
+    let tag = rest
+        .trim_start_matches('<')
+        .split(|c: char| c.is_whitespace() || c == '>')
+        .next()
+        .unwrap_or("a");
+    let close = format!("</{}>", tag);
+    extract_between(rest, &format!("<{}", tag), &close)
+}
+
+fn parse_u32_text(text: &str) -> Option<u32> {
+    let digits = text
+        .chars()
+        .skip_while(|c| !c.is_ascii_digit())
+        .take_while(|c| c.is_ascii_digit())
+        .collect::<String>();
+    if digits.is_empty() {
+        None
+    } else {
+        digits.parse().ok()
+    }
+}
+
+fn parse_compact_count(text: &str) -> Option<u32> {
+    let mut token = String::new();
+    let mut started = false;
+    for c in text.chars() {
+        if c.is_ascii_digit() || (started && c == '.') {
+            started = true;
+            token.push(c);
+        } else if started && matches!(c, 'K' | 'M' | 'k' | 'm') {
+            token.push(c.to_ascii_uppercase());
+            break;
+        } else if started {
+            break;
+        }
+    }
+    if token.is_empty() {
+        return None;
+    }
+    let multiplier = if token.ends_with('M') {
+        1_000_000.0
+    } else if token.ends_with('K') {
+        1_000.0
+    } else {
+        1.0
+    };
+    let numeric = token.trim_end_matches(['M', 'K']).parse::<f64>().ok()?;
+    Some((numeric * multiplier) as u32)
+}
+
+fn trim_float(value: f64) -> String {
+    let rounded = format!("{:.1}", value);
+    rounded.trim_end_matches(".0").to_string()
+}
+
+fn non_empty<T>(value: Vec<T>) -> Option<Vec<T>> {
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+fn type_slug(value: &str) -> Option<&'static str> {
+    match normalize_filter_value(value).as_str() {
+        "tv" | "tvseries" | "series" => Some("tv-series"),
+        "movie" | "movies" => Some("movies"),
+        "ova" => Some("ova"),
+        "ona" => Some("ona"),
+        "special" | "specials" => Some("special"),
+        "music" => Some("music"),
+        _ => None,
+    }
+}
+
+fn status_path(value: &str) -> Option<&'static str> {
+    match normalize_filter_value(value).as_str() {
+        "airing" | "ongoing" | "currentlyairing" => Some("ongoing"),
+        "finished" | "completed" => Some("completed"),
+        "upcoming" | "notyetaired" => Some("upcoming"),
+        _ => None,
+    }
+}
+
+fn normalize_filter_value(value: &str) -> String {
+    value
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .flat_map(|c| c.to_lowercase())
+        .collect()
+}
+
+fn slugify(value: &str) -> String {
+    let mut out = String::new();
+    let mut last_dash = false;
+    for c in value.chars() {
+        if c.is_ascii_alphanumeric() {
+            out.push(c.to_ascii_lowercase());
+            last_dash = false;
+        } else if !last_dash {
+            out.push('-');
+            last_dash = true;
+        }
+    }
+    out.trim_matches('-').to_string()
+}
+
+fn absolutize_url(url: &str) -> String {
+    if url.starts_with("http://") || url.starts_with("https://") {
+        url.to_string()
+    } else if url.starts_with("//") {
+        format!("https:{}", url)
+    } else if url.starts_with('/') {
+        format!("{}{}", BASE_URL, url)
+    } else {
+        url.to_string()
+    }
+}
+
+fn decode_html_entities(input: &str) -> String {
+    input
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#039;", "'")
+        .replace("&#x27;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
 }
 
 fn to_episode_summaries(episodes: Vec<AniwaveEpisode>) -> Vec<EpisodeSummary> {
@@ -865,5 +1426,86 @@ mod tests {
         assert!(!episodes[0].has_dub);
         assert_eq!(episodes[1].number, 2);
         assert!(episodes[1].has_dub);
+    }
+
+    #[test]
+    fn parses_watch_page_json_ld_detail() {
+        let html = r#"
+            <html><head>
+            <title>Aniwave - Martial God Asura 2 (2026) – Watch ONA Online in HD</title>
+            <meta property="og:image" content="https://static.aniwaves.ru/resources/cover/1200x675/100/c.jpg">
+            <script type="application/ld+json">{
+                "@context": "https://schema.org",
+                "@type": "TVSeries",
+                "name": "Martial God Asura 2",
+                "alternateName": "修罗武神 第2季",
+                "description": "Chu Feng &amp; friends",
+                "image": "https://static.aniwaves.ru/resources/cover/1200x675/100/c.jpg",
+                "contentRating": "PG-13 - Teens 13 or older",
+                "genre": ["Action", "Fantasy"],
+                "numberOfEpisodes": 16,
+                "datePublished": "2026-02-24",
+                "productionCompany": [{"@type":"Organization","name":"Tang Kirin Culture"}],
+                "aggregateRating": {"@type":"AggregateRating","ratingValue":3.5}
+            }</script>
+            </head></html>
+        "#;
+
+        let detail = parse_watch_page(html, "xiuluo-wushen-2-82510").expect("detail");
+
+        assert_eq!(detail.card.id, "82510");
+        assert_eq!(detail.card.title, "Martial God Asura 2");
+        assert_eq!(
+            detail.card.japanese_title.as_deref(),
+            Some("修罗武神 第2季")
+        );
+        assert_eq!(detail.card.synopsis.as_deref(), Some("Chu Feng & friends"));
+        assert_eq!(detail.card.total_episodes, Some(16));
+        assert_eq!(detail.card.score.as_deref(), Some("3.5"));
+        assert_eq!(
+            detail.card.genres.as_ref().unwrap(),
+            &vec!["Action".to_string(), "Fantasy".to_string()]
+        );
+        assert_eq!(detail.producers.as_deref(), Some("Tang Kirin Culture"));
+    }
+
+    #[test]
+    fn parses_aniwave_card_items() {
+        let html = r#"
+            <div class="ani items"><div class="item "><div class="inner">
+                <div class="ani poster tip tooltipstered" data-tip="81553">
+                    <a href="/watch/one-piece-81553">
+                        <img src="https://static.aniwaves.ru/resources/thumbnails/200x280/100/op.jpg" alt="One Piece">
+                        <div class="meta"><div class="inner"><div class="left">
+                            <span class="ep-status sub"><span> 1166 </span></span>
+                            <span class="ep-status dub"><span> 1155</span></span>
+                            <span class="ep-status total"><span>?</span></span>
+                        </div><div class="right">TV</div></div></div>
+                    </a>
+                </div>
+                <div class="info"><div class="b1">
+                    <a class="name d-title" href="/watch/one-piece-81553" data-jp="One Piece">One Piece</a>
+                    <div class="genre"><a href="/genre/action">Action</a>, <a href="/genre/adventure">Adventure</a></div>
+                </div><div class="meta">
+                    <div class="m-item favourited"><span>1.5M</span><label> Users</label></div>
+                    <div class="m-item rated"><span> 9</span><label></label></div>
+                </div></div>
+            </div></div></div>
+        "#;
+
+        let cards = parse_card_list(html);
+
+        assert_eq!(cards.len(), 1);
+        assert_eq!(cards[0].id, "81553");
+        assert_eq!(cards[0].slug.as_deref(), Some("one-piece-81553"));
+        assert_eq!(
+            cards[0].image.as_deref(),
+            Some("https://static.aniwaves.ru/resources/thumbnails/200x280/100/op.jpg")
+        );
+        assert_eq!(cards[0].total_subbed, Some(1166));
+        assert_eq!(cards[0].total_dubbed, Some(1155));
+        assert_eq!(cards[0].anime_type.as_deref(), Some("TV"));
+        assert_eq!(cards[0].score.as_deref(), Some("9"));
+        assert_eq!(cards[0].view_count, Some(1_500_000));
     }
 }

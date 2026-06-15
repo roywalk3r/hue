@@ -4,10 +4,10 @@ use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
+use crate::models::anime::FilterParams;
 use crate::models::anime::{
     AnimeCard, AnimeDetail, AnimeSearchResponse, EpisodeSummary, ScheduleEntry,
 };
-use crate::models::anime::FilterParams;
 
 const ANILIST_API: &str = "https://graphql.anilist.co";
 
@@ -514,10 +514,7 @@ query DiscoverAnime(
                 .get("averageScore")
                 .and_then(|s| s.as_i64())
                 .map(|n| (n as f64 / 10.0).to_string());
-            let total_eps = m
-                .get("episodes")
-                .and_then(|e| e.as_u64())
-                .map(|n| n as u32);
+            let total_eps = m.get("episodes").and_then(|e| e.as_u64()).map(|n| n as u32);
             let genres = m.get("genres").and_then(|g| g.as_array()).map(|arr| {
                 arr.iter()
                     .filter_map(|v| v.as_str().map(|s| s.to_string()))
@@ -534,9 +531,7 @@ query DiscoverAnime(
                 .map(|y| y.to_string());
 
             results.push(AnimeCard {
-                id: mal_id
-                    .map(|id| id.to_string())
-                    .unwrap_or_else(|| "".into()),
+                id: mal_id.map(|id| id.to_string()).unwrap_or_else(|| "".into()),
                 title,
                 japanese_title: japanese,
                 synopsis,
@@ -566,11 +561,7 @@ query DiscoverAnime(
     /// Returns up to 50 entries.
     pub async fn schedule(&self, date: Option<NaiveDate>) -> Result<Vec<ScheduleEntry>> {
         let target = date.unwrap_or_else(|| chrono::Utc::now().date_naive());
-        let start = target
-            .and_hms_opt(0, 0, 0)
-            .unwrap()
-            .and_utc()
-            .timestamp();
+        let start = target.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp();
         let end = target
             .and_hms_opt(23, 59, 59)
             .unwrap()
@@ -615,14 +606,8 @@ query Schedule($start: Int, $end: Int) {
         let now = chrono::Utc::now().timestamp();
         let mut out = Vec::with_capacity(schedules.len());
         for s in schedules {
-            let airing_at = s
-                .get("airingAt")
-                .and_then(|a| a.as_i64())
-                .unwrap_or(0) as u64;
-            let episode = s
-                .get("episode")
-                .and_then(|e| e.as_u64())
-                .unwrap_or(0) as u32;
+            let airing_at = s.get("airingAt").and_then(|a| a.as_i64()).unwrap_or(0) as u64;
+            let episode = s.get("episode").and_then(|e| e.as_u64()).unwrap_or(0) as u32;
             let media = s.get("media");
             let anime_id = media
                 .and_then(|m| m.get("id"))

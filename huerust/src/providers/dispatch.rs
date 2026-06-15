@@ -107,6 +107,13 @@ pub async fn fetch_from_providers(
     let mut all = Vec::new();
     let mut timings = Vec::new();
 
+    // For the fast phase (headstart) we want to give every fast provider
+    // the full `aggregate_deadline` to complete. Aborting on threshold
+    // was killing in-flight Vixsrc requests because Luna landed first.
+    // For the slow phase we keep the abort-on-threshold behavior so we
+    // return early once we have enough streams to satisfy the user.
+    let abort_on_threshold = !fast_only;
+
     match timeout(aggregate_deadline, async {
         while let Some(result) = tasks.join_next().await {
             if let Ok((name, streams, elapsed, was_cancelled)) = result {
@@ -118,7 +125,7 @@ pub async fn fetch_from_providers(
                     cancelled: was_cancelled,
                 });
                 all.extend(streams);
-                if all.len() >= min_streams_threshold {
+                if abort_on_threshold && all.len() >= min_streams_threshold {
                     tasks.abort_all();
                     break;
                 }

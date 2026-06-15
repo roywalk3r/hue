@@ -40,6 +40,9 @@ use crate::providers::{
     moviebox_provider::MovieBoxProvider,
     // mp4hydra_provider::Mp4HydraProvider, // disabled — endpoint times out
     sflix_provider::SflixProvider,
+    vidlink_provider::VidlinkProvider,
+    lordflix_provider::LordflixProvider,
+    notorrent_provider::NoTorrentProvider,
     // videasy::VideasyClient,       // disabled — upstream 500
     // videasy_provider::VideasyProvider,
     vidrock_provider::VidrockProvider,
@@ -149,6 +152,39 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
             .unwrap(),
     )));
     // let _videasy_client = Arc::new(VideasyClient::new()); // disabled — upstream 500
+    let vidlink_client = Arc::new(crate::clients::vidlink::VidlinkClient::new(
+        crate::http_client::wrap_with_retry(
+            reqwest::Client::builder()
+                .tcp_keepalive(Duration::from_secs(60))
+                .connect_timeout(Duration::from_secs(8))
+                .timeout(Duration::from_secs(15))
+                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
+                .build()
+                .unwrap(),
+        ),
+    ));
+    let lordflix_client = Arc::new(crate::clients::lordflix::LordflixClient::new(
+        crate::http_client::wrap_with_retry(
+            reqwest::Client::builder()
+                .tcp_keepalive(Duration::from_secs(60))
+                .connect_timeout(Duration::from_secs(8))
+                .timeout(Duration::from_secs(15))
+                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
+                .build()
+                .unwrap(),
+        ),
+    ));
+    let notorrent_client = Arc::new(crate::clients::notorrent::NoTorrentClient::new(
+        crate::http_client::wrap_with_retry(
+            reqwest::Client::builder()
+                .tcp_keepalive(Duration::from_secs(60))
+                .connect_timeout(Duration::from_secs(8))
+                .timeout(Duration::from_secs(20))
+                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
+                .build()
+                .unwrap(),
+        ),
+    ));
 
     registry.register(Arc::new(MovieBoxProvider::new(moviebox_client.clone())));
     if kisskh_enabled() {
@@ -168,6 +204,9 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     registry.register(Arc::new(VidsrcEmbedProvider::new(
         vidsrcembed_client.clone(),
     )));
+    registry.register(Arc::new(VidlinkProvider::new(vidlink_client)));
+    registry.register(Arc::new(LordflixProvider::new(lordflix_client)));
+    registry.register(Arc::new(NoTorrentProvider::new(notorrent_client)));
 
     let redis_pool = if cfg.cache_backend == "redis" {
         let pool_cfg = deadpool_redis::Config::from_url(&cfg.redis_url);

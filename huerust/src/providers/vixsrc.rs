@@ -439,36 +439,70 @@ impl VixsrcClient {
         // Vixsrc uses JS object notation (single quotes) so serde_json fails;
         // fall back to regex extraction from the raw block text.
         let re_master = &*RE_MASTER_PL;
-        if let Some(caps) = re_master.captures(&html) {
-            if let Some(block) = caps.get(1) {
-                let block_text = block.as_str();
-                auth_token = RE_TOKEN
-                    .captures(block_text)
-                    .and_then(|c| c.get(1))
-                    .map(|m| m.as_str().to_string());
-                auth_expires = RE_EXPIRES
-                    .captures(block_text)
-                    .and_then(|c| c.get(1))
-                    .map(|m| m.as_str().to_string());
-                if let Some(m) = RE_MASTER_URL.captures(block_text) {
-                    if let Some(url_match) = m.get(1) {
-                        let mut master_url = url_match.as_str().to_string();
-                        if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
-                            let sep = if master_url.contains('?') { '&' } else { '?' };
-                            master_url = format!(
-                                "{}{sep}token={t}&expires={e}&h=1&lang=en",
-                                master_url,
-                                sep = sep,
-                                t = t,
-                                e = e
-                            );
-                        }
-                        streams.push(InternalStream {
-                            url: master_url,
-                            quality: "1080p".to_string(),
-                            title: "Aura - Master - 1080p".to_string(),
-                        });
+        let master_block = re_master
+            .captures(&html)
+            .and_then(|c| c.get(1).map(|m| m.as_str().to_string()));
+
+        if let Some(ref block_text) = master_block {
+            auth_token = RE_TOKEN
+                .captures(block_text)
+                .and_then(|c| c.get(1))
+                .map(|m| m.as_str().to_string());
+            auth_expires = RE_EXPIRES
+                .captures(block_text)
+                .and_then(|c| c.get(1))
+                .map(|m| m.as_str().to_string());
+            if let Some(m) = RE_MASTER_URL.captures(block_text) {
+                if let Some(url_match) = m.get(1) {
+                    let mut master_url = url_match.as_str().to_string();
+                    if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
+                        let sep = if master_url.contains('?') { '&' } else { '?' };
+                        master_url = format!(
+                            "{}{sep}token={t}&expires={e}&h=1&lang=en",
+                            master_url,
+                            sep = sep,
+                            t = t,
+                            e = e
+                        );
                     }
+                    streams.push(InternalStream {
+                        url: master_url,
+                        quality: "1080p".to_string(),
+                        title: "Aura - Master - 1080p".to_string(),
+                    });
+                }
+            }
+        } else {
+            // Fallback: regex the whole embed HTML for `token:"..."`,
+            // `expires:"..."`, and `url:"..."` (used when masterPlaylist
+            // block is absent). Mirrors the Node embed API extraction.
+            info!("[Vixsrc Rust] no window.masterPlaylist — falling back to whole-HTML regex");
+            auth_token = RE_TOKEN
+                .captures(&html)
+                .and_then(|c| c.get(1))
+                .map(|m| m.as_str().to_string());
+            auth_expires = RE_EXPIRES
+                .captures(&html)
+                .and_then(|c| c.get(1))
+                .map(|m| m.as_str().to_string());
+            if let Some(m) = RE_MASTER_URL.captures(&html) {
+                if let Some(url_match) = m.get(1) {
+                    let mut master_url = url_match.as_str().to_string();
+                    if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
+                        let sep = if master_url.contains('?') { '&' } else { '?' };
+                        master_url = format!(
+                            "{}{sep}token={t}&expires={e}&h=1&lang=en",
+                            master_url,
+                            sep = sep,
+                            t = t,
+                            e = e
+                        );
+                    }
+                    streams.push(InternalStream {
+                        url: master_url,
+                        quality: "1080p".to_string(),
+                        title: "Aura - Master - 1080p".to_string(),
+                    });
                 }
             }
         }
@@ -476,9 +510,10 @@ impl VixsrcClient {
         // ── Parse window.streams as JSON array ──
         let re_streams = &*RE_STREAMS_ARR;
         info!(
-            "[Vixsrc Rust] window.masterPlaylist found={} window.streams found={}",
-            re_master.captures(&html).is_some(),
-            re_streams.captures(&html).is_some()
+            "[Vixsrc Rust] window.masterPlaylist found={} window.streams found={} token_found={}",
+            master_block.is_some(),
+            re_streams.captures(&html).is_some(),
+            auth_token.is_some(),
         );
         if let Some(caps) = re_streams.captures(&html) {
             if let Some(block) = caps.get(1) {

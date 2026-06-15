@@ -171,3 +171,4 @@
 {"t":0,"agent":"aa57ef3","agent_type":"unknown","event":"agent_stop","success":true}
 {"t":0,"agent":"a336edd","agent_type":"Explore","event":"agent_start","parent_mode":"none"}
 {"t":0,"agent":"a336edd","agent_type":"Explore","event":"agent_stop","success":true,"duration_ms":101975}
+{"t":0,"agent":"a716136","agent_type":"unknown","event":"agent_stop","success":true}

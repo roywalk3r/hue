@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::task::JoinSet;
+use tokio::time::timeout;
 use tracing::warn;
 
 use chrono::NaiveDate;
@@ -49,6 +51,19 @@ impl AnimeAggregator {
     pub async fn search(&self, keyword: &str, page: u32, per_page: u32) -> AnimeSearchResponse {
         let mut tasks = JoinSet::new();
 
+        let aniwave = self.aniwave.clone();
+        let kw = keyword.to_string();
+        let pp = per_page;
+        tasks.spawn(async move {
+            match aniwave.search(&kw, page, pp).await {
+                Ok(response) => Some(response),
+                Err(e) => {
+                    warn!("[AnimeAgg] Aniwave search error: {}", e);
+                    None
+                }
+            }
+        });
+
         let hi = self.hianime.clone();
         let kw = keyword.to_string();
         tasks.spawn(async move {
@@ -67,10 +82,14 @@ impl AnimeAggregator {
         let aw = self.aniwatch.clone();
         let kw = keyword.to_string();
         tasks.spawn(async move {
-            match aw.search(&kw).await {
-                Ok(r) => Some(r),
-                Err(e) => {
+            match timeout(Duration::from_secs(8), aw.search(&kw)).await {
+                Ok(Ok(r)) => Some(r),
+                Ok(Err(e)) => {
                     warn!("[AnimeAgg] AniWatch search error: {}", e);
+                    None
+                }
+                Err(_) => {
+                    warn!("[AnimeAgg] AniWatch search timed out");
                     None
                 }
             }
@@ -108,6 +127,10 @@ impl AnimeAggregator {
                     let key = normalize_title(&card.title);
                     // Prefer results with images and episode counts
                     if let Some(existing) = seen.get_mut(&key) {
+                        if should_prefer_card(existing, &card) {
+                            *existing = merge_cards(card, existing.clone());
+                            continue;
+                        }
                         if existing.image.is_none() && card.image.is_some() {
                             existing.image = card.image.clone();
                         }
@@ -369,6 +392,16 @@ impl AnimeAggregator {
             feed.trending = merge_optional_vecs(feed.trending, ax_feed.trending);
         }
 
+        // Aniwave home/list widgets provide stronger poster/sub/dub counts.
+        if let Ok(aniwave_feed) = self.aniwave.get_home().await {
+            feed.trending = merge_optional_vecs(feed.trending, aniwave_feed.trending);
+            feed.latest = merge_optional_vecs(feed.latest, aniwave_feed.latest);
+            feed.popular = merge_optional_vecs(feed.popular, aniwave_feed.popular);
+            feed.featured = merge_optional_vecs(feed.featured, aniwave_feed.featured);
+            feed.currently_airing =
+                merge_optional_vecs(feed.currently_airing, aniwave_feed.currently_airing);
+        }
+
         feed
     }
 
@@ -390,11 +423,34 @@ impl AnimeAggregator {
         let p = params.clone();
         tasks.spawn(async move { al.discover(&p).await.unwrap_or_default() });
 
+        // Aniwave: useful for frontend-ready browse pages and source-backed slugs.
+        let aniwave = self.aniwave.clone();
+        let p = params.clone();
+        tasks.spawn(async move {
+            aniwave
+                .discover(&p)
+                .await
+                .map(|resp| resp.items)
+                .unwrap_or_default()
+        });
+
         // AniWatch: only when type/genre/status is set
         if params.r#type.is_some() || params.genre.is_some() || params.status.is_some() {
             let aw = self.aniwatch.clone();
             let p = params.clone();
-            tasks.spawn(async move { aw.discover(&p).await.unwrap_or_default() });
+            tasks.spawn(async move {
+                match timeout(Duration::from_secs(8), aw.discover(&p)).await {
+                    Ok(Ok(cards)) => cards,
+                    Ok(Err(e)) => {
+                        warn!("[AnimeAgg] AniWatch discover error: {}", e);
+                        Vec::new()
+                    }
+                    Err(_) => {
+                        warn!("[AnimeAgg] AniWatch discover timed out");
+                        Vec::new()
+                    }
+                }
+            });
         }
 
         // HiAnime: only for type filter (mapped to category)
@@ -417,6 +473,10 @@ impl AnimeAggregator {
                     continue;
                 }
                 if let Some(existing) = seen.get_mut(&key) {
+                    if should_prefer_card(existing, &card) {
+                        *existing = merge_cards(card, existing.clone());
+                        continue;
+                    }
                     // Prefer items with images + episode counts
                     if existing.image.is_none() && card.image.is_some() {
                         existing.image = card.image.clone();
@@ -455,7 +515,11 @@ impl AnimeAggregator {
     /// Static metadata for the discover screen. Years are generated at
     /// call time so the current year is always present.
     pub async fn filter_options(&self) -> FilterOptions {
-        let current_year = chrono::Utc::now().format("%Y").to_string().parse::<u32>().unwrap_or(2026);
+        let current_year = chrono::Utc::now()
+            .format("%Y")
+            .to_string()
+            .parse::<u32>()
+            .unwrap_or(2026);
         let years: Vec<FilterChoice> = (1960..=current_year)
             .rev()
             .map(|y| FilterChoice {
@@ -465,64 +529,165 @@ impl AnimeAggregator {
             .collect();
         FilterOptions {
             types: vec![
-                FilterChoice { value: "tv".into(), label: "TV".into() },
-                FilterChoice { value: "movie".into(), label: "Movie".into() },
-                FilterChoice { value: "ova".into(), label: "OVA".into() },
-                FilterChoice { value: "ona".into(), label: "ONA".into() },
-                FilterChoice { value: "special".into(), label: "Special".into() },
-                FilterChoice { value: "music".into(), label: "Music".into() },
+                FilterChoice {
+                    value: "tv".into(),
+                    label: "TV".into(),
+                },
+                FilterChoice {
+                    value: "movie".into(),
+                    label: "Movie".into(),
+                },
+                FilterChoice {
+                    value: "ova".into(),
+                    label: "OVA".into(),
+                },
+                FilterChoice {
+                    value: "ona".into(),
+                    label: "ONA".into(),
+                },
+                FilterChoice {
+                    value: "special".into(),
+                    label: "Special".into(),
+                },
+                FilterChoice {
+                    value: "music".into(),
+                    label: "Music".into(),
+                },
             ],
             statuses: vec![
-                FilterChoice { value: "airing".into(), label: "Currently Airing".into() },
-                FilterChoice { value: "finished".into(), label: "Finished Airing".into() },
-                FilterChoice { value: "upcoming".into(), label: "Not Yet Aired".into() },
+                FilterChoice {
+                    value: "airing".into(),
+                    label: "Currently Airing".into(),
+                },
+                FilterChoice {
+                    value: "finished".into(),
+                    label: "Finished Airing".into(),
+                },
+                FilterChoice {
+                    value: "upcoming".into(),
+                    label: "Not Yet Aired".into(),
+                },
             ],
             sorts: vec![
-                FilterChoice { value: "popularity".into(), label: "Popularity".into() },
-                FilterChoice { value: "score".into(), label: "Score".into() },
-                FilterChoice { value: "trending".into(), label: "Trending".into() },
-                FilterChoice { value: "latest".into(), label: "Latest".into() },
-                FilterChoice { value: "alphabetical".into(), label: "A–Z".into() },
+                FilterChoice {
+                    value: "popularity".into(),
+                    label: "Popularity".into(),
+                },
+                FilterChoice {
+                    value: "score".into(),
+                    label: "Score".into(),
+                },
+                FilterChoice {
+                    value: "trending".into(),
+                    label: "Trending".into(),
+                },
+                FilterChoice {
+                    value: "latest".into(),
+                    label: "Latest".into(),
+                },
+                FilterChoice {
+                    value: "alphabetical".into(),
+                    label: "A–Z".into(),
+                },
             ],
-            genres: ANILIST_GENRES.iter().map(|(v, l)| FilterChoice { value: (*v).into(), label: (*l).into() }).collect(),
+            genres: ANILIST_GENRES
+                .iter()
+                .map(|(v, l)| FilterChoice {
+                    value: (*v).into(),
+                    label: (*l).into(),
+                })
+                .collect(),
             years,
             seasons: vec![
-                FilterChoice { value: "winter".into(), label: "Winter".into() },
-                FilterChoice { value: "spring".into(), label: "Spring".into() },
-                FilterChoice { value: "summer".into(), label: "Summer".into() },
-                FilterChoice { value: "fall".into(), label: "Fall".into() },
+                FilterChoice {
+                    value: "winter".into(),
+                    label: "Winter".into(),
+                },
+                FilterChoice {
+                    value: "spring".into(),
+                    label: "Spring".into(),
+                },
+                FilterChoice {
+                    value: "summer".into(),
+                    label: "Summer".into(),
+                },
+                FilterChoice {
+                    value: "fall".into(),
+                    label: "Fall".into(),
+                },
             ],
             languages: vec![
-                FilterChoice { value: "japanese".into(), label: "Japanese".into() },
-                FilterChoice { value: "english".into(), label: "English".into() },
-                FilterChoice { value: "chinese".into(), label: "Chinese".into() },
-                FilterChoice { value: "korean".into(), label: "Korean".into() },
+                FilterChoice {
+                    value: "japanese".into(),
+                    label: "Japanese".into(),
+                },
+                FilterChoice {
+                    value: "english".into(),
+                    label: "English".into(),
+                },
+                FilterChoice {
+                    value: "chinese".into(),
+                    label: "Chinese".into(),
+                },
+                FilterChoice {
+                    value: "korean".into(),
+                    label: "Korean".into(),
+                },
             ],
             scores: vec![
-                FilterChoice { value: "all".into(), label: "All".into() },
-                FilterChoice { value: "8".into(), label: "8+".into() },
-                FilterChoice { value: "7".into(), label: "7+".into() },
-                FilterChoice { value: "6".into(), label: "6+".into() },
-                FilterChoice { value: "5".into(), label: "5+".into() },
+                FilterChoice {
+                    value: "all".into(),
+                    label: "All".into(),
+                },
+                FilterChoice {
+                    value: "8".into(),
+                    label: "8+".into(),
+                },
+                FilterChoice {
+                    value: "7".into(),
+                    label: "7+".into(),
+                },
+                FilterChoice {
+                    value: "6".into(),
+                    label: "6+".into(),
+                },
+                FilterChoice {
+                    value: "5".into(),
+                    label: "5+".into(),
+                },
             ],
             ratings: vec![
-                FilterChoice { value: "g".into(), label: "G".into() },
-                FilterChoice { value: "pg".into(), label: "PG".into() },
-                FilterChoice { value: "pg13".into(), label: "PG-13".into() },
-                FilterChoice { value: "r".into(), label: "R".into() },
-                FilterChoice { value: "rplus".into(), label: "R+".into() },
-                FilterChoice { value: "rx".into(), label: "Rx".into() },
+                FilterChoice {
+                    value: "g".into(),
+                    label: "G".into(),
+                },
+                FilterChoice {
+                    value: "pg".into(),
+                    label: "PG".into(),
+                },
+                FilterChoice {
+                    value: "pg13".into(),
+                    label: "PG-13".into(),
+                },
+                FilterChoice {
+                    value: "r".into(),
+                    label: "R".into(),
+                },
+                FilterChoice {
+                    value: "rplus".into(),
+                    label: "R+".into(),
+                },
+                FilterChoice {
+                    value: "rx".into(),
+                    label: "Rx".into(),
+                },
             ],
         }
     }
 
     /// Airings for a single date. Currently AniList only; other providers
     /// don't expose a schedule API.
-    pub async fn schedule(
-        &self,
-        date: Option<NaiveDate>,
-        _tz: Option<&str>,
-    ) -> Vec<ScheduleEntry> {
+    pub async fn schedule(&self, date: Option<NaiveDate>, _tz: Option<&str>) -> Vec<ScheduleEntry> {
         match self.anilist.schedule(date).await {
             Ok(v) => v,
             Err(e) => {
@@ -533,11 +698,7 @@ impl AnimeAggregator {
     }
 
     /// Build a typed episode list response for the route handler.
-    pub async fn episodes_response(
-        &self,
-        id: &str,
-        start: u32,
-    ) -> Option<EpisodeListResponse> {
+    pub async fn episodes_response(&self, id: &str, start: u32) -> Option<EpisodeListResponse> {
         let episodes = self.get_episodes(id, start).await?;
         let total = episodes.len() as u32;
         Some(EpisodeListResponse {
@@ -598,6 +759,89 @@ fn normalize_title(title: &str) -> String {
     title.to_lowercase().trim().to_string()
 }
 
+fn is_aniwave_slug(slug: &str) -> bool {
+    slug.rsplit('-')
+        .next()
+        .map(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_digit()))
+        .unwrap_or(false)
+}
+
+fn source_rank(card: &AnimeCard) -> u8 {
+    if card.slug.as_deref().map(is_aniwave_slug).unwrap_or(false) {
+        return 3;
+    }
+    if card.has_sub || card.has_dub {
+        return 2;
+    }
+    card.has_sub
+        .then_some(1)
+        .or_else(|| {
+            card.slug
+                .as_deref()
+                .filter(|slug| !slug.starts_with("mal-"))
+                .map(|_| 1)
+        })
+        .unwrap_or(0)
+}
+
+fn should_prefer_card(existing: &AnimeCard, candidate: &AnimeCard) -> bool {
+    source_rank(candidate) > source_rank(existing)
+}
+
+fn merge_cards(mut primary: AnimeCard, secondary: AnimeCard) -> AnimeCard {
+    if primary.japanese_title.is_none() {
+        primary.japanese_title = secondary.japanese_title;
+    }
+    if primary.synopsis.is_none() {
+        primary.synopsis = secondary.synopsis;
+    }
+    if primary.image.is_none() {
+        primary.image = secondary.image;
+    }
+    if primary.banner_image.is_none() {
+        primary.banner_image = secondary.banner_image;
+    }
+    if primary.anime_type.is_none() {
+        primary.anime_type = secondary.anime_type;
+    }
+    if primary.status.is_none() {
+        primary.status = secondary.status;
+    }
+    if primary.score.is_none() {
+        primary.score = secondary.score;
+    }
+    if primary.rating.is_none() {
+        primary.rating = secondary.rating;
+    }
+    if primary.genres.is_none() {
+        primary.genres = secondary.genres;
+    }
+    if primary.total_episodes.is_none() {
+        primary.total_episodes = secondary.total_episodes;
+    }
+    if primary.total_subbed.is_none() {
+        primary.total_subbed = secondary.total_subbed;
+    }
+    if primary.total_dubbed.is_none() {
+        primary.total_dubbed = secondary.total_dubbed;
+    }
+    if primary.mal_id.is_none() {
+        primary.mal_id = secondary.mal_id;
+    }
+    if primary.view_count.is_none() {
+        primary.view_count = secondary.view_count;
+    }
+    if primary.aired.is_none() {
+        primary.aired = secondary.aired;
+    }
+    if primary.duration.is_none() {
+        primary.duration = secondary.duration;
+    }
+    primary.has_sub = primary.has_sub || secondary.has_sub;
+    primary.has_dub = primary.has_dub || secondary.has_dub;
+    primary
+}
+
 fn merge_optional_vecs(
     a: Option<Vec<AnimeCard>>,
     b: Option<Vec<AnimeCard>>,
@@ -609,8 +853,15 @@ fn merge_optional_vecs(
                 seen.insert(normalize_title(&card.title));
             }
             for card in bv {
-                if seen.insert(normalize_title(&card.title)) {
+                let key = normalize_title(&card.title);
+                if seen.insert(key.clone()) {
                     av.push(card);
+                } else if let Some(existing) =
+                    av.iter_mut().find(|c| normalize_title(&c.title) == key)
+                {
+                    if should_prefer_card(existing, &card) {
+                        *existing = merge_cards(card, existing.clone());
+                    }
                 }
             }
             Some(av)

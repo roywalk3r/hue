@@ -214,10 +214,7 @@ impl AniWatchClient {
             _ => "tv",
         };
         let page = p.page.unwrap_or(1);
-        let url = format!(
-            "{}/filter?category={}&page={}",
-            AJAX_URL, category, page
-        );
+        let url = format!("{}/filter?category={}&page={}", AJAX_URL, category, page);
         let resp = self
             .client
             .get(&url)

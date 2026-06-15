@@ -377,7 +377,11 @@ pub async fn filter_handler(
     // Map legacy keys (genres[], type, status, sort, page, limit) onto the
     // typed struct. Unknown keys are ignored.
     let fp = FilterParams {
-        r#type: body.extra.get("type").and_then(|v| v.as_str()).map(String::from),
+        r#type: body
+            .extra
+            .get("type")
+            .and_then(|v| v.as_str())
+            .map(String::from),
         genre: body
             .extra
             .get("genre")
@@ -389,11 +393,31 @@ pub async fn filter_handler(
                     .and_then(|v| v.as_array())
                     .and_then(|a| a.first().and_then(|g| g.as_str().map(String::from)))
             }),
-        status: body.extra.get("status").and_then(|v| v.as_str()).map(String::from),
-        sort: body.extra.get("sort").and_then(|v| v.as_str()).map(String::from),
-        year: body.extra.get("year").and_then(|v| v.as_u64()).map(|y| y as u32),
-        page: body.extra.get("page").and_then(|v| v.as_u64()).map(|p| p as u32),
-        limit: body.extra.get("limit").and_then(|v| v.as_u64()).map(|l| l as u32),
+        status: body
+            .extra
+            .get("status")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        sort: body
+            .extra
+            .get("sort")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        year: body
+            .extra
+            .get("year")
+            .and_then(|v| v.as_u64())
+            .map(|y| y as u32),
+        page: body
+            .extra
+            .get("page")
+            .and_then(|v| v.as_u64())
+            .map(|p| p as u32),
+        limit: body
+            .extra
+            .get("limit")
+            .and_then(|v| v.as_u64())
+            .map(|l| l as u32),
         ..Default::default()
     };
     do_discover(&state, fp).await

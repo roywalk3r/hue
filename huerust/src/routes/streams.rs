@@ -209,7 +209,13 @@ pub async fn streams_handler(
             season,
             episode,
             true,
-            1,
+            // Wait for ALL fast providers (Luna + Aura + Moviebox + ...) to
+            // finish before aborting — the fast phase is meant to be a
+            // parallel race, not a "first one wins" cancel. Once we have
+            // a base of fast streams, fall back to slow providers to fill
+            // gaps. Without this, the threshold of 1 was killing Aura
+            // before it could return Vixsrc streams.
+            4,
             fast_deadline,
         )
         .await;
@@ -271,7 +277,8 @@ pub async fn streams_handler(
                     season,
                     episode,
                     true,
-                    1,
+                    // See comment in the no_cache branch above.
+                    4,
                     fast_deadline,
                 )
                 .await;

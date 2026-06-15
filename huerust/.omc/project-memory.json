@@ -149,8 +149,8 @@
     },
     {
       "path": "src/app.rs",
-      "accessCount": 15,
-      "lastAccessed": 1781462086811,
+      "accessCount": 19,
+      "lastAccessed": 1781515132719,
       "type": "file"
     },
     {
@@ -163,6 +163,12 @@
       "path": "src/clients/vidrock.rs",
       "accessCount": 12,
       "lastAccessed": 1781193118668,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/lordflix.rs",
+      "accessCount": 12,
+      "lastAccessed": 1781515967574,
       "type": "file"
     },
     {
@@ -208,6 +214,12 @@
       "type": "file"
     },
     {
+      "path": "src/routes/streams.rs",
+      "accessCount": 6,
+      "lastAccessed": 1781467522600,
+      "type": "file"
+    },
+    {
       "path": "Cargo.toml",
       "accessCount": 5,
       "lastAccessed": 1781346317430,
@@ -223,6 +235,12 @@
       "path": "src/clients/hianime.rs",
       "accessCount": 4,
       "lastAccessed": 1781461825155,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/dispatch.rs",
+      "accessCount": 4,
+      "lastAccessed": 1781467761092,
       "type": "file"
     },
     {
@@ -256,15 +274,15 @@
       "type": "file"
     },
     {
-      "path": "src/providers/mod.rs",
-      "accessCount": 1,
-      "lastAccessed": 1781188734833,
+      "path": "src/clients/mod.rs",
+      "accessCount": 2,
+      "lastAccessed": 1781515060973,
       "type": "file"
     },
     {
-      "path": "src/routes/streams.rs",
-      "accessCount": 1,
-      "lastAccessed": 1781190037370,
+      "path": "src/providers/mod.rs",
+      "accessCount": 2,
+      "lastAccessed": 1781515097760,
       "type": "file"
     },
     {
@@ -283,6 +301,30 @@
       "path": "src/routes/sports.rs",
       "accessCount": 1,
       "lastAccessed": 1781461337495,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/tmdb.rs",
+      "accessCount": 1,
+      "lastAccessed": 1781469584057,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/notorrent.rs",
+      "accessCount": 1,
+      "lastAccessed": 1781515044593,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/lordflix_provider.rs",
+      "accessCount": 1,
+      "lastAccessed": 1781515059620,
+      "type": "file"
+    },
+    {
+      "path": "src/providers/notorrent_provider.rs",
+      "accessCount": 1,
+      "lastAccessed": 1781515077593,
       "type": "file"
     }
   ],
