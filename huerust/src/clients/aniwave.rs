@@ -350,7 +350,7 @@ impl AniwaveClient {
             urlencoding::encode(keyword),
             page
         );
-        let cards = self.fetch_cards_cached(&url, BASE_URL).await?;
+        let cards = self.fetch_cards_cached(&url, BASE_URL, None).await?;
         Ok(AnimeSearchResponse {
             query: keyword.to_string(),
             total: cards.len(),
@@ -364,15 +364,15 @@ impl AniwaveClient {
     pub async fn get_home(&self) -> Result<AnimeHomeFeed> {
         let trending = self.fetch_widget_cards("trending", 1).await.ok();
         let latest = self
-            .fetch_cards_cached(&format!("{}/updated", BASE_URL), BASE_URL)
+            .fetch_cards_cached(&format!("{}/updated", BASE_URL), BASE_URL, None)
             .await
             .ok();
         let featured = self
-            .fetch_cards_cached(&format!("{}/added", BASE_URL), BASE_URL)
+            .fetch_cards_cached(&format!("{}/added", BASE_URL), BASE_URL, None)
             .await
             .ok();
         let currently_airing = self
-            .fetch_cards_cached(&format!("{}/ongoing", BASE_URL), BASE_URL)
+            .fetch_cards_cached(&format!("{}/ongoing", BASE_URL), BASE_URL, None)
             .await
             .ok();
         let popular = self
@@ -392,19 +392,43 @@ impl AniwaveClient {
     }
 
     /// Browse Aniwave with the same typed params as the shared discover API.
-    pub async fn discover(&self, params: &FilterParams) -> Result<PaginatedResponse<AnimeCard>> {
-        let page = params.page.unwrap_or(1).max(1);
-        let limit = params.limit.unwrap_or(20).clamp(1, 50);
-        let url = self.discover_url(params, page);
-        let cards = self.fetch_cards_cached(&url, BASE_URL).await?;
+    pub async fn discover(
+        &self,
+        params: &FilterParams,
+    ) -> Result<PaginatedResponse<AnimeCard>> {
+        let start_page = params.page.unwrap_or(1).max(1);
+        let limit = params.limit.unwrap_or(20).clamp(1, 50) as usize;
+        let country = params.country.as_deref().and_then(country_code_from_filter);
+
+        // AniWave filter pages only return ~10 cards each. When filtering by
+        // country, loop through pages until we satisfy the requested limit.
+        let mut cards: Vec<AnimeCard> = Vec::new();
+        let mut page = start_page;
+        let max_pages = if country.is_some() { 10 } else { 1 };
+        while cards.len() < limit && page < start_page + max_pages {
+            let url = self.discover_url(
+                &FilterParams {
+                    page: Some(page),
+                    ..params.clone()
+                },
+                page,
+            );
+            let page_cards = self.fetch_cards_cached(&url, BASE_URL, country).await?;
+            if page_cards.is_empty() {
+                break;
+            }
+            cards.extend(page_cards);
+            page += 1;
+        }
+
         let total = cards.len() as u32;
-        let items = cards.into_iter().take(limit as usize).collect::<Vec<_>>();
+        let items = cards.into_iter().take(limit).collect::<Vec<_>>();
         Ok(PaginatedResponse {
-            has_more: total > limit,
+            has_more: total > limit as u32,
             items,
             total,
-            page,
-            limit,
+            page: start_page,
+            limit: limit as u32,
         })
     }
 
@@ -502,12 +526,17 @@ impl AniwaveClient {
         if parsed.status != 200 {
             return Err(anyhow!("aniwave: widget status={}", parsed.status));
         }
-        let cards = parse_card_list(&parsed.result);
+        let cards = parse_card_list(&parsed.result, None);
         self.card_cache.insert(url, cards.clone()).await;
         Ok(cards)
     }
 
-    async fn fetch_cards_cached(&self, url: &str, referer: &str) -> Result<Vec<AnimeCard>> {
+    async fn fetch_cards_cached(
+        &self,
+        url: &str,
+        referer: &str,
+        country: Option<&str>,
+    ) -> Result<Vec<AnimeCard>> {
         if let Some(cached) = self.card_cache.get(url).await {
             return Ok(cached);
         }
@@ -515,7 +544,7 @@ impl AniwaveClient {
         if !status.is_success() {
             return Err(anyhow!("aniwave: list page status {}", status));
         }
-        let cards = parse_card_list(&text);
+        let cards = parse_card_list(&text, country);
         self.card_cache.insert(url.to_string(), cards.clone()).await;
         Ok(cards)
     }
@@ -555,8 +584,34 @@ impl AniwaveClient {
                 );
             }
         }
+        if let Some(country) = params.country.as_deref() {
+            if let Some(country_id) = country_id_from_code(country) {
+                return format!(
+                    "{}/filter?keyword=&country%5B%5D={}&sort_by=last_updated&page={}",
+                    BASE_URL, country_id, page
+                );
+            }
+        }
         format!("{}/updated?page={}", BASE_URL, page)
     }
+}
+
+fn country_id_from_code(country: &str) -> Option<&'static str> {
+    match country.to_ascii_uppercase().as_str() {
+        "JP" => Some("1"),
+        "CN" => Some("2"),
+        "KR" => Some("3"),
+        _ => None,
+    }
+}
+
+fn country_code_from_filter(country: &str) -> Option<&'static str> {
+    country_id_from_code(country).map(|id| match id {
+        "1" => "JP",
+        "2" => "CN",
+        "3" => "KR",
+        _ => unreachable!(),
+    })
 }
 
 // ── JSON response shapes ────────────────────────────────────────────────────
@@ -932,17 +987,23 @@ fn parse_watch_page(html: &str, slug: &str) -> Result<AnimeDetail> {
     Ok(detail)
 }
 
-fn parse_card_list(html: &str) -> Vec<AnimeCard> {
+fn parse_card_list(html: &str, country: Option<&str>) -> Vec<AnimeCard> {
     let mut cards = Vec::new();
-    for item in html.split("<div class=\"item").skip(1) {
-        if let Some(card) = parse_card_block(item) {
+    // Filter pages use <a class="item">; browse pages use <div class="item">.
+    let delimiter = if html.contains("<a class=\"item\"") {
+        "<a class=\"item\""
+    } else {
+        "<div class=\"item\""
+    };
+    for item in html.split(delimiter).skip(1) {
+        if let Some(card) = parse_card_block(item, country) {
             cards.push(card);
         }
     }
     cards
 }
 
-fn parse_card_block(block: &str) -> Option<AnimeCard> {
+fn parse_card_block(block: &str, country: Option<&str>) -> Option<AnimeCard> {
     let href = extract_attr(block, "href")?;
     if !href.contains("/watch/") {
         return None;
@@ -992,7 +1053,7 @@ fn parse_card_block(block: &str) -> Option<AnimeCard> {
         view_count,
         aired: None,
         duration: None,
-        country: None,
+        country: country.map(|c| c.to_string()),
         has_sub: total_subbed.unwrap_or(0) > 0,
         has_dub: total_dubbed.unwrap_or(0) > 0,
     })
@@ -1495,7 +1556,7 @@ mod tests {
             </div></div></div>
         "#;
 
-        let cards = parse_card_list(html);
+        let cards = parse_card_list(html, None);
 
         assert_eq!(cards.len(), 1);
         assert_eq!(cards[0].id, "81553");

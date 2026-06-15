@@ -136,6 +136,12 @@
   },
   "hotPaths": [
     {
+      "path": "src/clients/aniwave.rs",
+      "accessCount": 32,
+      "lastAccessed": 1781532962816,
+      "type": "file"
+    },
+    {
       "path": "src/proxy/mod.rs",
       "accessCount": 24,
       "lastAccessed": 1781462006584,
@@ -205,12 +211,6 @@
       "path": "src/clients/anilist.rs",
       "accessCount": 6,
       "lastAccessed": 1781461744847,
-      "type": "file"
-    },
-    {
-      "path": "src/clients/aniwave.rs",
-      "accessCount": 6,
-      "lastAccessed": 1781461765456,
       "type": "file"
     },
     {

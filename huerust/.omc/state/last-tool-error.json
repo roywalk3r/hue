@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"pgrep -f \\\"release/huerust\\\" | while read pid; do kill -9 \\\"$pid\\\" 2>/dev/null; done\\nsleep 2\\npgrep -f \\\"release/huerust\\\" || echo \\\"all dead\\\"\",\"timeout\":10000,\"description\":\"Kill all hu...",
+  "tool_input_preview": "{\"command\":\"pkill -9 -f \\\"release/huerust\\\"; sleep 2\\n> /tmp/hueapi.out\\nRUST_LOG=info nohup /mnt/devdrive/projects/Misc/hue/huerust/target/release/huerust >> /tmp/hueapi.out 2>&1 &\\ndisown\\nsleep 4\\n...",
   "error": "Exit code 1",
-  "timestamp": "2026-06-15T13:21:13.619Z",
-  "retry_count": 4
+  "timestamp": "2026-06-15T14:04:24.374Z",
+  "retry_count": 1
 }
