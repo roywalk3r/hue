@@ -154,15 +154,15 @@
       "type": "file"
     },
     {
-      "path": "src/app.rs",
-      "accessCount": 19,
-      "lastAccessed": 1781515132719,
+      "path": "src/clients/anime_agg.rs",
+      "accessCount": 20,
+      "lastAccessed": 1781535898189,
       "type": "file"
     },
     {
-      "path": "src/clients/anime_agg.rs",
-      "accessCount": 17,
-      "lastAccessed": 1781529397800,
+      "path": "src/app.rs",
+      "accessCount": 19,
+      "lastAccessed": 1781515132719,
       "type": "file"
     },
     {

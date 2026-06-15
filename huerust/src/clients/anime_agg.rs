@@ -430,6 +430,33 @@ impl AnimeAggregator {
 
         let mut tasks: JoinSet<Vec<AnimeCard>> = JoinSet::new();
 
+        // AniWave is now the primary discover source: it supports country
+        // filters directly and always returns playable HLS/MP4 streams.
+        // Other providers only backfill when no country filter is active.
+        if params.country.is_some() {
+            let aniwave = self.aniwave.clone();
+            let p = params.clone();
+            return match aniwave.discover(&p).await {
+                Ok(resp) => PaginatedResponse {
+                    items: resp.items,
+                    total: resp.total,
+                    page: resp.page,
+                    limit: resp.limit,
+                    has_more: resp.has_more,
+                },
+                Err(e) => {
+                    warn!("[AnimeAgg] AniWave country discover error: {}", e);
+                    PaginatedResponse {
+                        items: Vec::new(),
+                        total: 0,
+                        page: 1,
+                        limit: 20,
+                        has_more: false,
+                    }
+                }
+            };
+        }
+
         // AniList: always try, supports the most filters
         let al = self.anilist.clone();
         let p = params.clone();
@@ -476,25 +503,6 @@ impl AnimeAggregator {
                     .unwrap_or_default()
             });
         }
-
-        // Animexin: Chinese (donghua) source. Always included because it's
-        // the only upstream that populates the `country` field.
-        let ax = self.animexin.clone();
-        tasks.spawn(async move {
-            ax.get_home()
-                .await
-                .ok()
-                .map(|feed| {
-                    feed.latest
-                        .unwrap_or_default()
-                        .into_iter()
-                        .chain(feed.featured.unwrap_or_default())
-                        .chain(feed.popular.unwrap_or_default())
-                        .chain(feed.trending.unwrap_or_default())
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default()
-        });
 
         let mut seen: HashMap<String, AnimeCard> = HashMap::new();
         while let Some(Ok(cards)) = tasks.join_next().await {
