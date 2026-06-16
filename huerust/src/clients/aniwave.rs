@@ -121,6 +121,33 @@ impl AniwaveClient {
         headers
     }
 
+    /// Rewrite AniWave static image URLs to go through the configured
+    /// Cloudflare Worker proxy. The upstream `static.aniwaves.ru` sends
+    /// Cross-Origin-Resource-Policy headers that block direct browser loads,
+    /// so proxying strips those and adds CORS.
+    fn proxy_media_url(&self, url: &str) -> String {
+        let Some(worker) = self.worker_url.as_deref().filter(|s| !s.is_empty()) else {
+            return url.to_string();
+        };
+        if !url.starts_with("https://static.aniwaves.ru/") {
+            return url.to_string();
+        }
+        format!(
+            "{}/?target={}",
+            worker.trim_end_matches('/'),
+            urlencoding::encode(url)
+        )
+    }
+
+    fn rewrite_card_images(&self, card: &mut AnimeCard) {
+        if let Some(ref mut url) = card.image {
+            *url = self.proxy_media_url(url);
+        }
+        if let Some(ref mut url) = card.banner_image {
+            *url = self.proxy_media_url(url);
+        }
+    }
+
     /// Resolve a slug to the numeric show id. Accepts:
     ///   - series slug:   "one-piece-81553"  -> "81553"
     ///   - per-ep slug:   "81553-ep1"        -> "81553"
@@ -370,7 +397,10 @@ impl AniwaveClient {
             urlencoding::encode(keyword),
             page
         );
-        let cards = self.fetch_cards_cached(&url, BASE_URL, None).await?;
+        let mut cards = self.fetch_cards_cached(&url, BASE_URL, None).await?;
+        for card in cards.iter_mut() {
+            self.rewrite_card_images(card);
+        }
         Ok(AnimeSearchResponse {
             query: keyword.to_string(),
             total: cards.len(),
@@ -401,14 +431,28 @@ impl AniwaveClient {
             .ok()
             .filter(|cards| !cards.is_empty());
 
-        Ok(AnimeHomeFeed {
+        let mut feed = AnimeHomeFeed {
             trending: trending.and_then(non_empty),
             currently_airing: currently_airing.and_then(non_empty),
             featured: featured.and_then(non_empty),
             latest: latest.and_then(non_empty),
             popular: popular.and_then(non_empty),
             finished_airing: None,
-        })
+        };
+        for section in [
+            feed.trending.as_mut(),
+            feed.currently_airing.as_mut(),
+            feed.featured.as_mut(),
+            feed.latest.as_mut(),
+            feed.popular.as_mut(),
+        ] {
+            if let Some(cards) = section {
+                for card in cards.iter_mut() {
+                    self.rewrite_card_images(card);
+                }
+            }
+        }
+        Ok(feed)
     }
 
     /// Browse Aniwave with the same typed params as the shared discover API.
@@ -441,6 +485,9 @@ impl AniwaveClient {
             page += 1;
         }
 
+        for card in cards.iter_mut() {
+            self.rewrite_card_images(card);
+        }
         let total = cards.len() as u32;
         let items = cards.into_iter().take(limit).collect::<Vec<_>>();
         Ok(PaginatedResponse {
@@ -474,6 +521,7 @@ impl AniwaveClient {
                 detail.episodes = Some(episodes);
             }
         }
+        self.rewrite_card_images(&mut detail.card);
         Ok(detail)
     }
 

@@ -137,14 +137,14 @@
   "hotPaths": [
     {
       "path": "src/clients/aniwave.rs",
-      "accessCount": 50,
-      "lastAccessed": 1781645852231,
+      "accessCount": 59,
+      "lastAccessed": 1781646130131,
       "type": "file"
     },
     {
       "path": "src/clients/anime_agg.rs",
-      "accessCount": 26,
-      "lastAccessed": 1781612372482,
+      "accessCount": 27,
+      "lastAccessed": 1781646014590,
       "type": "file"
     },
     {
@@ -196,6 +196,12 @@
       "type": "file"
     },
     {
+      "path": "src/models/anime.rs",
+      "accessCount": 10,
+      "lastAccessed": 1781646071603,
+      "type": "file"
+    },
+    {
       "path": "src/clients/moviebox.rs",
       "accessCount": 9,
       "lastAccessed": 1781537504232,
@@ -205,12 +211,6 @@
       "path": "src/clients/aniwatch.rs",
       "accessCount": 7,
       "lastAccessed": 1781461957871,
-      "type": "file"
-    },
-    {
-      "path": "src/models/anime.rs",
-      "accessCount": 7,
-      "lastAccessed": 1781462366314,
       "type": "file"
     },
     {
