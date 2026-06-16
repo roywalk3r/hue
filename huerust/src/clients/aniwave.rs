@@ -456,15 +456,7 @@ impl AniwaveClient {
     /// detail endpoint.
     pub async fn get_detail(&self, slug: &str) -> Result<AnimeDetail> {
         let url = format!("{}/watch/{}", BASE_URL, slug);
-        let resp = self
-            .client
-            .get(&url)
-            .header("Referer", BASE_URL)
-            .header("User-Agent", UA_DESKTOP)
-            .send()
-            .await?;
-        let status = resp.status();
-        let text = resp.text().await?;
+        let (status, text) = self.fetch_text(&url, BASE_URL, false).await?;
         if !status.is_success() {
             return Err(anyhow!("aniwave: watch page status {}", status));
         }
