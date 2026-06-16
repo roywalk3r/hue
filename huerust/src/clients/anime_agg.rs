@@ -47,135 +47,20 @@ impl AnimeAggregator {
         }
     }
 
-    /// Search across all providers in parallel, merge and deduplicate by title.
+    /// Search: AniWave is the single working source.
     pub async fn search(&self, keyword: &str, page: u32, per_page: u32) -> AnimeSearchResponse {
-        let mut tasks = JoinSet::new();
-
-        let aniwave = self.aniwave.clone();
-        let kw = keyword.to_string();
-        let pp = per_page;
-        tasks.spawn(async move {
-            match aniwave.search(&kw, page, pp).await {
-                Ok(response) => Some(response),
-                Err(e) => {
-                    warn!("[AnimeAgg] Aniwave search error: {}", e);
-                    None
+        match self.aniwave.search(keyword, page, per_page).await {
+            Ok(response) => response,
+            Err(e) => {
+                warn!("[AnimeAgg] AniWave search error: {}", e);
+                AnimeSearchResponse {
+                    query: keyword.to_string(),
+                    total: 0,
+                    page,
+                    limit: per_page,
+                    results: Vec::new(),
                 }
             }
-        });
-
-        let hi = self.hianime.clone();
-        let kw = keyword.to_string();
-        tasks.spawn(async move {
-            match hi.search(&kw).await {
-                Ok(raw) => {
-                    let structured = crate::clients::hianime::transform_search_results(raw, &kw);
-                    Some(structured)
-                }
-                Err(e) => {
-                    warn!("[AnimeAgg] HiAnime search error: {}", e);
-                    None
-                }
-            }
-        });
-
-        let aw = self.aniwatch.clone();
-        let kw = keyword.to_string();
-        tasks.spawn(async move {
-            match timeout(Duration::from_secs(8), aw.search(&kw)).await {
-                Ok(Ok(r)) => Some(r),
-                Ok(Err(e)) => {
-                    warn!("[AnimeAgg] AniWatch search error: {}", e);
-                    None
-                }
-                Err(_) => {
-                    warn!("[AnimeAgg] AniWatch search timed out");
-                    None
-                }
-            }
-        });
-
-        let al = self.anilist.clone();
-        let kw = keyword.to_string();
-        let pp = per_page;
-        tasks.spawn(async move {
-            match al.search(&kw, page, pp).await {
-                Ok(r) => Some(r),
-                Err(e) => {
-                    warn!("[AnimeAgg] AniList search error: {}", e);
-                    None
-                }
-            }
-        });
-
-        let ax = self.animexin.clone();
-        let kw = keyword.to_string();
-        tasks.spawn(async move {
-            match ax.search(&kw).await {
-                Ok(r) => Some(r),
-                Err(e) => {
-                    warn!("[AnimeAgg] Animexin search error: {}", e);
-                    None
-                }
-            }
-        });
-
-        let mut seen = HashMap::<String, AnimeCard>::new();
-        while let Some(Ok(opt)) = tasks.join_next().await {
-            if let Some(response) = opt {
-                for card in response.results {
-                    let key = normalize_title(&card.title);
-                    // Prefer results with images and episode counts
-                    if let Some(existing) = seen.get_mut(&key) {
-                        if should_prefer_card(existing, &card) {
-                            *existing = merge_cards(card, existing.clone());
-                            continue;
-                        }
-                        if existing.image.is_none() && card.image.is_some() {
-                            existing.image = card.image.clone();
-                        }
-                        if existing.total_episodes.is_none() && card.total_episodes.is_some() {
-                            existing.total_episodes = card.total_episodes;
-                        }
-                        if !existing.has_sub && card.has_sub {
-                            existing.has_sub = true;
-                        }
-                        if !existing.has_dub && card.has_dub {
-                            existing.has_dub = true;
-                        }
-                        // Merge slugs for fallback lookup
-                        if existing.slug.is_none() && card.slug.is_some() {
-                            existing.slug = card.slug.clone();
-                        }
-                    } else {
-                        seen.insert(key, card);
-                    }
-                }
-            }
-        }
-
-        let mut results: Vec<AnimeCard> = seen.into_values().collect();
-        let normalized_query = normalize_title(keyword);
-        results.sort_by(|a, b| {
-            search_match_rank(&a.title, &normalized_query)
-                .cmp(&search_match_rank(&b.title, &normalized_query))
-                .then_with(|| source_rank(b).cmp(&source_rank(a)))
-                .then_with(|| a.title.to_lowercase().cmp(&b.title.to_lowercase()))
-        });
-        let total = results.len();
-        let start = page.saturating_sub(1).saturating_mul(per_page) as usize;
-        let results = results
-            .into_iter()
-            .skip(start)
-            .take(per_page as usize)
-            .collect();
-
-        AnimeSearchResponse {
-            query: keyword.to_string(),
-            total,
-            page,
-            limit: per_page,
-            results,
         }
     }
 
@@ -379,7 +264,7 @@ impl AnimeAggregator {
         None
     }
 
-    /// Home feed: merge HiAnime + AniWatch trending/latest/popular
+    /// Home feed: use AniWave as the single source of truth.
     pub async fn get_home(&self) -> AnimeHomeFeed {
         let mut feed = AnimeHomeFeed {
             trending: None,
@@ -390,14 +275,6 @@ impl AnimeAggregator {
             finished_airing: None,
         };
 
-        // AniWatch home (merge into same fields) — fast, no upstream scrape
-        if let Ok(aw_feed) = self.aniwatch.get_home().await {
-            feed.trending = merge_optional_vecs(feed.trending, aw_feed.trending);
-            feed.latest = merge_optional_vecs(feed.latest, aw_feed.latest);
-            feed.popular = merge_optional_vecs(feed.popular, aw_feed.popular);
-        }
-
-        // Aniwave home/list widgets provide stronger poster/sub/dub counts.
         if let Ok(aniwave_feed) = self.aniwave.get_home().await {
             feed.trending = merge_optional_vecs(feed.trending, aniwave_feed.trending);
             feed.latest = merge_optional_vecs(feed.latest, aniwave_feed.latest);
@@ -407,152 +284,70 @@ impl AnimeAggregator {
                 merge_optional_vecs(feed.currently_airing, aniwave_feed.currently_airing);
         }
 
-        feed
-    }
-
-    /// Discover / browse using the typed `FilterParams`. Fans out across
-    /// providers that support the requested filter. AniList is the spine
-    /// (supports the most filters); AniWatch and HiAnime backfill when
-    /// their individual filters match. The result is normalized, deduped
-    /// by title, and paginated locally.
-    pub async fn discover(&self, params: &FilterParams) -> PaginatedResponse<AnimeCard> {
-        let page = params.page.unwrap_or(1).max(1) as usize;
-        let limit = params.limit.unwrap_or(20).clamp(1, 50) as usize;
-        let want_more = (page * limit) + 1; // over-fetch to know if there's another page
-        let want_more_u32 = want_more as u32;
-
-        let mut tasks: JoinSet<Vec<AnimeCard>> = JoinSet::new();
-
-        // AniWave is now the primary discover source: it supports country
-        // filters directly and always returns playable HLS/MP4 streams.
-        // Other providers only backfill when no country filter is active.
-        if params.country.is_some() {
-            let aniwave = self.aniwave.clone();
-            let p = params.clone();
-            return match aniwave.discover(&p).await {
-                Ok(resp) => PaginatedResponse {
-                    items: resp.items,
-                    total: resp.total,
-                    page: resp.page,
-                    limit: resp.limit,
-                    has_more: resp.has_more,
-                },
-                Err(e) => {
-                    warn!("[AnimeAgg] AniWave country discover error: {}", e);
-                    PaginatedResponse {
-                        items: Vec::new(),
-                        total: 0,
-                        page: 1,
-                        limit: 20,
-                        has_more: false,
-                    }
-                }
-            };
+        // Fallback: use AniWave discover pipeline to backfill any empty section.
+        if feed.trending.is_none() {
+            let resp = self
+                .discover(&FilterParams {
+                    sort: Some("trending".into()),
+                    limit: Some(12),
+                    ..Default::default()
+                })
+                .await;
+            if !resp.items.is_empty() {
+                feed.trending = Some(resp.items);
+            }
         }
-
-        // AniList: always try, supports the most filters
-        let al = self.anilist.clone();
-        let p = params.clone();
-        tasks.spawn(async move { al.discover(&p).await.unwrap_or_default() });
-
-        // Aniwave: useful for frontend-ready browse pages and source-backed slugs.
-        let aniwave = self.aniwave.clone();
-        let p = params.clone();
-        tasks.spawn(async move {
-            aniwave
-                .discover(&p)
-                .await
-                .map(|resp| resp.items)
-                .unwrap_or_default()
-        });
-
-        // AniWatch: only when type/genre/status is set
-        if params.r#type.is_some() || params.genre.is_some() || params.status.is_some() {
-            let aw = self.aniwatch.clone();
-            let p = params.clone();
-            tasks.spawn(async move {
-                match timeout(Duration::from_secs(8), aw.discover(&p)).await {
-                    Ok(Ok(cards)) => cards,
-                    Ok(Err(e)) => {
-                        warn!("[AnimeAgg] AniWatch discover error: {}", e);
-                        Vec::new()
-                    }
-                    Err(_) => {
-                        warn!("[AnimeAgg] AniWatch discover timed out");
-                        Vec::new()
-                    }
-                }
-            });
+        if feed.popular.is_none() {
+            let resp = self
+                .discover(&FilterParams {
+                    sort: Some("popularity".into()),
+                    limit: Some(12),
+                    ..Default::default()
+                })
+                .await;
+            if !resp.items.is_empty() {
+                feed.popular = Some(resp.items);
+            }
         }
-
-        // HiAnime: only for type filter (mapped to category)
-        if let Some(typ) = params.r#type.clone() {
-            let hi = self.hianime.clone();
-            tasks.spawn(async move {
-                hi.get_by_category(&typ, 1, want_more_u32)
-                    .await
-                    .ok()
-                    .map(crate::clients::hianime::transform_category_results)
-                    .unwrap_or_default()
-            });
-        }
-
-        let mut seen: HashMap<String, AnimeCard> = HashMap::new();
-        while let Some(Ok(cards)) = tasks.join_next().await {
-            for card in cards {
-                let key = normalize_title(&card.title);
-                if key.is_empty() {
-                    continue;
-                }
-                if let Some(existing) = seen.get_mut(&key) {
-                    if should_prefer_card(existing, &card) {
-                        *existing = merge_cards(card, existing.clone());
-                        continue;
-                    }
-                    // Prefer items with images + episode counts
-                    if existing.image.is_none() && card.image.is_some() {
-                        existing.image = card.image.clone();
-                    }
-                    if existing.total_episodes.is_none() && card.total_episodes.is_some() {
-                        existing.total_episodes = card.total_episodes;
-                    }
-                    if !existing.has_sub && card.has_sub {
-                        existing.has_sub = true;
-                    }
-                    if !existing.has_dub && card.has_dub {
-                        existing.has_dub = true;
-                    }
-                } else {
-                    seen.insert(key, card);
-                }
+        if feed.finished_airing.is_none() {
+            let resp = self
+                .discover(&FilterParams {
+                    status: Some("finished".into()),
+                    sort: Some("score".into()),
+                    limit: Some(12),
+                    ..Default::default()
+                })
+                .await;
+            if !resp.items.is_empty() {
+                feed.finished_airing = Some(resp.items);
             }
         }
 
-        let mut items: Vec<AnimeCard> = seen.into_values().collect();
+        feed
+    }
 
-        // Country is a post-merge filter because most upstreams don't expose it.
-        if let Some(want) = params.country.as_deref() {
-            let want_upper = want.to_ascii_uppercase();
-            items.retain(|c| {
-                c.country
-                    .as_deref()
-                    .map(|v| v.to_ascii_uppercase() == want_upper)
-                    .unwrap_or(false)
-            });
-        }
-
-        items.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
-        let total = items.len() as u32;
-        let start = ((page - 1) * limit).min(items.len());
-        let end = (start + limit).min(items.len());
-        let page_items = items[start..end].to_vec();
-        let has_more = end < items.len();
-        PaginatedResponse {
-            items: page_items,
-            total,
-            page: page as u32,
-            limit: limit as u32,
-            has_more,
+    /// Discover / browse: AniWave is the single source.
+    /// No AniList/AniWatch/HiAnime fan-out, so every returned card has a
+    /// source-backed slug and is playable through the AniWave stream path.
+    pub async fn discover(&self, params: &FilterParams) -> PaginatedResponse<AnimeCard> {
+        match self.aniwave.discover(params).await {
+            Ok(resp) => PaginatedResponse {
+                items: resp.items,
+                total: resp.total,
+                page: resp.page,
+                limit: resp.limit,
+                has_more: resp.has_more,
+            },
+            Err(e) => {
+                warn!("[AnimeAgg] AniWave discover error: {}", e);
+                PaginatedResponse {
+                    items: Vec::new(),
+                    total: 0,
+                    page: params.page.unwrap_or(1),
+                    limit: params.limit.unwrap_or(20),
+                    has_more: false,
+                }
+            }
         }
     }
 
@@ -1018,26 +813,20 @@ mod tests {
     }
 
     #[test]
-    fn ranks_exact_search_match_before_partial_matches() {
-        let query = normalize_title("one piece");
-
-        assert_eq!(search_match_rank("One Piece", &query), 0);
-        assert_eq!(
-            search_match_rank("One Piece: Episode of East Blue", &query),
-            1
-        );
-        assert_eq!(search_match_rank("Koisuru ONE PIECE", &query), 2);
-        assert_eq!(search_match_rank("Naruto", &query), 3);
+    fn merge_keeps_aniwave_slug_over_mal() {
+        let mut a = test_card("1", "One Piece", "mal-21");
+        a.has_sub = false;
+        a.has_dub = false;
+        let b = test_card("2", "One Piece", "one-piece-81553");
+        let merged = merge_cards(a, b);
+        assert_eq!(merged.slug.as_deref(), Some("one-piece-81553"));
+        assert_eq!(merged.id, "2");
     }
 
     #[test]
-    fn merge_prefers_playable_slug_over_mal_metadata_slug() {
-        let metadata = test_card("21", "ONE PIECE", "mal-21");
-        let playable = test_card("81553", "One Piece", "one-piece-81553");
-
-        let merged = merge_cards(metadata, playable);
-
-        assert_eq!(merged.id, "81553");
-        assert_eq!(merged.slug.as_deref(), Some("one-piece-81553"));
+    fn source_rank_prefers_aniwave() {
+        let wave = test_card("1", "A", "a-1");
+        let mal = test_card("2", "A", "mal-1");
+        assert!(source_rank(&wave) > source_rank(&mal));
     }
 }

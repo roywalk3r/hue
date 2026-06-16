@@ -142,6 +142,12 @@
       "type": "file"
     },
     {
+      "path": "src/clients/anime_agg.rs",
+      "accessCount": 25,
+      "lastAccessed": 1781610126584,
+      "type": "file"
+    },
+    {
       "path": "src/proxy/mod.rs",
       "accessCount": 24,
       "lastAccessed": 1781462006584,
@@ -151,12 +157,6 @@
       "path": "src/providers/vixsrc.rs",
       "accessCount": 23,
       "lastAccessed": 1781346488035,
-      "type": "file"
-    },
-    {
-      "path": "src/clients/anime_agg.rs",
-      "accessCount": 23,
-      "lastAccessed": 1781604993310,
       "type": "file"
     },
     {
