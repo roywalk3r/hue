@@ -11,10 +11,10 @@
   "enableDramacoolProvider": true,
   "enable9animeProvider": false,
   "enableMP4HydraProvider": true,
-  "sflixCookie": "sflix_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjIxNDA1ODgyNjg1OTcwMDc4NDgsImF0cCI6MywiZXh0IjoiMTc4MTM1NzUxOSIsImV4cCI6MTc4OTEzMzUxOSwiaWF0IjoxNzgxMzU3MjE5fQ.8XtpuTEBgXOozbGO8SKgyWVAbL_3ro7nP2acfXIIIQ4%22; sflix_i18n_lang=en",
+  "sflixCookie": "sflix_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjY2NTc3NzIxOTAzMjg4MzI4MzIsImF0cCI6MywiZXh0IjoiMTc4MTY0NTA0OCIsImV4cCI6MTc4OTQyMTA0OCwiaWF0IjoxNzgxNjQ0NzQ4fQ.Mb1Ueeki6kUdQMngDKI9QyBQ94bm4O2nVtjrDZbhR3g%22; sflix_i18n_lang=en",
   "sflixUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.6 Safari/537.36",
   "configVersion": 1,
-  "movieboxCookie": "mb_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjgxMzI2Mjc1NzI4MTIzMDE1MDQsImF0cCI6MywiZXh0IjoiMTc4MTM1NzUzNiIsImV4cCI6MTc4OTEzMzUzNiwiaWF0IjoxNzgxMzU3MjM2fQ.uukLPZkwNc4UxqVi4dnI9-2QxWk0g_V6vDN7huayLJo%22",
+  "movieboxCookie": "mb_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjU2NjAyMjQ4NzI4NjYyNjc5NjgsImF0cCI6MywiZXh0IjoiMTc4MTY0NTA2MiIsImV4cCI6MTc4OTQyMTA2MiwiaWF0IjoxNzgxNjQ0NzYyfQ.QnXvdnZ-iJx0FE6pStZ7FgGSwhehCVjL7P5rnPlGoHM%22",
   "movieboxUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.6 Safari/537.36",
   "movieboxHost": "moviebox.id"
 }

@@ -137,8 +137,8 @@
   "hotPaths": [
     {
       "path": "src/clients/aniwave.rs",
-      "accessCount": 39,
-      "lastAccessed": 1781612404760,
+      "accessCount": 47,
+      "lastAccessed": 1781644658995,
       "type": "file"
     },
     {
@@ -253,6 +253,12 @@
       "path": "src/proxy/wrap.rs",
       "accessCount": 3,
       "lastAccessed": 1781192888816,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/hitv.rs",
+      "accessCount": 3,
+      "lastAccessed": 1781624528001,
       "type": "file"
     },
     {

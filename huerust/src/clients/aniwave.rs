@@ -35,6 +35,7 @@ pub struct AniwaveClient {
     episode_cache: Cache<String, Vec<AniwaveEpisode>>,
     stream_cache: Cache<String, AniwaveStream>,
     card_cache: Cache<String, Vec<AnimeCard>>,
+    worker_url: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -59,14 +60,22 @@ struct AniwaveStream {
     tracks: Vec<SubtitleTrack>,
 }
 
+#[derive(Deserialize)]
+struct WorkerHtmlResponse {
+    success: bool,
+    status: Option<u16>,
+    html: Option<String>,
+    error: Option<String>,
+}
+
 impl Default for AniwaveClient {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
     }
 }
 
 impl AniwaveClient {
-    pub fn new() -> Self {
+    pub fn new(worker_url: Option<String>) -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(20))
             .connect_timeout(Duration::from_secs(10))
@@ -88,12 +97,23 @@ impl AniwaveClient {
                 .max_capacity(200)
                 .time_to_live(Duration::from_secs(10 * 60))
                 .build(),
+            worker_url,
         }
     }
 
     fn base_headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
         headers.insert("User-Agent", HeaderValue::from_static(UA_DESKTOP));
+        headers.insert("Accept", HeaderValue::from_static("application/json, text/javascript, */*; q=0.01"));
+        headers.insert("Accept-Language", HeaderValue::from_static("en-US,en;q=0.9"));
+        headers.insert("Accept-Encoding", HeaderValue::from_static("gzip, deflate, br"));
+        headers.insert("DNT", HeaderValue::from_static("1"));
+        headers.insert("Sec-Ch-Ua", HeaderValue::from_static("\"Not.A/Brand\";v=\"24\", \"Chromium\";v=\"137\", \"Google Chrome\";v=\"137\""));
+        headers.insert("Sec-Ch-Ua-Mobile", HeaderValue::from_static("?0"));
+        headers.insert("Sec-Ch-Ua-Platform", HeaderValue::from_static("\"Windows\""));
+        headers.insert("Sec-Fetch-Dest", HeaderValue::from_static("empty"));
+        headers.insert("Sec-Fetch-Mode", HeaderValue::from_static("cors"));
+        headers.insert("Sec-Fetch-Site", HeaderValue::from_static("same-origin"));
         headers.insert(
             "X-Requested-With",
             HeaderValue::from_static("XMLHttpRequest"),
@@ -490,12 +510,75 @@ impl AniwaveClient {
         let resp = request.send().await?;
         let status = resp.status();
         let text = resp.text().await?;
-        if !status.is_success() || !text.is_empty() {
+
+        // Cloudflare often blocks reqwest with 403. Try curl first (HTTP/1.1
+        // fingerprint sometimes bypasses the bot check). If curl also fails, fall
+        // back to the Cloudflare Worker HTML proxy, which fetches from inside
+        // Cloudflare's own network and is usually trusted by the origin.
+        if !status.is_success() || text.trim().is_empty() {
+            if let Ok(fallback) = curl_fetch_text(url, referer, ajax).await {
+                if !fallback.trim().is_empty() {
+                    return Ok((StatusCode::OK, fallback));
+                }
+            }
+            if let Ok(worker_body) = self.worker_fetch_text(url, referer, ajax).await {
+                if !worker_body.trim().is_empty() {
+                    return Ok((StatusCode::OK, worker_body));
+                }
+            }
+            if !status.is_success() {
+                return Ok((status, text));
+            }
+        }
+
+        if !text.is_empty() {
             return Ok((status, text));
         }
 
         let fallback = curl_fetch_text(url, referer, ajax).await?;
-        Ok((status, fallback))
+        if !fallback.trim().is_empty() {
+            return Ok((StatusCode::OK, fallback));
+        }
+
+        let worker_body = self.worker_fetch_text(url, referer, ajax).await?;
+        Ok((StatusCode::OK, worker_body))
+    }
+
+    async fn worker_fetch_text(
+        &self,
+        url: &str,
+        referer: &str,
+        ajax: bool,
+    ) -> Result<String> {
+        let worker_url = self
+            .worker_url
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| anyhow!("aniwave: no worker proxy configured"))?;
+
+        let proxy_url = format!(
+            "{}/proxy-html?target={}&referer={}&ajax={}",
+            worker_url.trim_end_matches('/'),
+            urlencoding::encode(url),
+            urlencoding::encode(referer),
+            ajax,
+        );
+
+        let resp = self.client.get(&proxy_url).send().await?;
+        let parsed: WorkerHtmlResponse = resp.json().await?;
+
+        if !parsed.success {
+            return Err(anyhow!(
+                "aniwave: worker proxy error status={} error={}",
+                parsed.status.unwrap_or(0),
+                parsed.error.unwrap_or_default()
+            ));
+        }
+
+        parsed
+            .html
+            .filter(|s| !s.trim().is_empty())
+            .ok_or_else(|| anyhow!("aniwave: worker proxy returned empty body"))
     }
 
     async fn get_episodes_raw(&self, show_id_or_slug: &str) -> Result<Vec<AniwaveEpisode>> {

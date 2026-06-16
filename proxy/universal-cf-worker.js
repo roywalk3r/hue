@@ -67,7 +67,12 @@ export default {
       return jsonResponse({ error: 'Service not available in your region' }, 403);
     }
 
-    // ── 3. Parse Target ─────────────────────────────────────────────────────
+    // ── 3. HTML Proxy Endpoint (for Cloudflare-blocked scrapers) ──────────────
+    if (url.pathname === '/proxy-html') {
+      return proxyHtmlPage(url, request, env);
+    }
+
+    // ── 4. Parse Target ─────────────────────────────────────────────────────
     const targetRaw = url.searchParams.get('target')
       || url.searchParams.get('url')
       || url.searchParams.get('u');
@@ -109,6 +114,84 @@ export default {
     return executeProxy(targetUrl, request, env, ctx);
   },
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HTML Proxy Endpoint (returns raw page source as JSON)
+// Used by scrapers (e.g. Rust AniWave client) to bypass Cloudflare bot pages.
+// ─────────────────────────────────────────────────────────────────────────────
+async function proxyHtmlPage(url, request, env) {
+  const targetRaw = url.searchParams.get('target')
+    || url.searchParams.get('url')
+    || url.searchParams.get('u');
+
+  if (!targetRaw) {
+    return jsonResponse({ error: 'Missing target parameter' }, 400);
+  }
+
+  let targetUrl;
+  try {
+    targetUrl = new URL(targetRaw);
+  } catch {
+    return jsonResponse({ error: 'Invalid target URL' }, 400);
+  }
+
+  if (isBlockedHost(targetUrl.hostname)) {
+    return jsonResponse({ error: 'Blocked internal target' }, 403);
+  }
+
+  const referer = url.searchParams.get('referer')
+    || url.searchParams.get('ref')
+    || request.headers.get('Referer')
+    || targetUrl.origin;
+  const ajax = url.searchParams.get('ajax') === 'true';
+
+  const headers = new Headers();
+  headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36');
+  headers.set('Accept', ajax
+    ? 'application/json, text/javascript, */*; q=0.01'
+    : 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8');
+  headers.set('Accept-Language', 'en-US,en;q=0.9');
+  headers.set('Accept-Encoding', 'gzip, deflate, br');
+  headers.set('Referer', referer);
+  headers.set('Origin', targetUrl.origin);
+  headers.set('DNT', '1');
+  headers.set('Sec-Ch-Ua', '"Not.A/Brand";v="24", "Chromium";v="137", "Google Chrome";v="137"');
+  headers.set('Sec-Ch-Ua-Mobile', '?0');
+  headers.set('Sec-Ch-Ua-Platform', '"Windows"');
+  if (ajax) {
+    headers.set('X-Requested-With', 'XMLHttpRequest');
+    headers.set('Sec-Fetch-Dest', 'empty');
+    headers.set('Sec-Fetch-Mode', 'cors');
+    headers.set('Sec-Fetch-Site', 'same-origin');
+  } else {
+    headers.set('Sec-Fetch-Dest', 'document');
+    headers.set('Sec-Fetch-Mode', 'navigate');
+    headers.set('Sec-Fetch-Site', 'none');
+    headers.set('Sec-Fetch-User', '?1');
+    headers.set('Upgrade-Insecure-Requests', '1');
+  }
+
+  const upstream = await fetch(targetUrl.toString(), {
+    method: 'GET',
+    headers,
+    redirect: 'follow',
+  });
+
+  const text = await upstream.text();
+  const response = jsonResponse({
+    success: upstream.ok,
+    status: upstream.status,
+    html: text,
+  }, upstream.ok ? 200 : upstream.status);
+
+  // Allow CORS so Rust can read the JSON response.
+  const responseHeaders = new Headers(response.headers);
+  injectCors(responseHeaders, env);
+  return new Response(response.body, {
+    status: response.status,
+    headers: responseHeaders,
+  });
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Core Proxy Logic
