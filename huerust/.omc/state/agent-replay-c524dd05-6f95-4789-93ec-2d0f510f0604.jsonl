@@ -173,3 +173,7 @@
 {"t":0,"agent":"a336edd","agent_type":"Explore","event":"agent_stop","success":true,"duration_ms":101975}
 {"t":0,"agent":"a716136","agent_type":"unknown","event":"agent_stop","success":true}
 {"t":0,"agent":"a3ff791","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"a630f97","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"af14bea","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"a7f4299","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"a9e2c99","agent_type":"unknown","event":"agent_stop","success":true}

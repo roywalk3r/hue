@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"pkill -9 -f \\\"release/huerust\\\"; sleep 2\\n> /tmp/hueapi.out\\nRUST_LOG=info nohup /mnt/devdrive/projects/Misc/hue/huerust/target/release/huerust >> /tmp/hueapi.out 2>&1 &\\ndisown\\nsleep 4\\n...",
-  "error": "Exit code 1",
-  "timestamp": "2026-06-15T14:04:24.374Z",
+  "tool_input_preview": "{\"command\":\"sleep 5\\ncurl -sS -X POST \\\"http://127.0.0.1:24609/api/anime/discover\\\" \\\\\\n  -H \\\"Content-Type: application/json\\\" \\\\\\n  -d '{\\\"country\\\":\\\"CN\\\",\\\"limit\\\":5}' | python3 -c \\\"\\nimport json...",
+  "error": "Exit code 143\n  total=10 hasMore=True\n  - Jujutsu Kaisen: The Culling Game Part 1 | slug=jujutsu-kaisen-shimetsu-kaiyuu-zenpen-82471\n  - Frieren: Beyond Journey's End Season 2 | slug=sousou-no-frieren-2nd-season-82499\n  - Sentenced to Be a Hero | slug=yuusha-kei-ni-shosu-choubatsu-yuusha-9004-tai-keimu-kiroku-82441\n\n=== Home feed ===",
+  "timestamp": "2026-06-15T15:38:42.222Z",
   "retry_count": 1
 }

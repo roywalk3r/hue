@@ -363,20 +363,19 @@ impl AnimeAggregator {
             }
         }
 
-        // HiAnime first (most reliable streams)
+        // HiAnime fallback when the slug is HiAnime-shaped (24-hex id or path slug).
         if let Ok(data) = self
             .hianime
             .get_stream(id, server, link_type, episode)
             .await
         {
-            return Some(stream_data_to_payload(data));
+            if !data.link.file.is_empty() {
+                return Some(stream_data_to_payload(data));
+            }
         }
 
-        // Animexin fallback (iframe embeds)
-        if let Ok(stream) = self.animexin.get_stream(id, server).await {
-            return Some(stream);
-        }
-
+        // Do not fall back to Animexin: it only returns iframe embeds
+        // (ok.ru, fembed, dood) that the mobile player cannot play.
         None
     }
 
@@ -396,12 +395,6 @@ impl AnimeAggregator {
             feed.trending = merge_optional_vecs(feed.trending, aw_feed.trending);
             feed.latest = merge_optional_vecs(feed.latest, aw_feed.latest);
             feed.popular = merge_optional_vecs(feed.popular, aw_feed.popular);
-        }
-
-        // Animexin home (latest episodes + trending series)
-        if let Ok(ax_feed) = self.animexin.get_home().await {
-            feed.latest = merge_optional_vecs(feed.latest, ax_feed.latest);
-            feed.trending = merge_optional_vecs(feed.trending, ax_feed.trending);
         }
 
         // Aniwave home/list widgets provide stronger poster/sub/dub counts.
