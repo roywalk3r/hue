@@ -137,14 +137,14 @@
   "hotPaths": [
     {
       "path": "src/clients/aniwave.rs",
-      "accessCount": 32,
-      "lastAccessed": 1781532962816,
+      "accessCount": 39,
+      "lastAccessed": 1781612404760,
       "type": "file"
     },
     {
       "path": "src/clients/anime_agg.rs",
-      "accessCount": 25,
-      "lastAccessed": 1781610126584,
+      "accessCount": 26,
+      "lastAccessed": 1781612372482,
       "type": "file"
     },
     {
@@ -215,8 +215,8 @@
     },
     {
       "path": "src/clients/anilist.rs",
-      "accessCount": 6,
-      "lastAccessed": 1781461744847,
+      "accessCount": 7,
+      "lastAccessed": 1781612372987,
       "type": "file"
     },
     {

@@ -400,11 +400,11 @@ impl AniwaveClient {
         let limit = params.limit.unwrap_or(20).clamp(1, 50) as usize;
         let country = params.country.as_deref().and_then(country_code_from_filter);
 
-        // AniWave filter pages only return ~10 cards each. When filtering by
-        // country, loop through pages until we satisfy the requested limit.
+        // AniWave filter pages only return ~10 cards each. Loop through pages
+        // until we satisfy the requested limit.
         let mut cards: Vec<AnimeCard> = Vec::new();
         let mut page = start_page;
-        let max_pages = if country.is_some() { 10 } else { 1 };
+        let max_pages = 10;
         while cards.len() < limit && page < start_page + max_pages {
             let url = self.discover_url(
                 &FilterParams {
@@ -579,16 +579,16 @@ impl AniwaveClient {
         if let Some(language) = params.language.as_deref() {
             if normalize_filter_value(language) == "chinese" {
                 return format!(
-                    "{}/filter?keyword=&country%5B%5D=2&sort_by=last_updated&page={}",
+                    "{}/filter?keyword=&country%5B%5D=cn&sort_by=last_updated&page={}",
                     BASE_URL, page
                 );
             }
         }
         if let Some(country) = params.country.as_deref() {
-            if let Some(country_id) = country_id_from_code(country) {
+            if let Some(code) = country_code_for_url(country) {
                 return format!(
                     "{}/filter?keyword=&country%5B%5D={}&sort_by=last_updated&page={}",
-                    BASE_URL, country_id, page
+                    BASE_URL, code, page
                 );
             }
         }
@@ -612,6 +612,17 @@ fn country_code_from_filter(country: &str) -> Option<&'static str> {
         "3" => "KR",
         _ => unreachable!(),
     })
+}
+
+/// AniWave's filter form expects lowercase country codes (`cn`, `jp`, `kr`)
+/// in the `country[]` query param, not the numeric ids used internally.
+fn country_code_for_url(country: &str) -> Option<&'static str> {
+    match country.to_ascii_uppercase().as_str() {
+        "JP" => Some("jp"),
+        "CN" => Some("cn"),
+        "KR" => Some("kr"),
+        _ => None,
+    }
 }
 
 // ── JSON response shapes ────────────────────────────────────────────────────
@@ -989,11 +1000,14 @@ fn parse_watch_page(html: &str, slug: &str) -> Result<AnimeDetail> {
 
 fn parse_card_list(html: &str, country: Option<&str>) -> Vec<AnimeCard> {
     let mut cards = Vec::new();
-    // Filter pages use <a class="item">; browse pages use <div class="item">.
-    let delimiter = if html.contains("<a class=\"item\"") {
-        "<a class=\"item\""
-    } else {
+    // AniWave's main list markup is <div class="item "> (trailing space);
+    // sidebar widgets use <a class="item">. Prefer the div list.
+    let delimiter = if html.contains("<div class=\"item \"") {
+        "<div class=\"item \""
+    } else if html.contains("<div class=\"item\"") {
         "<div class=\"item\""
+    } else {
+        "<a class=\"item\""
     };
     for item in html.split(delimiter).skip(1) {
         if let Some(card) = parse_card_block(item, country) {
