@@ -121,20 +121,17 @@ impl AniwaveClient {
         headers
     }
 
-    /// Rewrite AniWave static image URLs to go through the configured
-    /// Cloudflare Worker proxy. The upstream `static.aniwaves.ru` sends
-    /// Cross-Origin-Resource-Policy headers that block direct browser loads,
-    /// so proxying strips those and adds CORS.
+    /// Rewrite AniWave static image URLs to go through weserv.nl.
+    /// The upstream `static.aniwaves.ru` sends Cross-Origin-Resource-Policy
+    /// headers that block direct browser loads, and the Worker proxy adds
+    /// latency for every image. weserv.nl has a global edge cache, strips
+    /// CORP, and can convert to WebP for smaller payloads.
     fn proxy_media_url(&self, url: &str) -> String {
-        let Some(worker) = self.worker_url.as_deref().filter(|s| !s.is_empty()) else {
-            return url.to_string();
-        };
         if !url.starts_with("https://static.aniwaves.ru/") {
             return url.to_string();
         }
         format!(
-            "{}/?target={}",
-            worker.trim_end_matches('/'),
+            "https://images.weserv.nl/?url={}&output=webp&default=1",
             urlencoding::encode(url)
         )
     }
