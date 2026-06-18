@@ -258,7 +258,7 @@ fn inject_cdn_headers(
                 h.keys().collect::<Vec<_>>()
             );
 
-            let mut referer_val = h.get("Referer").or_else(|| h.get("referer")).cloned();
+            let referer_val = h.get("Referer").or_else(|| h.get("referer")).cloned();
 
             if !has_header(token_headers, "origin") {
                 if let Some(r) = referer_val {

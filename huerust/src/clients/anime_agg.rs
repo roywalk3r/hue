@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+use moka::future::Cache;
 use tokio::task::JoinSet;
 use tokio::time::timeout;
 use tracing::warn;
@@ -28,6 +29,12 @@ pub struct AnimeAggregator {
     aniwatch: Arc<AniWatchClient>,
     anilist: Arc<AniListClient>,
     animexin: Arc<AnimexinClient>,
+    /// Slug → mal_id mapping (30d TTL). Once matched, skip the
+    /// hiAnime proxy search on future requests.
+    mal_id_cache: Cache<String, Option<u32>>,
+    /// Slug → () for unmatched slugs (1h TTL). Prevents re-searching
+    /// every request without permanently blocking retries.
+    mal_miss_cache: Cache<String, ()>,
 }
 
 impl AnimeAggregator {
@@ -44,6 +51,14 @@ impl AnimeAggregator {
             aniwatch,
             anilist,
             animexin,
+            mal_id_cache: Cache::builder()
+                .max_capacity(2000)
+                .time_to_live(Duration::from_secs(30 * 24 * 60 * 60))
+                .build(),
+            mal_miss_cache: Cache::builder()
+                .max_capacity(2000)
+                .time_to_live(Duration::from_secs(60 * 60))
+                .build(),
         }
     }
 
@@ -69,8 +84,128 @@ impl AnimeAggregator {
         // Try Aniwave first (most reliable as of June 2026)
         if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
             match self.aniwave.get_detail(id).await {
-                Ok(detail) => {
+                Ok(mut detail) => {
                     if !detail.card.id.is_empty() {
+                        // Fire all enrichment calls in parallel with a
+                        // shared deadline so the slowest doesn't hold up
+                        // the response. Each call is optional; misses
+                        // silently degrade.
+                        let en_deadline = Duration::from_secs(5);
+
+                        let info_fut = async {
+                            if self.aniwave.mirror_base().is_some() {
+                                self.aniwave.fetch_hianime_info_meta(id).await.ok()
+                            } else {
+                                None
+                            }
+                        };
+
+                        let show_id =
+                            crate::clients::aniwave::AniwaveClient::show_id_from_slug(id);
+                        let ep_fut = async {
+                            if self.aniwave.mirror_base().is_some() {
+                                if let Some(ref sid) = show_id {
+                                    return self
+                                        .aniwave
+                                        .fetch_hianime_episode_details(sid)
+                                        .await
+                                        .ok();
+                                }
+                            }
+                            None
+                        };
+
+                        // Skip the search if we've already matched (hit
+                        // cache) or recently failed (miss cache, 1h TTL).
+                        let need_mal_search = detail.card.mal_id.is_none()
+                            && self.mal_id_cache.get(id).await.is_none()
+                            && self.mal_miss_cache.get(id).await.is_none();
+
+                        let mal_fut = async {
+                            if !need_mal_search {
+                                return None;
+                            }
+                            let raw = self.hianime.search(&detail.card.title).await.ok()?;
+                            let results =
+                                crate::clients::hianime::transform_search_results(
+                                    raw,
+                                    &detail.card.title,
+                                );
+                            let title_lower = detail.card.title.to_lowercase();
+                            let jp_lower = detail
+                                .card
+                                .japanese_title
+                                .as_deref()
+                                .unwrap_or("")
+                                .to_lowercase();
+                            results.results.into_iter().find(|c| {
+                                let c_lower = c.title.to_lowercase();
+                                c_lower == title_lower
+                                    || c_lower.starts_with(&title_lower)
+                                    || title_lower.starts_with(&c_lower)
+                                    || (!jp_lower.is_empty()
+                                        && (c_lower == jp_lower
+                                            || c_lower.starts_with(&jp_lower)))
+                                    || token_overlap(&c_lower, &title_lower) >= 3
+                            })
+                        };
+
+                        let (meta, rich_eps, mal_match) = tokio::join!(
+                            async { timeout(en_deadline, info_fut).await.unwrap_or(None) },
+                            async { timeout(en_deadline, ep_fut).await.unwrap_or(None) },
+                            async { timeout(en_deadline, mal_fut).await.unwrap_or(None) },
+                        );
+
+                        if let Some(meta) = meta {
+                            detail.card.synopsis =
+                                detail.card.synopsis.or(meta.description);
+                            let og = meta.og_image.clone();
+                            detail.card.banner_image =
+                                detail.card.banner_image.or(og);
+                            if detail.card.image.is_none() {
+                                detail.card.image = meta.og_image;
+                            }
+                            if detail.card.genres.is_none()
+                                && !meta.keywords.is_empty()
+                            {
+                                detail.card.genres = Some(meta.keywords);
+                            }
+                        }
+                        if let Some(rich) = rich_eps.as_ref() {
+                            if let Some(episodes) = detail.episodes.as_mut() {
+                                crate::clients::aniwave::AniwaveClient::enrich_episodes_v2(rich, episodes);
+                            }
+                        }
+                        // Apply cached mal_id even when we skipped the search.
+                        if detail.card.mal_id.is_none() {
+                            if let Some(Some(cached)) =
+                                self.mal_id_cache.get(id).await
+                            {
+                                detail.card.mal_id = Some(cached);
+                            }
+                        }
+                        if let Some(best) = mal_match {
+                            detail.card.mal_id = best.mal_id;
+                            detail.card.score = detail.card.score.or(best.score);
+                            detail.card.rating =
+                                detail.card.rating.or(best.rating);
+                            detail.card.aired = detail.card.aired.or(best.aired);
+                            detail.card.duration =
+                                detail.card.duration.or(best.duration);
+                            if detail.card.genres.is_none() {
+                                detail.card.genres = best.genres;
+                            }
+                            // Cache the mal_id for this slug so subsequent
+                            // detail requests skip the search entirely.
+                            self.mal_id_cache
+                                .insert(id.to_string(), best.mal_id)
+                                .await;
+                        } else if need_mal_search {
+                            // Short-TTL negative cache — re-search in 1h.
+                            self.mal_miss_cache
+                                .insert(id.to_string(), ())
+                                .await;
+                        }
                         return Some(detail);
                     }
                 }
@@ -610,6 +745,14 @@ const ANILIST_GENRES: &[(&str, &str)] = &[
 
 fn normalize_title(title: &str) -> String {
     title.to_lowercase().trim().to_string()
+}
+
+fn token_overlap(a: &str, b: &str) -> usize {
+    let a_tokens: std::collections::HashSet<&str> =
+        a.split_whitespace().collect();
+    b.split_whitespace()
+        .filter(|t| a_tokens.contains(t))
+        .count()
 }
 
 fn search_match_rank(title: &str, normalized_query: &str) -> u8 {

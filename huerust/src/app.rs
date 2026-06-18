@@ -115,7 +115,10 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let kissasian_client = Arc::new(crate::providers::kissasian::KissAsianClient::new());
     let hianime_client = Arc::new(crate::clients::hianime::HianimeClient::new());
     let anime_agg = Arc::new(crate::clients::anime_agg::AnimeAggregator::new(
-        Arc::new(crate::clients::aniwave::AniwaveClient::new(cfg.cf_worker_url.clone())),
+        Arc::new(crate::clients::aniwave::AniwaveClient::new(
+            cfg.cf_worker_url.clone(),
+            cfg.hianime_mirror_url.clone(),
+        )),
         hianime_client.clone(),
         Arc::new(crate::clients::aniwatch::AniWatchClient::new()),
         Arc::new(crate::clients::anilist::AniListClient::new()),

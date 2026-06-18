@@ -27,6 +27,9 @@ pub struct AppConfig {
     pub redis_url: String,
     pub kkey: String,
     pub cf_worker_url: Option<String>,
+    /// See [`crate::clients::aniwave::AniwaveClient`]. Defaults to the
+    /// `HIANIME_MIRROR_URL` env var or empty.
+    pub hianime_mirror_url: Option<String>,
     pub worker_upstream_hosts: Vec<String>,
     pub sticky_pref_enabled: bool,
     pub sticky_pref_ttl_secs: u64,
@@ -90,6 +93,9 @@ impl AppConfig {
                 .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string()),
             kkey: env::var("KKEY").unwrap_or_else(|_| "hue-kkey-2026-default".to_string()),
             cf_worker_url: env::var("CF_WORKER_URL")
+                .ok()
+                .filter(|s| !s.trim().is_empty()),
+            hianime_mirror_url: env::var("HIANIME_MIRROR_URL")
                 .ok()
                 .filter(|s| !s.trim().is_empty()),
             worker_upstream_hosts: env::var("WORKER_UPSTREAM_HOSTS")
@@ -253,6 +259,7 @@ mod tests {
             redis_url: "redis://127.0.0.1:6379".to_string(),
             kkey: "test-kkey".to_string(),
             cf_worker_url: None,
+            hianime_mirror_url: None,
             worker_upstream_hosts: vec![],
             sticky_pref_enabled: true,
             sticky_pref_ttl_secs: 3600,
@@ -311,6 +318,7 @@ mod tests {
             redis_url: "redis://127.0.0.1:6379".to_string(),
             kkey: "test-kkey".to_string(),
             cf_worker_url: None,
+            hianime_mirror_url: None,
             worker_upstream_hosts: vec![],
             sticky_pref_enabled: true,
             sticky_pref_ttl_secs: 3600,

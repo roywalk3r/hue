@@ -36,6 +36,14 @@ pub struct AniwaveClient {
     stream_cache: Cache<String, AniwaveStream>,
     card_cache: Cache<String, Vec<AnimeCard>>,
     worker_url: Option<String>,
+    /// Optional mirror domain (e.g. hianimes.ru). When set, AJAX calls
+    /// and page fetches that fail on the primary domain are retried through
+    /// this mirror. The mirror's static CDN is also image-proxied.
+    mirror_url: Option<String>,
+    /// hiAnime /info/<slug> → parsed metadata (24h TTL).
+    info_cache: Cache<String, HianimeInfoMeta>,
+    /// hiAnime show-id → v2 rich episode list (24h TTL).
+    ep_detail_cache: Cache<String, Vec<HianimeRichEpisode>>,
 }
 
 #[derive(Clone, Debug)]
@@ -68,14 +76,42 @@ struct WorkerHtmlResponse {
     error: Option<String>,
 }
 
+/// Rich episode data from hiAnime v2 `/ajax/v2/episode/details/<id>`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct HianimeRichEpisode {
+    pub ep_num: u32,
+    pub title: String,
+    #[serde(default)]
+    pub title_japanese: Option<String>,
+    #[serde(default)]
+    pub title_romanji: Option<String>,
+    #[serde(default)]
+    pub aired: Option<String>,
+    #[serde(default)]
+    pub score: Option<f64>,
+    #[serde(default)]
+    pub filler: bool,
+    #[serde(default)]
+    pub recap: bool,
+}
+
+/// Metadata extracted from hiAnime `/info/<slug>` page.
+#[derive(Debug, Default, Clone)]
+pub struct HianimeInfoMeta {
+    pub og_image: Option<String>,
+    pub description: Option<String>,
+    pub date_created: Option<String>,
+    pub keywords: Vec<String>,
+}
+
 impl Default for AniwaveClient {
     fn default() -> Self {
-        Self::new(None)
+        Self::new(None, None)
     }
 }
 
 impl AniwaveClient {
-    pub fn new(worker_url: Option<String>) -> Self {
+    pub fn new(worker_url: Option<String>, mirror_url: Option<String>) -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(20))
             .connect_timeout(Duration::from_secs(10))
@@ -98,6 +134,15 @@ impl AniwaveClient {
                 .time_to_live(Duration::from_secs(10 * 60))
                 .build(),
             worker_url,
+            mirror_url,
+            info_cache: Cache::builder()
+                .max_capacity(500)
+                .time_to_live(Duration::from_secs(30 * 24 * 60 * 60))
+                .build(),
+            ep_detail_cache: Cache::builder()
+                .max_capacity(500)
+                .time_to_live(Duration::from_secs(30 * 24 * 60 * 60))
+                .build(),
         }
     }
 
@@ -127,7 +172,9 @@ impl AniwaveClient {
     /// latency for every image. weserv.nl has a global edge cache, strips
     /// CORP, and can convert to WebP for smaller payloads.
     fn proxy_media_url(&self, url: &str) -> String {
-        if !url.starts_with("https://static.aniwaves.ru/") {
+        if !url.starts_with("https://static.aniwaves.ru/")
+            && !url.starts_with("https://static.hianimes.ru/")
+        {
             return url.to_string();
         }
         format!(
@@ -149,7 +196,7 @@ impl AniwaveClient {
     ///   - series slug:   "one-piece-81553"  -> "81553"
     ///   - per-ep slug:   "81553-ep1"        -> "81553"
     ///   - bare numeric:  "81553"            -> "81553"
-    fn show_id_from_slug(slug: &str) -> Option<String> {
+    pub fn show_id_from_slug(slug: &str) -> Option<String> {
         if slug.is_empty() {
             return None;
         }
@@ -307,55 +354,88 @@ impl AniwaveClient {
             return Err(anyhow!("aniwave: empty stream url"));
         }
 
-        // 3. Extract the path id from URLs like:
-        //    https://play.echovideo.ru/embed-1/<id>?v=1&asi=0&autoPlay=0&ao=0
-        let (embed_base, embed_id) = extract_embed_endpoint(&url)
-            .ok_or_else(|| anyhow!("aniwave: could not extract embed id from {}", url))?;
-        if embed_id.is_empty() {
-            return Err(anyhow!("aniwave: could not extract embed id from {}", url));
+        // skip_data from /ajax/sources carries intro/outro for both flows.
+        let (skip_intro, skip_outro) = parsed
+            .result
+            .skip_data
+            .as_ref()
+            .map(|sd| (sd.intro.clone(), sd.outro.clone()))
+            .unwrap_or((None, None));
+        fn to_skip(i: &Option<AniwaveIntroOutro>) -> Option<SkipRange> {
+            i.as_ref().and_then(|i| {
+                if i.end > i.start {
+                    Some(SkipRange {
+                        start: i.start as u32,
+                        end: i.end as u32,
+                    })
+                } else {
+                    None
+                }
+            })
         }
-        let get_sources_url = format!("{}getSources?id={}", embed_base, embed_id);
-        let (_, text) = self.fetch_text(&get_sources_url, &url, false).await?;
-        let parsed: EmbedSourcesResponse = serde_json::from_str(&text).map_err(|e| {
-            anyhow!(
-                "aniwave: parse embed sources: {} body={}",
-                e,
-                &text[..text.len().min(200)]
+
+        // Two embed shapes come back from /ajax/sources:
+        //   - echovideo.ru/embed-1/<id>  -> HLS via <host>/embed-1/getSources
+        //   - myvidplay.com / playmogo.com / doodstream mirrors (/e/<id>, no
+        //     /embed-* segment) -> mp4 via the DoodStream pass_md5 flow.
+        let (stream_url, stream_referer, intro, outro, tracks): (
+            String,
+            String,
+            Option<SkipRange>,
+            Option<SkipRange>,
+            Vec<SubtitleTrack>,
+        ) = if url.contains("/embed-") {
+            let (embed_base, embed_id) = extract_embed_endpoint(&url)
+                .ok_or_else(|| anyhow!("aniwave: could not extract embed id from {}", url))?;
+            if embed_id.is_empty() {
+                return Err(anyhow!("aniwave: could not extract embed id from {}", url));
+            }
+            let get_sources_url = format!("{}getSources?id={}", embed_base, embed_id);
+            let (_, text) = self.fetch_text(&get_sources_url, &url, false).await?;
+            let embed: EmbedSourcesResponse = serde_json::from_str(&text).map_err(|e| {
+                anyhow!(
+                    "aniwave: parse embed sources: {} body={}",
+                    e,
+                    &text[..text.len().min(200)]
+                )
+            })?;
+            if embed.sources.is_empty() {
+                return Err(anyhow!("aniwave: empty embed sources url"));
+            }
+            (
+                embed.sources,
+                url.clone(),
+                embed.intro.and_then(|i| {
+                    if i.end > i.start {
+                        Some(SkipRange { start: i.start as u32, end: i.end as u32 })
+                    } else {
+                        None
+                    }
+                }),
+                embed.outro.and_then(|o| {
+                    if o.end > o.start {
+                        Some(SkipRange { start: o.start as u32, end: o.end as u32 })
+                    } else {
+                        None
+                    }
+                }),
+                Vec::new(),
             )
-        })?;
-        let stream_url = parsed.sources;
-        if stream_url.is_empty() {
-            return Err(anyhow!("aniwave: empty embed sources url"));
-        }
-        let intro = parsed.intro.and_then(|i| {
-            if i.end > i.start {
-                Some(SkipRange {
-                    start: i.start as u32,
-                    end: i.end as u32,
-                })
-            } else {
-                None
-            }
-        });
-        let outro = parsed.outro.and_then(|o| {
-            if o.end > o.start {
-                Some(SkipRange {
-                    start: o.start as u32,
-                    end: o.end as u32,
-                })
-            } else {
-                None
-            }
-        });
+        } else {
+            let (mp4, origin) = self
+                .resolve_doodstream(&url, &format!("{}/watch/{}", BASE_URL, show_id))
+                .await?;
+            (mp4, origin, to_skip(&skip_intro), to_skip(&skip_outro), Vec::new())
+        };
 
         let stream = AniwaveStream {
             url: stream_url.clone(),
             server_id: link.server_id,
             server_name: link.name.clone(),
-            referer: url.clone(),
-            intro: intro.clone(),
-            outro: outro.clone(),
-            tracks: vec![],
+            referer: stream_referer,
+            intro,
+            outro,
+            tracks,
         };
         self.stream_cache.insert(cache_key, stream.clone()).await;
         let is_hls = stream.url.contains(".m3u8");
@@ -377,6 +457,94 @@ impl AniwaveClient {
             server: Some(format!("aniwave-{}", link.name)),
             referer: Some(stream.referer),
         })
+    }
+
+    /// Resolve a DoodStream-style embed to a direct mp4 URL.
+    ///
+    /// Aniwave's non-Vidplay servers (BYFMS/DGHG/...) point at DoodStream
+    /// mirrors — `myvidplay.com/e/<id>` which redirects to `playmogo.com` /
+    /// `doodstream.com`. The embed page contains a `$.get('/pass_md5/<token>')`
+    /// call; that endpoint returns a CDN path, and the player appends
+    /// `?token=<id>&expiry=<now_ms>` to build the final mp4 URL.
+    ///
+    /// The mirrors sit behind Cloudflare and 403 both reqwest and the full
+    /// "browser-like" curl header set, so fetches use a minimal curl (UA +
+    /// Referer only). pass_md5 is hit on the embed host (`myvidplay.com`),
+    /// which redirects to the active mirror — the token is valid across the
+    /// mirror family, so the post-redirect host isn't needed.
+    ///
+    /// Returns `(mp4_url, embed_origin)` — the origin is used as the Referer
+    /// when proxying, since the CDN requires one.
+    async fn resolve_doodstream(&self, embed_url: &str, referer: &str) -> Result<(String, String)> {
+        let origin = url::Url::parse(embed_url)
+            .map(|u| u.origin().ascii_serialization())
+            .unwrap_or_else(|_| embed_url.to_string());
+
+        // 1. Fetch the embed page (curl follows redirects to the active mirror).
+        //    Retry on transient Cloudflare challenges — a real page contains
+        //    the pass_md5 call, a challenge page does not.
+        let html = {
+            let mut page: Option<String> = None;
+            for attempt in 0..4u8 {
+                if attempt > 0 {
+                    tokio::time::sleep(Duration::from_millis(700)).await;
+                }
+                if let Ok(body) = curl_fetch_minimal(embed_url, referer).await {
+                    if body.contains("/pass_md5/") {
+                        page = Some(body);
+                        break;
+                    }
+                }
+            }
+            page.ok_or_else(|| anyhow!("doodstream: embed page blocked (cf challenge)"))?
+        };
+
+        // 2. Pull the pass_md5 token out of the player script. The call looks
+        //    like `$.get('/pass_md5/<token>', ...)` — scan to the next single
+        //    quote. (extract_between is unsuitable here: it skips past the
+        //    next `>`, which lands inside the fingerprint JS and grabs garbage.)
+        let token = {
+            const NEEDLE: &str = "'/pass_md5/";
+            let i = html
+                .find(NEEDLE)
+                .ok_or_else(|| anyhow!("doodstream: pass_md5 token not found"))?;
+            let rest = &html[i + NEEDLE.len()..];
+            let end = rest
+                .find('\'')
+                .ok_or_else(|| anyhow!("doodstream: pass_md5 token unterminated"))?;
+            rest[..end].to_string()
+        };
+        let id = token
+            .rsplit('/')
+            .next()
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| anyhow!("doodstream: token id not found"))?;
+
+        // 3. Hit pass_md5 on the embed host (redirects to the active mirror).
+        //    Retry on transient challenges; the response must be a URL.
+        let pass_url = format!("{}/pass_md5/{}", origin, token);
+        let mut path: Option<String> = None;
+        for attempt in 0..4u8 {
+            if attempt > 0 {
+                tokio::time::sleep(Duration::from_millis(700)).await;
+            }
+            if let Ok(p) = curl_fetch_minimal(&pass_url, embed_url).await {
+                let trimmed = p.trim();
+                if trimmed.starts_with("http") {
+                    path = Some(trimmed.to_string());
+                    break;
+                }
+            }
+        }
+        let path = path.ok_or_else(|| anyhow!("doodstream: pass_md5 failed (cf blocked)"))?;
+
+        // 4. Assemble the direct mp4 URL with a fresh expiry.
+        let expiry = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        let mp4 = format!("{}?token={}&expiry={}", path.trim(), id, expiry);
+        Ok((mp4, origin))
     }
 
     /// Search Aniwave's filter page and return normalized cards.
@@ -714,6 +882,82 @@ impl AniwaveClient {
         }
         format!("{}/added?page={}", BASE_URL, page)
     }
+
+    // ── hiAnime mirror enrichment ──────────────────────────────────────────
+
+    /// Return the hiAnime mirror base URL if configured.
+    pub fn mirror_base(&self) -> Option<&str> {
+        self.mirror_url.as_deref().filter(|s| !s.is_empty())
+    }
+
+    /// Fetch rich episode metadata from hiAnime's v2 AJAX endpoint.
+    /// Returns episode numbers → titles, scores, air dates. Cached 24h.
+    /// `GET /ajax/v2/episode/details/<show_id>`
+    pub async fn fetch_hianime_episode_details(
+        &self,
+        show_id: &str,
+    ) -> Result<Vec<HianimeRichEpisode>> {
+        if let Some(cached) = self.ep_detail_cache.get(show_id).await {
+            return Ok(cached);
+        }
+        let mirror = self
+            .mirror_base()
+            .ok_or_else(|| anyhow!("hianime mirror not configured"))?;
+        let url = format!("{}/ajax/v2/episode/details/{}", mirror, show_id);
+        let resp = self
+            .client
+            .get(&url)
+            .header("Referer", mirror)
+            .header("Accept", "application/json, text/javascript, */*; q=0.01")
+            .header("X-Requested-With", "XMLHttpRequest")
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("hianime v2 details: {}", resp.status()));
+        }
+        let rich: Vec<HianimeRichEpisode> = resp.json().await?;
+        self.ep_detail_cache
+            .insert(show_id.to_string(), rich.clone())
+            .await;
+        Ok(rich)
+    }
+
+    /// Merge hiAnime v2 rich episode data into `EpisodeSummary` objects.
+    /// Matches by `ep.num` ↔ `summary.number`.
+    pub fn enrich_episodes_v2(
+        rich: &[HianimeRichEpisode],
+        summaries: &mut Vec<EpisodeSummary>,
+    ) {
+        for ep in summaries.iter_mut() {
+            if let Some(r) = rich.iter().find(|re| re.ep_num == ep.number) {
+                if ep.title.is_none() {
+                    ep.title = Some(r.title.clone());
+                }
+            }
+        }
+    }
+
+    /// Fetch and parse the hiAnime `/info/<slug>` page for OG metadata,
+    /// keywords, and LD+JSON `dateCreated`. Results are cached for 24h.
+    pub async fn fetch_hianime_info_meta(&self, slug: &str) -> Result<HianimeInfoMeta> {
+        if let Some(cached) = self.info_cache.get(slug).await {
+            return Ok(cached);
+        }
+        let mirror = self
+            .mirror_base()
+            .ok_or_else(|| anyhow!("hianime mirror not configured"))?;
+        let url = format!("{}/info/{}", mirror, slug);
+        let resp = self
+            .client
+            .get(&url)
+            .header("User-Agent", UA_DESKTOP)
+            .send()
+            .await?;
+        let html = resp.text().await?;
+        let meta = parse_info_page(&html, mirror);
+        self.info_cache.insert(slug.to_string(), meta.clone()).await;
+        Ok(meta)
+    }
 }
 
 fn country_id_from_code(country: &str) -> Option<&'static str> {
@@ -782,7 +1026,7 @@ struct AniwaveSkipData {
     outro: Option<AniwaveIntroOutro>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 struct AniwaveIntroOutro {
     #[serde(default)]
     start: f64,
@@ -841,6 +1085,61 @@ async fn curl_fetch_text(url: &str, referer: &str, ajax: bool) -> Result<String>
         ));
     }
     Ok(text)
+}
+
+/// Pick the curl binary used for DoodStream fetches. See `curl_fetch_minimal`
+/// for why the binary matters (Cloudflare TLS fingerprinting).
+fn doodstream_curl_bin() -> &'static str {
+    use std::sync::OnceLock;
+    static BIN: OnceLock<String> = OnceLock::new();
+    BIN.get_or_init(|| {
+        if let Ok(b) = std::env::var("HUE_CURL_BIN") {
+            if !b.is_empty() && std::path::Path::new(&b).exists() {
+                return b;
+            }
+        }
+        let brew = "/home/linuxbrew/.linuxbrew/bin/curl";
+        if std::path::Path::new(brew).exists() {
+            return brew.to_string();
+        }
+        "/usr/bin/curl".to_string()
+    })
+    .as_str()
+}
+
+/// Minimal curl GET (UA + Referer only, default HTTP/2, no `-f`, no `-S`,
+/// no `--compressed`, no extra Accept headers). The DoodStream mirrors 403
+/// the full "browser-like" header combo that aniwave needs, and also 403
+/// when curl is invoked with `-S`/`--show-error` (reproducible), so this
+/// uses the bare minimum that is trusted. Returns the body as-is — a
+/// Cloudflare 403/challenge body is returned Ok and the caller validates it.
+///
+/// Cloudflare also fingerprints the curl TLS/HTTP stack: older system curl
+/// (8.5 / OpenSSL 3.0) is challenged, while newer curl (8.20 / OpenSSL 3.6 +
+/// HTTP/3) passes. Pick the newest available curl via `HUE_CURL_BIN`, then a
+/// known brew location, then the system curl.
+async fn curl_fetch_minimal(url: &str, referer: &str) -> Result<String> {
+    let bin = doodstream_curl_bin();
+    let output = Command::new(bin)
+        .arg("-sL")
+        .arg("--max-time")
+        .arg("25")
+        .arg("-A")
+        .arg(UA_DESKTOP)
+        .arg("-H")
+        .arg(format!("Referer: {}", referer))
+        .arg(url)
+        .output()
+        .await?;
+    if !output.status.success() {
+        return Err(anyhow!(
+            "curl_fetch_minimal: curl failed status={} stderr={}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    String::from_utf8(output.stdout)
+        .map_err(|e| anyhow!("curl_fetch_minimal: non-utf8 body: {}", e))
 }
 
 // ── HTML parsing ───────────────────────────────────────────────────────────
@@ -1704,5 +2003,86 @@ mod tests {
         assert_eq!(cards[0].anime_type.as_deref(), Some("TV"));
         assert_eq!(cards[0].score.as_deref(), Some("9"));
         assert_eq!(cards[0].view_count, Some(1_500_000));
+    }
+}
+
+// ── hiAnime info page parser ────────────────────────────────────────────────
+
+/// Extract OG metadata and LD+JSON from a hiAnime `/info/<slug>` page.
+fn parse_info_page(html: &str, _base: &str) -> HianimeInfoMeta {
+    let mut meta = HianimeInfoMeta::default();
+
+    // og:image
+    if let Some(tag) = html
+        .split("<meta")
+        .find(|s| s.contains("og:image") && s.contains("content="))
+    {
+        if let Some(start) = tag.find("content=\"") {
+            let rest = &tag[start + 9..];
+            if let Some(end) = rest.find('"') {
+                meta.og_image = Some(rest[..end].to_string());
+            }
+        }
+    }
+
+    // meta description
+    if let Some(tag) = html
+        .split("<meta")
+        .find(|s| s.contains("name=\"description\"") && s.contains("content="))
+    {
+        if let Some(start) = tag.find("content=\"") {
+            let rest = &tag[start + 9..];
+            if let Some(end) = rest.find('"') {
+                meta.description = Some(rest[..end].to_string());
+            }
+        }
+    }
+
+    // meta keywords
+    if let Some(tag) = html
+        .split("<meta")
+        .find(|s| s.contains("name=\"keywords\"") && s.contains("content="))
+    {
+        if let Some(start) = tag.find("content=\"") {
+            let rest = &tag[start + 9..];
+            if let Some(end) = rest.find('"') {
+                meta.keywords = rest[..end]
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+            }
+        }
+    }
+
+    // LD+JSON dateCreated
+    if let Some(block) = html.split("\"dateCreated\"").nth(1) {
+        if let Some(start) = block.find('"') {
+            let rest = &block[start + 1..];
+            if let Some(end) = rest.find('"') {
+                meta.date_created = Some(rest[..end].to_string());
+            }
+        }
+    }
+
+    meta
+}
+
+#[cfg(test)]
+mod hianime_info_tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_info_page() {
+        let html = r#"<meta property="og:image" content="https://static.hianimes.ru/cover.jpg">
+        <meta name="description" content="An anime about something.">
+        <meta name="keywords" content="Action, Fantasy, Shounen">
+        "dateCreated": "2026-01-08T13:05:01Z"
+        "#;
+        let meta = parse_info_page(html, "https://hianimes.ru");
+        assert_eq!(meta.og_image.as_deref(), Some("https://static.hianimes.ru/cover.jpg"));
+        assert_eq!(meta.description.as_deref(), Some("An anime about something."));
+        assert_eq!(meta.keywords, vec!["Action", "Fantasy", "Shounen"]);
+        assert_eq!(meta.date_created.as_deref(), Some("2026-01-08T13:05:01Z"));
     }
 }
