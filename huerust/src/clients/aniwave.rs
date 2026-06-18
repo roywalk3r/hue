@@ -411,11 +411,11 @@ impl AniwaveClient {
     pub async fn get_home(&self) -> Result<AnimeHomeFeed> {
         let trending = self.fetch_widget_cards("trending", 1).await.ok();
         let latest = self
-            .fetch_cards_cached(&format!("{}/updated", BASE_URL), BASE_URL, None)
+            .fetch_cards_cached(&format!("{}/added", BASE_URL), BASE_URL, None)
             .await
             .ok();
         let featured = self
-            .fetch_cards_cached(&format!("{}/added", BASE_URL), BASE_URL, None)
+            .fetch_cards_cached(&format!("{}/updated", BASE_URL), BASE_URL, None)
             .await
             .ok();
         let currently_airing = self
@@ -673,7 +673,7 @@ impl AniwaveClient {
         if let Some(sort) = params.sort.as_deref() {
             match normalize_filter_value(sort).as_str() {
                 "trending" | "popularity" => return format!("{}/home", BASE_URL),
-                "latest" => return format!("{}/updated?page={}", BASE_URL, page),
+                "latest" => return format!("{}/added?page={}", BASE_URL, page),
                 "alphabetical" => {
                     return format!(
                         "{}/filter?keyword=&sort_by=title_az&page={}",
@@ -712,7 +712,7 @@ impl AniwaveClient {
                 );
             }
         }
-        format!("{}/updated?page={}", BASE_URL, page)
+        format!("{}/added?page={}", BASE_URL, page)
     }
 }
 
