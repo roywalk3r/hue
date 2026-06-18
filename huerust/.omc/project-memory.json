@@ -137,8 +137,8 @@
   "hotPaths": [
     {
       "path": "src/clients/aniwave.rs",
-      "accessCount": 61,
-      "lastAccessed": 1781727901311,
+      "accessCount": 64,
+      "lastAccessed": 1781768507864,
       "type": "file"
     },
     {
@@ -331,6 +331,12 @@
       "path": "src/providers/notorrent_provider.rs",
       "accessCount": 1,
       "lastAccessed": 1781515077593,
+      "type": "file"
+    },
+    {
+      "path": "src/main.rs",
+      "accessCount": 1,
+      "lastAccessed": 1781768286148,
       "type": "file"
     }
   ],
