@@ -838,6 +838,42 @@ impl AniwaveClient {
     }
 
     fn discover_url(&self, params: &FilterParams, page: u32) -> String {
+        // Country / language filtering goes through /filter, which supports
+        // `country[]` + `sort_by` together. The dedicated /home, /added,
+        // /type, /genre pages can't take a country, so when a country (or
+        // language=chinese → cn) is set we route through /filter and map the
+        // requested sort onto a /filter sort_by — otherwise country is
+        // silently dropped whenever sort is also set.
+        let country_code = params
+            .country
+            .as_deref()
+            .and_then(country_code_for_url)
+            .or_else(|| {
+                params
+                    .language
+                    .as_deref()
+                    .filter(|l| normalize_filter_value(l) == "chinese")
+                    .map(|_| "cn")
+            });
+        if let Some(code) = country_code {
+            let sort_by = match params
+                .sort
+                .as_deref()
+                .map(normalize_filter_value)
+                .as_deref()
+            {
+                Some("score") => "score",
+                Some("alphabetical") => "title_az",
+                // trending / popularity / latest aren't /filter sort_by
+                // values; last_updated is the closest available.
+                _ => "last_updated",
+            };
+            return format!(
+                "{}/filter?keyword=&country%5B%5D={}&sort_by={}&page={}",
+                BASE_URL, code, sort_by, page
+            );
+        }
+
         if let Some(sort) = params.sort.as_deref() {
             match normalize_filter_value(sort).as_str() {
                 "trending" | "popularity" => return format!("{}/home", BASE_URL),
@@ -863,22 +899,6 @@ impl AniwaveClient {
         }
         if let Some(genre) = params.genre.as_deref() {
             return format!("{}/genre/{}?page={}", BASE_URL, slugify(genre), page);
-        }
-        if let Some(language) = params.language.as_deref() {
-            if normalize_filter_value(language) == "chinese" {
-                return format!(
-                    "{}/filter?keyword=&country%5B%5D=cn&sort_by=last_updated&page={}",
-                    BASE_URL, page
-                );
-            }
-        }
-        if let Some(country) = params.country.as_deref() {
-            if let Some(code) = country_code_for_url(country) {
-                return format!(
-                    "{}/filter?keyword=&country%5B%5D={}&sort_by=last_updated&page={}",
-                    BASE_URL, code, page
-                );
-            }
         }
         format!("{}/added?page={}", BASE_URL, page)
     }
