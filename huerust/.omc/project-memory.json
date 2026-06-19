@@ -137,20 +137,20 @@
   "hotPaths": [
     {
       "path": "src/clients/aniwave.rs",
-      "accessCount": 64,
-      "lastAccessed": 1781768507864,
+      "accessCount": 112,
+      "lastAccessed": 1781796374461,
       "type": "file"
     },
     {
       "path": "src/clients/anime_agg.rs",
-      "accessCount": 27,
-      "lastAccessed": 1781646014590,
+      "accessCount": 56,
+      "lastAccessed": 1781795238112,
       "type": "file"
     },
     {
       "path": "src/proxy/mod.rs",
-      "accessCount": 24,
-      "lastAccessed": 1781462006584,
+      "accessCount": 26,
+      "lastAccessed": 1781793673605,
       "type": "file"
     },
     {
@@ -161,8 +161,8 @@
     },
     {
       "path": "src/app.rs",
-      "accessCount": 19,
-      "lastAccessed": 1781515132719,
+      "accessCount": 20,
+      "lastAccessed": 1781793427213,
       "type": "file"
     },
     {
@@ -226,15 +226,21 @@
       "type": "file"
     },
     {
+      "path": "src/clients/hianime.rs",
+      "accessCount": 6,
+      "lastAccessed": 1781793294072,
+      "type": "file"
+    },
+    {
       "path": "Cargo.toml",
       "accessCount": 5,
       "lastAccessed": 1781346317430,
       "type": "file"
     },
     {
-      "path": "src/clients/hianime.rs",
+      "path": "src/config.rs",
       "accessCount": 5,
-      "lastAccessed": 1781604985340,
+      "lastAccessed": 1781793420733,
       "type": "file"
     },
     {
