@@ -214,6 +214,12 @@
       "type": "file"
     },
     {
+      "path": "src/clients/vidvault.rs",
+      "accessCount": 8,
+      "lastAccessed": 1781981716225,
+      "type": "file"
+    },
+    {
       "path": "src/clients/aniwatch.rs",
       "accessCount": 7,
       "lastAccessed": 1781461957871,
@@ -241,12 +247,6 @@
       "path": "src/clients/hianime.rs",
       "accessCount": 6,
       "lastAccessed": 1781793294072,
-      "type": "file"
-    },
-    {
-      "path": "src/clients/vidvault.rs",
-      "accessCount": 6,
-      "lastAccessed": 1781981565241,
       "type": "file"
     },
     {
