@@ -1,6 +1,7 @@
 use crate::clients::tmdb::TmdbClient;
 use crate::clients::vidvault::VidVaultClient;
 use axum::{
+    body::{Body, Bytes},
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -9,10 +10,30 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::io::AsyncReadExt;
+use tokio_stream::wrappers::ReceiverStream;
 
-struct CleanupGuard(String);
+struct CleanupGuard {
+    path: String,
+    armed: bool,
+}
+
+impl CleanupGuard {
+    fn new(path: String) -> Self {
+        Self { path, armed: true }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
 impl Drop for CleanupGuard {
-    fn drop(&mut self) { let _ = std::fs::remove_file(&self.0); }
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -57,6 +78,44 @@ fn sanitize_filename(s: &str) -> String {
             c => c,
         })
         .collect()
+}
+
+fn build_ffmpeg_args(target_url: &str, header_str: &str, output: &str) -> Vec<String> {
+    let mut args = vec!["-y".to_string()];
+    if !header_str.is_empty() {
+        let headers = if header_str.ends_with("\r\n") {
+            header_str.to_string()
+        } else {
+            format!("{}\r\n", header_str)
+        };
+        args.extend(["-headers".to_string(), headers]);
+    }
+    args.extend([
+        "-i".to_string(),
+        target_url.to_string(),
+        "-c".to_string(),
+        "copy".to_string(),
+        output.to_string(),
+    ]);
+    args
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_ffmpeg_args;
+
+    #[test]
+    fn ffmpeg_headers_are_input_options() {
+        let args = build_ffmpeg_args(
+            "https://cdn.example.com/master.m3u8",
+            "Referer: https://example.com/\r\n",
+            "/tmp/output.mp4",
+        );
+
+        let headers = args.iter().position(|arg| arg == "-headers").unwrap();
+        let input = args.iter().position(|arg| arg == "-i").unwrap();
+        assert!(headers < input, "headers must be applied before the input");
+    }
 }
 
 pub async fn download_handler(
@@ -162,7 +221,7 @@ pub async fn download_handler(
 
             (
                 StatusCode::OK,
-                Json(serde_json::json!({ "success": true, "files": files })),
+                Json(serde_json::json!({ "success": true, "files": files, "captions": links.captions })),
             )
                 .into_response()
         }
@@ -186,9 +245,7 @@ pub struct HlsDownloadQuery {
     pub filename: Option<String>,
 }
 
-pub async fn hls_download_handler(
-    Query(params): Query<HlsDownloadQuery>,
-) -> impl IntoResponse {
+pub async fn hls_download_handler(Query(params): Query<HlsDownloadQuery>) -> impl IntoResponse {
     use tokio::process::Command as TokioCommand;
 
     let secret = std::env::var("APP_SECRET").unwrap_or_default();
@@ -199,27 +256,45 @@ pub async fn hls_download_handler(
 
     let header_str = token_headers
         .as_ref()
-        .map(|h| h.iter().map(|(k, v)| format!("{}: {}", k, v)).collect::<Vec<_>>().join("\r\n"))
+        .map(|h| {
+            h.iter()
+                .map(|(k, v)| format!("{}: {}", k, v))
+                .collect::<Vec<_>>()
+                .join("\r\n")
+        })
         .unwrap_or_default();
 
-    let filename = params.filename.as_deref().unwrap_or("download.mp4")
-        .replace(|c: char| !c.is_ascii_alphanumeric() && c != '.' && c != '-' && c != '_', "_");
+    let filename = params
+        .filename
+        .as_deref()
+        .unwrap_or("download.mp4")
+        .replace(
+            |c: char| !c.is_ascii_alphanumeric() && c != '.' && c != '-' && c != '_',
+            "_",
+        );
 
-    let tmp = format!("/tmp/hue_dl_{}.mp4", std::process::id());
+    let tmp = format!("/tmp/hue_dl_{}.mp4", ulid::Ulid::new());
     // Ensure temp file cleanup even on early return or panic.
-    let _guard = CleanupGuard(tmp.clone());
+    let mut guard = CleanupGuard::new(tmp.clone());
     let mut cmd = TokioCommand::new("ffmpeg");
-    cmd.args(["-y", "-i", &target_url, "-c", "copy", &tmp]);
-    if !header_str.is_empty() { cmd.arg("-headers").arg(&header_str); }
-    let out = match cmd.stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null()).stderr(std::process::Stdio::piped()).spawn()
+    cmd.args(build_ffmpeg_args(&target_url, &header_str, &tmp));
+    let out = match cmd
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
     {
-        Ok(c) => match c.wait_with_output().await { Ok(o) => o, Err(e) => {
-            tracing::error!("[download/hls] wait: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg error").into_response();
-        }},
-        Err(e) => { tracing::error!("[download/hls] spawn: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg not available").into_response(); }
+        Ok(c) => match c.wait_with_output().await {
+            Ok(o) => o,
+            Err(e) => {
+                tracing::error!("[download/hls] wait: {}", e);
+                return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg error").into_response();
+            }
+        },
+        Err(e) => {
+            tracing::error!("[download/hls] spawn: {}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg not available").into_response();
+        }
     };
     if !out.status.success() {
         let stderr_str = String::from_utf8_lossy(&out.stderr);
@@ -228,18 +303,55 @@ pub async fn hls_download_handler(
         let _ = std::fs::remove_file(&tmp);
         return (StatusCode::BAD_GATEWAY, "HLS conversion failed").into_response();
     }
-    let body = match tokio::fs::read(&tmp).await {
-        Ok(d) => { let _ = std::fs::remove_file(&tmp); d },
-        Err(e) => { let _ = std::fs::remove_file(&tmp);
-            tracing::error!("[download/hls] read: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "read failed").into_response(); }
+    let mut file = match tokio::fs::File::open(&tmp).await {
+        Ok(file) => file,
+        Err(e) => {
+            tracing::error!("[download/hls] open: {}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "read failed").into_response();
+        }
     };
+    let content_length = match file.metadata().await {
+        Ok(metadata) => metadata.len(),
+        Err(e) => {
+            tracing::error!("[download/hls] metadata: {}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "read failed").into_response();
+        }
+    };
+
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<Bytes, std::io::Error>>(8);
+    let cleanup_path = tmp.clone();
+    tokio::spawn(async move {
+        let mut buffer = vec![0_u8; 64 * 1024];
+        loop {
+            match file.read(&mut buffer).await {
+                Ok(0) => break,
+                Ok(read) => {
+                    if tx
+                        .send(Ok(Bytes::copy_from_slice(&buffer[..read])))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    let _ = tx.send(Err(e)).await;
+                    break;
+                }
+            }
+        }
+        let _ = tokio::fs::remove_file(cleanup_path).await;
+    });
+    guard.disarm();
 
     Response::builder()
         .status(StatusCode::OK)
         .header(axum::http::header::CONTENT_TYPE, "video/mp4")
-        .header(axum::http::header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", filename))
-        .body(axum::body::Body::from(body))
+        .header(axum::http::header::CONTENT_LENGTH, content_length)
+        .header(
+            axum::http::header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{}\"", filename),
+        )
+        .body(Body::from_stream(ReceiverStream::new(rx)))
         .unwrap()
 }
-

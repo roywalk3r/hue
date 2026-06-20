@@ -166,6 +166,12 @@
       "type": "file"
     },
     {
+      "path": "src/routes/download.rs",
+      "accessCount": 14,
+      "lastAccessed": 1781981618319,
+      "type": "file"
+    },
+    {
       "path": "src/clients/vidrock.rs",
       "accessCount": 12,
       "lastAccessed": 1781193118668,
@@ -193,12 +199,6 @@
       "path": "src/routes/sse.rs",
       "accessCount": 11,
       "lastAccessed": 1781537528017,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/download.rs",
-      "accessCount": 11,
-      "lastAccessed": 1781975994905,
       "type": "file"
     },
     {
@@ -241,6 +241,12 @@
       "path": "src/clients/hianime.rs",
       "accessCount": 6,
       "lastAccessed": 1781793294072,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/vidvault.rs",
+      "accessCount": 6,
+      "lastAccessed": 1781981565241,
       "type": "file"
     },
     {

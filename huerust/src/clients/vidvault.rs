@@ -54,6 +54,7 @@ pub struct DownloadFile {
 #[derive(Debug, Serialize, Clone, Default)]
 pub struct DownloadLinks {
     pub files: Vec<DownloadFile>,
+    pub captions: Vec<Caption>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -316,6 +317,14 @@ impl VidVaultClient {
             }
         }
 
-        Ok(DownloadLinks { files })
+        let captions = data
+            .mp4_data
+            .as_ref()
+            .and_then(|m| m.download_info.as_ref())
+            .and_then(|w| w.data.as_ref())
+            .and_then(|d| d.captions.clone())
+            .unwrap_or_default();
+
+        Ok(DownloadLinks { files, captions })
     }
 }
