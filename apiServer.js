@@ -106,8 +106,10 @@ const livetvRoutes = require('./routes/livetv');
 const playRoutes = require('./routes/play');
 const tmdbRoutes = require('./routes/tmdb');
 const animeRoutes = require('./routes/anime');
+const notificationRoutes = require('./routes/notifications');
 
 // Mount API routes
+app.use('/api/notifications', notificationRoutes(metrics));
 app.use('/api/tmdb', tmdbRoutes(metrics));
 app.use('/api/anime', animeRoutes(metrics));
 app.use('/api/hitv', hitvRoutes(metrics));
