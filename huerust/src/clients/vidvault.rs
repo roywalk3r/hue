@@ -299,6 +299,7 @@ impl VidVaultClient {
             }
         }
 
+        let mut captions = Vec::new();
         if let Some(mp4) = data.mp4_data {
             if let Some(info) = mp4.download_info.and_then(|w| w.data) {
                 for d in info.downloads.unwrap_or_default() {
@@ -314,16 +315,9 @@ impl VidVaultClient {
                         format: "mp4".to_string(),
                     });
                 }
+                captions = info.captions.unwrap_or_default();
             }
         }
-
-        let captions = data
-            .mp4_data
-            .as_ref()
-            .and_then(|m| m.download_info.as_ref())
-            .and_then(|w| w.data.as_ref())
-            .and_then(|d| d.captions.clone())
-            .unwrap_or_default();
 
         Ok(DownloadLinks { files, captions })
     }
