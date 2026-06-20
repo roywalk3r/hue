@@ -5,6 +5,10 @@ restart.trigger
 *.log.old
 # Firebase service account — do NOT commit
 vexli-3d15a-firebase-adminsdk-fbsvc-*.json
+utils/fcm-tokens.json
+
+# LeanKG — large binary database, auto-generated
+.leankg/
 *.txt
 .gemini/
 gha-creds-*.json
@@ -41,3 +45,4 @@ Cargo.lock
 .idea/
 *.iml
 *.swp
+utils/fcm-tokens.json
