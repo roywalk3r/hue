@@ -194,7 +194,7 @@ pub async fn hls_download_handler(
 
     let header_str = token_headers
         .as_ref()
-        .map(|h| h.iter().map(|(k, v)| format!("{}: {}\r\n", k, v)).collect::<String>())
+        .map(|h| h.iter().map(|(k, v)| format!("{}: {}", k, v)).collect::<Vec<_>>().join("\r\n"))
         .unwrap_or_default();
 
     let filename = params.filename.as_deref().unwrap_or("download.mp4")
