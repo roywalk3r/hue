@@ -200,38 +200,36 @@ pub async fn hls_download_handler(
     let filename = params.filename.as_deref().unwrap_or("download.mp4")
         .replace(|c: char| !c.is_ascii_alphanumeric() && c != '.' && c != '-' && c != '_', "_");
 
+    let tmp = format!("/tmp/hue_dl_{}.mp4", std::process::id());
     let mut cmd = TokioCommand::new("ffmpeg");
-    cmd.args(["-y", "-i", &target_url, "-c", "copy", "-f", "mp4", "pipe:1"]);
-    if !header_str.is_empty() {
-        cmd.arg("-headers").arg(&header_str);
-    }
-    let output = match cmd
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
+    cmd.args(["-y", "-i", &target_url, "-c", "copy", &tmp]);
+    if !header_str.is_empty() { cmd.arg("-headers").arg(&header_str); }
+    let status = match cmd.stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null()).stderr(std::process::Stdio::piped()).spawn()
     {
-        Ok(c) => match c.wait_with_output().await {
-            Ok(o) => o,
-            Err(e) => { tracing::error!("[download/hls] ffmpeg wait: {}", e);
-                return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg error").into_response(); }
-        },
-        Err(e) => { tracing::error!("[download/hls] ffmpeg spawn: {}", e);
+        Ok(c) => match c.wait_with_output().await { Ok(o) => o.status, Err(e) => {
+            tracing::error!("[download/hls] wait: {}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg error").into_response();
+        }},
+        Err(e) => { tracing::error!("[download/hls] spawn: {}", e);
             return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg not available").into_response(); }
     };
-
-    if !output.status.success() {
-        tracing::warn!("[download/hls] ffmpeg: {}", String::from_utf8_lossy(&output.stderr).lines().last().unwrap_or("unknown"));
-        if output.stdout.is_empty() {
-            return (StatusCode::BAD_GATEWAY, "HLS conversion failed").into_response();
-        }
+    if !status.success() {
+        let _ = std::fs::remove_file(&tmp);
+        return (StatusCode::BAD_GATEWAY, "HLS conversion failed").into_response();
     }
+    let body = match tokio::fs::read(&tmp).await {
+        Ok(d) => { let _ = std::fs::remove_file(&tmp); d },
+        Err(e) => { let _ = std::fs::remove_file(&tmp);
+            tracing::error!("[download/hls] read: {}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "read failed").into_response(); }
+    };
 
-    use axum::http::header;
     Response::builder()
         .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "video/mp4")
-        .header(header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", filename))
-        .body(axum::body::Body::from(output.stdout))
+        .header(axum::http::header::CONTENT_TYPE, "video/mp4")
+        .header(axum::http::header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", filename))
+        .body(axum::body::Body::from(body))
         .unwrap()
 }
+
