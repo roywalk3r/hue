@@ -7,6 +7,7 @@
 
 pub mod anime;
 pub mod download;
+pub mod notifications;
 pub mod drama;
 pub mod hitv;
 pub mod moviebox;

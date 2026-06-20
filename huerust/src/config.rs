@@ -30,6 +30,10 @@ pub struct AppConfig {
     /// See [`crate::clients::aniwave::AniwaveClient`]. Defaults to the
     /// `HIANIME_MIRROR_URL` env var or empty.
     pub hianime_mirror_url: Option<String>,
+    /// Firebase Cloud Messaging service account JSON. When set, the
+    /// `/api/notifications/anime-schedule` cron endpoint can broadcast
+    /// push notifications for newly-aired episodes.
+    pub fcm_service_account: Option<String>,
     pub worker_upstream_hosts: Vec<String>,
     pub sticky_pref_enabled: bool,
     pub sticky_pref_ttl_secs: u64,
@@ -96,6 +100,9 @@ impl AppConfig {
                 .ok()
                 .filter(|s| !s.trim().is_empty()),
             hianime_mirror_url: env::var("HIANIME_MIRROR_URL")
+                .ok()
+                .filter(|s| !s.trim().is_empty()),
+            fcm_service_account: env::var("FCM_SERVICE_ACCOUNT")
                 .ok()
                 .filter(|s| !s.trim().is_empty()),
             worker_upstream_hosts: env::var("WORKER_UPSTREAM_HOSTS")
@@ -260,6 +267,7 @@ mod tests {
             kkey: "test-kkey".to_string(),
             cf_worker_url: None,
             hianime_mirror_url: None,
+            fcm_service_account: None,
             worker_upstream_hosts: vec![],
             sticky_pref_enabled: true,
             sticky_pref_ttl_secs: 3600,
@@ -319,6 +327,7 @@ mod tests {
             kkey: "test-kkey".to_string(),
             cf_worker_url: None,
             hianime_mirror_url: None,
+            fcm_service_account: None,
             worker_upstream_hosts: vec![],
             sticky_pref_enabled: true,
             sticky_pref_ttl_secs: 3600,

@@ -84,6 +84,7 @@ pub struct AppState {
     pub vidvault: Arc<crate::clients::vidvault::VidVaultClient>,
     pub aisports: Arc<crate::clients::aisports::AiSportsClient>,
     pub anime_agg: Arc<crate::clients::anime_agg::AnimeAggregator>,
+    pub fcm: Option<crate::infra::fcm::FcmClient>,
     pub secret: String,
     pub kkey: String,
     pub proxy_base_url: String,
@@ -251,6 +252,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         hianime: hianime_client.clone(),
         vidvault: vidvault_client.clone(),
         anime_agg: anime_agg.clone(),
+        fcm: crate::infra::fcm::FcmClient::new(cfg.fcm_service_account.clone()),
         aisports: Arc::new(crate::clients::aisports::AiSportsClient::new(
             crate::http_client::wrap_with_retry(
                 reqwest::Client::builder()
@@ -546,6 +548,14 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/anime/schedule",
             get(crate::routes::anime::schedule_handler),
+        )
+        .route(
+            "/api/notifications/register",
+            axum::routing::post(crate::routes::notifications::register_handler),
+        )
+        .route(
+            "/api/notifications/anime-schedule",
+            get(crate::routes::notifications::anime_schedule_handler),
         )
         .route(
             "/api/aisports/leagues",
