@@ -3,7 +3,7 @@ use crate::clients::vidvault::VidVaultClient;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    response::IntoResponse,
+    response::{IntoResponse, Response},
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -170,4 +170,66 @@ pub async fn download_handler(
         )
             .into_response(),
     }
+}
+
+// ── HLS → MP4 streaming download ─────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct HlsDownloadQuery {
+    pub h_token: String,
+    #[serde(default)]
+    pub filename: Option<String>,
+}
+
+pub async fn hls_download_handler(
+    Query(params): Query<HlsDownloadQuery>,
+) -> impl IntoResponse {
+    use tokio::process::Command as TokioCommand;
+
+    let secret = std::env::var("APP_SECRET").unwrap_or_default();
+    let (target_url, token_headers) = match crate::security::decrypt_url(&params.h_token, &secret) {
+        Some(data) => (data.url, data.headers),
+        None => return (StatusCode::FORBIDDEN, "Invalid token").into_response(),
+    };
+
+    let header_str = token_headers
+        .as_ref()
+        .map(|h| h.iter().map(|(k, v)| format!("{}: {}\r\n", k, v)).collect::<String>())
+        .unwrap_or_default();
+
+    let filename = params.filename.as_deref().unwrap_or("download.mp4")
+        .replace(|c: char| !c.is_ascii_alphanumeric() && c != '.' && c != '-' && c != '_', "_");
+
+    let output = match TokioCommand::new("ffmpeg")
+        .args(["-y", "-headers", &header_str, "-i", &target_url, "-c", "copy",
+               "-bsf:a", "aac_adtstoasc", "-movflags", "frag_keyframe+empty_moov+faststart",
+               "-f", "mp4", "pipe:1"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+    {
+        Ok(c) => match c.wait_with_output().await {
+            Ok(o) => o,
+            Err(e) => { tracing::error!("[download/hls] ffmpeg wait: {}", e);
+                return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg error").into_response(); }
+        },
+        Err(e) => { tracing::error!("[download/hls] ffmpeg spawn: {}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg not available").into_response(); }
+    };
+
+    if !output.status.success() {
+        tracing::warn!("[download/hls] ffmpeg: {}", String::from_utf8_lossy(&output.stderr).lines().last().unwrap_or("unknown"));
+        if output.stdout.is_empty() {
+            return (StatusCode::BAD_GATEWAY, "HLS conversion failed").into_response();
+        }
+    }
+
+    use axum::http::header;
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "video/mp4")
+        .header(header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", filename))
+        .body(axum::body::Body::from(output.stdout))
+        .unwrap()
 }

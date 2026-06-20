@@ -333,6 +333,10 @@ pub fn build_router(state: AppState) -> Router {
             get(crate::routes::download::download_handler),
         )
         .route(
+            "/api/download/hls",
+            get(crate::routes::download::hls_download_handler),
+        )
+        .route(
             "/api/streams/:type/:tmdbId",
             get(crate::routes::streams::streams_handler),
         )
