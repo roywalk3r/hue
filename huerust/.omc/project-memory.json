@@ -268,6 +268,18 @@
       "type": "file"
     },
     {
+      "path": "src/infra/fcm.rs",
+      "accessCount": 3,
+      "lastAccessed": 1781944976381,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/notifications.rs",
+      "accessCount": 3,
+      "lastAccessed": 1781945035447,
+      "type": "file"
+    },
+    {
       "path": "src/providers/vidrock_provider.rs",
       "accessCount": 2,
       "lastAccessed": 1781192880463,
@@ -343,6 +355,12 @@
       "path": "src/main.rs",
       "accessCount": 1,
       "lastAccessed": 1781768286148,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/mod.rs",
+      "accessCount": 1,
+      "lastAccessed": 1781944876389,
       "type": "file"
     }
   ],
