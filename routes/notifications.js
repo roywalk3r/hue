@@ -70,8 +70,10 @@ function getFcm() {
   return fcmApp;
 }
 
+const { getMessaging } = require('firebase-admin/messaging');
+
 async function sendBatch(tokens, payload) {
-  const messaging = getFcm().messaging();
+  const messaging = getMessaging();
   const batches = [];
   while (tokens.length) batches.push(tokens.splice(0, 500));
   for (const batch of batches) {
