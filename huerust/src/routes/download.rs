@@ -204,17 +204,20 @@ pub async fn hls_download_handler(
     let mut cmd = TokioCommand::new("ffmpeg");
     cmd.args(["-y", "-i", &target_url, "-c", "copy", &tmp]);
     if !header_str.is_empty() { cmd.arg("-headers").arg(&header_str); }
-    let status = match cmd.stdin(std::process::Stdio::null())
+    let out = match cmd.stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null()).stderr(std::process::Stdio::piped()).spawn()
     {
-        Ok(c) => match c.wait_with_output().await { Ok(o) => o.status, Err(e) => {
+        Ok(c) => match c.wait_with_output().await { Ok(o) => o, Err(e) => {
             tracing::error!("[download/hls] wait: {}", e);
             return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg error").into_response();
         }},
         Err(e) => { tracing::error!("[download/hls] spawn: {}", e);
             return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg not available").into_response(); }
     };
-    if !status.success() {
+    if !out.status.success() {
+        let stderr_str = String::from_utf8_lossy(&out.stderr);
+        let last = stderr_str.lines().last().unwrap_or("unknown");
+        tracing::warn!("[download/hls] ffmpeg: {}", last);
         let _ = std::fs::remove_file(&tmp);
         return (StatusCode::BAD_GATEWAY, "HLS conversion failed").into_response();
     }
