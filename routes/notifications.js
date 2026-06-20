@@ -45,17 +45,20 @@ loadTokens();
 // ── FCM sender (lazy init) ─────────────────────────────────────────────
 
 let fcmApp = null;
+const FCM_KEY_PATH = process.env.FCM_KEY_PATH || path.join(__dirname, '..', 'vexli-3d15a-firebase-adminsdk-fbsvc-6c3a89a891.json');
+
 function getFcm() {
   if (fcmApp) return fcmApp;
   const admin = require('firebase-admin');
-  const sa = process.env.FCM_SERVICE_ACCOUNT;
-  if (sa) {
+  const keyPath = FCM_KEY_PATH;
+  if (fs.existsSync(keyPath)) {
     fcmApp = admin.initializeApp({
-      credential: admin.credential.cert(JSON.parse(sa)),
+      credential: admin.credential.cert(require(keyPath)),
     });
+    console.log('[notifications] FCM initialized with key', keyPath);
   } else {
-    // Fallback: Application Default Credentials
-    fcmApp = admin.initializeApp();
+    console.error('[notifications] FCM key not found at', keyPath);
+    fcmApp = admin.initializeApp(); // fallback
   }
   return fcmApp;
 }

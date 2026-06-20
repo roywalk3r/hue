@@ -3,6 +3,8 @@ restart.trigger
 .vscode/
 *.log
 *.log.old
+# Firebase service account — do NOT commit
+vexli-3d15a-firebase-adminsdk-fbsvc-*.json
 *.txt
 .gemini/
 gha-creds-*.json
@@ -13,7 +15,7 @@ gha-creds-*.json
 .gemini
 .vscode
 .sh
-
+.leankg
 # Dynamic Data & Config
 hitv_library_cache.json
 hitv_home_cache.json
