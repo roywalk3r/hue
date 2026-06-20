@@ -111,7 +111,6 @@ module.exports = function (metrics) {
     }
 
     const sent = [];
-    const allTokens = [...tokens];
     const now = Date.now();
     const today = new Date().toISOString().slice(0, 10);
 
