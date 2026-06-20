@@ -43,20 +43,29 @@ function addToken(token) {
 // ── FCM sender (lazy init) ─────────────────────────────────────────────
 
 let fcmApp = null;
-const FCM_KEY_PATH = process.env.FCM_KEY_PATH || path.join(__dirname, '..', 'vexli-3d15a-firebase-adminsdk-fbsvc-6c3a89a891.json');
+const FCM_KEY_PATH = process.env.FCM_KEY_PATH
+  || path.join(__dirname, '..', 'vexli-3d15a-firebase-adminsdk-fbsvc-6c3a89a891.json');
 
 function getFcm() {
   if (fcmApp) return fcmApp;
   const admin = require('firebase-admin');
-  const keyPath = FCM_KEY_PATH;
+  const keyPath = process.env.FCM_KEY_PATH
+    || path.resolve(process.cwd(), 'vexli-3d15a-firebase-adminsdk-fbsvc-6c3a89a891.json');
+  console.log('[notifications] looking for FCM key at', keyPath);
   if (fs.existsSync(keyPath)) {
-    fcmApp = admin.initializeApp({
-      credential: admin.credential.cert(require(keyPath)),
-    });
-    console.log('[notifications] FCM initialized with key', keyPath);
+    try {
+      const sa = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
+      fcmApp = admin.initializeApp({
+        credential: admin.credential.cert(sa),
+      });
+      console.log('[notifications] FCM initialized');
+    } catch (e) {
+      console.error('[notifications] FCM init failed:', e.message);
+      throw e;
+    }
   } else {
     console.error('[notifications] FCM key not found at', keyPath);
-    fcmApp = admin.initializeApp(); // fallback
+    throw new Error('FCM key not found');
   }
   return fcmApp;
 }
