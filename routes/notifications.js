@@ -13,25 +13,25 @@ const fs = require('fs');
 const path = require('path');
 const router = express.Router();
 
-const TOKENS_FILE = path.join(__dirname, '..', 'utils', 'fcm-tokens.json');
+const TOKENS_FILE = process.env.FCM_TOKENS_FILE || path.join(__dirname, '..', 'data', 'fcm-tokens.json');
 const CRON_SECRET = process.env.NOTIFICATION_CRON_SECRET || 'hue-cron-2026';
 
-// ── Token store (in-memory + file-backed) ──────────────────────────────
+// ── Token store (file-backed — PM2 cluster safe) ─────────────────────
 
-let tokens = new Set();
-
-function loadTokens() {
+function readTokens() {
   try {
     if (fs.existsSync(TOKENS_FILE)) {
-      const raw = fs.readFileSync(TOKENS_FILE, 'utf8');
-      tokens = new Set(JSON.parse(raw));
+      return new Set(JSON.parse(fs.readFileSync(TOKENS_FILE, 'utf8')));
     }
   } catch (e) {
-    console.error('[notifications] failed to load tokens', e.message);
+    console.error('[notifications] failed to read tokens', e.message);
   }
+  return new Set();
 }
 
-function saveTokens() {
+function addToken(token) {
+  const tokens = readTokens();
+  tokens.add(token);
   try {
     fs.mkdirSync(path.dirname(TOKENS_FILE), { recursive: true });
     fs.writeFileSync(TOKENS_FILE, JSON.stringify([...tokens]), 'utf8');
@@ -39,8 +39,6 @@ function saveTokens() {
     console.error('[notifications] failed to save tokens', e.message);
   }
 }
-
-loadTokens();
 
 // ── FCM sender (lazy init) ─────────────────────────────────────────────
 
@@ -88,8 +86,7 @@ module.exports = function (metrics) {
   router.post('/register', async (req, res) => {
     const { fcm_token } = req.body;
     if (!fcm_token) return res.status(400).json({ success: false, error: 'fcm_token required' });
-    tokens.add(fcm_token);
-    saveTokens();
+    addToken(fcm_token);
     res.json({ success: true });
   });
 
@@ -99,7 +96,8 @@ module.exports = function (metrics) {
       return res.status(403).json({ error: 'invalid secret' });
     }
 
-    if (!tokens.size) {
+    const allTokens = [...readTokens()];
+    if (!allTokens.length) {
       return res.json({ success: true, sent: 0, message: 'no tokens' });
     }
 
