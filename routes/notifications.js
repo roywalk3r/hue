@@ -99,6 +99,23 @@ module.exports = function (metrics) {
     res.json({ success: true });
   });
 
+  /** Test endpoint — send a sample push immediately */
+  router.get('/test', async (req, res) => {
+    if (req.query.secret !== CRON_SECRET) {
+      return res.status(403).json({ error: 'invalid secret' });
+    }
+    const allTokens = [...readTokens()];
+    if (!allTokens.length) {
+      return res.json({ success: true, sent: 0, message: 'no tokens' });
+    }
+    await sendBatch([...allTokens], {
+      title: 'Test Notification',
+      body: 'This is a test push from Vexli!',
+      data: { type: 'anime', id: 'test-slug' },
+    });
+    res.json({ success: true, sent: 1, tokens: allTokens.length });
+  });
+
   /** Cron endpoint — fetch latest from all sources and push  */
   router.get('/cron', async (req, res) => {
     if (req.query.secret !== CRON_SECRET) {
