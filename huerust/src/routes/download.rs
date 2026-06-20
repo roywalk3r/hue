@@ -10,6 +10,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+struct CleanupGuard(String);
+impl Drop for CleanupGuard {
+    fn drop(&mut self) { let _ = std::fs::remove_file(&self.0); }
+}
+
 #[derive(Clone)]
 pub struct DownloadState {
     pub vidvault: Arc<VidVaultClient>,
@@ -201,6 +206,8 @@ pub async fn hls_download_handler(
         .replace(|c: char| !c.is_ascii_alphanumeric() && c != '.' && c != '-' && c != '_', "_");
 
     let tmp = format!("/tmp/hue_dl_{}.mp4", std::process::id());
+    // Ensure temp file cleanup even on early return or panic.
+    let _guard = CleanupGuard(tmp.clone());
     let mut cmd = TokioCommand::new("ffmpeg");
     cmd.args(["-y", "-i", &target_url, "-c", "copy", &tmp]);
     if !header_str.is_empty() { cmd.arg("-headers").arg(&header_str); }
