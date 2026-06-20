@@ -200,10 +200,12 @@ pub async fn hls_download_handler(
     let filename = params.filename.as_deref().unwrap_or("download.mp4")
         .replace(|c: char| !c.is_ascii_alphanumeric() && c != '.' && c != '-' && c != '_', "_");
 
-    let output = match TokioCommand::new("ffmpeg")
-        .args(["-y", "-headers", &header_str, "-i", &target_url, "-c", "copy",
-               "-bsf:a", "aac_adtstoasc", "-movflags", "frag_keyframe+empty_moov+faststart",
-               "-f", "mp4", "pipe:1"])
+    let mut cmd = TokioCommand::new("ffmpeg");
+    cmd.args(["-y", "-i", &target_url, "-c", "copy", "-f", "mp4", "pipe:1"]);
+    if !header_str.is_empty() {
+        cmd.arg("-headers").arg(&header_str);
+    }
+    let output = match cmd
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
