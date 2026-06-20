@@ -7,6 +7,8 @@
  * @license MIT
  */
 
+#![allow(dead_code)]
+
 use crate::clients::tmdb::TmdbNormalizedInfo;
 use crate::models::StreamResult;
 use crate::providers::videasy::VideasyClient;

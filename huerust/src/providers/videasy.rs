@@ -7,6 +7,7 @@
  * @license MIT
  */
 
+#![allow(dead_code)]
 //! Videasy Client — delegates WASM decryption to Node.js daemon.
 //!
 //! Flow:

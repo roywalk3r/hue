@@ -305,6 +305,7 @@ pub struct FilterOptions {
 /// `serde_json::Value` passthrough).
 #[derive(Debug, Default, Clone, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct FilterParams {
     /// TV, movie, ova, ona, special, music
     #[serde(default)]

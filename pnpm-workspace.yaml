@@ -1,3 +1,5 @@
 allowBuilds:
+  '@firebase/util': set this to true or false
   '@scarf/scarf': true
+  protobufjs: set this to true or false
   puppeteer: true
