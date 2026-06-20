@@ -67,7 +67,7 @@ impl AppConfig {
             cache_ttl_secs: env::var("CACHE_TTL_SECS")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(14400),
+                .unwrap_or(1800), // 30 min — CDN URLs expire in ~1h
             cache_max_capacity: env::var("CACHE_MAX_CAPACITY")
                 .ok()
                 .and_then(|s| s.parse().ok())
