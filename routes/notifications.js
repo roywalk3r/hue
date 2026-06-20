@@ -56,7 +56,7 @@ function getFcm() {
     try {
       const sa = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
       fcmApp = admin.initializeApp({
-        credential: admin.credential.cert(sa),
+        credential: admin.cert(sa),
       });
       console.log('[notifications] FCM initialized');
     } catch (e) {
