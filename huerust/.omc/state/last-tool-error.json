@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"git add lib/core/services/kkey_crypto.dart && git commit -m \\\"fix: try multiple epoch hours for kkey decrypt\\\" && git push origin feat/polish-and-themes 2>&1 | tail -3\",\"description\":\"Comm...",
-  "error": "Exit code 128\nwarning: could not open directory 'huerust/lib/core/services/': No such file or directory\nfatal: pathspec 'lib/core/services/kkey_crypto.dart' did not match any files",
-  "timestamp": "2026-06-20T16:47:35.108Z",
-  "retry_count": 3
+  "tool_input_preview": "{\"command\":\"grep -n \\\"_downloadStream\\\\|_hlsDownloadUrl\\\\|_directDownloadUrl\\\\|VidVaultDownloadClient\\\\|vidvault\\\" lib/features/detail/presentation/pages/detail_page.dart\",\"description\":\"Find dead cod...",
+  "error": "Exit code 2\nugrep: warning: lib/features/detail/presentation/pages/detail_page.dart: No such file or directory",
+  "timestamp": "2026-06-20T17:22:08.395Z",
+  "retry_count": 1
 }

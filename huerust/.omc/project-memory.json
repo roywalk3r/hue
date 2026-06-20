@@ -161,8 +161,8 @@
     },
     {
       "path": "src/app.rs",
-      "accessCount": 20,
-      "lastAccessed": 1781793427213,
+      "accessCount": 23,
+      "lastAccessed": 1781976437214,
       "type": "file"
     },
     {
@@ -196,6 +196,12 @@
       "type": "file"
     },
     {
+      "path": "src/routes/download.rs",
+      "accessCount": 11,
+      "lastAccessed": 1781975994905,
+      "type": "file"
+    },
+    {
       "path": "src/models/anime.rs",
       "accessCount": 10,
       "lastAccessed": 1781646071603,
@@ -220,6 +226,12 @@
       "type": "file"
     },
     {
+      "path": "src/config.rs",
+      "accessCount": 7,
+      "lastAccessed": 1781975065892,
+      "type": "file"
+    },
+    {
       "path": "src/routes/streams.rs",
       "accessCount": 6,
       "lastAccessed": 1781467522600,
@@ -235,18 +247,6 @@
       "path": "Cargo.toml",
       "accessCount": 5,
       "lastAccessed": 1781346317430,
-      "type": "file"
-    },
-    {
-      "path": "src/config.rs",
-      "accessCount": 5,
-      "lastAccessed": 1781793420733,
-      "type": "file"
-    },
-    {
-      "path": "src/routes/download.rs",
-      "accessCount": 5,
-      "lastAccessed": 1781973973835,
       "type": "file"
     },
     {
