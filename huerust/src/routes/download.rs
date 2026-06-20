@@ -200,7 +200,7 @@ pub async fn hls_download_handler(
     let filename = params.filename.as_deref().unwrap_or("download.mp4")
         .replace(|c: char| !c.is_ascii_alphanumeric() && c != '.' && c != '-' && c != '_', "_");
 
-    let tmp = format!("hue_dl_{}.mp4", std::process::id());
+    let tmp = format!("/tmp/hue_dl_{}.mp4", std::process::id());
     let mut cmd = TokioCommand::new("ffmpeg");
     cmd.args(["-y", "-i", &target_url, "-c", "copy", &tmp]);
     if !header_str.is_empty() { cmd.arg("-headers").arg(&header_str); }
