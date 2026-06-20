@@ -107,7 +107,7 @@ pub async fn streams_handler(
             } else {
                 filtered
             };
-            encrypt_stream_result_urls(&mut final_streams, &state.kkey);
+            crate::security::re_encrypt_cached_urls(&mut final_streams, &state.kkey);
 
             return (
                 StatusCode::OK,

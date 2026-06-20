@@ -186,6 +186,28 @@ pub fn encrypt_stream_result_urls(streams: &mut [crate::models::StreamResult], k
     }
 }
 
+/// Re-encrypt cached stream URLs with the current epoch hour so clients
+/// can always decrypt them — avoids the double-encryption bug where
+/// `encrypt_stream_result_urls` is called on already-encrypted cache entries.
+pub fn re_encrypt_cached_urls(streams: &mut [crate::models::StreamResult], kkey: &str) {
+    for s in streams.iter_mut() {
+        if s.url.contains(':') {
+            if let Some(dec) = kkey_decrypt(&s.url, kkey) {
+                s.url = kkey_encrypt(&dec, kkey);
+            }
+        }
+        if let Some(ref mut subs) = s.subtitles {
+            for sub in subs.iter_mut() {
+                if sub.url.contains(':') {
+                    if let Some(dec) = kkey_decrypt(&sub.url, kkey) {
+                        sub.url = kkey_encrypt(&dec, kkey);
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
