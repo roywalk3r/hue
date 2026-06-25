@@ -113,20 +113,37 @@ fn validated_proxy_source(source: &str, proxy_base_url: &str) -> Option<String> 
     (same_origin && media_proxy).then(|| source.to_string())
 }
 
-/// Convert a backend proxy URL (m3u8-proxy or ts-proxy with h_token) into the
-/// decrypted upstream target URL and headers. ffmpeg needs the real upstream
-/// URL, not our signed proxy endpoint.
+/// Convert a backend proxy URL (`/m3u8-proxy` or `/ts-proxy`) into the real
+/// upstream target URL and headers. Supports both the signed `h_token` form
+/// and the plain `url`+`headers` form used by anime streams. ffmpeg needs the
+/// real upstream URL, not our proxy endpoint.
 fn resolve_upstream_from_proxy_url(
     source: &str,
     secret: &str,
 ) -> Option<(String, Option<HashMap<String, String>>)> {
     let url = url::Url::parse(source).ok()?;
-    let token = url
+
+    // Only resolve our own media proxy routes.
+    if !matches!(url.path(), "/m3u8-proxy" | "/ts-proxy") {
+        return None;
+    }
+
+    // Signed h_token form (VidVault / encrypted sources).
+    if let Some((_, token)) = url.query_pairs().find(|(k, _)| k == "h_token") {
+        let data = crate::security::decrypt_url(&token, secret)?;
+        return Some((data.url, data.headers));
+    }
+
+    // Plain url+headers form (anime / public proxy sources).
+    let upstream = url
         .query_pairs()
-        .find(|(k, _)| k == "h_token")
+        .find(|(k, _)| k == "url")
         .map(|(_, v)| v.to_string())?;
-    let data = crate::security::decrypt_url(&token, secret)?;
-    Some((data.url, data.headers))
+    let headers = url
+        .query_pairs()
+        .find(|(k, _)| k == "headers")
+        .and_then(|(_, v)| serde_json::from_str::<HashMap<String, String>>(&v).ok());
+    Some((upstream, headers))
 }
 
 fn build_background_download_proxy_url(
