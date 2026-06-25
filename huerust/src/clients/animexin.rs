@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use regex::Regex;
 use reqwest_middleware::ClientWithMiddleware;
+use tracing::warn;
 
 use crate::models::anime::{
     AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, EpisodeSummary, FilterParams,
@@ -417,16 +418,8 @@ impl AnimexinClient {
     }
 
     pub async fn discover(&self, params: &FilterParams) -> Result<PaginatedResponse<AnimeCard>> {
-        let page = params.page.unwrap_or(1).max(1);
-        let limit = params.limit.unwrap_or(20).clamp(1, 50) as usize;
-        // The homepage lists episode posts, so browse the dedicated series
-        // listing page to get actual show pages with pagination.
-        let url = format!(
-            "{}/anime/?status=&type=&order=update&page={}",
-            BASE_URL, page
-        );
-        let resp = self.client.get(&url).send().await?;
-        let html = resp.text().await?;
+        let start_page = params.page.unwrap_or(1).max(1) as usize;
+        let limit = params.limit.unwrap_or(20).clamp(1, 200) as usize;
 
         let article_re = Regex::new(r#"(?s)<article[^>]*class="bs"[^>]*>(.*?)</article>"#)?;
         let link_re =
@@ -436,61 +429,89 @@ impl AnimexinClient {
         let status_re = Regex::new(r#"<div\s+class="status\s+([^"]+)">"#)?;
 
         let mut items = Vec::new();
-        for cap in article_re.captures_iter(&html) {
-            let block = cap.get(1).map(|m| m.as_str()).unwrap_or("");
-            let Some(link_cap) = link_re.captures(block) else { continue };
-            let slug = link_cap
-                .get(1)
-                .map(|m| m.as_str().to_string())
-                .unwrap_or_default();
-            let title = link_cap
-                .get(2)
-                .map(|m| m.as_str().trim().to_string())
-                .unwrap_or_default();
-            if slug.is_empty() || title.is_empty() || is_utility_page(&slug) {
-                continue;
+        let mut current_page = start_page;
+        // Animexin's series listing shows 30 items per page; keep fetching
+        // pages until we satisfy the requested limit (up to 10 pages to
+        // avoid runaway requests).
+        loop {
+            let url = format!(
+                "{}/anime/?status=&type=&order=update&page={}",
+                BASE_URL, current_page
+            );
+            let html = match self.client.get(&url).send().await {
+                Ok(resp) => resp.text().await?,
+                Err(e) => {
+                    warn!("[Animexin] discover page {} fetch failed: {}", current_page, e);
+                    break;
+                }
+            };
+
+            let mut page_items = 0usize;
+            for cap in article_re.captures_iter(&html) {
+                let block = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+                let Some(link_cap) = link_re.captures(block) else { continue };
+                let slug = link_cap
+                    .get(1)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default();
+                let title = link_cap
+                    .get(2)
+                    .map(|m| m.as_str().trim().to_string())
+                    .unwrap_or_default();
+                if slug.is_empty() || title.is_empty() || is_utility_page(&slug) {
+                    continue;
+                }
+                if items.iter().any(|c: &AnimeCard| c.id == slug) {
+                    continue;
+                }
+
+                let image = img_re
+                    .captures(block)
+                    .and_then(|c| c.get(1).map(|m| m.as_str().to_string()));
+                let anime_type = type_re
+                    .captures(block)
+                    .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
+                let status = status_re
+                    .captures(block)
+                    .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
+
+                items.push(AnimeCard {
+                    id: slug.clone(),
+                    title: clean_title(&title),
+                    japanese_title: None,
+                    synopsis: None,
+                    image,
+                    banner_image: None,
+                    anime_type: anime_type.or_else(|| Some("TV".to_string())),
+                    status,
+                    score: None,
+                    rating: None,
+                    genres: None,
+                    total_episodes: None,
+                    total_subbed: None,
+                    total_dubbed: None,
+                    slug: Some(slug),
+                    mal_id: None,
+                    view_count: None,
+                    aired: None,
+                    duration: None,
+                    country: Some("CN".into()),
+                    source: Some("animexin".to_string()),
+                    has_sub: true,
+                    has_dub: false,
+                });
+                page_items += 1;
+
+                if items.len() >= limit {
+                    break;
+                }
             }
-            if items.iter().any(|c: &AnimeCard| c.id == slug) {
-                continue;
+
+            if items.len() >= limit || page_items == 0 {
+                break;
             }
-
-            let image = img_re
-                .captures(block)
-                .and_then(|c| c.get(1).map(|m| m.as_str().to_string()));
-            let anime_type = type_re
-                .captures(block)
-                .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
-            let status = status_re
-                .captures(block)
-                .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
-
-            items.push(AnimeCard {
-                id: slug.clone(),
-                title: clean_title(&title),
-                japanese_title: None,
-                synopsis: None,
-                image,
-                banner_image: None,
-                anime_type: anime_type.or_else(|| Some("TV".to_string())),
-                status,
-                score: None,
-                rating: None,
-                genres: None,
-                total_episodes: None,
-                total_subbed: None,
-                total_dubbed: None,
-                slug: Some(slug),
-                mal_id: None,
-                view_count: None,
-                aired: None,
-                duration: None,
-                country: Some("CN".into()),
-                source: Some("animexin".to_string()),
-                has_sub: true,
-                has_dub: false,
-            });
-
-            if items.len() >= limit {
+            current_page += 1;
+            if current_page > start_page + 9 {
                 break;
             }
         }
@@ -500,7 +521,7 @@ impl AnimexinClient {
         Ok(PaginatedResponse {
             items,
             total,
-            page,
+            page: start_page as u32,
             limit: limit as u32,
             has_more,
         })
