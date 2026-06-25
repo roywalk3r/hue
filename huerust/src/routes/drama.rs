@@ -519,6 +519,7 @@ pub async fn moviebox_streams_direct_handler(
     }
 
     let episode = params.episode.unwrap_or(1);
+    let start = std::time::Instant::now();
     tracing::info!(
         "[drama] moviebox_streams_direct: path={} ep={}",
         detail_path,
@@ -532,7 +533,10 @@ pub async fn moviebox_streams_direct_handler(
         .map(str::trim)
         .filter(|id| !id.is_empty())
     {
-        Some(id) => id.to_string(),
+        Some(id) => {
+            tracing::info!("[drama] moviebox_streams_direct: using provided subject_id in {}ms", start.elapsed().as_millis());
+            id.to_string()
+        }
         None => match state.moviebox.get_detail(detail_path).await {
             Ok(detail) => {
                 subject_type = detail["data"]["subject"]["subjectType"]
@@ -592,15 +596,27 @@ pub async fn moviebox_streams_direct_handler(
         });
 
     let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
+    let streams_start = std::time::Instant::now();
     match state
         .moviebox
         .get_streams_for_detail(&subject_id, detail_path, media_type, 1, episode)
         .await
     {
         Ok(streams) => {
-            tracing::info!("[drama] moviebox_streams_direct: {} streams", streams.len());
+            let streams_ms = streams_start.elapsed().as_millis();
+            tracing::info!(
+                "[drama] moviebox_streams_direct: {} streams fetched in {}ms",
+                streams.len(),
+                streams_ms
+            );
+            let wrap_start = std::time::Instant::now();
             let mut proxied = wrap_with_proxy(streams, &proxy_base, &state.secret);
             encrypt_stream_result_urls(&mut proxied, &state.kkey);
+            tracing::info!(
+                "[drama] moviebox_streams_direct: wrapped+encrypted in {}ms (total {}ms)",
+                wrap_start.elapsed().as_millis(),
+                start.elapsed().as_millis()
+            );
             (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
         }
         Err(e) => {

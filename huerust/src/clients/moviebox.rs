@@ -319,6 +319,7 @@ impl MovieBoxClient {
         season: u32,
         episode: u32,
     ) -> Result<Option<StreamData>> {
+        let overall_start = std::time::Instant::now();
         info!(
             "[MovieBox Rust] get_streams start: subject_id={} detail_path={} se={} ep={}",
             subject_id, detail_path, season, episode
@@ -352,6 +353,7 @@ impl MovieBoxClient {
                 let episode = episode;
 
                 set.spawn(async move {
+                    let attempt_start = std::time::Instant::now();
                     let play_url = format!("https://{}/wefeed-h5api-bff/subject/play", host);
                     info!("[MovieBox Rust] Trying host={} tz={} subjectId={} se={} ep={}", host, tz, subject_id, season, episode);
 
@@ -403,7 +405,13 @@ impl MovieBoxClient {
                                         return None;
                                     }
                                 };
-                                stream_data.source_host = Some(host);
+                                stream_data.source_host = Some(host.clone());
+                                info!(
+                                    "[MovieBox Rust] {} tz={} returned streams in {}ms",
+                                    host,
+                                    tz,
+                                    attempt_start.elapsed().as_millis()
+                                );
                                 return Some(stream_data);
                             }
                             let message = data["message"].as_str().unwrap_or("unknown");
@@ -428,8 +436,12 @@ impl MovieBoxClient {
 
         while let Some(result) = set.join_next().await {
             match &result {
-                Ok(Some(_)) => {
-                    info!("[MovieBox Rust] Host task returned streams");
+                Ok(Some(data)) => {
+                    info!(
+                        "[MovieBox Rust] Host task returned streams after {}ms (winner={:?})",
+                        overall_start.elapsed().as_millis(),
+                        data.source_host
+                    );
                     set.abort_all();
                     return Ok(result.unwrap());
                 }
@@ -443,8 +455,11 @@ impl MovieBoxClient {
         }
 
         warn!(
-            "[MovieBox Rust] All hosts failed for subjectId={} se={} ep={}",
-            subject_id, season, episode
+            "[MovieBox Rust] All hosts failed for subjectId={} se={} ep={} after {}ms",
+            subject_id,
+            season,
+            episode,
+            overall_start.elapsed().as_millis()
         );
         Ok(None)
     }
