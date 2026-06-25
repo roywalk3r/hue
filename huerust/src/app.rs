@@ -290,6 +290,10 @@ pub fn spawn_background_tasks(state: &AppState) {
 pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(crate::routes::system::health_check))
+        .route(
+            "/health/version",
+            get(crate::routes::system::health_version),
+        )
         .route("/metrics", get(crate::routes::system::metrics_handler))
         .route("/api/proxy", get(crate::proxy::generic_proxy_handler))
         .route("/m3u8-proxy", get(crate::proxy::m3u8_handler))
@@ -997,4 +1001,3 @@ impl FromRef<AppState> for SystemState {
         }
     }
 }
-

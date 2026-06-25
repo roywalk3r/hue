@@ -3,7 +3,7 @@ use crate::clients::vidvault::VidVaultClient;
 use axum::{
     body::{Body, Bytes},
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
@@ -100,9 +100,52 @@ fn build_ffmpeg_args(target_url: &str, header_str: &str, output: &str) -> Vec<St
     args
 }
 
+/// Validate that `source` is a URL on our own proxy origin. We only accept
+/// our own `/m3u8-proxy` or `/ts-proxy` endpoints here; raw upstream URLs
+/// must come via an encrypted `h_token` so headers stay attached.
+fn validated_proxy_source(source: &str, proxy_base_url: &str) -> Option<String> {
+    let source_url = url::Url::parse(source).ok()?;
+    let proxy_url = url::Url::parse(proxy_base_url).ok()?;
+    let same_origin = source_url.scheme() == proxy_url.scheme()
+        && source_url.host_str() == proxy_url.host_str()
+        && source_url.port_or_known_default() == proxy_url.port_or_known_default();
+    let media_proxy = matches!(source_url.path(), "/m3u8-proxy" | "/ts-proxy");
+    (same_origin && media_proxy).then(|| source.to_string())
+}
+
+/// Convert a backend proxy URL (m3u8-proxy or ts-proxy with h_token) into the
+/// decrypted upstream target URL and headers. ffmpeg needs the real upstream
+/// URL, not our signed proxy endpoint.
+fn resolve_upstream_from_proxy_url(
+    source: &str,
+    secret: &str,
+) -> Option<(String, Option<HashMap<String, String>>)> {
+    let url = url::Url::parse(source).ok()?;
+    let token = url
+        .query_pairs()
+        .find(|(k, _)| k == "h_token")
+        .map(|(_, v)| v.to_string())?;
+    let data = crate::security::decrypt_url(&token, secret)?;
+    Some((data.url, data.headers))
+}
+
+fn build_background_download_proxy_url(
+    source_url: &str,
+    headers: HashMap<String, String>,
+    proxy_base_url: &str,
+    secret: &str,
+) -> String {
+    let token = crate::security::encrypt_url(source_url, secret, Some(headers));
+    format!(
+        "{}/ts-proxy?h_token={}&no_synth=1",
+        proxy_base_url.trim_end_matches('/'),
+        token
+    )
+}
+
 #[cfg(test)]
 mod tests {
-    use super::build_ffmpeg_args;
+    use super::{build_background_download_proxy_url, build_ffmpeg_args, validated_proxy_source};
 
     #[test]
     fn ffmpeg_headers_are_input_options() {
@@ -116,15 +159,48 @@ mod tests {
         let input = args.iter().position(|arg| arg == "-i").unwrap();
         assert!(headers < input, "headers must be applied before the input");
     }
+
+    #[test]
+    fn hls_source_accepts_only_our_media_proxy() {
+        let base = "https://api.vexli.online";
+        assert!(
+            validated_proxy_source("https://api.vexli.online/m3u8-proxy?h_token=abc", base,)
+                .is_some()
+        );
+        assert!(validated_proxy_source("https://evil.example/stream.m3u8", base).is_none());
+        assert!(validated_proxy_source("https://api.vexli.online/api/admin", base).is_none());
+    }
+
+    #[test]
+    fn header_protected_downloads_use_the_signed_backend_proxy() {
+        let mut headers = std::collections::HashMap::new();
+        headers.insert("Referer".to_string(), "https://vidvault.ru/".to_string());
+        headers.insert("Origin".to_string(), "https://vidvault.ru".to_string());
+
+        let url = build_background_download_proxy_url(
+            "https://mkv.example.workers.dev/d/file",
+            headers,
+            "https://api.vexli.online",
+            "test-secret",
+        );
+
+        assert!(url.starts_with("https://api.vexli.online/ts-proxy?h_token="));
+        assert!(url.contains("no_synth=1"));
+        assert!(!url.contains("mkv.example.workers.dev"));
+        assert!(!url.contains("download=1"));
+    }
 }
 
 pub async fn download_handler(
     State(state): State<DownloadState>,
+    request_headers: HeaderMap,
     Path((media_type, tmdb_id)): Path<(String, String)>,
     Query(q): Query<DownloadQuery>,
 ) -> impl IntoResponse {
     let season = q.season.unwrap_or(1);
     let episode = q.episode.unwrap_or(1);
+    let public_proxy_base =
+        crate::proxy::dynamic_proxy_base(&request_headers, &state.proxy_base_url);
 
     let (show_name, year) = state
         .tmdb
@@ -171,12 +247,18 @@ pub async fn download_handler(
                     let filename = sanitize_filename(&base);
 
                     if f.format == "mkv" {
+                        let proxied = build_background_download_proxy_url(
+                            &f.url,
+                            mkv_headers.clone(),
+                            &public_proxy_base,
+                            &state.secret,
+                        );
                         DownloadFileOut {
-                            url: f.url,
+                            url: proxied,
                             size: f.size,
                             format: f.format,
                             filename,
-                            headers: Some(mkv_headers.clone()),
+                            headers: None,
                             downloadable: true,
                         }
                     } else {
@@ -202,7 +284,7 @@ pub async fn download_handler(
                                 crate::security::encrypt_url(&f.url, &state.secret, Some(headers));
                             let proxied = format!(
                                 "{}/ts-proxy?h_token={}&download=1&filename={}",
-                                state.proxy_base_url,
+                                public_proxy_base,
                                 token,
                                 urlencoding::encode(&filename),
                             );
@@ -240,18 +322,39 @@ pub async fn download_handler(
 
 #[derive(Deserialize)]
 pub struct HlsDownloadQuery {
-    pub h_token: String,
+    pub h_token: Option<String>,
+    pub source: Option<String>,
     #[serde(default)]
     pub filename: Option<String>,
 }
 
-pub async fn hls_download_handler(Query(params): Query<HlsDownloadQuery>) -> impl IntoResponse {
+pub async fn hls_download_handler(
+    State(state): State<DownloadState>,
+    Query(params): Query<HlsDownloadQuery>,
+) -> impl IntoResponse {
     use tokio::process::Command as TokioCommand;
 
-    let secret = std::env::var("APP_SECRET").unwrap_or_default();
-    let (target_url, token_headers) = match crate::security::decrypt_url(&params.h_token, &secret) {
-        Some(data) => (data.url, data.headers),
-        None => return (StatusCode::FORBIDDEN, "Invalid token").into_response(),
+    let (target_url, token_headers) = match params.h_token.as_deref() {
+        Some(token) => match crate::security::decrypt_url(token, &state.secret) {
+            Some(data) => (data.url, data.headers),
+            None => return (StatusCode::FORBIDDEN, "Invalid token").into_response(),
+        },
+        None => match params.source.as_deref() {
+            Some(source) => {
+                // If the client sent a proxied URL, decrypt it to the real
+                // upstream target so ffmpeg talks to the CDN directly.
+                if let Some((url, headers)) =
+                    resolve_upstream_from_proxy_url(source, &state.secret)
+                {
+                    (url, headers)
+                } else if validated_proxy_source(source, &state.proxy_base_url).is_some() {
+                    (source.to_string(), None)
+                } else {
+                    return (StatusCode::BAD_REQUEST, "Missing download source").into_response();
+                }
+            }
+            None => return (StatusCode::BAD_REQUEST, "Missing download source").into_response(),
+        },
     };
 
     let header_str = token_headers
@@ -299,7 +402,18 @@ pub async fn hls_download_handler(Query(params): Query<HlsDownloadQuery>) -> imp
     if !out.status.success() {
         let stderr_str = String::from_utf8_lossy(&out.stderr);
         let last = stderr_str.lines().last().unwrap_or("unknown");
-        tracing::warn!("[download/hls] ffmpeg: {}", last);
+        // Log enough of stderr to diagnose failures without dumping
+        // the entire manifest in normal operation.
+        let preview = stderr_str
+            .chars()
+            .take(1200)
+            .collect::<String>();
+        tracing::warn!(
+            "[download/hls] ffmpeg failed for {}: {} | stderr preview: {}",
+            target_url,
+            last,
+            preview.replace('\n', " | ")
+        );
         let _ = std::fs::remove_file(&tmp);
         return (StatusCode::BAD_GATEWAY, "HLS conversion failed").into_response();
     }

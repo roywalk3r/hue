@@ -5,11 +5,39 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
+    Json,
 };
 use tracing::{info, warn};
 
 pub async fn health_check() -> &'static str {
     "Huerust is Alive"
+}
+
+pub fn build_info() -> serde_json::Value {
+    serde_json::json!({
+        "service": "huerust",
+        "version": env!("CARGO_PKG_VERSION"),
+        "commit": env!("HUE_GIT_SHA"),
+        "dirty": env!("HUE_GIT_DIRTY") == "true",
+    })
+}
+
+pub async fn health_version() -> Json<serde_json::Value> {
+    Json(build_info())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_info;
+
+    #[test]
+    fn build_info_identifies_the_deployed_binary() {
+        let info = build_info();
+
+        assert_eq!(info["service"], "huerust");
+        assert_eq!(info["version"], env!("CARGO_PKG_VERSION"));
+        assert!(info["commit"].as_str().is_some_and(|value| !value.is_empty()));
+    }
 }
 
 pub async fn metrics_handler(State(state): State<SystemState>) -> Response {
