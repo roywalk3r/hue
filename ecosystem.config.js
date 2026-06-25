@@ -19,8 +19,7 @@ module.exports = {
     },
     {
       name: 'hueapi',
-      script: 'cargo',
-      args: 'run --release',
+      script: './huerust/target/release/huerust',
       cwd: './huerust',
       env: {
         RUST_PORT: 24609,
