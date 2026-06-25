@@ -3,8 +3,8 @@ use regex::Regex;
 use reqwest_middleware::ClientWithMiddleware;
 
 use crate::models::anime::{
-    AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, EpisodeSummary, ServerEntry,
-    ServerList, StreamPayload,
+    AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, EpisodeSummary, FilterParams,
+    PaginatedResponse, ServerEntry, ServerList, StreamPayload,
 };
 
 const BASE_URL: &str = "https://animexin.dev";
@@ -91,6 +91,7 @@ impl AnimexinClient {
                     aired: None,
                     duration: None,
                     country: Some("CN".into()),
+                    source: Some("animexin".to_string()),
                     has_sub: true,
                     has_dub: false,
                 });
@@ -154,6 +155,7 @@ impl AnimexinClient {
             aired: None,
             duration: None,
             country: Some("CN".into()),
+            source: Some("animexin".to_string()),
             has_sub: true,
             has_dub: false,
         };
@@ -383,6 +385,7 @@ impl AnimexinClient {
                     aired: None,
                     duration: None,
                     country: Some("CN".into()),
+                    source: Some("animexin".to_string()),
                     has_sub: true,
                     has_dub: false,
                 };
@@ -410,6 +413,95 @@ impl AnimexinClient {
             },
             popular: None,
             finished_airing: None,
+        })
+    }
+
+    pub async fn discover(&self, params: &FilterParams) -> Result<PaginatedResponse<AnimeCard>> {
+        let page = params.page.unwrap_or(1).max(1);
+        let limit = params.limit.unwrap_or(20).clamp(1, 50) as usize;
+        let url = if page == 1 {
+            BASE_URL.to_string()
+        } else {
+            format!("{}/page/{}/", BASE_URL, page)
+        };
+        let resp = self.client.get(&url).send().await?;
+        let html = resp.text().await?;
+
+        let article_re = Regex::new(r#"(?s)<article[^>]*class="bs"[^>]*>(.*?)</article>"#)?;
+        let link_re =
+            Regex::new(r#"<a\s+href="https://animexin\.dev/([^"]+)/"[^>]*title="([^"]+)""#)?;
+        let img_re = Regex::new(r#"<img[^>]+src="([^"]+)""#)?;
+        let type_re = Regex::new(r#"<div\s+class="typez\s+([^"]+)">"#)?;
+        let status_re = Regex::new(r#"<div\s+class="status\s+([^"]+)">"#)?;
+
+        let mut items = Vec::new();
+        for cap in article_re.captures_iter(&html) {
+            let block = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            let Some(link_cap) = link_re.captures(block) else { continue };
+            let slug = link_cap
+                .get(1)
+                .map(|m| m.as_str().to_string())
+                .unwrap_or_default();
+            let title = link_cap
+                .get(2)
+                .map(|m| m.as_str().trim().to_string())
+                .unwrap_or_default();
+            if slug.is_empty() || title.is_empty() || is_utility_page(&slug) || slug.contains("episode") {
+                continue;
+            }
+            if items.iter().any(|c: &AnimeCard| c.id == slug) {
+                continue;
+            }
+
+            let image = img_re
+                .captures(block)
+                .and_then(|c| c.get(1).map(|m| m.as_str().to_string()));
+            let anime_type = type_re
+                .captures(block)
+                .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
+            let status = status_re
+                .captures(block)
+                .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
+
+            items.push(AnimeCard {
+                id: slug.clone(),
+                title: clean_title(&title),
+                japanese_title: None,
+                synopsis: None,
+                image,
+                banner_image: None,
+                anime_type: anime_type.or_else(|| Some("TV".to_string())),
+                status,
+                score: None,
+                rating: None,
+                genres: None,
+                total_episodes: None,
+                total_subbed: None,
+                total_dubbed: None,
+                slug: Some(slug),
+                mal_id: None,
+                view_count: None,
+                aired: None,
+                duration: None,
+                country: Some("CN".into()),
+                source: Some("animexin".to_string()),
+                has_sub: true,
+                has_dub: false,
+            });
+
+            if items.len() >= limit {
+                break;
+            }
+        }
+
+        let total = items.len() as u32;
+        let has_more = items.len() >= limit;
+        Ok(PaginatedResponse {
+            items,
+            total,
+            page,
+            limit: limit as u32,
+            has_more,
         })
     }
 }

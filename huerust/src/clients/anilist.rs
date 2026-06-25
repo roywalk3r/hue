@@ -164,6 +164,7 @@ query SearchAnime($search: String, $page: Int, $perPage: Int) {
                     aired: year,
                     duration,
                     country: None,
+                    source: Some("anilist".to_string()),
                     has_sub: false,
                     has_dub: false,
                 })
@@ -347,6 +348,7 @@ query AnimeDetail($id: Int) {
             aired: year,
             duration,
             country: None,
+            source: Some("anilist".to_string()),
             has_sub: false,
             has_dub: false,
         };
@@ -553,6 +555,7 @@ query DiscoverAnime(
                 aired: year,
                 duration,
                 country: None,
+                source: Some("anilist".to_string()),
                 has_sub: false,
                 has_dub: false,
             });

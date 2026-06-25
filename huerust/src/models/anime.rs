@@ -72,6 +72,9 @@ pub struct AnimeCard {
     /// Country of origin: "JP" | "CN" | "KR" | "US"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub country: Option<String>,
+    /// Source/provider slug: "aniwave" | "animexin" | "hianime" | "aniwatch" | "anilist"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
     /// Whether this anime has at least one episode with sub servers
     pub has_sub: bool,
     /// Whether this anime has at least one episode with dub servers

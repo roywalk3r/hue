@@ -1418,6 +1418,7 @@ fn parse_watch_page(html: &str, slug: &str) -> Result<AnimeDetail> {
         aired,
         duration: None,
         country: None,
+        source: Some("aniwave".to_string()),
         has_sub: true,
         has_dub: true,
     };
@@ -1507,6 +1508,7 @@ fn parse_card_block(block: &str, country: Option<&str>) -> Option<AnimeCard> {
         aired: None,
         duration: None,
         country: country.map(|c| c.to_string()),
+        source: Some("aniwave".to_string()),
         has_sub: total_subbed.unwrap_or(0) > 0,
         has_dub: total_dubbed.unwrap_or(0) > 0,
     })

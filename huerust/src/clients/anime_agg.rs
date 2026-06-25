@@ -1,8 +1,6 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use moka::future::Cache;
-use tokio::task::JoinSet;
 use tokio::time::timeout;
 use tracing::warn;
 
@@ -62,20 +60,51 @@ impl AnimeAggregator {
         }
     }
 
-    /// Search: AniWave is the single working source.
+    /// Search: AniWave is primary; fan out to Animexin for Chinese donghua.
     pub async fn search(&self, keyword: &str, page: u32, per_page: u32) -> AnimeSearchResponse {
+        let mut animexin_results = Vec::new();
+        if page == 1 {
+            match self.animexin.search(keyword).await {
+                Ok(resp) => animexin_results = resp.results,
+                Err(e) => warn!("[AnimeAgg] Animexin search error: {}", e),
+            }
+        }
+        // When Animexin has matches, drop AniWave's Chinese entries so
+        // Chinese content is always sourced from Animexin.
+        let exclude_cn = !animexin_results.is_empty();
+
+        let mut results = Vec::new();
         match self.aniwave.search(keyword, page, per_page).await {
-            Ok(response) => response,
-            Err(e) => {
-                warn!("[AnimeAgg] AniWave search error: {}", e);
-                AnimeSearchResponse {
-                    query: keyword.to_string(),
-                    total: 0,
-                    page,
-                    limit: per_page,
-                    results: Vec::new(),
+            Ok(resp) => {
+                for card in resp.results {
+                    if exclude_cn && card.country.as_deref() == Some("CN") {
+                        continue;
+                    }
+                    results.push(card);
                 }
             }
+            Err(e) => warn!("[AnimeAgg] AniWave search error: {}", e),
+        }
+
+        let existing: std::collections::HashSet<String> = results
+            .iter()
+            .filter_map(|c| c.slug.clone())
+            .collect();
+        for card in animexin_results {
+            if let Some(ref slug) = card.slug {
+                if existing.contains(slug) {
+                    continue;
+                }
+            }
+            results.push(card);
+        }
+
+        AnimeSearchResponse {
+            query: keyword.to_string(),
+            total: results.len(),
+            page,
+            limit: per_page,
+            results,
         }
     }
 
@@ -461,26 +490,49 @@ impl AnimeAggregator {
         feed
     }
 
-    /// Discover / browse: AniWave is the single source.
-    /// No AniList/AniWatch/HiAnime fan-out, so every returned card has a
-    /// source-backed slug and is playable through the AniWave stream path.
+    /// Discover / browse: route Chinese content through Animexin,
+    /// everything else through AniWave.
     pub async fn discover(&self, params: &FilterParams) -> PaginatedResponse<AnimeCard> {
-        match self.aniwave.discover(params).await {
-            Ok(resp) => PaginatedResponse {
-                items: resp.items,
-                total: resp.total,
-                page: resp.page,
-                limit: resp.limit,
-                has_more: resp.has_more,
-            },
-            Err(e) => {
-                warn!("[AnimeAgg] AniWave discover error: {}", e);
-                PaginatedResponse {
-                    items: Vec::new(),
-                    total: 0,
-                    page: params.page.unwrap_or(1),
-                    limit: params.limit.unwrap_or(20),
-                    has_more: false,
+        let is_cn = params.country.as_deref() == Some("CN")
+            || params
+                .language
+                .as_deref()
+                .map(|l| l.to_lowercase())
+                .filter(|l| l == "chinese" || l == "cn")
+                .is_some();
+
+        if is_cn {
+            match self.animexin.discover(params).await {
+                Ok(resp) => resp,
+                Err(e) => {
+                    warn!("[AnimeAgg] Animexin discover error: {}", e);
+                    PaginatedResponse {
+                        items: Vec::new(),
+                        total: 0,
+                        page: params.page.unwrap_or(1),
+                        limit: params.limit.unwrap_or(20),
+                        has_more: false,
+                    }
+                }
+            }
+        } else {
+            match self.aniwave.discover(params).await {
+                Ok(resp) => PaginatedResponse {
+                    items: resp.items,
+                    total: resp.total,
+                    page: resp.page,
+                    limit: resp.limit,
+                    has_more: resp.has_more,
+                },
+                Err(e) => {
+                    warn!("[AnimeAgg] AniWave discover error: {}", e);
+                    PaginatedResponse {
+                        items: Vec::new(),
+                        total: 0,
+                        page: params.page.unwrap_or(1),
+                        limit: params.limit.unwrap_or(20),
+                        has_more: false,
+                    }
                 }
             }
         }
@@ -777,21 +829,22 @@ fn is_aniwave_slug(slug: &str) -> bool {
 }
 
 fn source_rank(card: &AnimeCard) -> u8 {
-    if card.slug.as_deref().map(is_aniwave_slug).unwrap_or(false) {
-        return 3;
-    }
-    if card.has_sub || card.has_dub {
-        return 2;
-    }
-    card.has_sub
-        .then_some(1)
-        .or_else(|| {
-            card.slug
-                .as_deref()
-                .filter(|slug| !slug.starts_with("mal-"))
-                .map(|_| 1)
-        })
-        .unwrap_or(0)
+    let slug_aniwave = card
+        .slug
+        .as_deref()
+        .filter(|slug| !slug.starts_with("mal-"))
+        .map(is_aniwave_slug)
+        .unwrap_or(false);
+
+    let provider_rank = match card.source.as_deref() {
+        Some("aniwave") => 4,
+        Some("animexin") => 3,
+        Some("hianime") | Some("aniwatch") => 2,
+        _ if slug_aniwave => 4,
+        _ => 0,
+    };
+
+    provider_rank.max(if card.has_sub || card.has_dub { 1 } else { 0 })
 }
 
 fn should_prefer_card(existing: &AnimeCard, candidate: &AnimeCard) -> bool {
@@ -950,6 +1003,7 @@ mod tests {
             aired: None,
             duration: None,
             country: None,
+            source: None,
             has_sub: false,
             has_dub: false,
         }

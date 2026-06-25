@@ -681,6 +681,7 @@ pub fn transform_anime_card(v: &serde_json::Value) -> AnimeCard {
         aired: opt_str(v, "Aired"),
         duration: opt_str(v, "Duration"),
         country: None,
+        source: Some("hianime".to_string()),
         has_sub,
         has_dub,
     }
