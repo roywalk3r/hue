@@ -419,11 +419,12 @@ impl AnimexinClient {
     pub async fn discover(&self, params: &FilterParams) -> Result<PaginatedResponse<AnimeCard>> {
         let page = params.page.unwrap_or(1).max(1);
         let limit = params.limit.unwrap_or(20).clamp(1, 50) as usize;
-        let url = if page == 1 {
-            BASE_URL.to_string()
-        } else {
-            format!("{}/page/{}/", BASE_URL, page)
-        };
+        // The homepage lists episode posts, so browse the dedicated series
+        // listing page to get actual show pages with pagination.
+        let url = format!(
+            "{}/anime/?status=&type=&order=update&page={}",
+            BASE_URL, page
+        );
         let resp = self.client.get(&url).send().await?;
         let html = resp.text().await?;
 
@@ -446,7 +447,7 @@ impl AnimexinClient {
                 .get(2)
                 .map(|m| m.as_str().trim().to_string())
                 .unwrap_or_default();
-            if slug.is_empty() || title.is_empty() || is_utility_page(&slug) || slug.contains("episode") {
+            if slug.is_empty() || title.is_empty() || is_utility_page(&slug) {
                 continue;
             }
             if items.iter().any(|c: &AnimeCard| c.id == slug) {

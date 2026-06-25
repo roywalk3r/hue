@@ -52,6 +52,8 @@ async-trait = "0.1"
 
 # Streaming (SSE)
 tokio-stream = "0.1"
+tokio-util = { version = "0.7", features = ["io"] }
+futures-util = "0.3"
 
 # Rate Limiting
 tower = { version = "0.4", features = ["limit"] }

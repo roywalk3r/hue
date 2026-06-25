@@ -8,33 +8,9 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use futures_util::TryStreamExt;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::io::AsyncReadExt;
-use tokio_stream::wrappers::ReceiverStream;
-
-struct CleanupGuard {
-    path: String,
-    armed: bool,
-}
-
-impl CleanupGuard {
-    fn new(path: String) -> Self {
-        Self { path, armed: true }
-    }
-
-    fn disarm(&mut self) {
-        self.armed = false;
-    }
-}
-
-impl Drop for CleanupGuard {
-    fn drop(&mut self) {
-        if self.armed {
-            let _ = std::fs::remove_file(&self.path);
-        }
-    }
-}
 
 #[derive(Clone)]
 pub struct DownloadState {
@@ -393,96 +369,70 @@ pub async fn hls_download_handler(
             "_",
         );
 
-    let tmp = format!("/tmp/hue_dl_{}.mp4", ulid::Ulid::new());
-    // Ensure temp file cleanup even on early return or panic.
-    let mut guard = CleanupGuard::new(tmp.clone());
+    // Stream ffmpeg stdout directly so the client starts receiving bytes
+    // immediately, avoiding mobile downloader socket timeouts while the
+    // HLS→MP4 conversion runs.
     let mut cmd = TokioCommand::new("ffmpeg");
-    cmd.args(build_ffmpeg_args(&target_url, &header_str, &tmp));
-    let out = match cmd
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-    {
-        Ok(c) => match c.wait_with_output().await {
-            Ok(o) => o,
-            Err(e) => {
-                tracing::error!("[download/hls] wait: {}", e);
-                return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg error").into_response();
-            }
-        },
+    cmd.args(build_ffmpeg_args(&target_url, &header_str, "pipe:1"));
+    cmd.stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
         Err(e) => {
             tracing::error!("[download/hls] spawn: {}", e);
             return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg not available").into_response();
         }
     };
-    if !out.status.success() {
-        let stderr_str = String::from_utf8_lossy(&out.stderr);
-        let last = stderr_str.lines().last().unwrap_or("unknown");
-        // Log enough of stderr to diagnose failures without dumping
-        // the entire manifest in normal operation.
-        let preview = stderr_str
-            .chars()
-            .take(1200)
-            .collect::<String>();
-        tracing::warn!(
-            "[download/hls] ffmpeg failed for {}: {} | stderr preview: {}",
-            target_url,
-            last,
-            preview.replace('\n', " | ")
-        );
-        let _ = std::fs::remove_file(&tmp);
-        return (StatusCode::BAD_GATEWAY, "HLS conversion failed").into_response();
-    }
-    let mut file = match tokio::fs::File::open(&tmp).await {
-        Ok(file) => file,
-        Err(e) => {
-            tracing::error!("[download/hls] open: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "read failed").into_response();
-        }
-    };
-    let content_length = match file.metadata().await {
-        Ok(metadata) => metadata.len(),
-        Err(e) => {
-            tracing::error!("[download/hls] metadata: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "read failed").into_response();
-        }
-    };
 
-    let (tx, rx) = tokio::sync::mpsc::channel::<Result<Bytes, std::io::Error>>(8);
-    let cleanup_path = tmp.clone();
+    let stdout = child
+        .stdout
+        .take()
+        .expect("ffmpeg stdout was requested");
+    let mut stderr = child
+        .stderr
+        .take()
+        .expect("ffmpeg stderr was requested");
+
+    // Read stdout as an async byte stream and map it into axum Bytes.
+    let stdout_stream = tokio_util::io::ReaderStream::new(stdout)
+        .map_ok(Bytes::from)
+        .map_err(|e| {
+            tracing::error!("[download/hls] stdout read: {}", e);
+            std::io::Error::new(std::io::ErrorKind::Other, e)
+        });
+
+    // Wait for ffmpeg in the background so we can log the result and
+    // capture any stderr diagnostics after the response has started.
+    let target_url_log = target_url.clone();
     tokio::spawn(async move {
-        let mut buffer = vec![0_u8; 64 * 1024];
-        loop {
-            match file.read(&mut buffer).await {
-                Ok(0) => break,
-                Ok(read) => {
-                    if tx
-                        .send(Ok(Bytes::copy_from_slice(&buffer[..read])))
-                        .await
-                        .is_err()
-                    {
-                        break;
-                    }
-                }
-                Err(e) => {
-                    let _ = tx.send(Err(e)).await;
-                    break;
-                }
+        let mut stderr_buf = Vec::new();
+        let _ = tokio::io::AsyncReadExt::read_to_end(&mut stderr, &mut stderr_buf).await;
+        match child.wait().await {
+            Ok(status) if !status.success() => {
+                let stderr_str = String::from_utf8_lossy(&stderr_buf);
+                let last = stderr_str.lines().last().unwrap_or("unknown");
+                let preview = stderr_str.chars().take(1200).collect::<String>();
+                tracing::warn!(
+                    "[download/hls] ffmpeg failed for {}: {} | stderr preview: {}",
+                    target_url_log,
+                    last,
+                    preview.replace('\n', " | ")
+                );
             }
+            Ok(_) => {}
+            Err(e) => tracing::error!("[download/hls] wait: {}", e),
         }
-        let _ = tokio::fs::remove_file(cleanup_path).await;
     });
-    guard.disarm();
 
     Response::builder()
         .status(StatusCode::OK)
         .header(axum::http::header::CONTENT_TYPE, "video/mp4")
-        .header(axum::http::header::CONTENT_LENGTH, content_length)
         .header(
             axum::http::header::CONTENT_DISPOSITION,
             format!("attachment; filename=\"{}\"", filename),
         )
-        .body(Body::from_stream(ReceiverStream::new(rx)))
+        .body(Body::from_stream(stdout_stream))
         .unwrap()
 }
