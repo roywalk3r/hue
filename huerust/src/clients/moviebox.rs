@@ -42,6 +42,7 @@ pub struct MovieBoxItem {
 pub struct StreamData {
     pub streams: Option<Vec<MovieBoxStream>>,
     pub hls: Option<Vec<MovieBoxStream>>,
+    pub dash: Option<Vec<MovieBoxStream>>,
     #[serde(skip)]
     pub source_host: Option<String>,
 }
@@ -77,6 +78,31 @@ struct MovieBoxCaption {
 pub struct MovieBoxClient {
     client: Client,
     host: String,
+}
+
+/// Extract a single quality label from a MovieBox `resolutions` string.
+/// Values are usually "360", "480", "720", "1080" or comma-separated
+/// lists like "1080,720,480". Return the highest numeric value so the
+/// player can rank streams and pick the best one.
+pub fn quality_from_resolutions(resolutions: Option<&str>) -> String {
+    let raw = resolutions.unwrap_or("").trim();
+    if raw.is_empty() {
+        return "Auto".to_string();
+    }
+    let best = raw
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .filter_map(|s| s.parse::<u32>().ok())
+        .max();
+    match best {
+        Some(v) => format!("{}p", v),
+        None => {
+            // Non-numeric resolution (e.g. "Auto") — keep as-is.
+            let first = raw.split(',').next().unwrap_or(raw).trim();
+            if first.is_empty() { "Auto".to_string() } else { first.to_string() }
+        }
+    }
 }
 
 impl MovieBoxClient {
@@ -602,9 +628,10 @@ impl MovieBoxClient {
         match self.get_streams(subject_id, detail_path, se, ep).await? {
             Some(data) => {
                 info!(
-                    "[MovieBox Rust] get_streams_for_detail received data: streams={} hls={} source_host={:?}",
+                    "[MovieBox Rust] get_streams_for_detail received data: streams={} hls={} dash={} source_host={:?}",
                     data.streams.as_ref().map(|s| s.len()).unwrap_or(0),
                     data.hls.as_ref().map(|h| h.len()).unwrap_or(0),
+                    data.dash.as_ref().map(|d| d.len()).unwrap_or(0),
                     data.source_host
                 );
                 let mut results = Vec::new();
@@ -640,6 +667,12 @@ impl MovieBoxClient {
                         data.hls
                             .as_ref()
                             .and_then(|hls| hls.first())
+                            .and_then(|s| s.id.as_deref())
+                    })
+                    .or_else(|| {
+                        data.dash
+                            .as_ref()
+                            .and_then(|dash| dash.first())
                             .and_then(|s| s.id.as_deref())
                     });
                 let subtitles = self
@@ -682,13 +715,21 @@ impl MovieBoxClient {
                         if !is_url_fresh(&s.url) {
                             continue;
                         }
+                        let quality = s
+                            .quality
+                            .as_deref()
+                            .map(str::to_string)
+                            .filter(|q| !q.trim().is_empty() && q.to_lowercase() != "auto")
+                            .unwrap_or_else(|| {
+                                quality_from_resolutions(s.resolutions.as_deref())
+                            });
                         results.push(StreamResult {
                             url: s.url,
                             title: format!(
-                                "Cinema - {}p (MP4)",
-                                s.resolutions.as_deref().unwrap_or("Auto")
+                                "Cinema - {} (MP4)",
+                                quality
                             ),
-                            quality: s.quality.as_deref().unwrap_or("Auto").to_string(),
+                            quality,
                             provider: "Cinema".to_string(),
                             format: "mp4".to_string(),
                             subtitles: subtitles.clone(),
@@ -703,12 +744,46 @@ impl MovieBoxClient {
                         if !is_url_fresh(&s.url) {
                             continue;
                         }
+                        let quality = s
+                            .quality
+                            .as_deref()
+                            .map(str::to_string)
+                            .filter(|q| !q.trim().is_empty() && q.to_lowercase() != "auto")
+                            .unwrap_or_else(|| {
+                                quality_from_resolutions(s.resolutions.as_deref())
+                            });
                         results.push(StreamResult {
                             url: s.url,
-                            title: "Cinema - Auto (HLS)".to_string(),
-                            quality: "Auto".to_string(),
+                            title: format!("Cinema - {} (HLS)", quality),
+                            quality,
                             provider: "Cinema".to_string(),
                             format: "hls".to_string(),
+                            subtitles: subtitles.clone(),
+                            headers: Some(mb_headers.clone()),
+                            extra_metadata: None,
+                        });
+                    }
+                }
+
+                if let Some(dash) = data.dash {
+                    for s in dash {
+                        if !is_url_fresh(&s.url) {
+                            continue;
+                        }
+                        let quality = s
+                            .quality
+                            .as_deref()
+                            .map(str::to_string)
+                            .filter(|q| !q.trim().is_empty() && q.to_lowercase() != "auto")
+                            .unwrap_or_else(|| {
+                                quality_from_resolutions(s.resolutions.as_deref())
+                            });
+                        results.push(StreamResult {
+                            url: s.url,
+                            title: format!("Cinema - {} (DASH)", quality),
+                            quality,
+                            provider: "Cinema".to_string(),
+                            format: "dash".to_string(),
                             subtitles: subtitles.clone(),
                             headers: Some(mb_headers.clone()),
                             extra_metadata: None,

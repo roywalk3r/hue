@@ -232,7 +232,7 @@ impl VidRockClient {
             }
 
             let fmt = entry.source_type.as_deref().unwrap_or("mp4");
-            let is_hls = url.contains(".m3u8") || fmt == "hls";
+            let is_hls = url.to_lowercase().contains(".m3u8") || fmt == "hls";
             let format = if is_hls {
                 "hls".to_string()
             } else {
@@ -243,14 +243,10 @@ impl VidRockClient {
                 .clone()
                 .unwrap_or_else(|| "Unknown".to_string());
 
-            // Per-sub-provider headers: use the sub-provider's domain as Origin
-            // for workers.dev / storm / hellstorm URLs so the CDN sees the right referrer.
-            let origin = if url.contains("workers.dev") {
-                // Extract scheme+host for workers.dev origins
-                url.split('/').take(3).collect::<Vec<_>>().join("/")
-            } else {
-                API_BASE.to_string()
-            };
+            // All VidRock sub-providers expect a VidRock page origin.
+            // Using the upstream workers.dev origin makes Cloudflare reject the
+            // request, and using the encrypted API path as Referer breaks CDN auth.
+            let origin = API_BASE.to_string();
 
             streams.push(VidRockStream {
                 url: url.clone(),
@@ -264,7 +260,7 @@ impl VidRockClient {
                 format,
                 provider: format!("VidRock/{}", provider_name),
                 headers: serde_json::json!({
-                    "Referer": referer_url,
+                    "Referer": "https://vidrock.net/",
                     "Origin": origin,
                     "User-Agent": UA_DESKTOP
                 }),

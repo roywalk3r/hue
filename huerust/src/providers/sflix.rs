@@ -5,7 +5,7 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
-use crate::clients::moviebox::StreamData;
+use crate::clients::moviebox::{quality_from_resolutions, StreamData};
 use crate::models::{StreamResult, Subtitle};
 use anyhow::Result;
 use reqwest::{
@@ -152,7 +152,8 @@ impl SflixClient {
             if let Some(ref sd) = parsed {
                 let has_streams = sd.streams.as_ref().map(|v| !v.is_empty()).unwrap_or(false);
                 let has_hls = sd.hls.as_ref().map(|v| !v.is_empty()).unwrap_or(false);
-                if !has_streams && !has_hls {
+                let has_dash = sd.dash.as_ref().map(|v| !v.is_empty()).unwrap_or(false);
+                if !has_streams && !has_hls && !has_dash {
                     return Ok(None);
                 }
             }
@@ -281,13 +282,18 @@ impl SflixClient {
                             .get_captions(subject_id, slug, s.id.as_deref(), "MP4")
                             .await
                             .unwrap_or_default();
+                        let quality = s
+                            .quality
+                            .as_deref()
+                            .map(str::to_string)
+                            .filter(|q| !q.trim().is_empty() && q.to_lowercase() != "auto")
+                            .unwrap_or_else(|| {
+                                quality_from_resolutions(s.resolutions.as_deref())
+                            });
                         results.push(StreamResult {
                             url: s.url,
-                            title: format!(
-                                "Nova - {}p (MP4)",
-                                s.resolutions.unwrap_or_else(|| "Auto".to_string())
-                            ),
-                            quality: s.quality.unwrap_or_else(|| "Auto".to_string()),
+                            title: format!("Nova - {} (MP4)", quality),
+                            quality,
                             provider: "Nova".to_string(),
                             format: "mp4".to_string(),
                             subtitles: if subtitles.is_empty() {
@@ -307,12 +313,51 @@ impl SflixClient {
                             .get_captions(subject_id, slug, s.id.as_deref(), "HLS")
                             .await
                             .unwrap_or_default();
+                        let quality = s
+                            .quality
+                            .as_deref()
+                            .map(str::to_string)
+                            .filter(|q| !q.trim().is_empty() && q.to_lowercase() != "auto")
+                            .unwrap_or_else(|| {
+                                quality_from_resolutions(s.resolutions.as_deref())
+                            });
                         results.push(StreamResult {
                             url: s.url,
-                            title: "Nova - Auto (HLS)".to_string(),
-                            quality: "Auto".to_string(),
+                            title: format!("Nova - {} (HLS)", quality),
+                            quality,
                             provider: "Nova".to_string(),
                             format: "hls".to_string(),
+                            subtitles: if subtitles.is_empty() {
+                                None
+                            } else {
+                                Some(subtitles)
+                            },
+                            headers: Some(headers.clone()),
+                            extra_metadata: None,
+                        });
+                    }
+                }
+
+                if let Some(dash) = data.dash {
+                    for s in dash {
+                        let subtitles = self
+                            .get_captions(subject_id, slug, s.id.as_deref(), "DASH")
+                            .await
+                            .unwrap_or_default();
+                        let quality = s
+                            .quality
+                            .as_deref()
+                            .map(str::to_string)
+                            .filter(|q| !q.trim().is_empty() && q.to_lowercase() != "auto")
+                            .unwrap_or_else(|| {
+                                quality_from_resolutions(s.resolutions.as_deref())
+                            });
+                        results.push(StreamResult {
+                            url: s.url,
+                            title: format!("Nova - {} (DASH)", quality),
+                            quality,
+                            provider: "Nova".to_string(),
+                            format: "dash".to_string(),
                             subtitles: if subtitles.is_empty() {
                                 None
                             } else {

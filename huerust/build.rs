@@ -12,9 +12,11 @@ fn main() {
 
 fn git_output(args: &[&str]) -> Option<String> {
     let output = Command::new("git").args(args).output().ok()?;
-    output.status.success().then(|| {
-        String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .to_string()
-    })
+    if !output.status.success() {
+        return None;
+    }
+    let value = String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .to_string();
+    if value.is_empty() { None } else { Some(value) }
 }

@@ -1,10 +1,10 @@
 {
   "session_id": "019e7a1f-5773-7653-ac0d-601f20f85790",
   "native_session_id": "019e7a1f-5773-7653-ac0d-601f20f85790",
-  "started_at": "2026-06-20T18:04:08.928Z",
+  "started_at": "2026-06-22T08:41:06.619Z",
   "cwd": "/mnt/devdrive/projects/Misc/hue",
-  "pid": 2071249,
+  "pid": 43846,
   "platform": "linux",
-  "pid_start_ticks": 20744908,
-  "pid_cmdline": "codex"
+  "pid_start_ticks": 968371,
+  "pid_cmdline": "codex resume"
 }

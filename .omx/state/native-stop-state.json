@@ -6,11 +6,11 @@
     },
     "019e7a1f-5773-7653-ac0d-601f20f85790": {
       "ordinary_no_progress_guard": {
-        "fingerprint": "ordinary|fixed the queued-then-failed vidvault download path. changes: - persist and reuse required vidvault headers, including retries. - keep status as `downloading` during progress updates. - save extensionless vidvault files correctly as `.mkv`. - improve http errors and remove partial failed files. - fixed ffmpeg hls header ordering. - hls output now streams from disk instead of loading the entire mp4 into backend memory. - added unique hls temporary files and cleanup. files: - [download_service.dart](/mnt/devdrive/projects/flutter/hue/lib/core/services/download_service.dart:11) - [download_service_test.dart](/mnt/devdrive/projects/flutter/hue/test/core/services/download_service_test.dart:86) - [download.rs](/mnt/devdrive/projects/misc/hue/huerust/src/routes/download.rs:83) verification: - flutter: 14 tests passed. - rust regression test and `cargo check` passed. - live vidvault endpoint returns a downloadable mkv with correct headers. - `hueapi` rebuilt, restarted, and online in pm2. hot-restart flutter, remove the existing failed item, and enqueue it again. old persisted jobs do not contain the newly stored headers. anime/drama hls still needs its unused `_downloadstream` helper wired into the download button flow.",
-        "first_seen_at": "2026-06-20T18:24:27.009Z",
-        "last_seen_at": "2026-06-20T18:24:27.009Z",
+        "fingerprint": "ordinary|implemented the reliability batch. **changes** - unified vtt/srt parser with markup cleanup, entity decoding, html rejection and timing offsets. - atomic downloaded subtitle writes. - persistent per-title/episode subtitle track and ±0.5s delay controls. - local playback now uses stored subtitle paths. - startup reconciliation handles missing files, paused, canceled and running tasks. - redacted media diagnostics for signed urls and credentials. - added `/health/version` with commit/build identity. - added end-to-end offline playback regression coverage. **verification** - flutter: 109 tests passed. - debug apk built successfully. - rust download and health route tests passed. - pm2 `hueapi` is online. - local health: commit `fe1887a3ec79`. - `git diff --check` passed. **remaining risks** - `api.vexli.online` still serves the separate legacy deployment: `/health/version` returns 404 and `/api/status` reports `3.1.0`. - full analyzer has 110 existing warnings/info items, but no compile errors. - repository-wide formatting check identifies 48 pre-existing unformatted files. - physical-device subtitle timing and process-restart download tests remain necessary.",
+        "first_seen_at": "2026-06-23T15:20:02.871Z",
+        "last_seen_at": "2026-06-23T15:20:02.871Z",
         "repeat_count": 1,
-        "last_turn_id": "019ee634-4bc0-77d3-b6d5-afc401c16baf",
+        "last_turn_id": "019ef4f5-c7c2-7b31-9abf-fad34805449f",
         "last_thread_id": null
       }
     }
