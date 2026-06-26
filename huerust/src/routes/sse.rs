@@ -184,9 +184,20 @@ pub async fn sse_streams_handler(
             }
         }
 
+        // Shared state for the 10s partial event and for counting sticky results.
+        let stream_count = Arc::new(AtomicUsize::new(0));
+        let done_sent = Arc::new(AtomicBool::new(false));
+
         // Sticky fast-path only for non-priority providers. Priority sticky
         // providers (Luna/Aura) join the normal priority fan-out below so
         // they race with each other and the user gets the fastest source.
+        //
+        // The sticky provider is fired concurrently with the priority fan-out
+        // so it can still deliver an early result, but it never short-circuits
+        // the rest of the providers. Returning only the sticky source hides
+        // faster/better alternatives and leaves the user stuck if its streams
+        // fail to play.
+        let mut sticky_task: Option<tokio::task::JoinHandle<Vec<crate::models::StreamResult>>> = None;
         if let Some(entry) = sticky_hit.clone() {
             let sticky_is_priority = state
                 .registry
@@ -203,122 +214,102 @@ pub async fn sse_streams_handler(
                     .into_iter()
                     .find(|p| p.real_name() == entry.provider_real_name)
                 {
-                    let (provider_season, provider_episode) = state.config.map_season_episode(
-                        &entry.provider_real_name,
-                        &tmdb_id,
-                        season,
-                        episode,
-                    );
-                    let t0 = std::time::Instant::now();
-                    let mut result = timeout(
-                        Duration::from_secs(3),
-                        provider.fetch(&tmdb_info, &m_type, provider_season, provider_episode),
-                    )
-                    .await;
-
-                    // Auto-detect season split: if season 1 returns empty and
-                    // episode > 12, try season 2 with episode shifted by 12.
-                    if matches!(result, Ok(Ok(ref s)) if s.is_empty())
-                        && season == 1
-                        && episode > 12
-                    {
-                        let fallback = timeout(
-                            Duration::from_secs(3),
-                            provider.fetch(&tmdb_info, &m_type, 2, episode - 12),
+                    let cb = cb.clone();
+                    let tmdb = tmdb_info.clone();
+                    let mtype = m_type.clone();
+                    let tx = tx.clone();
+                    let secret = state.secret.clone();
+                    let kkey = state.kkey.clone();
+                    let proxy_base = proxy_base.clone();
+                    let enable_proxy = state.config.enable_proxy;
+                    let stream_count = stream_count.clone();
+                    let config = state.config.clone();
+                    let tmdb_id = tmdb_id.clone();
+                    sticky_task = Some(tokio::spawn(async move {
+                        let name = provider.name().to_string();
+                        let real_name = provider.real_name().to_string();
+                        let timeout_secs = provider.timeout_secs().min(3);
+                        let (provider_season, provider_episode) =
+                            config.map_season_episode(&real_name, &tmdb_id, season, episode);
+                        let t0 = std::time::Instant::now();
+                        info!(
+                            "[SSE] sticky fast-path {} (timeout {}s)",
+                            name, timeout_secs
+                        );
+                        let mut result = timeout(
+                            Duration::from_secs(timeout_secs),
+                            provider.fetch(&tmdb, &mtype, provider_season, provider_episode),
                         )
                         .await;
-                        if matches!(fallback, Ok(Ok(ref s)) if !s.is_empty()) {
-                            result = fallback;
+
+                        // Auto-detect season split: if season 1 returns empty and
+                        // episode > 12, try season 2 with episode shifted by 12.
+                        if matches!(result, Ok(Ok(ref s)) if s.is_empty())
+                            && season == 1
+                            && episode > 12
+                        {
+                            let fallback = timeout(
+                                Duration::from_secs(3),
+                                provider.fetch(&tmdb, &mtype, 2, episode - 12),
+                            )
+                            .await;
+                            if matches!(fallback, Ok(Ok(ref s)) if !s.is_empty()) {
+                                result = fallback;
+                            }
                         }
-                    }
 
-                    match result {
-                        Ok(Ok(streams)) if !streams.is_empty() => {
-                            cb.record_success(&entry.provider_real_name);
-                            let elapsed_ms = t0.elapsed().as_millis() as u64;
-                            info!(
-                                "[SSE] sticky fast-path {} returned {} streams in {}ms",
-                                entry.provider_real_name,
-                                streams.len(),
-                                elapsed_ms
-                            );
-                            let mut display = if state.config.enable_proxy {
-                                wrap_with_proxy(streams.clone(), &proxy_base, &state.secret)
-                            } else {
-                                streams.clone()
-                            };
-                            encrypt_stream_result_urls(&mut display, &state.kkey);
-                            let _ = tx
-                                .send(Ok(Event::default().event("provider").data(
-                                    json!({
-                                        "provider": provider.name(),
-                                        "streams": display,
-                                        "count": display.len(),
-                                        "elapsed_ms": elapsed_ms,
-                                        "sticky": true
-                                    })
-                                    .to_string(),
-                                )))
-                                .await;
-                            state
-                                .sticky_pref
-                                .record_success(&sticky_key, &entry.provider_real_name)
-                                .await;
-
-                            // Also populate the regular stream cache so future
-                            // requests can short-circuit entirely.
-                            let mut seen = std::collections::HashSet::new();
-                            let deduped: Vec<_> = streams
-                                .into_iter()
-                                .filter(|s| seen.insert(s.url.clone()))
-                                .collect();
-                            state.cache.set(&cache_key, deduped).await;
-
-                            let _ = tx
-                                .send(Ok(Event::default().event("done").data(
-                                    json!({"total": 1, "cached": false, "sticky": true})
+                        let elapsed_ms = t0.elapsed().as_millis() as u64;
+                        match result {
+                            Ok(Ok(streams)) if !streams.is_empty() => {
+                                cb.record_success(&real_name);
+                                stream_count.fetch_add(streams.len(), Ordering::Relaxed);
+                                info!(
+                                    "[SSE] sticky fast-path {} returned {} streams in {}ms",
+                                    name,
+                                    streams.len(),
+                                    elapsed_ms
+                                );
+                                let mut display = if enable_proxy {
+                                    wrap_with_proxy(streams.clone(), &proxy_base, &secret)
+                                } else {
+                                    streams.clone()
+                                };
+                                encrypt_stream_result_urls(&mut display, &kkey);
+                                let _ = tx
+                                    .send(Ok(Event::default().event("provider").data(
+                                        json!({
+                                            "provider": name,
+                                            "streams": display,
+                                            "count": display.len(),
+                                            "elapsed_ms": elapsed_ms,
+                                            "sticky": true
+                                        })
                                         .to_string(),
-                                )))
-                                .await;
-                            return;
+                                    )))
+                                    .await;
+                                streams
+                            }
+                            Ok(Err(e)) => {
+                                warn!("[SSE] Sticky provider {} failed: {}", name, e);
+                                cb.record_failure(&real_name);
+                                vec![]
+                            }
+                            Err(_) => {
+                                warn!(
+                                    "[SSE] Sticky provider {} timed out after {}s",
+                                    name, timeout_secs
+                                );
+                                cb.record_failure(&real_name);
+                                vec![]
+                            }
+                            _ => {
+                                info!("[SSE] Sticky provider {} outcome=empty", name);
+                                vec![]
+                            }
                         }
-                        _ => {
-                            warn!(
-                                "[SSE] Sticky provider {} failed fast-path for {} — falling back to fan-out",
-                                entry.provider_real_name, tmdb_id
-                            );
-                            state.sticky_pref.record_failure(&sticky_key).await;
-                        }
-                    }
+                    }));
                 } else {
                     state.sticky_pref.record_failure(&sticky_key).await;
-                }
-            }
-        }
-
-        // If the sticky provider is NOT a priority provider, we still
-        // want it in the race — push it onto the rest list so it joins
-        // the fan-out. The fastest provider wins; the winner is recorded
-        // as the new sticky entry at the end of the request, so a
-        // priority provider will override the non-priority sticky on
-        // this very request.
-        let mut non_priority_sticky: Option<Arc<dyn StreamProvider>> = None;
-        if let Some(entry) = sticky_hit {
-            let sticky_is_priority = state
-                .registry
-                .list_all_arc()
-                .iter()
-                .find(|p| p.real_name() == entry.provider_real_name)
-                .map(|p| matches!(p.name(), "Luna" | "Aura"))
-                .unwrap_or(false);
-            if !sticky_is_priority {
-                if let Some(provider) = state
-                    .registry
-                    .list_all_arc()
-                    .into_iter()
-                    .find(|p| p.real_name() == entry.provider_real_name)
-                {
-                    non_priority_sticky = Some(provider);
                 }
             }
         }
@@ -336,7 +327,7 @@ pub async fn sse_streams_handler(
         let mut raw_all: Vec<crate::models::StreamResult> = Vec::new();
 
         let priority_names = ["Luna", "Aura"];
-        let (mut priority, rest): (Vec<_>, Vec<_>) = all_providers
+        let (priority, rest): (Vec<_>, Vec<_>) = all_providers
             .into_iter()
             .partition(|p| priority_names.contains(&p.name()));
 
@@ -349,24 +340,7 @@ pub async fn sse_streams_handler(
                 .collect::<Vec<_>>()
         );
 
-        // If we have a sticky entry whose provider is NOT in the priority
-        // list, the priority fan-out alone would let a non-priority sticky
-        // block Luna/Aura. Promote it to the priority phase so it races
-        // with Luna/Aura; the fastest winner is recorded as the new sticky.
-        if let Some(sticky_provider) = non_priority_sticky {
-            if !priority
-                .iter()
-                .any(|p| p.real_name() == sticky_provider.real_name())
-            {
-                priority.push(sticky_provider);
-            }
-        }
-
         let mut provider_tasks = tokio::task::JoinSet::new();
-
-        // Track stream count across all provider tasks for the 10s partial event
-        let stream_count = Arc::new(AtomicUsize::new(0));
-        let done_sent = Arc::new(AtomicBool::new(false));
 
         // 10s partial emission timer — tells the frontend "you have enough to
         // start playing, more may arrive" without waiting for stragglers.
@@ -678,6 +652,24 @@ pub async fn sse_streams_handler(
                     aggregate_deadline,
                     raw_all.len()
                 );
+            }
+        }
+
+        // Merge sticky fast-path results (if any) so they participate in the
+        // final dedup/cache/sticky decision rather than being a dead-end early
+        // event.
+        if let Some(task) = sticky_task {
+            match timeout(Duration::from_secs(1), task).await {
+                Ok(Ok(streams)) if !streams.is_empty() => {
+                    raw_all.extend(streams);
+                }
+                Ok(Err(e)) => {
+                    warn!("[SSE] sticky task join failed: {}", e);
+                }
+                Err(_) => {
+                    warn!("[SSE] sticky task still running after aggregate deadline");
+                }
+                _ => {}
             }
         }
 
