@@ -236,20 +236,23 @@ impl AnimexinClient {
         let mut sub = Vec::new();
 
         // 1. Base64-encoded iframe embeds (primary sources)
-        let b64_re = Regex::new(r#"<option\s+value="([A-Za-z0-9+/=]+)"(?:\s+data-index="[^"]*")?\s*>([^<]+)</option>"#)?;
-        for cap in b64_re.captures_iter(&html) {
-            let b64 = cap.get(1).map(|m| m.as_str()).unwrap_or_default();
-            let label = cap
-                .get(2)
-                .map(|m| m.as_str().trim().to_string())
-                .unwrap_or_default();
-            if b64.len() < 20 {
-                continue;
+        // The dropdown may use <li> buttons instead of <option> tags.
+        let mut seen_sources: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let option_re = Regex::new(r#"<option\s+value="([A-Za-z0-9+/=]+)"(?:\s+data-index="[^"]*")?\s*>([^<]+)</option>"#).ok();
+        let li_re = Regex::new(r#"(?s)<li[^>]*>.*?value="([A-Za-z0-9+/=]+)".*?</li>"#).ok();
+        let li_label_re = Regex::new(r#"<li[^>]*>.*?<span[^>]*>([^<]+)</span>.*?</li>"#)
+            .ok()
+            .map(|re| std::sync::Arc::new(re));
+        let mut extract_embed = |b64: &str, label: &str| {
+            if b64.len() < 20 || seen_sources.contains(b64) {
+                return;
             }
             if let Ok(decoded_bytes) = base64::decode(b64) {
                 if let Ok(decoded_html) = String::from_utf8(decoded_bytes) {
                     if let Some(src) = extract_iframe_src(&decoded_html) {
+                        seen_sources.insert(b64.to_string());
                         let host_name = extract_server_name_from_url(&src);
+                        let label = label.trim();
                         let name = if label.is_empty() {
                             host_name
                         } else {
@@ -264,11 +267,32 @@ impl AnimexinClient {
                     }
                 }
             }
+        };
+
+        for cap in option_re.as_ref().unwrap().captures_iter(&html) {
+            let b64 = cap.get(1).map(|m| m.as_str()).unwrap_or_default();
+            let label = cap.get(2).map(|m| m.as_str()).unwrap_or_default();
+            extract_embed(b64, label);
         }
 
-        // 2. Direct download links (Terabox, Mediafire, Mirrored.to)
+        if let Some(re) = li_re.as_ref() {
+            for cap in re.captures_iter(&html) {
+                let b64 = cap.get(1).map(|m| m.as_str()).unwrap_or_default();
+                // Try to find a matching label in the same <li>
+                let full_li = cap.get(0).map(|m| m.as_str()).unwrap_or("");
+                let label = li_label_re
+                    .as_ref()
+                    .and_then(|re| re.captures(full_li))
+                    .and_then(|c| c.get(1).map(|m| m.as_str()))
+                    .unwrap_or("")
+                    .trim();
+                extract_embed(b64, label);
+            }
+        }
+
+        // 2. Direct download links (Terabox, Mediafire, Mirrored.to, Streamwish)
         let dl_re = Regex::new(
-            r#"<a\s+href="(https://(?:1024terabox\.com|www\.mediafire\.com|mirrored\.to)[^"]*)"[^>]*>([^<]+)</a>"#,
+            r#"<a\s+href="(https://(?:1024terabox\.com|www\.mediafire\.com|mirrored\.to|streamwish\.com|filelions\.to|wolfstream\.tv|speedostream\.com)[^"]*)"[^>]*>([^<]+)</a>"#,
         )?;
         for cap in dl_re.captures_iter(&html) {
             let link = cap
@@ -305,14 +329,23 @@ impl AnimexinClient {
         server: Option<&str>,
     ) -> Result<StreamPayload> {
         let servers = self.get_servers(episode_slug).await?;
+
+        // Prefer non-download sources first when no server is explicitly picked.
+        let playable: Vec<_> = servers
+            .sub
+            .iter()
+            .filter(|s| !s.name.to_uppercase().ends_with("-DL"))
+            .collect();
+        let fallback: Vec<_> = servers.sub.iter().collect();
+        let pool = if playable.is_empty() { &fallback } else { &playable };
+
         let target = if let Some(srv) = server {
-            servers
-                .sub
-                .iter()
+            pool.iter()
                 .find(|s| s.name.eq_ignore_ascii_case(srv))
-                .or_else(|| servers.sub.first())
+                .or_else(|| pool.first())
+                .copied()
         } else {
-            servers.sub.first()
+            pool.first().copied()
         }
         .ok_or_else(|| anyhow!("No stream sources found"))?;
 
@@ -702,6 +735,10 @@ fn extract_server_name_from_url(url: &str) -> String {
         "mediafire" => "MEDIAFIRE-DL".to_string(),
         "mirrored" => "MIRRORED-DL".to_string(),
         "animexinfansub" => "SEEKPLAYER".to_string(),
+        "streamwish" => "STREAMWISH".to_string(),
+        "filelions" => "FILELIONS".to_string(),
+        "wolfstream" => "WOLFSTREAM".to_string(),
+        "speedostream" => "SPEEDOSTREAM".to_string(),
         _ => name.to_uppercase(),
     }
 }
