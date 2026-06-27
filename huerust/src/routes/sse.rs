@@ -576,16 +576,18 @@ pub async fn sse_streams_handler(
             }
         }
 
-        // If priority phase found streams, emit early done immediately so the
-        // player can start, then continue with the rest in the background.
-        if priority_streams_found && !done_sent.load(Ordering::Relaxed) {
-            done_sent.store(true, Ordering::Relaxed);
-            let _ = tx
-                .send(Ok(Event::default().event("done").data(
-                    json!({"total": raw_all.len(), "cached": false, "early": true}).to_string(),
-                )))
-                .await;
-        }
+        // Previously emitted `done` here as soon as the priority phase had ANY
+        // stream so the player could start sooner. The cost was that titles
+        // where the priority provider's stream was dead (e.g. Luna 404s but
+        // Lordflix has the file) bailed before Phase 2 providers had a chance
+        // to report, so the client never saw the working stream.
+        //
+        // The client already picks a best stream as `provider` events arrive
+        // (see useHueStreamSSE: resolves after 2 providers or a stable URL),
+        // so we don't need to short-circuit `done` here — letting Phase 2 run
+        // and emitting the final `done` at the natural end means the client
+        // can fail over to Phase 2 streams when the priority stream dies.
+        let _ = priority_streams_found;
 
         // Phase 2: spawn remaining providers (all for TV, rest for movies)
         for provider in rest {
@@ -712,20 +714,15 @@ pub async fn sse_streams_handler(
 
                 // If this is the first successful provider and we're still
                 // within the fast window, emit "done" early so the frontend
-                // can start playing without waiting for stragglers.
-                if !had_any
-                    && !raw_all.is_empty()
-                    && !done_sent.load(Ordering::Relaxed)
-                    && std::time::Instant::now() < fast_cutoff
-                {
-                    done_sent.store(true, Ordering::Relaxed);
-                    let _ = tx
-                        .send(Ok(Event::default().event("done").data(
-                            json!({"total": raw_all.len(), "cached": false, "early": true})
-                                .to_string(),
-                        )))
-                        .await;
-                }
+                // Same rationale as the priority-phase early-done above —
+                // when the first stream from any Phase 2 provider arrives, we
+                // used to fire `done` to let the player start. That cost is
+                // the same: when that first stream fails, the client thinks
+                // SSE is finished and can't fail over to later providers. Keep
+                // the connection open so subsequent `provider` events still
+                // count toward the failover queue.
+                let _ = had_any;
+                let _ = fast_cutoff;
             }
         })
         .await
