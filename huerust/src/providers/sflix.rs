@@ -18,8 +18,21 @@ use tracing::{info, warn};
 
 const BASE_URL: &str = "https://sflix.film";
 const API_BASE: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff";
-const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const DEFAULT_COOKIE: &str = "sflix_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjMxMTYwODUxODIwODQ5MjQ1MTIsImF0cCI6MywiZXh0IjoiMTc2ODA4NTkyNCIsImV4cCI6MTc3NTg2MTkyNCwiaWF0IjoxNzY4MDg1NjI0fQ.K6fuHWpTcLP0WjQx9ZFe6LSo_oNVNKiuC3MOA2HRw1s%22; account=2904345630854337384|0|H5|1768086238|; uuid=181f2237-fb79-4245-9a8a-2d5f0a60c4aa; sflix_i18n_lang=en";
+
+/// Extract the raw JWT value from the sflix_token cookie. The cookie value is
+/// URL-encoded as `sflix_token=%22<jwt>%22`; we strip the quotes and decode.
+fn extract_sflix_jwt(cookie: &str) -> Option<String> {
+    let token_part = cookie.split(';').find(|p| p.trim().starts_with("sflix_token="))?;
+    let value = token_part.split_once('=')?.1.trim();
+    let decoded = urlencoding::decode(value).ok()?;
+    let jwt = decoded.trim_matches('"').trim_matches('\'');
+    if jwt.is_empty() {
+        return None;
+    }
+    Some(jwt.to_string())
+}
 
 pub struct SflixClient {
     client: Client,
@@ -52,9 +65,13 @@ impl SflixClient {
         if cookie == DEFAULT_COOKIE && crate::security::jwt_is_expired(DEFAULT_COOKIE) {
             warn!("[SFlix] Default JWT is expired. Set sflix_cookie in user-config.json to restore functionality.");
         }
+        let ua = crate::user_config::HueUserConfig::get_live()
+            .sflix_user_agent
+            .clone()
+            .unwrap_or_else(|| DEFAULT_USER_AGENT.to_string());
         Self {
             client: Client::builder()
-                .user_agent(DEFAULT_USER_AGENT)
+                .user_agent(ua)
                 .timeout(std::time::Duration::from_secs(30))
                 .connect_timeout(std::time::Duration::from_secs(10))
                 .tcp_keepalive(std::time::Duration::from_secs(60))
@@ -75,18 +92,27 @@ impl SflixClient {
         if let Ok(v) = HeaderValue::from_str(&cookie) {
             headers.insert("Cookie", v);
         }
+        // SFlix now requires the JWT in an Authorization header in addition to the cookie.
+        if let Some(token) = extract_sflix_jwt(&cookie) {
+            if let Ok(v) = HeaderValue::from_str(&format!("Bearer {}", token)) {
+                headers.insert("Authorization", v);
+            }
+        }
         headers
     }
 
     pub async fn search(&self, keyword: &str, media_type: &str) -> Result<Vec<serde_json::Value>> {
         let url = format!("{}/subject/search", API_BASE);
-        let subject_type = if media_type == "tv" { 2 } else { 1 };
+        // The SFlix search endpoint now expects subjectType=0 (all) and returns
+        // mixed movie/series results. Filtering by subjectType is done client-side
+        // below — this matches the live website request.
+        let expected_subject_type = if media_type == "tv" { 2 } else { 1 };
 
         let payload = serde_json::json!({
             "keyword": keyword,
             "page": "1",
             "perPage": 24,
-            "subjectType": subject_type
+            "subjectType": 0
         });
 
         let resp = self
@@ -97,12 +123,31 @@ impl SflixClient {
             .send()
             .await?;
 
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            warn!(
+                "[SFlix] search API error for {:?}: status={} body={}",
+                keyword, status, body
+            );
+            return Ok(vec![]);
+        }
+
         let data: serde_json::Value = resp.json().await?;
         let items = data["data"]["items"]
             .as_array()
             .cloned()
             .unwrap_or_default();
-        Ok(items)
+        let filtered: Vec<_> = items
+            .into_iter()
+            .filter(|item| {
+                item["subjectType"]
+                    .as_i64()
+                    .map(|t| t == expected_subject_type as i64)
+                    .unwrap_or(true)
+            })
+            .collect();
+        Ok(filtered)
     }
 
     pub async fn get_streams(

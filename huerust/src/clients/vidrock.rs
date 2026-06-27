@@ -23,8 +23,10 @@ use base64::Engine;
 use cbc::cipher::block_padding::Pkcs7;
 use cbc::cipher::{BlockEncryptMut, KeyIvInit};
 use cbc::Encryptor;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
+use tokio::time::timeout;
 
 type Aes256Cbc = Encryptor<Aes256>;
 
@@ -270,23 +272,108 @@ impl VidRockClient {
 
         let subs = subs_fut.await;
 
+        // Some VidRock "MP4" sub-providers (e.g. Atlas/hellstorm) return a JSON
+        // playlist of resolution-specific MP4 URLs instead of a direct file.
+        // Fetch and expand those so the player receives real video URLs.
+        let mut expanded = Vec::with_capacity(streams.len() * 2);
+        for stream in streams {
+            if stream.format != "mp4" {
+                expanded.push(stream);
+                continue;
+            }
+
+            let client = self.client.clone();
+            let mut header_map = HeaderMap::new();
+            if let serde_json::Value::Object(map) = stream.headers.clone() {
+                for (k, v) in map {
+                    if let Some(vs) = v.as_str() {
+                        if let Ok(name) = HeaderName::from_bytes(k.as_bytes()) {
+                            if let Ok(value) = HeaderValue::from_str(vs) {
+                                header_map.insert(name, value);
+                            }
+                        }
+                    }
+                }
+            }
+
+            match timeout(
+                std::time::Duration::from_secs(5),
+                client.get(&stream.url).headers(header_map).send(),
+            )
+            .await
+            {
+                Ok(Ok(resp)) if resp.status().is_success() => {
+                    let content_type = resp
+                        .headers()
+                        .get("content-type")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("")
+                        .to_lowercase();
+                    let maybe_json = resp.text().await.unwrap_or_default();
+                    if content_type.contains("json") || maybe_json.trim_start().starts_with('[') {
+                        if let Ok(entries) = serde_json::from_str::<Vec<serde_json::Value>>(&maybe_json) {
+                            if !entries.is_empty()
+                                && entries.iter().all(|e| e.get("resolution").is_some() && e.get("url").is_some())
+                            {
+                                tracing::info!(
+                                    "[VidRock] expanding {} MP4 playlist into {} resolution streams",
+                                    stream.provider,
+                                    entries.len()
+                                );
+                                for entry in entries {
+                                    let res = entry["resolution"].as_i64().unwrap_or(0) as i32;
+                                    let mp4_url = entry["url"].as_str().unwrap_or("").to_string();
+                                    if mp4_url.is_empty() {
+                                        continue;
+                                    }
+                                    let quality = format!("{}p", res);
+                                    expanded.push(VidRockStream {
+                                        url: mp4_url,
+                                        title: format!(
+                                            "{} - {} - MP4",
+                                            stream.title, quality
+                                        ),
+                                        quality,
+                                        format: "mp4".to_string(),
+                                        provider: stream.provider.clone(),
+                                        headers: stream.headers.clone(),
+                                        subtitles: stream.subtitles.clone(),
+                                    });
+                                }
+                                continue;
+                            }
+                        }
+                    }
+                }
+                Ok(Err(e)) => {
+                    tracing::warn!("[VidRock] failed to probe MP4 playlist {}: {}", stream.url, e);
+                }
+                Err(_) => {
+                    tracing::warn!("[VidRock] timed out probing MP4 playlist {}", stream.url);
+                }
+                _ => {}
+            }
+
+            expanded.push(stream);
+        }
+
         // Attach subtitles to all streams so whichever is picked has them
         if let Some(ref sub_list) = subs {
             if !sub_list.is_empty() {
-                for stream in streams.iter_mut() {
+                for stream in expanded.iter_mut() {
                     stream.subtitles = Some(sub_list.clone());
                 }
             }
         }
 
         // Sort: HLS before MP4 (adaptive streaming preferred)
-        streams.sort_by(|a, b| {
+        expanded.sort_by(|a, b| {
             let a_hls = a.format == "hls";
             let b_hls = b.format == "hls";
             b_hls.cmp(&a_hls)
         });
 
-        Ok(streams)
+        Ok(expanded)
     }
 }
 

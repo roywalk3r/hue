@@ -57,6 +57,15 @@ fn maybe_decompress_body(body: &[u8]) -> String {
 }
 
 /// Realistic browser headers so Cloudflare does not reject our API calls.
+/// Parse ?rendition=1080p / 720p / 480p etc. from a vixsrc.to playlist URL.
+fn extract_rendition_quality(url: &str) -> Option<String> {
+    url.split('?')
+        .nth(1)?
+        .split('&')
+        .find(|p| p.starts_with("rendition="))
+        .and_then(|p| p.split_once('=').map(|(_, v)| v.to_string()))
+}
+
 fn vixsrc_browser_headers(referer: &str) -> Vec<(&'static str, String)> {
     vec![
         ("Accept", "application/json, text/plain, */*".to_string()),
@@ -320,11 +329,19 @@ impl VixsrcClient {
                                 e = e
                             );
                         }
-                        results.push(InternalStream {
-                            url: master_url,
-                            quality: "1080p".to_string(),
-                            title: "Aura - Master - 1080p".to_string(),
-                        });
+                        let header_tuples: Vec<(String, String)> = headers
+                            .iter()
+                            .map(|(k, v)| (k.clone(), v.clone()))
+                            .collect();
+                        results.extend(
+                            expand_master_variants(
+                                &self.client,
+                                &master_url,
+                                &header_tuples,
+                                "Aura - Master",
+                            )
+                            .await,
+                        );
                     }
                 }
             }
@@ -351,10 +368,15 @@ impl VixsrcClient {
                                     u
                                 };
                             let name = server.name.as_deref().unwrap_or("Server");
+                            // VidXsrc URLs include ?rendition=1080p/480p/720p when a
+                            // specific resolution is available. Extract it so quality is
+                            // meaningful instead of always "Auto".
+                            let quality = extract_rendition_quality(&authed)
+                                .unwrap_or_else(|| "Auto".to_string());
                             results.push(InternalStream {
                                 url: authed,
-                                quality: "Auto".to_string(),
-                                title: format!("Aura - {} - Auto", name),
+                                quality: quality.clone(),
+                                title: format!("Aura - {} - {}", name, quality),
                             });
                         }
                     }
@@ -465,11 +487,20 @@ impl VixsrcClient {
                             e = e
                         );
                     }
-                    streams.push(InternalStream {
-                        url: master_url,
-                        quality: "1080p".to_string(),
-                        title: "Aura - Master - 1080p".to_string(),
-                    });
+                    let browser_headers: Vec<(String, String)> =
+                        vixsrc_browser_headers(VIXSRC_REFERER)
+                            .into_iter()
+                            .map(|(k, v)| (k.to_string(), v))
+                            .collect();
+                    streams.extend(
+                        expand_master_variants(
+                            &self.client,
+                            &master_url,
+                            &browser_headers,
+                            "Aura - Master",
+                        )
+                        .await,
+                    );
                 }
             }
         } else {
@@ -498,11 +529,20 @@ impl VixsrcClient {
                             e = e
                         );
                     }
-                    streams.push(InternalStream {
-                        url: master_url,
-                        quality: "1080p".to_string(),
-                        title: "Aura - Master - 1080p".to_string(),
-                    });
+                    let browser_headers: Vec<(String, String)> =
+                        vixsrc_browser_headers(VIXSRC_REFERER)
+                            .into_iter()
+                            .map(|(k, v)| (k.to_string(), v))
+                            .collect();
+                    streams.extend(
+                        expand_master_variants(
+                            &self.client,
+                            &master_url,
+                            &browser_headers,
+                            "Aura - Master",
+                        )
+                        .await,
+                    );
                 }
             }
         }
@@ -544,12 +584,17 @@ impl VixsrcClient {
                                     u
                                 };
                                 let name = server.name.as_deref().unwrap_or("Server");
+                                // VidXsrc URLs include ?rendition=1080p/480p/720p when a
+                                // specific resolution is available. Extract it so quality is
+                                // meaningful instead of always "Auto".
+                                let quality = extract_rendition_quality(&authed)
+                                    .unwrap_or_else(|| "Auto".to_string());
                                 // dedupe by URL
                                 if !streams.iter().any(|s| s.url == authed) {
                                     streams.push(InternalStream {
                                         url: authed,
-                                        quality: "Auto".to_string(),
-                                        title: format!("Aura - {} - Auto", name),
+                                        quality: quality.clone(),
+                                        title: format!("Aura - {} - {}", name, quality),
                                     });
                                 }
                             }
@@ -586,6 +631,108 @@ struct InternalStream {
     url: String,
     quality: String,
     title: String,
+}
+
+/// Parse resolution (e.g. 1920x1080) into "1080p" quality label.
+fn resolution_to_quality(resolution: &str) -> Option<String> {
+    let parts: Vec<&str> = resolution.split('x').collect();
+    if parts.len() == 2 {
+        if let Ok(h) = parts[1].parse::<i32>() {
+            return Some(format!("{}p", h));
+        }
+    }
+    None
+}
+
+/// Fetch a vixsrc master playlist and expand its variants into separate streams
+/// with quality derived from RESOLUTION/BANDWIDTH attributes.
+async fn expand_master_variants(
+    client: &ClientWithMiddleware,
+    master_url: &str,
+    headers: &[(String, String)],
+    title_prefix: &str,
+) -> Vec<InternalStream> {
+    let mut req = client.get(master_url);
+    for (k, v) in headers {
+        if let Ok(name) = reqwest::header::HeaderName::from_bytes(k.as_bytes()) {
+            if let Ok(value) = reqwest::header::HeaderValue::from_str(v) {
+                req = req.header(name, value);
+            }
+        }
+    }
+
+    let body = match req.send().await {
+        Ok(resp) if resp.status().is_success() => resp.text().await.unwrap_or_default(),
+        _ => return vec![],
+    };
+
+    let mut variants = Vec::new();
+    let mut last_inf: Option<String> = None;
+    for line in body.lines() {
+        let line = line.trim();
+        if line.starts_with("#EXT-X-STREAM-INF") {
+            last_inf = Some(line.to_string());
+        } else if !line.is_empty() && !line.starts_with('#') {
+            if let Some(ref inf) = last_inf {
+                let resolution = Regex::new(r"RESOLUTION=(\d+x\d+)")
+                    .ok()
+                    .and_then(|re| re.captures(inf))
+                    .and_then(|c| c.get(1))
+                    .map(|m| m.as_str());
+                let bandwidth = Regex::new(r"BANDWIDTH=(\d+)")
+                    .ok()
+                    .and_then(|re| re.captures(inf))
+                    .and_then(|c| c.get(1))
+                    .map(|m| m.as_str().parse::<u64>().unwrap_or(0));
+
+                let quality = resolution
+                    .and_then(resolution_to_quality)
+                    .unwrap_or_else(|| {
+                        bandwidth
+                            .map(|bw| match bw {
+                                0..=400_000 => "240p".to_string(),
+                                400_001..=800_000 => "360p".to_string(),
+                                800_001..=1_500_000 => "480p".to_string(),
+                                1_500_001..=3_000_000 => "720p".to_string(),
+                                3_000_001..=5_000_000 => "1080p".to_string(),
+                                _ => "4K".to_string(),
+                            })
+                            .unwrap_or_else(|| "Auto".to_string())
+                    });
+
+                // Resolve relative variant URLs against the master URL.
+                let variant_url = if line.starts_with("http://") || line.starts_with("https://") {
+                    line.to_string()
+                } else {
+                    match reqwest::Url::parse(master_url) {
+                        Ok(base) => base
+                            .join(line)
+                            .map(|u| u.to_string())
+                            .unwrap_or_else(|_| line.to_string()),
+                        Err(_) => line.to_string(),
+                    }
+                };
+
+                variants.push(InternalStream {
+                    url: variant_url,
+                    quality: quality.clone(),
+                    title: format!("{} - {}", title_prefix, quality),
+                });
+            }
+            last_inf = None;
+        }
+    }
+
+    if variants.is_empty() {
+        // Fallback: if the URL isn't actually a multi-variant master, keep it as-is.
+        return vec![InternalStream {
+            url: master_url.to_string(),
+            quality: "1080p".to_string(),
+            title: format!("{} - 1080p", title_prefix),
+        }];
+    }
+
+    variants
 }
 
 /// Extract subtitle URLs from embed page HTML.
