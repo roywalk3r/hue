@@ -236,16 +236,25 @@ impl AnimexinClient {
         let mut sub = Vec::new();
 
         // 1. Base64-encoded iframe embeds (primary sources)
-        let b64_re = Regex::new(r#"<option\s+value="([A-Za-z0-9+/=]+)""#)?;
+        let b64_re = Regex::new(r#"<option\s+value="([A-Za-z0-9+/=]+)"(?:\s+data-index="[^"]*")?\s*>([^<]+)</option>"#)?;
         for cap in b64_re.captures_iter(&html) {
             let b64 = cap.get(1).map(|m| m.as_str()).unwrap_or_default();
+            let label = cap
+                .get(2)
+                .map(|m| m.as_str().trim().to_string())
+                .unwrap_or_default();
             if b64.len() < 20 {
                 continue;
             }
             if let Ok(decoded_bytes) = base64::decode(b64) {
                 if let Ok(decoded_html) = String::from_utf8(decoded_bytes) {
                     if let Some(src) = extract_iframe_src(&decoded_html) {
-                        let name = extract_server_name_from_url(&src);
+                        let host_name = extract_server_name_from_url(&src);
+                        let name = if label.is_empty() {
+                            host_name
+                        } else {
+                            format!("{} - {}", host_name, label)
+                        };
                         sub.push(ServerEntry {
                             id: src,
                             name,

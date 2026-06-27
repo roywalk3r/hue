@@ -60,6 +60,20 @@ impl AnimeAggregator {
         }
     }
 
+    /// Return true when the request should be routed to Animexin first.
+    /// The explicit `source=animexin` override always wins. Otherwise,
+    /// WordPress episode pages and non-AniWave dashed slugs are treated as
+    /// Chinese donghua.
+    fn prefer_animexin(id: &str, source: Option<&str>) -> bool {
+        if source == Some("animexin") {
+            return true;
+        }
+        if id.contains("-episode-") {
+            return true;
+        }
+        id.contains('-') && !is_aniwave_slug(id) && !id.starts_with("mal-")
+    }
+
     /// Search: AniWave is primary; fan out to Animexin for Chinese donghua.
     pub async fn search(&self, keyword: &str, page: u32, per_page: u32) -> AnimeSearchResponse {
         let mut animexin_results = Vec::new();
@@ -109,7 +123,16 @@ impl AnimeAggregator {
     }
 
     /// Try each provider for detail until one succeeds.
-    pub async fn get_detail(&self, id: &str) -> Option<AnimeDetail> {
+    pub async fn get_detail(&self, id: &str, source: Option<&str>) -> Option<AnimeDetail> {
+        // Animexin-first routing for Chinese donghua.
+        if Self::prefer_animexin(id, source) {
+            if let Ok(detail) = self.animexin.get_detail(id).await {
+                if !detail.card.id.is_empty() {
+                    return Some(detail);
+                }
+            }
+        }
+
         // Try Aniwave first (most reliable as of June 2026)
         if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
             match self.aniwave.get_detail(id).await {
@@ -267,7 +290,17 @@ impl AnimeAggregator {
         &self,
         id: &str,
         start: u32,
+        source: Option<&str>,
     ) -> Option<Vec<crate::models::anime::EpisodeSummary>> {
+        // Animexin-first routing for Chinese donghua.
+        if Self::prefer_animexin(id, source) {
+            if let Ok(eps) = self.animexin.get_episodes(id).await {
+                if !eps.is_empty() {
+                    return Some(eps);
+                }
+            }
+        }
+
         // Try Aniwave first (slugs end in numeric id like one-piece-81553)
         if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
             match self.aniwave.get_episodes(id).await {
@@ -337,7 +370,17 @@ impl AnimeAggregator {
         id: &str,
         episode: Option<u32>,
         audio_type: Option<&str>,
+        source: Option<&str>,
     ) -> Option<ServerList> {
+        // Animexin-first routing for Chinese donghua.
+        if Self::prefer_animexin(id, source) {
+            if let Ok(servers) = self.animexin.get_servers(id).await {
+                if !servers.sub.is_empty() || !servers.dub.is_empty() {
+                    return Some(servers);
+                }
+            }
+        }
+
         if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
             let ep = episode.unwrap_or(1);
             let audio = audio_type.unwrap_or("");
@@ -390,21 +433,24 @@ impl AnimeAggregator {
         server: Option<&str>,
         link_type: &str,
         episode: u32,
+        source: Option<&str>,
     ) -> Option<StreamPayload> {
+        // Animexin-first routing for Chinese donghua (iframe embeds).
+        if Self::prefer_animexin(id, source) {
+            if let Ok(stream) = self.animexin.get_stream(id, server).await {
+                if !stream.url.is_empty() {
+                    return Some(stream);
+                }
+            }
+        }
+
         // Aniwave: id is the series slug (e.g. "one-piece-81553"),
         // episode is the episode number. Skip if id doesn't look like a slug.
         if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
             let server_id = server.and_then(|s| s.parse::<u32>().ok());
-            match self
-                .aniwave
-                .get_stream(id, episode, server_id, link_type)
-                .await
-            {
-                Ok(stream) => {
-                    if !stream.url.is_empty() {
-                        return Some(stream);
-                    }
-                }
+            match self.aniwave.get_stream(id, episode, server_id, link_type).await {
+                Ok(stream) if !stream.url.is_empty() => return Some(stream),
+                Ok(_) => {}
                 Err(e) => warn!(
                     "[AnimeAgg] Aniwave stream error for {} ep={} type={}: {}",
                     id, episode, link_type, e
@@ -413,18 +459,24 @@ impl AnimeAggregator {
         }
 
         // HiAnime fallback when the slug is HiAnime-shaped (24-hex id or path slug).
-        if let Ok(data) = self
-            .hianime
-            .get_stream(id, server, link_type, episode)
-            .await
-        {
+        if let Ok(data) = self.hianime.get_stream(id, server, link_type, episode).await {
             if !data.link.file.is_empty() {
                 return Some(stream_data_to_payload(data));
             }
         }
 
-        // Do not fall back to Animexin: it only returns iframe embeds
-        // (ok.ru, fembed, dood) that the mobile player cannot play.
+        // Animexin fallback: it returns iframe embeds (Dailymotion,
+        // Streamwish, OK.ru, etc.). Only use it when the caller explicitly
+        // requested a server name, so mobile clients don't get an unplayable
+        // default stream.
+        if server.is_some() {
+            if let Ok(stream) = self.animexin.get_stream(id, server).await {
+                if !stream.url.is_empty() {
+                    return Some(stream);
+                }
+            }
+        }
+
         None
     }
 
@@ -738,8 +790,13 @@ impl AnimeAggregator {
     }
 
     /// Build a typed episode list response for the route handler.
-    pub async fn episodes_response(&self, id: &str, start: u32) -> Option<EpisodeListResponse> {
-        let episodes = self.get_episodes(id, start).await?;
+    pub async fn episodes_response(
+        &self,
+        id: &str,
+        start: u32,
+        source: Option<&str>,
+    ) -> Option<EpisodeListResponse> {
+        let episodes = self.get_episodes(id, start, source).await?;
         let total = episodes.len() as u32;
         Some(EpisodeListResponse {
             anime_id: id.to_string(),

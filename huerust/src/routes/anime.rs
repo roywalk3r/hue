@@ -43,6 +43,8 @@ pub struct ServersQuery {
     pub id: String,
     pub episode: Option<u32>,
     pub r#type: Option<String>,
+    /// Force a specific provider source. Use `animexin` for Chinese donghua.
+    pub source: Option<String>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -51,11 +53,21 @@ pub struct StreamQuery {
     pub server: Option<String>,
     pub r#type: Option<String>,
     pub episode: Option<u32>,
+    /// Force a specific provider source. Use `animexin` for Chinese donghua.
+    pub source: Option<String>,
 }
 
 #[derive(Deserialize, ToSchema)]
 pub struct EpisodesQuery {
     pub start: Option<u32>,
+    /// Force a specific provider source. Use `animexin` for Chinese donghua.
+    pub source: Option<String>,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct DetailQuery {
+    /// Force a specific provider source. Use `animexin` for Chinese donghua.
+    pub source: Option<String>,
 }
 
 #[derive(serde::Serialize, ToSchema)]
@@ -169,6 +181,7 @@ pub async fn home_handler(State(state): State<AnimeState>) -> Response {
     path = "/api/anime/detail/{slug}",
     params(
         ("slug" = String, Path, description = "Anime slug or hex ID"),
+        ("source" = Option<String>, Query, description = "Provider source override, e.g. animexin"),
     ),
     responses(
         (status = 200, description = "Anime detail", body = AnimeDetail),
@@ -176,9 +189,13 @@ pub async fn home_handler(State(state): State<AnimeState>) -> Response {
         (status = 500, description = "Internal error"),
     ),
 )]
-pub async fn detail_handler(State(state): State<AnimeState>, Path(slug): Path<String>) -> Response {
-    info!("[anime] detail: {}", slug);
-    match state.anime_agg.get_detail(&slug).await {
+pub async fn detail_handler(
+    State(state): State<AnimeState>,
+    Path(slug): Path<String>,
+    Query(params): Query<DetailQuery>,
+) -> Response {
+    info!("[anime] detail: {} source={:?}", slug, params.source);
+    match state.anime_agg.get_detail(&slug, params.source.as_deref()).await {
         Some(detail) => {
             if detail.card.id.is_empty() {
                 return error_json(StatusCode::NOT_FOUND, "Anime not found");
@@ -195,6 +212,7 @@ pub async fn detail_handler(State(state): State<AnimeState>, Path(slug): Path<St
     params(
         ("id" = String, Path, description = "Anime hex ID"),
         ("start" = Option<u32>, Query, description = "Start episode number for pagination"),
+        ("source" = Option<String>, Query, description = "Provider source override, e.g. animexin"),
     ),
     responses(
         (status = 200, description = "Episode list", body = EpisodeListResponse),
@@ -208,8 +226,8 @@ pub async fn episodes_handler(
     Query(params): Query<EpisodesQuery>,
 ) -> Response {
     let start = params.start.unwrap_or(0);
-    info!("[anime] episodes: {} start={}", id, start);
-    match state.anime_agg.episodes_response(&id, start).await {
+    info!("[anime] episodes: {} start={} source={:?}", id, start, params.source);
+    match state.anime_agg.episodes_response(&id, start, params.source.as_deref()).await {
         Some(resp) => success_json(resp),
         None => {
             warn!("[anime] episodes not found: {}", id);
@@ -223,6 +241,9 @@ pub async fn episodes_handler(
     path = "/api/anime/servers",
     params(
         ("id" = String, Query, description = "Anime episode slug"),
+        ("episode" = Option<u32>, Query, description = "Episode number"),
+        ("type" = Option<String>, Query, description = "Audio type: sub or dub"),
+        ("source" = Option<String>, Query, description = "Provider source override, e.g. animexin"),
     ),
     responses(
         (status = 200, description = "Server list", body = ServerList),
@@ -237,12 +258,12 @@ pub async fn servers_handler(
     let episode = params.episode.unwrap_or(1);
     let link_type = params.r#type.as_deref();
     info!(
-        "[anime] servers for: {} ep={} type={:?}",
-        params.id, episode, link_type
+        "[anime] servers for: {} ep={} type={:?} source={:?}",
+        params.id, episode, link_type, params.source
     );
     match state
         .anime_agg
-        .get_servers(&params.id, Some(episode), link_type)
+        .get_servers(&params.id, Some(episode), link_type, params.source.as_deref())
         .await
     {
         Some(servers) => success_json(servers),
@@ -261,6 +282,7 @@ pub async fn servers_handler(
         ("server" = Option<String>, Query, description = "Target server name (e.g., HD-1)"),
         ("type" = Option<String>, Query, description = "Audio type: sub or dub"),
         ("episode" = Option<u32>, Query, description = "Episode number"),
+        ("source" = Option<String>, Query, description = "Provider source override, e.g. animexin"),
     ),
     responses(
         (status = 200, description = "Stream data", body = StreamPayload),
@@ -277,14 +299,20 @@ pub async fn stream_handler(
     let episode = params.episode.unwrap_or(1);
     let link_type = params.r#type.as_deref().unwrap_or("sub");
     info!(
-        "[anime] stream: {} ep={} type={}",
-        params.id, episode, link_type
+        "[anime] stream: {} ep={} type={} source={:?}",
+        params.id, episode, link_type, params.source
     );
 
     let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
     match state
         .anime_agg
-        .get_stream(&params.id, params.server.as_deref(), link_type, episode)
+        .get_stream(
+            &params.id,
+            params.server.as_deref(),
+            link_type,
+            episode,
+            params.source.as_deref(),
+        )
         .await
     {
         Some(payload) => {
