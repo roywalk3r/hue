@@ -128,11 +128,11 @@ fn build_background_download_proxy_url(
     proxy_base_url: &str,
     secret: &str,
 ) -> String {
-    let token = crate::security::encrypt_url(source_url, secret, Some(headers));
+    let token = crate::security::sign_proxy_url(source_url, secret, Some(headers));
     format!(
-        "{}/ts-proxy?h_token={}&no_synth=1",
+        "{}/ts-proxy?{}&no_synth=1",
         proxy_base_url.trim_end_matches('/'),
-        token
+        token.to_query()
     )
 }
 
@@ -177,9 +177,10 @@ mod tests {
             "test-secret",
         );
 
-        assert!(url.starts_with("https://api.vexli.online/ts-proxy?h_token="));
+        assert!(url.starts_with("https://api.vexli.online/ts-proxy?url="));
+        assert!(url.contains("h_token="));
+        assert!(url.contains("h_headers="));
         assert!(url.contains("no_synth=1"));
-        assert!(!url.contains("mkv.example.workers.dev"));
         assert!(!url.contains("download=1"));
     }
 }
@@ -274,11 +275,11 @@ pub async fn download_handler(
                                 .insert("Referer".to_string(), "https://vidvault.ru/".to_string());
                             headers.insert("Origin".to_string(), "https://vidvault.ru".to_string());
                             let token =
-                                crate::security::encrypt_url(&f.url, &state.secret, Some(headers));
+                                crate::security::sign_proxy_url(&f.url, &state.secret, Some(headers));
                             let proxied = format!(
-                                "{}/ts-proxy?h_token={}&download=1&filename={}",
+                                "{}/ts-proxy?{}&download=1&filename={}",
                                 public_proxy_base,
-                                token,
+                                token.to_query(),
                                 urlencoding::encode(&filename),
                             );
                             DownloadFileOut {
@@ -328,10 +329,13 @@ pub async fn hls_download_handler(
     use tokio::process::Command as TokioCommand;
 
     let (target_url, token_headers) = match params.h_token.as_deref() {
-        Some(token) => match crate::security::decrypt_url(token, &state.secret) {
-            Some(data) => (data.url, data.headers),
-            None => return (StatusCode::FORBIDDEN, "Invalid token").into_response(),
-        },
+        Some(token) => {
+            // Legacy AES h_token path; new signed tokens carry the URL in query params.
+            match crate::security::decrypt_url(token, &state.secret) {
+                Some(data) => (data.url, data.headers),
+                None => return (StatusCode::FORBIDDEN, "Invalid token").into_response(),
+            }
+        }
         None => match params.source.as_deref() {
             Some(source) => {
                 // If the client sent a proxied URL, decrypt it to the real

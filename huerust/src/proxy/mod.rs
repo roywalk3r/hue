@@ -49,6 +49,8 @@ pub struct ProxyQuery {
     pub url: Option<String>,
     #[allow(dead_code)]
     pub headers: Option<String>,
+    pub h_headers: Option<String>,
+    pub expires: Option<u64>,
     #[allow(dead_code)]
     pub mode: Option<String>,
     pub download: Option<String>,
@@ -63,6 +65,8 @@ pub struct TsProxyQuery {
     pub url: Option<String>,
     #[allow(dead_code)]
     pub headers: Option<String>,
+    pub h_headers: Option<String>,
+    pub expires: Option<u64>,
     #[allow(dead_code)]
     pub mode: Option<String>,
     pub range: Option<String>,
@@ -139,12 +143,33 @@ fn parse_headers_json(raw: &str) -> Option<HashMap<String, String>> {
     serde_json::from_str::<HashMap<String, String>>(raw).ok()
 }
 
+fn parse_h_headers(params: &ProxyQuery) -> Option<HashMap<String, String>> {
+    params.h_headers.as_deref().and_then(parse_headers_json)
+}
+
+fn parse_ts_h_headers(params: &TsProxyQuery) -> Option<HashMap<String, String>> {
+    params.h_headers.as_deref().and_then(parse_headers_json)
+}
+
 /// Extract target URL + headers from `url`+`headers` mode or signed `h_token` mode.
 fn resolve_proxy_target(
     params: &ProxyQuery,
     secret: &str,
 ) -> Option<(String, Option<HashMap<String, String>>)> {
     if let Some(token) = &params.h_token {
+        // Fast HMAC path: signature covers url + expires + optional h_headers.
+        if let Some(expires) = params.expires {
+            if let Some(verified) = security::verify_proxy_url(
+                params.url.as_deref().unwrap_or(""),
+                expires,
+                token,
+                parse_h_headers(params),
+                secret,
+            ) {
+                return Some((verified.url, verified.headers));
+            }
+        }
+        // Legacy AES fallback for old/in-flight encrypted h_token values.
         if let Some(data) = security::decrypt_url(token, secret) {
             return Some((data.url, data.headers));
         }
@@ -163,6 +188,19 @@ fn resolve_ts_target(
     secret: &str,
 ) -> Option<(String, Option<HashMap<String, String>>)> {
     if let Some(token) = &params.h_token {
+        // Fast HMAC path.
+        if let Some(expires) = params.expires {
+            if let Some(verified) = security::verify_proxy_url(
+                params.url.as_deref().unwrap_or(""),
+                expires,
+                token,
+                parse_ts_h_headers(params),
+                secret,
+            ) {
+                return Some((verified.url, verified.headers));
+            }
+        }
+        // Legacy AES fallback.
         if let Some(data) = security::decrypt_url(token, secret) {
             return Some((data.url, data.headers));
         }
@@ -1416,7 +1454,7 @@ fn rewrite_playlist(
                     nonce
                 )
             } else {
-                let token = security::encrypt_url(&abs_url, secret, headers.clone());
+                let token = security::sign_proxy_url(&abs_url, secret, headers.clone());
                 let segment_extra = if is_hls {
                     ""
                 } else {
@@ -1428,8 +1466,14 @@ fn rewrite_playlist(
                     .map(|range| format!("&range={}", urlencoding::encode(&range)))
                     .unwrap_or_default();
                 format!(
-                    "{}/{}?h_token={}{}{}{}{}",
-                    proxy_base, route, token, segment_extra, force_type_param, range_part, nonce
+                    "{}/{}?{}{}{}{}{}",
+                    proxy_base,
+                    route,
+                    token.to_query(),
+                    segment_extra,
+                    force_type_param,
+                    range_part,
+                    nonce
                 )
             };
             rewritten_lines.push(proxy_url);
@@ -1489,8 +1533,8 @@ fn rewrite_hls_tag_uri(
             proxy_base, route, encoded_url, header_part
         )
     } else {
-        let token = security::encrypt_url(&abs_url, secret, headers.clone());
-        format!("{}/{}?h_token={}", proxy_base, route, token)
+        let token = security::sign_proxy_url(&abs_url, secret, headers.clone());
+        format!("{}/{}?{}", proxy_base, route, token.to_query())
     };
 
     Some(format!("{}\"{}\"{}", prefix, proxy_url, suffix))
@@ -1913,8 +1957,10 @@ Second cue"#;
             secret,
             None,
         );
-        assert!(rewritten.contains("http://proxy.local/ts-proxy?h_token="));
-        assert!(rewritten.contains("http://proxy.local/ts-proxy?h_token="));
+        assert!(rewritten.contains("http://proxy.local/ts-proxy?url="));
+        assert!(rewritten.contains("h_token="));
+        assert!(rewritten.contains("http://proxy.local/ts-proxy?url="));
+        assert!(rewritten.contains("h_token="));
     }
 
     #[tokio::test]
@@ -1927,8 +1973,8 @@ Second cue"#;
             "secret",
             None,
         );
-        assert!(rewritten.contains("http://proxy.local/ts-proxy?h_token="));
-        assert!(!rewritten.contains("http://proxy.local/ts-proxy?url="));
+        assert!(rewritten.contains("http://proxy.local/ts-proxy?url="));
+        assert!(rewritten.contains("h_token="));
         assert!(!rewritten.contains("&mode=url"));
     }
 
@@ -1949,8 +1995,8 @@ Second cue"#;
             Some(headers),
         );
 
-        assert!(rewritten.contains("http://proxy.local/ts-proxy?h_token="));
-        assert!(!rewritten.contains("http://proxy.local/ts-proxy?url="));
+        assert!(rewritten.contains("http://proxy.local/ts-proxy?url="));
+        assert!(rewritten.contains("h_token="));
         assert!(!rewritten.contains("&headers="));
     }
 
@@ -1972,6 +2018,8 @@ Second cue"#;
             h_token: None,
             url: Some("https://example.com/playlist.m3u8".to_string()),
             headers: None,
+            h_headers: None,
+            expires: None,
             mode: Some("url".to_string()),
             download: None,
             filename: None,
@@ -1987,6 +2035,8 @@ Second cue"#;
             h_token: None,
             url: Some("https://vixsrc.to/playlist/123.m3u8".to_string()),
             headers: Some(r#"{"Referer":"https://vixsrc.to/"}"#.to_string()),
+            h_headers: None,
+            expires: None,
             mode: Some("url".to_string()),
             download: None,
             filename: None,
@@ -2006,6 +2056,8 @@ Second cue"#;
             h_token: None,
             url: Some("https://example.com/segment.ts".to_string()),
             headers: None,
+            h_headers: None,
+            expires: None,
             mode: Some("url".to_string()),
             range: None,
             clamp_open: None,
@@ -2045,6 +2097,8 @@ Second cue"#;
             h_token: None,
             url: Some("https://hakunaymatata.com/seg.ts".to_string()),
             headers: None,
+            h_headers: None,
+            expires: None,
             mode: Some("url".to_string()),
             range: None,
             clamp_open: None,
@@ -2136,25 +2190,15 @@ pub fn proxy_anime_stream(
 
     payload.url = {
         let route = route_for(&payload.url, "stream");
-        let token = crate::security::encrypt_url(&payload.url, secret, Some(headers.clone()));
-        format!(
-            "{}{}?h_token={}",
-            proxy_base_url,
-            route,
-            urlencoding::encode(&token)
-        )
+        let token = crate::security::sign_proxy_url(&payload.url, secret, Some(headers.clone()));
+        format!("{}{}?{}", proxy_base_url, route, token.to_query())
     };
 
     if let Some(ref mut tracks) = payload.subtitles {
         for t in tracks.iter_mut() {
             let route = route_for(&t.file, "subtitle");
-            let token = crate::security::encrypt_url(&t.file, secret, Some(headers.clone()));
-            t.file = format!(
-                "{}{}?h_token={}",
-                proxy_base_url,
-                route,
-                urlencoding::encode(&token)
-            );
+            let token = crate::security::sign_proxy_url(&t.file, secret, Some(headers.clone()));
+            t.file = format!("{}{}?{}", proxy_base_url, route, token.to_query());
         }
     }
 

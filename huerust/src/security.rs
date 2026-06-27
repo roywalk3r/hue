@@ -8,15 +8,18 @@
 use aes::Aes256;
 use cbc::{Decryptor, Encryptor};
 use cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
+use hmac::{Hmac, Mac};
 use rand::RngCore;
 use scrypt::{scrypt, Params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{Mutex, OnceLock};
 
 type Aes256CbcDec = Decryptor<Aes256>;
 type Aes256CbcEnc = Encryptor<Aes256>;
+
+type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DecryptedToken {
@@ -26,6 +29,32 @@ pub struct DecryptedToken {
     pub expires: u64,
     #[serde(rename = "h")]
     pub headers: Option<HashMap<String, String>>,
+}
+
+/// Token produced by `sign_proxy_url`. Cheap to verify; no encryption.
+#[derive(Debug, Clone)]
+pub struct ProxyToken {
+    pub url: String,
+    pub expires: u64,
+    pub headers: Option<HashMap<String, String>>,
+    pub signature: String,
+}
+
+impl ProxyToken {
+    /// Build a query-string representation for use in proxy URLs.
+    /// Headers are attached via an additional `h_headers` param when present.
+    pub fn to_query(&self) -> String {
+        let mut parts = vec![
+            format!("url={}", urlencoding::encode(&self.url)),
+            format!("expires={}", self.expires),
+            format!("h_token={}", urlencoding::encode(&self.signature)),
+        ];
+        let headers_json = canonical_headers_json(self.headers.as_ref());
+        if !headers_json.is_empty() {
+            parts.push(format!("h_headers={}", urlencoding::encode(&headers_json)));
+        }
+        parts.join("&")
+    }
 }
 
 fn get_key(secret: &str) -> [u8; 32] {
@@ -50,6 +79,94 @@ fn get_key_memoized(secret: &str) -> [u8; 32] {
     let k = get_key(secret);
     cache.lock().unwrap().insert(secret.to_string(), k);
     k
+}
+
+/// Derive a fast HMAC key from the secret using a single SHA-256 hash.
+/// This is NOT used for password storage; the secret is already a strong API
+/// key, so scrypt is unnecessary for the per-request signature path.
+fn hmac_key(secret: &str) -> [u8; 32] {
+    Sha256::digest(secret.as_bytes()).into()
+}
+
+/// Sign an upstream URL for the proxy. Returns a `ProxyToken` that can be
+/// serialized into the proxy query string. 4-hour expiry.
+pub fn sign_proxy_url(
+    url: &str,
+    secret: &str,
+    headers: Option<HashMap<String, String>>,
+) -> ProxyToken {
+    let expires = (chrono::Utc::now().timestamp_millis() as u64) + (4 * 60 * 60 * 1000);
+    let signature = compute_proxy_signature(url, expires, headers.as_ref(), secret);
+    ProxyToken {
+        url: url.to_string(),
+        expires,
+        headers,
+        signature: hex::encode(signature),
+    }
+}
+
+/// Canonical JSON representation of optional headers for signing.
+/// Keys are sorted so HashMap iteration order cannot break verification.
+fn canonical_headers_json(headers: Option<&HashMap<String, String>>) -> String {
+    headers
+        .map(|h| {
+            let sorted: BTreeMap<String, String> = h.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+            serde_json::to_string(&sorted).unwrap_or_default()
+        })
+        .unwrap_or_default()
+}
+
+fn compute_proxy_signature(
+    url: &str,
+    expires: u64,
+    headers: Option<&HashMap<String, String>>,
+    secret: &str,
+) -> [u8; 32] {
+    let headers_json = canonical_headers_json(headers);
+    let payload = format!("{}|{}|{}", url, expires, headers_json);
+    let key = hmac_key(secret);
+    let mut mac = HmacSha256::new_from_slice(&key).expect("HMAC accepts any key size");
+    mac.update(payload.as_bytes());
+    mac.finalize().into_bytes().into()
+}
+
+/// Verify an HMAC-signed proxy token extracted from `h_token`, using the
+/// `url`, `expires`, and optional `h_headers` query params.
+pub fn verify_proxy_url(
+    url: &str,
+    expires: u64,
+    signature: &str,
+    headers: Option<HashMap<String, String>>,
+    secret: &str,
+) -> Option<ProxyToken> {
+    let now = chrono::Utc::now().timestamp_millis() as u64;
+    if now > expires {
+        return None;
+    }
+    let expected = compute_proxy_signature(url, expires, headers.as_ref(), secret);
+    let expected_hex = hex::encode(expected);
+    if !constant_time_eq(signature, &expected_hex) {
+        return None;
+    }
+    Some(ProxyToken {
+        url: url.to_string(),
+        expires,
+        headers,
+        signature: signature.to_string(),
+    })
+}
+
+fn constant_time_eq(a: &str, b: &str) -> bool {
+    let a = a.as_bytes();
+    let b = b.as_bytes();
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
 }
 
 /// Returns true if a raw string containing a JWT has an expired `exp` claim.
@@ -96,6 +213,8 @@ pub fn jwt_is_expired(raw: &str) -> bool {
     exp < now
 }
 
+/// Legacy AES-CBC encrypted token. Kept for decrypting old/in-flight URLs.
+/// New code should use `sign_proxy_url`.
 pub fn encrypt_url(url: &str, secret: &str, headers: Option<HashMap<String, String>>) -> String {
     let expires = (chrono::Utc::now().timestamp_millis() as u64) + (4 * 60 * 60 * 1000);
     let payload = serde_json::to_vec(&DecryptedToken {
@@ -115,6 +234,8 @@ pub fn encrypt_url(url: &str, secret: &str, headers: Option<HashMap<String, Stri
     format!("{}:{}", hex::encode(iv), hex::encode(ct))
 }
 
+/// Legacy AES-CBC decrypt. Used as a fallback when `h_token` is an old
+/// encrypted blob (contains ':') rather than a hex HMAC signature.
 pub fn decrypt_url(token: &str, secret: &str) -> Option<DecryptedToken> {
     let parts: Vec<&str> = token.split(':').collect();
     if parts.len() != 2 {
@@ -213,6 +334,45 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_proxy_sign_verify_roundtrip() {
+        let secret = "test-secret-12345678901234567890";
+        let url = "https://example.com/stream.m3u8";
+        let mut headers = HashMap::new();
+        headers.insert("Referer".to_string(), "https://example.com/".to_string());
+
+        let token = sign_proxy_url(url, secret, Some(headers.clone()));
+        let verified = verify_proxy_url(
+            &token.url,
+            token.expires,
+            &token.signature,
+            token.headers.clone(),
+            secret,
+        )
+        .unwrap();
+        assert_eq!(verified.url, url);
+        assert_eq!(verified.headers, Some(headers));
+    }
+
+    #[test]
+    fn test_proxy_signature_wrong_secret_fails() {
+        let token = sign_proxy_url("https://example.com/x.m3u8", "secret-a", None);
+        assert!(verify_proxy_url(
+            &token.url,
+            token.expires,
+            &token.signature,
+            None,
+            "secret-b"
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn test_proxy_signature_expired_fails() {
+        let token = sign_proxy_url("https://example.com/x.m3u8", "secret", None);
+        assert!(verify_proxy_url(&token.url, 0, &token.signature, None, "secret").is_none());
+    }
+
+    #[test]
     fn test_encrypt_decrypt_roundtrip() {
         let secret = "test-secret-12345678901234567890";
         let url = "https://example.com/stream.m3u8";
@@ -256,4 +416,37 @@ mod tests {
         // Wrong key produces garbage, not the original URL
         assert!(decrypted.is_none() || decrypted.unwrap() != url);
     }
+
+    #[test]
+    fn test_proxy_signature_is_order_independent() {
+        use std::collections::HashMap;
+        let secret = "test-secret";
+        let url = "https://example.com/stream.m3u8";
+        let mut headers_a = HashMap::new();
+        headers_a.insert("Origin".to_string(), "https://example.com".to_string());
+        headers_a.insert("Referer".to_string(), "https://example.com/".to_string());
+        headers_a.insert("User-Agent".to_string(), "UA".to_string());
+        let token_a = sign_proxy_url(url, secret, Some(headers_a.clone()));
+
+        // Verify with the same logical headers inserted in a different order.
+        let mut headers_b = HashMap::new();
+        headers_b.insert("User-Agent".to_string(), "UA".to_string());
+        headers_b.insert("Referer".to_string(), "https://example.com/".to_string());
+        headers_b.insert("Origin".to_string(), "https://example.com".to_string());
+        assert!(
+            verify_proxy_url(
+                url,
+                token_a.expires,
+                &token_a.signature,
+                Some(headers_b),
+                secret
+            )
+            .is_some()
+        );
+
+        // The canonical h_headers param should list keys in sorted order.
+        let h_headers = token_a.to_query();
+        assert!(h_headers.contains("h_headers="));
+    }
+
 }

@@ -1081,6 +1081,7 @@ dependencies = [
  "futures-util",
  "governor",
  "hex",
+ "hmac",
  "metrics",
  "metrics-exporter-prometheus",
  "moka",

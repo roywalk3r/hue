@@ -1,5 +1,5 @@
 use crate::models::StreamResult;
-use crate::security::encrypt_url;
+use crate::security::sign_proxy_url;
 use url::Url;
 
 use super::is_whitelisted_raw_url;
@@ -58,7 +58,7 @@ pub(crate) fn wrap_with_proxy(
             let is_mp4_mkv =
                 s.url.to_lowercase().contains(".mp4") || s.url.to_lowercase().contains(".mkv");
 
-            let mut headers = s.headers.clone().unwrap_or_default();
+            let headers = s.headers.clone().unwrap_or_default();
             let use_raw_url = is_whitelisted_raw_url(&s.url);
             let token_headers = if headers.is_empty() {
                 None
@@ -83,21 +83,19 @@ pub(crate) fn wrap_with_proxy(
                     proxy_base, route, encoded_url, header_part
                 )
             } else {
-                let token = encrypt_url(&s.url, secret, token_headers.clone());
-                if is_hls {
-                    format!("{}/m3u8-proxy?h_token={}", proxy_base, token)
-                } else if is_pixeldrain || is_googleusercontent || is_moviebox_cdn {
-                    format!("{}/ts-proxy?h_token={}", proxy_base, token)
-                } else if is_mp4_mkv {
-                    format!("{}/ts-proxy?h_token={}", proxy_base, token)
+                let token = sign_proxy_url(&s.url, secret, token_headers.clone());
+                let route = if is_hls
+                    || is_pixeldrain
+                    || is_googleusercontent
+                    || is_moviebox_cdn
+                    || is_mp4_mkv
+                {
+                    if is_hls { "m3u8-proxy" } else { "ts-proxy" }
                 } else {
                     // Default: hls → m3u8-proxy, everything else → ts-proxy
-                    if is_hls {
-                        format!("{}/m3u8-proxy?h_token={}", proxy_base, token)
-                    } else {
-                        format!("{}/ts-proxy?h_token={}", proxy_base, token)
-                    }
-                }
+                    if is_hls { "m3u8-proxy" } else { "ts-proxy" }
+                };
+                format!("{}/{}?{}", proxy_base, route, token.to_query())
             };
 
             s.url = proxied_url;
@@ -114,8 +112,8 @@ pub(crate) fn wrap_with_proxy(
                                 format!("{}/sub-proxy?url={}&mode=url", proxy_base, encoded_sub_url)
                             } else {
                                 let sub_token =
-                                    encrypt_url(&sub.url, secret, token_headers.clone());
-                                format!("{}/sub-proxy?h_token={}", proxy_base, sub_token)
+                                    sign_proxy_url(&sub.url, secret, token_headers.clone());
+                                format!("{}/sub-proxy?{}", proxy_base, sub_token.to_query())
                             };
                             sub.url = sub_url;
                             sub
@@ -163,9 +161,9 @@ mod tests {
         );
 
         let subtitle_url = &wrapped[0].subtitles.as_ref().unwrap()[0].url;
-        assert!(subtitle_url.starts_with("https://api.vexli.online/sub-proxy?h_token="));
-        assert!(!subtitle_url.contains("mb_token"));
-        assert!(!subtitle_url.contains("&headers="));
+        assert!(subtitle_url.starts_with("https://api.vexli.online/sub-proxy?url="));
+        assert!(subtitle_url.contains("h_token="));
+        assert!(subtitle_url.contains("h_headers="));
     }
 
     #[test]

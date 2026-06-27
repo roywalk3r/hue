@@ -21,6 +21,8 @@ use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{info, warn};
 
+use futures_util::future::join_all;
+
 use crate::{
     app::StreamState,
     filters::apply_filters,
@@ -28,6 +30,7 @@ use crate::{
         cache::CacheKey,
         sticky_pref::{StickyPrefEntry, StickyPrefKey},
     },
+    models::StreamResult,
     providers::StreamProvider,
     proxy::dynamic_proxy_base,
     proxy::wrap::wrap_with_proxy,
@@ -43,6 +46,37 @@ fn is_generic_movie_tv_provider_allowed(media_type: &str, real_name: &str) -> bo
         && real_name != "dramacool"
         && real_name != "kissasian"
         && real_name != "vidvault"
+}
+
+/// HEAD-check a stream manifest/URL. Returns true for HTTP 2xx/206 responses
+/// within the configured timeout. HLS manifests are checked with a plain GET/HEAD;
+/// MP4/direct files use a Range request to avoid downloading the whole file.
+async fn is_stream_reachable(client: &reqwest_middleware::ClientWithMiddleware, stream: &StreamResult, timeout_secs: u64) -> bool {
+    let is_hls = stream.format == "hls" || stream.url.to_lowercase().contains(".m3u8");
+    let mut req = if is_hls {
+        client.head(&stream.url)
+    } else {
+        client.get(&stream.url).header("Range", "bytes=0-1")
+    };
+    if let Some(ref headers) = stream.headers {
+        for (k, v) in headers {
+            req = req.header(k, v);
+        }
+    }
+    match timeout(Duration::from_secs(timeout_secs), req.send()).await {
+        Ok(Ok(resp)) => {
+            let status = resp.status();
+            status.is_success() || status.as_u16() == 206
+        }
+        Ok(Err(e)) => {
+            warn!("[SSE] HEAD check failed for {}: {}", stream.provider, e);
+            false
+        }
+        Err(_) => {
+            warn!("[SSE] HEAD check timed out for {}", stream.provider);
+            false
+        }
+    }
 }
 
 #[utoipa::path(
@@ -197,7 +231,7 @@ pub async fn sse_streams_handler(
         // the rest of the providers. Returning only the sticky source hides
         // faster/better alternatives and leaves the user stuck if its streams
         // fail to play.
-        let mut sticky_task: Option<tokio::task::JoinHandle<Vec<crate::models::StreamResult>>> = None;
+        let mut sticky_task: Option<tokio::task::JoinHandle<Vec<StreamResult>>> = None;
         if let Some(entry) = sticky_hit.clone() {
             let sticky_is_priority = state
                 .registry
@@ -224,6 +258,8 @@ pub async fn sse_streams_handler(
                     let enable_proxy = state.config.enable_proxy;
                     let stream_count = stream_count.clone();
                     let config = state.config.clone();
+                    let client = state.client.clone();
+                    let head_timeout = state.config.head_check_timeout_secs;
                     let tmdb_id = tmdb_id.clone();
                     sticky_task = Some(tokio::spawn(async move {
                         let name = provider.name().to_string();
@@ -261,10 +297,25 @@ pub async fn sse_streams_handler(
                         let elapsed_ms = t0.elapsed().as_millis() as u64;
                         match result {
                             Ok(Ok(streams)) if !streams.is_empty() => {
+                                let checks = join_all(
+                                    streams.iter().map(|s| is_stream_reachable(&client, s, head_timeout)),
+                                )
+                                .await;
+                                let streams: Vec<StreamResult> = streams
+                                    .into_iter()
+                                    .zip(checks)
+                                    .filter(|(_, ok)| *ok)
+                                    .map(|(s, _)| s)
+                                    .collect();
+                                if streams.is_empty() {
+                                    info!("[SSE] sticky fast-path {} returned only unreachable streams", name);
+                                    cb.record_failure(&real_name);
+                                    return vec![];
+                                }
                                 cb.record_success(&real_name);
                                 stream_count.fetch_add(streams.len(), Ordering::Relaxed);
                                 info!(
-                                    "[SSE] sticky fast-path {} returned {} streams in {}ms",
+                                    "[SSE] sticky fast-path {} returned {} reachable streams in {}ms",
                                     name,
                                     streams.len(),
                                     elapsed_ms
@@ -324,7 +375,7 @@ pub async fn sse_streams_handler(
             .filter(|provider| is_generic_movie_tv_provider_allowed(&m_type, provider.real_name()))
             .collect();
         let cb = registry.circuit_breaker().clone();
-        let mut raw_all: Vec<crate::models::StreamResult> = Vec::new();
+        let mut raw_all: Vec<StreamResult> = Vec::new();
 
         let priority_names = ["Luna", "Aura"];
         let (priority, rest): (Vec<_>, Vec<_>) = all_providers
@@ -372,6 +423,8 @@ pub async fn sse_streams_handler(
             let enable_proxy = state.config.enable_proxy;
             let stream_count = stream_count.clone();
             let config = state.config.clone();
+            let client = state.client.clone();
+            let head_timeout = state.config.head_check_timeout_secs;
             let tmdb_id = tmdb_id.clone();
             provider_tasks.spawn(async move {
                 let name = provider.name().to_string();
@@ -426,10 +479,25 @@ pub async fn sse_streams_handler(
                 let elapsed_ms = t0.elapsed().as_millis() as u64;
                 match result {
                     Ok(Ok(streams)) if !streams.is_empty() => {
+                        let checks = join_all(
+                            streams.iter().map(|s| is_stream_reachable(&client, s, head_timeout)),
+                        )
+                        .await;
+                        let streams: Vec<StreamResult> = streams
+                            .into_iter()
+                            .zip(checks)
+                            .filter(|(_, ok)| *ok)
+                            .map(|(s, _)| s)
+                            .collect();
+                        if streams.is_empty() {
+                            info!("[SSE] provider {} returned only unreachable streams", name);
+                            cb.record_failure(&real_name);
+                            return vec![];
+                        }
                         cb.record_success(&real_name);
                         stream_count.fetch_add(streams.len(), Ordering::Relaxed);
                         info!(
-                            "[SSE] provider {} returned {} streams in {}ms",
+                            "[SSE] provider {} returned {} reachable streams in {}ms",
                             name,
                             streams.len(),
                             elapsed_ms
@@ -531,6 +599,8 @@ pub async fn sse_streams_handler(
             let enable_proxy = state.config.enable_proxy;
             let stream_count = stream_count.clone();
             let config = state.config.clone();
+            let client = state.client.clone();
+            let head_timeout = state.config.head_check_timeout_secs;
             let tmdb_id = tmdb_id.clone();
             provider_tasks.spawn(async move {
                 let name = provider.name().to_string();
@@ -564,10 +634,25 @@ pub async fn sse_streams_handler(
                 let elapsed_ms = t0.elapsed().as_millis() as u64;
                 match result {
                     Ok(Ok(streams)) if !streams.is_empty() => {
+                        let checks = join_all(
+                            streams.iter().map(|s| is_stream_reachable(&client, s, head_timeout)),
+                        )
+                        .await;
+                        let streams: Vec<StreamResult> = streams
+                            .into_iter()
+                            .zip(checks)
+                            .filter(|(_, ok)| *ok)
+                            .map(|(s, _)| s)
+                            .collect();
+                        if streams.is_empty() {
+                            info!("[SSE] provider {} returned only unreachable streams", name);
+                            cb.record_failure(&real_name);
+                            return vec![];
+                        }
                         cb.record_success(&real_name);
                         stream_count.fetch_add(streams.len(), Ordering::Relaxed);
                         info!(
-                            "[SSE] provider {} returned {} streams in {}ms",
+                            "[SSE] provider {} returned {} reachable streams in {}ms",
                             name,
                             streams.len(),
                             elapsed_ms
@@ -783,7 +868,9 @@ pub async fn warm_handler(
             .collect();
 
         let cb = state.registry.circuit_breaker().clone();
-        let mut raw_all: Vec<crate::models::StreamResult> = Vec::new();
+        let mut raw_all: Vec<StreamResult> = Vec::new();
+        let client = state.client.clone();
+        let head_timeout = state.config.head_check_timeout_secs;
 
         let mut tasks = tokio::task::JoinSet::new();
         for provider in all_providers {
@@ -791,6 +878,7 @@ pub async fn warm_handler(
             let tmdb = tmdb_info.clone();
             let mtype = m_type.clone();
             let config = state.config.clone();
+            let client = client.clone();
             let tmdb_id = tmdb_id.clone();
             tasks.spawn(async move {
                 let real_name = provider.real_name().to_string();
@@ -821,7 +909,22 @@ pub async fn warm_handler(
 
                 match result {
                     Ok(Ok(streams)) if !streams.is_empty() => {
-                        cb.record_success(&real_name);
+                        let checks = join_all(
+                            streams.iter().map(|s| is_stream_reachable(&client, s, head_timeout)),
+                        )
+                        .await;
+                        let streams: Vec<StreamResult> = streams
+                            .into_iter()
+                            .zip(checks)
+                            .filter(|(_, ok)| *ok)
+                            .map(|(s, _)| s)
+                            .collect();
+                        if streams.is_empty() {
+                            info!("[Warm] provider {} returned only unreachable streams", real_name);
+                            cb.record_failure(&real_name);
+                        } else {
+                            cb.record_success(&real_name);
+                        }
                         streams
                     }
                     Ok(Err(_)) | Err(_) => {

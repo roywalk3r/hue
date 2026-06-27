@@ -19,7 +19,7 @@ use validator::Validate;
 use crate::app::AppState;
 use crate::clients::aisports::SportsStream;
 use crate::proxy::dynamic_proxy_base;
-use crate::security::encrypt_url;
+use crate::security::sign_proxy_url;
 
 #[derive(Deserialize, ToSchema, Validate)]
 pub struct SportsStreamQuery {
@@ -186,14 +186,14 @@ fn wrap_sports_streams(
             }
 
             let headers = stream.headers.clone();
-            let token = encrypt_url(&stream.url, secret, headers);
+            let token = sign_proxy_url(&stream.url, secret, headers);
             let route = if stream.url.to_lowercase().contains(".m3u8") {
                 "m3u8-proxy"
             } else {
                 "ts-proxy"
             };
 
-            stream.url = format!("{}/{}?h_token={}", proxy_base, route, token);
+            stream.url = format!("{}/{}?{}", proxy_base, route, token.to_query());
             stream.headers = None;
             stream
         })
