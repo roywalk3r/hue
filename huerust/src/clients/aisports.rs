@@ -276,15 +276,11 @@ impl AiSportsClient {
         count: u32,
     ) -> Result<serde_json::Value> {
         let count = count.clamp(1, 50);
-        let match_type = if match_type.trim().is_empty() {
-            "MTFootball"
-        } else {
-            match_type.trim()
-        };
+        let match_type = Self::normalize_match_type(match_type);
         let count_string = count.to_string();
         let url = reqwest::Url::parse_with_params(
             API_LATEST_URL,
-            [("matchType", match_type), ("count", count_string.as_str())],
+            [("matchType", match_type.as_str()), ("count", count_string.as_str())],
         )?;
 
         self.get_json(url, "latest").await
@@ -491,6 +487,15 @@ impl AiSportsClient {
             }
         }
         path.to_string()
+    }
+
+    fn normalize_match_type(match_type: &str) -> String {
+        match match_type.trim().to_lowercase().as_str() {
+            "" | "mtfootball" | "football" | "soccer" => "MTFootball".to_string(),
+            "mtbasketball" | "basketball" => "MTBasketball".to_string(),
+            "mtcricket" | "cricket" => "MTCricket".to_string(),
+            other => other.to_string(),
+        }
     }
 
     pub fn grouped_streams_from_match(active: &Match) -> GroupedSportsStreams {
