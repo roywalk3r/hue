@@ -6,7 +6,10 @@ restart.trigger
 # Firebase service account — do NOT commit
 vexli-3d15a-firebase-adminsdk-fbsvc-*.json
 utils/fcm-tokens.json
-
+.playwright-cli
+.playwright*
+.playwright-mcp/*
+.omc/*
 # LeanKG — large binary database, auto-generated
 .leankg/
 *.txt
