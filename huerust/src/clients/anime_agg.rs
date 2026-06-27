@@ -140,10 +140,12 @@ impl AnimeAggregator {
     pub async fn get_detail(&self, id: &str, source: Option<&str>) -> Option<AnimeDetail> {
         // Donghua scraper routing for Chinese content.
         if Self::prefer_animekill(id, source) {
-            if let Ok(detail) = self.animekill.get_detail(id).await {
-                if !detail.card.id.is_empty() {
+            match self.animekill.get_detail(id).await {
+                Ok(detail) if !detail.card.id.is_empty() => {
                     return Some(detail);
                 }
+                Ok(_) => warn!("[AnimeAgg] AnimeKill returned empty detail for {}", id),
+                Err(e) => warn!("[AnimeAgg] AnimeKill detail error for {}: {}", id, e),
             }
         }
         if source == Some("animexin") || (source.is_none() && Self::prefer_donghua_scraper(id, source)) {

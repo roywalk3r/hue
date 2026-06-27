@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use regex::Regex;
 use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
+use tracing::{debug, warn};
 
 use crate::models::anime::{
     AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, EpisodeSummary, FilterParams,
@@ -261,10 +262,13 @@ impl AnimeKillClient {
         let resp = self.client.get(&url).send().await?;
         let status = resp.status();
         let html = resp.text().await?;
-        if status == 404
-            || html.contains("404 Not Found")
-            || html.contains("This page could not be found")
-        {
+        debug!(
+            "[AnimeKill] fetch_series_html status={} len={} id={}",
+            status,
+            html.len(),
+            anime_id
+        );
+        if is_animekill_not_found(&html) {
             return Err(anyhow!("AnimeKill series page not found ({})", anime_id));
         }
         Ok(html)
@@ -273,17 +277,20 @@ impl AnimeKillClient {
     async fn fetch_episode_html(&self, episode_id: &str) -> Result<String> {
         let (canonical, _) = canonical_episode_id(episode_id);
         let url = format!(
-            "{}/{}/",
+            "{}/{}",
             BASE_URL,
             canonical.trim_start_matches('/').trim_end_matches('/')
         );
         let resp = self.client.get(&url).send().await?;
         let status = resp.status();
         let html = resp.text().await?;
-        if status == 404
-            || html.contains("404 Not Found")
-            || html.contains("This page could not be found")
-        {
+        debug!(
+            "[AnimeKill] fetch_episode_html status={} len={} id={}",
+            status,
+            html.len(),
+            canonical
+        );
+        if is_animekill_not_found(&html) {
             return Err(anyhow!(
                 "AnimeKill episode page not found ({})",
                 canonical
@@ -502,14 +509,13 @@ fn extract_anime_payload(html: &str, anime_id: &str) -> Result<SsrAnime> {
 
 fn is_animekill_not_found(html: &str) -> bool {
     html.contains(r#"<title>404"#)
-        || html.contains("Page not found")
-        || html.contains("This page could not be found")
+        || html.to_lowercase().contains(r#"<title>not found"#)
 }
 
 /// Locate the __next_f.push payload chunk containing `anime_id` and parse the
 /// flight component whose props object holds the anime data.
 fn find_anime_in_next_f(html: &str, anime_id: &str) -> Option<SsrAnime> {
-    let needle = format!(r#"\"anime_id\":\"{}\""#, regex::escape(anime_id));
+    let needle = format!(r#"\"anime_id\":\"{}\""#, anime_id);
     let mut search_start = 0;
     while let Some(pos) = html[search_start..].find(&needle) {
         let abs_pos = search_start + pos;
@@ -536,6 +542,7 @@ fn find_anime_in_next_f(html: &str, anime_id: &str) -> Option<SsrAnime> {
         let end = literal_end?;
 
         let flight_text = unescape_js_string(&html[literal_start..end]);
+        debug!("[AnimeKill] flight payload len={}", flight_text.len());
         if let Some(value_json) = first_json_value(&flight_text) {
             if let Ok(root) = serde_json::from_str::<serde_json::Value>(value_json) {
                 if let Some(props) = find_anime_props(&root, anime_id) {
@@ -770,4 +777,44 @@ fn extract_server_name_from_url(url: &str) -> String {
         .next()
         .unwrap_or("Unknown");
     name.to_uppercase()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_anime_payload_from_saved_html() {
+        let html = match std::fs::read_to_string("/tmp/ak-detail.html") {
+            Ok(h) => h,
+            Err(_) => return,
+        };
+        let anime = extract_anime_payload(
+            &html,
+            "dragons-triumph-in-the-celestial-realm",
+        )
+        .unwrap();
+        assert_eq!(anime.anime_id, "dragons-triumph-in-the-celestial-realm");
+        assert!(!anime.name.is_empty());
+        let eps = anime.episode_list.unwrap();
+        assert!(!eps.is_empty());
+        let ep1 = eps.iter().find(|e| e.number as u32 == 1).expect("episode 1");
+        assert_eq!(ep1.episode_id, "dragons-triumph-in-the-celestial-realm-episode-1");
+    }
+
+    #[test]
+    fn test_extract_episode_payload_from_saved_html() {
+        let html = match std::fs::read_to_string("/tmp/ak-ep1.html") {
+            Ok(h) => h,
+            Err(_) => return,
+        };
+        let ep = extract_episode_payload(
+            &html,
+            "dragons-triumph-in-the-celestial-realm-episode-1",
+        )
+        .unwrap();
+        assert_eq!(ep.episode_id, "dragons-triumph-in-the-celestial-realm-episode-1");
+        assert!(ep.video_host.is_some());
+        assert!(!ep.video_host.unwrap().is_empty());
+    }
 }
