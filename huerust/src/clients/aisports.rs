@@ -5,12 +5,13 @@ use anyhow::{anyhow, Result};
 use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
+use chrono::prelude::*;
 
 const API_LIST_URL: &str =
     "https://h5-api.aoneroom.com/wefeed-h5api-bff/live/match-list-v5?leagueId=0";
 const API_LIST_V5_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff/live/match-list-v5";
 const API_LIST_V3_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff/live/match-list-v3";
-const API_DETAIL_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff/sport/detail-v1";
+const API_DETAIL_URL: &str = "https://h5-sport-api.aoneroom.com/wefeed-h5api-bff/sport/detail-v1";
 const API_LATEST_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff/live/latest-match";
 const API_AGGREGATE_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff/sport/aggregate-v1";
 const LEAGUE_TAB_URL: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff/live/league-tab";
@@ -71,24 +72,24 @@ pub struct Match {
     pub highlights: Option<Vec<Highlight>>,
     #[serde(default)]
     pub replay: Option<Vec<Replay>>,
-    #[serde(default)]
+    #[serde(default, rename = "teamMatchInfo1")]
     pub team_match_info1: Option<TeamMatchInfo>,
-    #[serde(default)]
+    #[serde(default, rename = "teamMatchInfo2")]
     pub team_match_info2: Option<TeamMatchInfo>,
     #[allow(dead_code)]
     #[serde(default)]
     pub status: Option<String>,
     #[allow(dead_code)]
-    #[serde(default)]
-    pub status_live: Option<i32>,
+    #[serde(default, rename = "statusLive")]
+    pub status_live: Option<String>,
     #[allow(dead_code)]
     #[serde(default)]
     pub league: Option<String>,
-    #[serde(default)]
+    #[serde(default, rename = "matchRound")]
     pub match_round: Option<String>,
-    #[serde(default)]
+    #[serde(default, rename = "timeDesc")]
     pub time_desc: Option<String>,
-    #[serde(default)]
+    #[serde(default, rename = "arrangedTime")]
     pub arranged_time: Option<String>,
 }
 
@@ -106,6 +107,8 @@ pub struct Team {
     pub avatar: Option<String>,
     #[serde(default)]
     pub abbreviation: Option<String>,
+    #[serde(default)]
+    pub score: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -418,7 +421,59 @@ impl AiSportsClient {
     }
 
     pub async fn match_detail(&self, match_id: &str) -> Result<Option<Match>> {
-        self.get_match_detail(match_id).await
+        // Try the dedicated detail endpoint first.
+        if let Ok(Some(m)) = self.get_match_detail(match_id).await {
+            return Ok(Some(m));
+        }
+
+        // detail-v1 returns null match_info for many live/scheduled matches.
+        // Fall back: scan all available match lists for the ID.  The grouped
+        // endpoint already embeds playPath/playSource/replay/highlights so
+        // the player gets exactly what it needs.
+        let today = chrono::Utc::now();
+        let start = (today - chrono::Duration::days(1))
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+        let end = (today + chrono::Duration::days(3))
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+
+        let scan_targets: &[(&str, &str)] = &[
+            ("football", "0"),
+            ("football", "1"),
+            ("football", "2"),
+            ("basketball", "0"),
+            ("cricket", "0"),
+        ];
+
+        for (match_type, status) in scan_targets {
+            let status_int: i32 = status.parse().unwrap_or(0);
+            match self
+                .get_match_list_v3(status_int, match_type, &start, &end)
+                .await
+            {
+                Ok(json) => {
+                    let list = json
+                        .get("list")
+                        .and_then(|l| l.as_array())
+                        .cloned()
+                        .unwrap_or_default();
+                    for item in list {
+                        if item.get("id").and_then(|v| v.as_str()) == Some(match_id) {
+                            if let Ok(m) = serde_json::from_value::<Match>(item) {
+                                info!("[AiSports] match_detail fallback found {} in {}/{}", match_id, match_type, status);
+                                return Ok(Some(m));
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!("[AiSports] match_detail fallback list error ({}/{}): {}", match_type, status, e);
+                }
+            }
+        }
+
+        Ok(None)
     }
 
     fn unwrap_m3u8_url(path: &str) -> String {

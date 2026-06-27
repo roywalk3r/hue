@@ -757,7 +757,7 @@ pub async fn detail_handler(
         m.team2.as_ref().and_then(|t| t.name.clone()).unwrap_or_else(|| "Unknown".to_string())
     );
     let status = m.status.clone().unwrap_or_default();
-    let is_live = status == "MatchLive" || status == "MatchIng" || m.status_live == Some(1);
+    let is_live = status == "MatchLive" || status == "MatchIng" || m.status_live.as_deref() == Some("1");
     let score1 = m.team_match_info1.as_ref().and_then(|i| i.score.clone()).unwrap_or_default();
     let score2 = m.team_match_info2.as_ref().and_then(|i| i.score.clone()).unwrap_or_default();
 
