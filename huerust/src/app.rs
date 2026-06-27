@@ -624,6 +624,14 @@ pub fn build_router(state: AppState) -> Router {
             "/api/sports/streams",
             get(crate::routes::sports::streams_handler),
         )
+        .route(
+            "/api/aisports/detail/{id}",
+            get(crate::routes::sports::detail_handler),
+        )
+        .route(
+            "/api/sports/detail/{id}",
+            get(crate::routes::sports::detail_handler),
+        )
         .route("/api/tmdb/home", get(crate::routes::tmdb::home_handler))
         .route(
             "/api/tmdb/movie/popular",

@@ -21,7 +21,7 @@ const X_CLIENT_INFO: &str = r#"{"timezone":"Africa/Accra","system_language":"en"
 const X_DEVICE_INFO: &str = "{}";
 const BLOCKED_CHANNEL_HOST: &str = "sportsteam368.com";
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, utoipa::ToSchema)]
 pub struct SportsStream {
     pub title: String,
     pub url: String,
@@ -30,7 +30,16 @@ pub struct SportsStream {
     pub source: String,
     pub is_live: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_replay: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub headers: Option<std::collections::HashMap<String, String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GroupedSportsStreams {
+    pub live: Vec<SportsStream>,
+    pub replay: Vec<SportsStream>,
+    pub highlights: Vec<SportsStream>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -48,30 +57,55 @@ struct MatchListData {
 
 #[derive(Debug, Deserialize, Clone)]
 #[allow(non_snake_case)]
-struct Match {
-    id: String,
+pub struct Match {
+    pub id: String,
     #[serde(default)]
-    team1: Option<Team>,
+    pub team1: Option<Team>,
     #[serde(default)]
-    team2: Option<Team>,
+    pub team2: Option<Team>,
     #[serde(default)]
-    playPath: Option<String>,
+    pub playPath: Option<String>,
     #[serde(default)]
-    playSource: Option<Vec<PlaySource>>,
+    pub playSource: Option<Vec<PlaySource>>,
     #[serde(default)]
-    highlights: Option<Vec<Highlight>>,
+    pub highlights: Option<Vec<Highlight>>,
+    #[serde(default)]
+    pub replay: Option<Vec<Replay>>,
+    #[serde(default)]
+    pub team_match_info1: Option<TeamMatchInfo>,
+    #[serde(default)]
+    pub team_match_info2: Option<TeamMatchInfo>,
     #[allow(dead_code)]
     #[serde(default)]
-    status: Option<String>,
+    pub status: Option<String>,
     #[allow(dead_code)]
     #[serde(default)]
-    league: Option<String>,
+    pub status_live: Option<i32>,
+    #[allow(dead_code)]
+    #[serde(default)]
+    pub league: Option<String>,
+    #[serde(default)]
+    pub match_round: Option<String>,
+    #[serde(default)]
+    pub time_desc: Option<String>,
+    #[serde(default)]
+    pub arranged_time: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-struct Team {
+pub struct TeamMatchInfo {
     #[serde(default)]
-    name: Option<String>,
+    pub score: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Team {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub avatar: Option<String>,
+    #[serde(default)]
+    pub abbreviation: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -91,6 +125,25 @@ struct Highlight {
     #[allow(dead_code)]
     #[serde(default)]
     duration: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct Replay {
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    path: Option<String>,
+    #[serde(default)]
+    cover: Option<Cover>,
+    #[allow(dead_code)]
+    #[serde(default)]
+    duration: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct Cover {
+    #[serde(default)]
+    url: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -262,22 +315,42 @@ impl AiSportsClient {
     }
 
     pub async fn search_streams(&self, query: &str) -> Result<Vec<SportsStream>> {
+        let grouped = self.search_streams_grouped(query).await?;
+        let mut streams = Vec::new();
+        streams.extend(grouped.live);
+        streams.extend(grouped.replay);
+        streams.extend(grouped.highlights);
+        Ok(streams)
+    }
+
+    pub async fn search_streams_grouped(
+        &self,
+        query: &str,
+    ) -> Result<GroupedSportsStreams> {
         let clean_query = query.to_lowercase().replace("-", " ");
         info!("[AiSports] Searching for: {}", query);
 
         if query.chars().all(|c| c.is_ascii_digit()) && query.len() >= 15 {
             let Some(active) = self.get_match_detail(query).await? else {
                 info!("[AiSports] No match detail found for '{}'", query);
-                return Ok(vec![]);
+                return Ok(GroupedSportsStreams {
+                    live: vec![],
+                    replay: vec![],
+                    highlights: vec![],
+                });
             };
 
-            return Ok(Self::streams_from_match(&active));
+            return Ok(Self::grouped_streams_from_match(&active));
         }
 
         let matches = self.get_matches().await?;
         if matches.is_empty() {
             warn!("[AiSports] No matches returned from API");
-            return Ok(vec![]);
+            return Ok(GroupedSportsStreams {
+                live: vec![],
+                replay: vec![],
+                highlights: vec![],
+            });
         }
 
         let best_match = matches.iter().find(|m| {
@@ -316,7 +389,11 @@ impl AiSportsClient {
             Some(m) => m.clone(),
             None => {
                 info!("[AiSports] No match found for '{}'", query);
-                return Ok(vec![]);
+                return Ok(GroupedSportsStreams {
+                    live: vec![],
+                    replay: vec![],
+                    highlights: vec![],
+                });
             }
         };
 
@@ -337,10 +414,31 @@ impl AiSportsClient {
         let detail = self.get_match_detail(&m.id).await?;
         let active = detail.as_ref().unwrap_or(&m);
 
-        Ok(Self::streams_from_match(active))
+        Ok(Self::grouped_streams_from_match(active))
     }
 
-    fn streams_from_match(active: &Match) -> Vec<SportsStream> {
+    pub async fn match_detail(&self, match_id: &str) -> Result<Option<Match>> {
+        self.get_match_detail(match_id).await
+    }
+
+    fn unwrap_m3u8_url(path: &str) -> String {
+        let lower = path.to_lowercase();
+        if !lower.contains("88player") || !lower.contains("m3u8.html") {
+            return path.to_string();
+        }
+        if let Ok(url) = reqwest::Url::parse(path) {
+            if let Some(inner) = url.query_pairs().find(|(k, _)| k == "url") {
+                let inner = inner.1.into_owned();
+                if inner.to_lowercase().contains("m3u8.html") {
+                    return Self::unwrap_m3u8_url(&inner);
+                }
+                return inner;
+            }
+        }
+        path.to_string()
+    }
+
+    pub fn grouped_streams_from_match(active: &Match) -> GroupedSportsStreams {
         let team1_name = active
             .team1
             .as_ref()
@@ -363,18 +461,19 @@ impl AiSportsClient {
             h
         };
 
-        let mut streams = Vec::new();
+        let mut live = Vec::new();
 
         // Main stream
         if let Some(path) = &active.playPath {
             if !path.is_empty() {
-                streams.push(SportsStream {
+                live.push(SportsStream {
                     title: format!("{} vs {} (Main)", team1_name, team2_name),
-                    url: path.clone(),
+                    url: Self::unwrap_m3u8_url(path),
                     quality: "Auto".to_string(),
                     provider: "Field".to_string(),
                     source: "aisports".to_string(),
                     is_live: true,
+                    is_replay: None,
                     headers: Some(headers.clone()),
                 });
             }
@@ -385,7 +484,7 @@ impl AiSportsClient {
             for (idx, source) in sources.iter().enumerate() {
                 if let Some(path) = &source.path {
                     if !path.is_empty() && !path.to_lowercase().contains(BLOCKED_CHANNEL_HOST) {
-                        streams.push(SportsStream {
+                        live.push(SportsStream {
                             title: format!(
                                 "{} vs {} ({})",
                                 team1_name,
@@ -395,11 +494,12 @@ impl AiSportsClient {
                                     .clone()
                                     .unwrap_or_else(|| format!("Channel {}", idx + 1))
                             ),
-                            url: path.clone(),
+                            url: Self::unwrap_m3u8_url(path),
                             quality: "Auto".to_string(),
                             provider: "Field".to_string(),
                             source: "aisports".to_string(),
                             is_live: true,
+                            is_replay: None,
                             headers: Some(headers.clone()),
                         });
                     }
@@ -407,12 +507,37 @@ impl AiSportsClient {
             }
         }
 
-        // Highlights
-        if let Some(highlights) = &active.highlights {
-            for h in highlights {
+        let mut replay = Vec::new();
+        if let Some(replays) = &active.replay {
+            for r in replays {
+                if let Some(path) = &r.path {
+                    if !path.is_empty() {
+                        replay.push(SportsStream {
+                            title: format!(
+                                "{} vs {} - {}",
+                                team1_name,
+                                team2_name,
+                                r.title.clone().unwrap_or_else(|| "Replay".to_string())
+                            ),
+                            url: path.clone(),
+                            quality: "720p".to_string(),
+                            provider: "Stadium".to_string(),
+                            source: "aisports-replay".to_string(),
+                            is_live: false,
+                            is_replay: Some(true),
+                            headers: None,
+                        });
+                    }
+                }
+            }
+        }
+
+        let mut highlights = Vec::new();
+        if let Some(items) = &active.highlights {
+            for h in items {
                 if let Some(path) = &h.path {
                     if !path.is_empty() {
-                        streams.push(SportsStream {
+                        highlights.push(SportsStream {
                             title: format!(
                                 "{} vs {} - {}",
                                 team1_name,
@@ -424,6 +549,7 @@ impl AiSportsClient {
                             provider: "Stadium".to_string(),
                             source: "aisports-highlight".to_string(),
                             is_live: false,
+                            is_replay: None,
                             headers: None,
                         });
                     }
@@ -431,6 +557,19 @@ impl AiSportsClient {
             }
         }
 
+        GroupedSportsStreams {
+            live,
+            replay,
+            highlights,
+        }
+    }
+
+    fn streams_from_match(active: &Match) -> Vec<SportsStream> {
+        let grouped = Self::grouped_streams_from_match(active);
+        let mut streams = Vec::new();
+        streams.extend(grouped.live);
+        streams.extend(grouped.replay);
+        streams.extend(grouped.highlights);
         streams
     }
 }

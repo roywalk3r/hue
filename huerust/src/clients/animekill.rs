@@ -259,17 +259,37 @@ impl AnimeKillClient {
     async fn fetch_series_html(&self, anime_id: &str) -> Result<String> {
         let url = format!("{}/anime/{}", BASE_URL, anime_id.trim_end_matches('/'));
         let resp = self.client.get(&url).send().await?;
-        Ok(resp.text().await?)
+        let status = resp.status();
+        let html = resp.text().await?;
+        if status == 404
+            || html.contains("404 Not Found")
+            || html.contains("This page could not be found")
+        {
+            return Err(anyhow!("AnimeKill series page not found ({})", anime_id));
+        }
+        Ok(html)
     }
 
     async fn fetch_episode_html(&self, episode_id: &str) -> Result<String> {
+        let (canonical, _) = canonical_episode_id(episode_id);
         let url = format!(
             "{}/{}/",
             BASE_URL,
-            episode_id.trim_start_matches('/').trim_end_matches('/')
+            canonical.trim_start_matches('/').trim_end_matches('/')
         );
         let resp = self.client.get(&url).send().await?;
-        Ok(resp.text().await?)
+        let status = resp.status();
+        let html = resp.text().await?;
+        if status == 404
+            || html.contains("404 Not Found")
+            || html.contains("This page could not be found")
+        {
+            return Err(anyhow!(
+                "AnimeKill episode page not found ({})",
+                canonical
+            ));
+        }
+        Ok(html)
     }
 }
 
@@ -446,35 +466,32 @@ struct SsrCurrentEpisode {
 }
 
 fn extract_anime_payload(html: &str, anime_id: &str) -> Result<SsrAnime> {
-    // AnimeKill renders the detail inside a Next.js "flight" payload keyed by
-    // "25:[$,\"$L2c\",null,{\"anime\":{...}}]". The value at index 3 is the
-    // props object containing the anime. Grab the whole flight line and parse it
-    // as JSON, then extract the anime field.
-    let re = Regex::new(
-        r#"25:\\["\$","\$L2c",null,\{\"anime\":\{.*?\}\}\]"#,
-    )?;
+    // AnimeKill detail pages return 200 even for missing slugs, but render a
+    // 404 shell. Bail out early so we don't return stale/error data.
+    if is_animekill_not_found(html) {
+        return Err(anyhow!("AnimeKill page not found for {}", anime_id));
+    }
 
-    for cap in re.captures_iter(html) {
-        if let Some(m) = cap.get(0) {
-            if let Some(props) = parse_flight_props(m.as_str()) {
-                if props.anime_id == anime_id {
-                    return Ok(props);
-                }
-            }
+    // AnimeKill serializes the page as a JS string passed to
+    // self.__next_f.push([1, "<flight payload>"). Find the payload chunk that
+    // contains this anime_id and extract the anime object from the flight line.
+    if let Some(anime) = find_anime_in_next_f(html, anime_id) {
+        if anime.anime_id == anime_id {
+            return Ok(anime);
         }
     }
 
-    // Fallback: search any flight line containing this anime_id and try to parse.
+    // Fallback: search any self-contained JSON object containing this anime_id.
     let fallback_re = Regex::new(
         &format!(
-            r#"\{{[^}}]*\"anime_id\":\"{}\"[^}}]*\}}"#,
+            r#"\"anime_id\":\"{}\"[^}}]*\"name\":\"[^\"]+\""#,
             regex::escape(anime_id)
         ),
     )?;
-    for cap in fallback_re.captures_iter(html) {
-        if let Some(m) = cap.get(0) {
-            let extended = extend_json_object(html, m.start(), m.end());
-            if let Ok(anime) = serde_json::from_str::<SsrAnime>(&extended) {
+    if let Some(m) = fallback_re.find(html) {
+        let extended = extend_json_object(html, m.start(), m.end());
+        if let Ok(anime) = serde_json::from_str::<SsrAnime>(&extended) {
+            if anime.anime_id == anime_id {
                 return Ok(anime);
             }
         }
@@ -483,52 +500,186 @@ fn extract_anime_payload(html: &str, anime_id: &str) -> Result<SsrAnime> {
     Err(anyhow!("AnimeKill detail payload not found for {}", anime_id))
 }
 
-fn extract_episode_payload(html: &str, episode_id: &str) -> Result<SsrCurrentEpisode> {
-    let series_id = series_id_from_episode(episode_id);
-    if let Ok(anime) = extract_anime_payload(html, &series_id) {
-        if let Some(list) = anime.episode_list {
-            if let Some(ep) = list.iter().find(|e| e.episode_id == episode_id) {
-                return Ok(SsrCurrentEpisode {
-                    episode_id: ep.episode_id.clone(),
-                    number: ep.number,
-                    title: ep.title.clone(),
-                    video_host: ep.video_host.clone(),
-                    video_path: ep.video_path.clone(),
-                });
+fn is_animekill_not_found(html: &str) -> bool {
+    html.contains(r#"<title>404"#)
+        || html.contains("Page not found")
+        || html.contains("This page could not be found")
+}
+
+/// Locate the __next_f.push payload chunk containing `anime_id` and parse the
+/// flight component whose props object holds the anime data.
+fn find_anime_in_next_f(html: &str, anime_id: &str) -> Option<SsrAnime> {
+    let needle = format!(r#"\"anime_id\":\"{}\""#, regex::escape(anime_id));
+    let mut search_start = 0;
+    while let Some(pos) = html[search_start..].find(&needle) {
+        let abs_pos = search_start + pos;
+
+        let push_start = html[..abs_pos].rfind(r#"self.__next_f.push([1,""#)?;
+        let literal_start = push_start + r#"self.__next_f.push([1,""#.len();
+
+        let mut escaped = false;
+        let mut literal_end = None;
+        for (idx, ch) in html[literal_start..].char_indices() {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == '"' {
+                literal_end = Some(literal_start + idx);
+                break;
             }
         }
-    }
+        let end = literal_end?;
 
-    // Fallback: look for a self-contained object containing this episode_id with video_host.
-    let re = Regex::new(&format!(
-        r#"\"episode_id\":\"{}\"[^}}]*\"video_host\":\"([^\"]+)\"[^}}]*\"video_path\":\"([^\"]+)\""#,
-        regex::escape(episode_id)
-    ))?;
-    if let Some(cap) = re.captures(html) {
-        if let Some(m) = cap.get(0) {
-            let extended = extend_json_object(html, m.start(), m.end());
-            if let Ok(ep) = serde_json::from_str::<SsrCurrentEpisode>(&extended) {
-                return Ok(ep);
+        let flight_text = unescape_js_string(&html[literal_start..end]);
+        if let Some(value_json) = first_json_value(&flight_text) {
+            if let Ok(root) = serde_json::from_str::<serde_json::Value>(value_json) {
+                if let Some(props) = find_anime_props(&root, anime_id) {
+                    if let Some(anime_value) = props.get("anime") {
+                        if let Ok(anime) = serde_json::from_value::<SsrAnime>(anime_value.clone()) {
+                            if anime.anime_id == anime_id {
+                                return Some(anime);
+                            }
+                        }
+                    }
+                }
             }
+        }
+
+        search_start = abs_pos + 1;
+    }
+    None
+}
+
+/// Recursively locate the flight props object where `anime.anime_id` matches.
+fn find_anime_props(value: &serde_json::Value, anime_id: &str) -> Option<serde_json::Value> {
+    match value {
+        serde_json::Value::Array(arr) if arr.len() == 4 => {
+            if let Some(props) = arr.get(3) {
+                if props.get("anime")
+                    .and_then(|a| a.get("anime_id"))
+                    .and_then(|v| v.as_str())
+                    == Some(anime_id)
+                {
+                    return Some(props.clone());
+                }
+            }
+            for v in arr.iter() {
+                if let Some(found) = find_anime_props(v, anime_id) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        serde_json::Value::Array(arr) => {
+            for v in arr.iter() {
+                if let Some(found) = find_anime_props(v, anime_id) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        serde_json::Value::Object(obj) => {
+            for v in obj.values() {
+                if let Some(found) = find_anime_props(v, anime_id) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// Skip an optional flight key (e.g. "25:") and return the JSON value substring
+/// that begins at the first '[' or '{'.
+fn first_json_value(text: &str) -> Option<&str> {
+    let start = text.find('[').or_else(|| text.find('{'))?;
+    Some(&text[start..])
+}
+
+fn unescape_js_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            out.push(ch);
+            continue;
+        }
+        match chars.next() {
+            Some('n') => out.push('\n'),
+            Some('r') => out.push('\r'),
+            Some('t') => out.push('\t'),
+            Some('b') => out.push('\u{0008}'),
+            Some('f') => out.push('\u{000C}'),
+            Some('u') => {
+                let mut code = String::with_capacity(4);
+                for _ in 0..4 {
+                    if let Some(c) = chars.next() {
+                        code.push(c);
+                    }
+                }
+                if let Ok(cp) = u32::from_str_radix(&code, 16) {
+                    if let Some(c) = char::from_u32(cp) {
+                        out.push(c);
+                    }
+                }
+            }
+            Some(other) => out.push(other),
+            None => {}
+        }
+    }
+    out
+}
+
+fn extract_episode_payload(html: &str, episode_id: &str) -> Result<SsrCurrentEpisode> {
+    let (canonical, number) = canonical_episode_id(episode_id);
+    let series_id = series_id_from_episode(&canonical);
+    let anime = extract_anime_payload(html, &series_id)?;
+
+    if let Some(list) = anime.episode_list {
+        if let Some(ep) = list
+            .iter()
+            .find(|e| e.episode_id == canonical || e.number as u32 == number)
+        {
+            return Ok(SsrCurrentEpisode {
+                episode_id: canonical,
+                number: ep.number,
+                title: ep.title.clone(),
+                video_host: ep.video_host.clone(),
+                video_path: ep.video_path.clone(),
+            });
         }
     }
 
     Err(anyhow!(
         "AnimeKill episode payload not found for {}",
-        episode_id
+        canonical
     ))
 }
 
-/// Parse a Next.js flight line of shape `25:["$","$L2c",null,{...}]` and
-/// return the props object at index 3.
-fn parse_flight_props(line: &str) -> Option<SsrAnime> {
-    // Strip the leading "25:" so we can parse the value as JSON.
-    let json_start = line.find(":")? + 1;
-    let value_json = &line[json_start..];
-    let arr: serde_json::Value = serde_json::from_str(value_json).ok()?;
-    let props = arr.get(3)?;
-    serde_json::from_value(props.clone()).ok()
+/// Strip language suffixes from episode slugs and return the canonical short
+/// form along with the episode number.
+fn canonical_episode_id(episode_id: &str) -> (String, u32) {
+    let id = episode_id.trim_start_matches('/').trim_end_matches('/');
+    let re = Regex::new(r"^(.+)-episode-(\d+)").unwrap();
+    if let Some(cap) = re.captures(id) {
+        let series = cap.get(1).unwrap().as_str().to_string();
+        let number: u32 = cap
+            .get(2)
+            .unwrap()
+            .as_str()
+            .parse()
+            .unwrap_or(1);
+        return (format!("{}-episode-{}", series, number), number);
+    }
+    (id.to_string(), 1)
 }
+
 
 fn series_id_from_episode(episode_id: &str) -> String {
     episode_id

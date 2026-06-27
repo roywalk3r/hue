@@ -5,7 +5,7 @@
 //! @license MIT
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
@@ -667,4 +667,136 @@ pub async fn streams_handler(
                 .into_response()
         }
     }
+}
+
+#[derive(Deserialize, ToSchema, Validate)]
+pub struct MatchDetailPath {
+    #[validate(length(min = 10, max = 32))]
+    pub id: String,
+}
+
+#[derive(serde::Serialize, ToSchema)]
+pub struct SportsDetailResponse {
+    pub success: bool,
+    pub match_id: String,
+    pub title: String,
+    pub status: String,
+    pub is_live: bool,
+    pub team1: serde_json::Value,
+    pub team2: serde_json::Value,
+    pub score1: String,
+    pub score2: String,
+    pub league: String,
+    pub round: String,
+    pub time_desc: String,
+    pub streams: serde_json::Value,
+}
+
+fn team_json(team: &Option<crate::clients::aisports::Team>) -> serde_json::Value {
+    match team {
+        Some(t) => json!({
+            "name": t.name.as_deref().unwrap_or("Unknown"),
+            "avatar": t.avatar.as_deref().unwrap_or(""),
+            "abbreviation": t.abbreviation.as_deref().unwrap_or("")
+        }),
+        None => json!({"name": "Unknown", "avatar": "", "abbreviation": ""}),
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/aisports/detail/{id}",
+    params(
+        ("id" = String, Path, description = "AiSports match ID"),
+    ),
+    responses(
+        (status = 200, description = "Detailed match info with grouped streams", body = SportsDetailResponse),
+        (status = 404, description = "Match not found"),
+    ),
+)]
+pub async fn detail_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(path): Path<MatchDetailPath>,
+) -> Response {
+    if let Err(e) = path.validate() {
+        return (
+            StatusCode::BAD_REQUEST,
+            json!({"success": false, "error": format!("Invalid path: {}", e)}).to_string(),
+        )
+            .into_response();
+    }
+
+    let match_id = path.id.trim();
+    info!("[api] AiSports detail: {}", match_id);
+
+    let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
+
+    let m = match state.aisports.match_detail(match_id).await {
+        Ok(Some(m)) => m,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                json!({"success": false, "error": "Match not found"}).to_string(),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            warn!("[api] AiSports detail failed: {}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json!({"success": false, "error": e.to_string()}).to_string(),
+            )
+                .into_response();
+        }
+    };
+
+    let title = format!(
+        "{} vs {}",
+        m.team1.as_ref().and_then(|t| t.name.clone()).unwrap_or_else(|| "Unknown".to_string()),
+        m.team2.as_ref().and_then(|t| t.name.clone()).unwrap_or_else(|| "Unknown".to_string())
+    );
+    let status = m.status.clone().unwrap_or_default();
+    let is_live = status == "MatchLive" || status == "MatchIng" || m.status_live == Some(1);
+    let score1 = m.team_match_info1.as_ref().and_then(|i| i.score.clone()).unwrap_or_default();
+    let score2 = m.team_match_info2.as_ref().and_then(|i| i.score.clone()).unwrap_or_default();
+
+    let grouped = crate::clients::aisports::AiSportsClient::grouped_streams_from_match(&m);
+    let mut streams_json = json!({
+        "live": grouped.live,
+        "replay": grouped.replay,
+        "highlights": grouped.highlights,
+    });
+
+    if state.config.enable_proxy {
+        if let Some(obj) = streams_json.as_object_mut() {
+            for (_key, val) in obj.iter_mut() {
+                if let Ok(list) = serde_json::from_value::<Vec<crate::clients::aisports::SportsStream>>(val.clone()) {
+                    let wrapped = wrap_sports_streams(list, &proxy_base, &state.secret);
+                    *val = serde_json::to_value(wrapped).unwrap_or_else(|_| val.clone());
+                }
+            }
+        }
+    }
+
+    (
+        StatusCode::OK,
+        serde_json::to_string(&SportsDetailResponse {
+            success: true,
+            match_id: m.id,
+            title,
+            status,
+            is_live,
+            team1: team_json(&m.team1),
+            team2: team_json(&m.team2),
+            score1,
+            score2,
+            league: m.league.unwrap_or_default(),
+            round: m.match_round.unwrap_or_default(),
+            time_desc: m.time_desc.unwrap_or_default(),
+            streams: streams_json,
+        })
+        .unwrap(),
+    )
+        .into_response()
 }

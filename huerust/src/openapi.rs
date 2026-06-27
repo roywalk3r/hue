@@ -20,7 +20,8 @@ use utoipa::OpenApi;
         crate::routes::sse::sse_streams_handler,
         crate::routes::providers::providers_handler,
         crate::routes::play::play_handler,
+        crate::routes::sports::detail_handler,
     ),
-    components(schemas(StreamResult, Subtitle))
+    components(schemas(StreamResult, Subtitle, crate::clients::aisports::SportsStream, crate::routes::sports::SportsDetailResponse))
 )]
 pub struct ApiDoc;
