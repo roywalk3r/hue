@@ -344,6 +344,9 @@ pub struct FilterParams {
     pub page: Option<u32>,
     #[serde(default)]
     pub limit: Option<u32>,
+    /// Provider source override, e.g. `animexin` for Chinese donghua catalogs.
+    #[serde(default)]
+    pub source: Option<String>,
 }
 
 // ── Schedule ────────────────────────────────────────────────────────────────

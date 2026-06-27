@@ -70,6 +70,12 @@ pub struct DetailQuery {
     pub source: Option<String>,
 }
 
+#[derive(Deserialize, ToSchema)]
+pub struct HomeQuery {
+    /// Force a specific provider source. Use `animexin` for Chinese donghua catalogs.
+    pub source: Option<String>,
+}
+
 #[derive(serde::Serialize, ToSchema)]
 struct ApiResponse<T: serde::Serialize> {
     success: bool,
@@ -160,19 +166,21 @@ pub async fn latest_handler(State(state): State<AnimeState>) -> Response {
 
 #[utoipa::path(
     get,
-    path = "/api/anime/category",
+    path = "/api/anime/home",
     params(
-        ("type" = Option<String>, Query, description = "Content type: tv, movie, ova, ona"),
-        ("page" = Option<u32>, Query, description = "Page number"),
-        ("limit" = Option<u32>, Query, description = "Items per page"),
+        ("source" = Option<String>, Query, description = "Provider source override, e.g. animexin"),
     ),
     responses(
-        (status = 200, description = "Category items", body = Vec<AnimeCard>),
+        (status = 200, description = "Home feed", body = AnimeHomeFeed),
         (status = 500, description = "Internal error"),
     ),
 )]
-pub async fn home_handler(State(state): State<AnimeState>) -> Response {
-    let feed = state.anime_agg.get_home().await;
+pub async fn home_handler(
+    State(state): State<AnimeState>,
+    Query(params): Query<HomeQuery>,
+) -> Response {
+    info!("[anime] home source={:?}", params.source);
+    let feed = state.anime_agg.get_home(params.source.as_deref()).await;
     success_json(feed)
 }
 

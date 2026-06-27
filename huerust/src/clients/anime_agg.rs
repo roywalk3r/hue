@@ -480,8 +480,26 @@ impl AnimeAggregator {
         None
     }
 
-    /// Home feed: use AniWave as the single source of truth.
-    pub async fn get_home(&self) -> AnimeHomeFeed {
+    /// Home feed. When `source` is `animexin`, return Animexin catalog sections
+    /// directly. Otherwise merge AniWave primary feed with Animexin fallback.
+    pub async fn get_home(&self, source: Option<&str>) -> AnimeHomeFeed {
+        if source == Some("animexin") {
+            return match self.animexin.get_home().await {
+                Ok(feed) => feed,
+                Err(e) => {
+                    warn!("[AnimeAgg] Animexin home error: {}", e);
+                    AnimeHomeFeed {
+                        trending: None,
+                        currently_airing: None,
+                        featured: None,
+                        latest: None,
+                        popular: None,
+                        finished_airing: None,
+                    }
+                }
+            };
+        }
+
         let mut feed = AnimeHomeFeed {
             trending: None,
             currently_airing: None,
@@ -551,7 +569,8 @@ impl AnimeAggregator {
                 .as_deref()
                 .map(|l| l.to_lowercase())
                 .filter(|l| l == "chinese" || l == "cn")
-                .is_some();
+                .is_some()
+            || params.source.as_deref() == Some("animexin");
 
         if is_cn {
             match self.animexin.discover(params).await {

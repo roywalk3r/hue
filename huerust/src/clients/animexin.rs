@@ -327,101 +327,53 @@ impl AnimexinClient {
         })
     }
 
-    /// Scrape homepage for latest episodes and trending series.
+    /// Scrape homepage sections into AnimeHomeFeed.
+    /// Maps:
+    ///   trending       → Popular Today
+    ///   latest         → Latest Release
+    ///   popular        → Popular Donghua (weekly)
+    ///   featured       → New Movie
     pub async fn get_home(&self) -> Result<AnimeHomeFeed> {
-        let resp = self.client.get(BASE_URL).send().await?;
-        let html = resp.text().await?;
+        let html = self.client.get(BASE_URL).send().await?.text().await?;
 
-        let mut seen = std::collections::HashSet::new();
-        let mut latest = Vec::new();
-        let mut trending = Vec::new();
+        let popular_today = extract_section_html(
+            &html,
+            r#"<div class="releases hothome"><h2>Popular Today</h2></div>"#,
+            &[r#"<div class="releases latesthome">"#],
+        )
+        .map(parse_article_cards)
+        .filter(|v| !v.is_empty());
 
-        // (?s) makes . match newlines — article content spans multiple lines
-        let article_re = Regex::new(r#"(?s)<article[^>]*class="bs"[^>]*>(.*?)</article>"#)?;
-        let link_re =
-            Regex::new(r#"<a\s+href="https://animexin\.dev/([^"]+)/"[^>]*title="([^"]+)""#)?;
-        let img_re = Regex::new(r#"<img[^>]+src="([^"]+)""#)?;
-        let type_re = Regex::new(r#"<div\s+class="typez\s+([^"]+)">"#)?;
-        let status_re = Regex::new(r#"<div\s+class="status\s+([^"]+)">"#)?;
+        let latest_release = extract_section_html(
+            &html,
+            r#"<div class="releases latesthome"><h3>Latest Release</h3>"#,
+            &[r#"<div class="section"><div class="releases"><h3>Popular Donghua</h3></div>"#],
+        )
+        .map(parse_article_cards)
+        .filter(|v| !v.is_empty());
 
-        for cap in article_re.captures_iter(&html) {
-            let block = cap.get(1).map(|m| m.as_str()).unwrap_or("");
-            if let Some(link_cap) = link_re.captures(block) {
-                let slug = link_cap
-                    .get(1)
-                    .map(|m| m.as_str().to_string())
-                    .unwrap_or_default();
-                let title = link_cap
-                    .get(2)
-                    .map(|m| m.as_str().trim().to_string())
-                    .unwrap_or_default();
-                if slug.is_empty() || title.is_empty() || is_utility_page(&slug) {
-                    continue;
-                }
-                if seen.contains(&slug) {
-                    continue;
-                }
-                seen.insert(slug.clone());
+        let popular_donghua = extract_section_html(
+            &html,
+            r#"<div class="section"><div class="releases"><h3>Popular Donghua</h3></div>"#,
+            &[r#"<script>ts_popular_widget.run"#],
+        )
+        .map(parse_serieslist_cards)
+        .filter(|v| !v.is_empty());
 
-                let image = img_re
-                    .captures(block)
-                    .and_then(|c| c.get(1).map(|m| m.as_str().to_string()));
-                let anime_type = type_re
-                    .captures(block)
-                    .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
-                let status = status_re
-                    .captures(block)
-                    .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
-
-                let is_episode = slug.contains("episode");
-                let card = AnimeCard {
-                    id: slug.clone(),
-                    title: clean_title(&title),
-                    japanese_title: None,
-                    synopsis: None,
-                    image,
-                    banner_image: None,
-                    anime_type: anime_type.or_else(|| Some("TV".to_string())),
-                    status,
-                    score: None,
-                    rating: None,
-                    genres: None,
-                    total_episodes: None,
-                    total_subbed: None,
-                    total_dubbed: None,
-                    slug: Some(slug),
-                    mal_id: None,
-                    view_count: None,
-                    aired: None,
-                    duration: None,
-                    country: Some("CN".into()),
-                    source: Some("animexin".to_string()),
-                    has_sub: true,
-                    has_dub: false,
-                };
-
-                if is_episode {
-                    latest.push(card);
-                } else if trending.len() < 20 {
-                    trending.push(card);
-                }
-            }
-        }
+        let new_movie = extract_section_html(
+            &html,
+            r#"<div class="section"><div class="releases"><h3><span>New Movie</span></h3>"#,
+            &[r#"<div class="widget_text section">"#],
+        )
+        .map(parse_serieslist_cards)
+        .filter(|v| !v.is_empty());
 
         Ok(AnimeHomeFeed {
-            trending: if trending.is_empty() {
-                None
-            } else {
-                Some(trending)
-            },
+            trending: popular_today,
             currently_airing: None,
-            featured: None,
-            latest: if latest.is_empty() {
-                None
-            } else {
-                Some(latest)
-            },
-            popular: None,
+            featured: new_movie,
+            latest: latest_release,
+            popular: popular_donghua,
             finished_airing: None,
         })
     }
@@ -429,6 +381,21 @@ impl AnimexinClient {
     pub async fn discover(&self, params: &FilterParams) -> Result<PaginatedResponse<AnimeCard>> {
         let start_page = params.page.unwrap_or(1).max(1) as usize;
         let limit = params.limit.unwrap_or(20).clamp(1, 200) as usize;
+
+        // Map generic aggregator sort names to Animexin's order parameter.
+        let order = match params.sort.as_deref() {
+            Some("popularity") | Some("trending") => "popular",
+            Some("rating") | Some("score") => "rating",
+            Some("alphabetical") | Some("az") | Some("a-z") => "title",
+            Some("title_reverse") | Some("title-reverse") | Some("z-a") | Some("za") => {
+                "titlereverse"
+            }
+            Some("added") | Some("latest_added") => "added",
+            _ => "update",
+        };
+        let status = params.status.as_deref().unwrap_or("");
+        let anime_type = params.r#type.as_deref().unwrap_or("");
+        let genre = params.genre.as_deref().unwrap_or("");
 
         let article_re = Regex::new(r#"(?s)<article[^>]*class="bs"[^>]*>(.*?)</article>"#)?;
         let link_re =
@@ -444,9 +411,18 @@ impl AnimexinClient {
         // avoid runaway requests).
         loop {
             let url = format!(
-                "{}/anime/?status=&type=&order=update&page={}",
-                BASE_URL, current_page
+                "{}/anime/?status={}&type={}&order={}&page={}",
+                BASE_URL,
+                urlencoding::encode(status),
+                urlencoding::encode(anime_type),
+                order,
+                current_page
             );
+            let url = if genre.is_empty() {
+                url
+            } else {
+                format!("{}&genre={}", url, urlencoding::encode(genre))
+            };
             let html = match self.client.get(&url).send().await {
                 Ok(resp) => resp.text().await?,
                 Err(e) => {
@@ -535,6 +511,161 @@ impl AnimexinClient {
             has_more,
         })
     }
+}
+
+/// Slice the HTML between a start marker and the nearest end marker.
+fn extract_section_html<'a>(html: &'a str, start_marker: &str, end_markers: &[&str]) -> Option<&'a str> {
+    let start = html.find(start_marker)? + start_marker.len();
+    let end = end_markers
+        .iter()
+        .filter_map(|m| html[start..].find(m).map(|p| start + p))
+        .min()
+        .unwrap_or(html.len());
+    Some(&html[start..end])
+}
+
+/// Parse `<article class="bs">` blocks into cards.
+fn parse_article_cards(html: &str) -> Vec<AnimeCard> {
+    let Some(article_re) = Regex::new(r#"(?s)<article[^>]*class="bs"[^>]*>(.*?)</article>"#).ok() else {
+        return Vec::new();
+    };
+    let Some(link_re) =
+        Regex::new(r#"<a\s+href="https://animexin\.dev/([^"]+)/"[^>]*title="([^"]+)""#).ok()
+    else {
+        return Vec::new();
+    };
+    let Some(img_re) = Regex::new(r#"<img[^>]+src="([^"]+)""#).ok() else {
+        return Vec::new();
+    };
+    let type_re = Regex::new(r#"<div\s+class="typez\s+([^"]+)">"#).ok();
+    let status_re = Regex::new(r#"<div\s+class="status\s+([^"]+)">"#).ok();
+
+    let mut cards = Vec::new();
+    for cap in article_re.captures_iter(html) {
+        let block = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        let Some(link_cap) = link_re.captures(block) else { continue };
+        let slug = link_cap
+            .get(1)
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_default();
+        let title = link_cap
+            .get(2)
+            .map(|m| m.as_str().trim().to_string())
+            .unwrap_or_default();
+        if slug.is_empty() || title.is_empty() || is_utility_page(&slug) {
+            continue;
+        }
+
+        let image = img_re
+            .captures(block)
+            .and_then(|c| c.get(1).map(|m| m.as_str().to_string()));
+        let anime_type = type_re
+            .as_ref()
+            .and_then(|re| re.captures(block))
+            .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
+        let status = status_re
+            .as_ref()
+            .and_then(|re| re.captures(block))
+            .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
+
+        cards.push(AnimeCard {
+            id: slug.clone(),
+            title: clean_title(&title),
+            japanese_title: None,
+            synopsis: None,
+            image,
+            banner_image: None,
+            anime_type: anime_type.or_else(|| Some("TV".to_string())),
+            status,
+            score: None,
+            rating: None,
+            genres: None,
+            total_episodes: None,
+            total_subbed: None,
+            total_dubbed: None,
+            slug: Some(slug),
+            mal_id: None,
+            view_count: None,
+            aired: None,
+            duration: None,
+            country: Some("CN".into()),
+            source: Some("animexin".to_string()),
+            has_sub: true,
+            has_dub: false,
+        });
+    }
+    cards
+}
+
+/// Parse `<li>` items from a `serieslist` block into cards.
+fn parse_serieslist_cards(html: &str) -> Vec<AnimeCard> {
+    let Some(li_re) = Regex::new(r#"(?s)<li>(.*?)</li>"#).ok() else {
+        return Vec::new();
+    };
+    let Some(link_re) = Regex::new(r#"<a\s+class="series"\s+href="https://animexin\.dev/([^"]+)/"[^>]*>"#).ok()
+    else {
+        return Vec::new();
+    };
+    let Some(img_re) = Regex::new(r#"<img[^>]+src="([^"]+)""#).ok() else {
+        return Vec::new();
+    };
+    let Some(title_re) = Regex::new(r#"<h4>[^<]*<a\s+class="series"[^>]*>([^<]+)</a>"#).ok()
+    else {
+        return Vec::new();
+    };
+    let score_re = Regex::new(r#"<div\s+class="numscore">([^<]+)</div>"#).ok();
+
+    let mut cards = Vec::new();
+    for cap in li_re.captures_iter(html) {
+        let block = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        let Some(link_cap) = link_re.captures(block) else { continue };
+        let slug = link_cap
+            .get(1)
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_default();
+        if slug.is_empty() || is_utility_page(&slug) {
+            continue;
+        }
+        let title = title_re
+            .captures(block)
+            .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()))
+            .unwrap_or_else(|| clean_title(&slug));
+        let image = img_re
+            .captures(block)
+            .and_then(|c| c.get(1).map(|m| m.as_str().to_string()));
+        let score = score_re
+            .as_ref()
+            .and_then(|re| re.captures(block))
+            .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()))
+            .and_then(|s| s.parse().ok());
+
+        cards.push(AnimeCard {
+            id: slug.clone(),
+            title: clean_title(&title),
+            japanese_title: None,
+            synopsis: None,
+            image,
+            banner_image: None,
+            anime_type: Some("TV".to_string()),
+            status: None,
+            score,
+            rating: None,
+            genres: None,
+            total_episodes: None,
+            total_subbed: None,
+            total_dubbed: None,
+            slug: Some(slug),
+            mal_id: None,
+            view_count: None,
+            aired: None,
+            duration: None,
+            country: Some("CN".into()),
+            source: Some("animexin".to_string()),
+            has_sub: true,
+            has_dub: false,
+        });
+    }
+    cards
 }
 
 fn extract_iframe_src(html: &str) -> Option<String> {
