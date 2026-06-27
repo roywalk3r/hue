@@ -27,6 +27,7 @@ pub struct AnimeAggregator {
     aniwatch: Arc<AniWatchClient>,
     anilist: Arc<AniListClient>,
     animexin: Arc<AnimexinClient>,
+    animekill: Arc<crate::clients::animekill::AnimeKillClient>,
     /// Slug → mal_id mapping (30d TTL). Once matched, skip the
     /// hiAnime proxy search on future requests.
     mal_id_cache: Cache<String, Option<u32>>,
@@ -42,6 +43,7 @@ impl AnimeAggregator {
         aniwatch: Arc<AniWatchClient>,
         anilist: Arc<AniListClient>,
         animexin: Arc<AnimexinClient>,
+        animekill: Arc<crate::clients::animekill::AnimeKillClient>,
     ) -> Self {
         Self {
             aniwave,
@@ -49,6 +51,7 @@ impl AnimeAggregator {
             aniwatch,
             anilist,
             animexin,
+            animekill,
             mal_id_cache: Cache::builder()
                 .max_capacity(2000)
                 .time_to_live(Duration::from_secs(30 * 24 * 60 * 60))
@@ -60,12 +63,12 @@ impl AnimeAggregator {
         }
     }
 
-    /// Return true when the request should be routed to Animexin first.
-    /// The explicit `source=animexin` override always wins. Otherwise,
-    /// WordPress episode pages and non-AniWave dashed slugs are treated as
-    /// Chinese donghua.
-    fn prefer_animexin(id: &str, source: Option<&str>) -> bool {
-        if source == Some("animexin") {
+    /// Return true when the request should be routed to a donghua scraper first.
+    /// `source=animekill` / `source=animexin` always win. Otherwise,
+    /// WordPress/AnimeKill episode pages and non-AniWave dashed slugs are treated
+    /// as Chinese donghua.
+    fn prefer_donghua_scraper(id: &str, source: Option<&str>) -> bool {
+        if source == Some("animekill") || source == Some("animexin") {
             return true;
         }
         if id.contains("-episode-") {
@@ -74,18 +77,29 @@ impl AnimeAggregator {
         id.contains('-') && !is_aniwave_slug(id) && !id.starts_with("mal-")
     }
 
-    /// Search: AniWave is primary; fan out to Animexin for Chinese donghua.
+    fn prefer_animekill(id: &str, source: Option<&str>) -> bool {
+        source == Some("animekill")
+            || (!source.is_some_and(|s| s == "animexin") && id.starts_with("animekill/"))
+    }
+
+    /// Search: AniWave is primary; fan out to AnimeKill/Animexin for Chinese donghua.
     pub async fn search(&self, keyword: &str, page: u32, per_page: u32) -> AnimeSearchResponse {
-        let mut animexin_results = Vec::new();
+        let mut donghua_results = Vec::new();
         if page == 1 {
-            match self.animexin.search(keyword).await {
-                Ok(resp) => animexin_results = resp.results,
-                Err(e) => warn!("[AnimeAgg] Animexin search error: {}", e),
+            match self.animekill.search(keyword).await {
+                Ok(resp) => donghua_results = resp.results,
+                Err(e) => warn!("[AnimeAgg] AnimeKill search error: {}", e),
+            }
+            if donghua_results.is_empty() {
+                match self.animexin.search(keyword).await {
+                    Ok(resp) => donghua_results = resp.results,
+                    Err(e) => warn!("[AnimeAgg] Animexin search error: {}", e),
+                }
             }
         }
-        // When Animexin has matches, drop AniWave's Chinese entries so
-        // Chinese content is always sourced from Animexin.
-        let exclude_cn = !animexin_results.is_empty();
+        // When a donghua provider has matches, drop AniWave's Chinese entries so
+        // Chinese content is always sourced from the donghua scraper.
+        let exclude_cn = !donghua_results.is_empty();
 
         let mut results = Vec::new();
         match self.aniwave.search(keyword, page, per_page).await {
@@ -104,7 +118,7 @@ impl AnimeAggregator {
             .iter()
             .filter_map(|c| c.slug.clone())
             .collect();
-        for card in animexin_results {
+        for card in donghua_results {
             if let Some(ref slug) = card.slug {
                 if existing.contains(slug) {
                     continue;
@@ -124,8 +138,15 @@ impl AnimeAggregator {
 
     /// Try each provider for detail until one succeeds.
     pub async fn get_detail(&self, id: &str, source: Option<&str>) -> Option<AnimeDetail> {
-        // Animexin-first routing for Chinese donghua.
-        if Self::prefer_animexin(id, source) {
+        // Donghua scraper routing for Chinese content.
+        if Self::prefer_animekill(id, source) {
+            if let Ok(detail) = self.animekill.get_detail(id).await {
+                if !detail.card.id.is_empty() {
+                    return Some(detail);
+                }
+            }
+        }
+        if source == Some("animexin") || (source.is_none() && Self::prefer_donghua_scraper(id, source)) {
             if let Ok(detail) = self.animexin.get_detail(id).await {
                 if !detail.card.id.is_empty() {
                     return Some(detail);
@@ -292,8 +313,15 @@ impl AnimeAggregator {
         start: u32,
         source: Option<&str>,
     ) -> Option<Vec<crate::models::anime::EpisodeSummary>> {
-        // Animexin-first routing for Chinese donghua.
-        if Self::prefer_animexin(id, source) {
+        // AnimeKill-first routing for Chinese donghua.
+        if Self::prefer_animekill(id, source) {
+            if let Ok(eps) = self.animekill.get_episodes(id).await {
+                if !eps.is_empty() {
+                    return Some(eps);
+                }
+            }
+        }
+        if source == Some("animexin") {
             if let Ok(eps) = self.animexin.get_episodes(id).await {
                 if !eps.is_empty() {
                     return Some(eps);
@@ -372,8 +400,15 @@ impl AnimeAggregator {
         audio_type: Option<&str>,
         source: Option<&str>,
     ) -> Option<ServerList> {
-        // Animexin-first routing for Chinese donghua.
-        if Self::prefer_animexin(id, source) {
+        // AnimeKill-first routing for Chinese donghua.
+        if Self::prefer_animekill(id, source) {
+            if let Ok(servers) = self.animekill.get_servers(id).await {
+                if !servers.sub.is_empty() || !servers.dub.is_empty() {
+                    return Some(servers);
+                }
+            }
+        }
+        if source == Some("animexin") {
             if let Ok(servers) = self.animexin.get_servers(id).await {
                 if !servers.sub.is_empty() || !servers.dub.is_empty() {
                     return Some(servers);
@@ -426,7 +461,7 @@ impl AnimeAggregator {
         None
     }
 
-    /// Get stream: try Aniwave, then HiAnime, then Animexin
+    /// Get stream: try Aniwave, then HiAnime, then Animexin/AnimeKill
     pub async fn get_stream(
         &self,
         id: &str,
@@ -435,8 +470,15 @@ impl AnimeAggregator {
         episode: u32,
         source: Option<&str>,
     ) -> Option<StreamPayload> {
-        // Animexin-first routing for Chinese donghua (iframe embeds).
-        if Self::prefer_animexin(id, source) {
+        // AnimeKill-first routing for Chinese donghua (iframe embeds).
+        if Self::prefer_animekill(id, source) {
+            if let Ok(stream) = self.animekill.get_stream(id, server).await {
+                if !stream.url.is_empty() {
+                    return Some(stream);
+                }
+            }
+        }
+        if source == Some("animexin") {
             if let Ok(stream) = self.animexin.get_stream(id, server).await {
                 if !stream.url.is_empty() {
                     return Some(stream);
@@ -480,9 +522,25 @@ impl AnimeAggregator {
         None
     }
 
-    /// Home feed. When `source` is `animexin`, return Animexin catalog sections
-    /// directly. Otherwise merge AniWave primary feed with Animexin fallback.
+    /// Home feed. When `source` is `animekill` or `animexin`, return that
+    /// catalog directly. Otherwise merge AniWave primary feed with fallback.
     pub async fn get_home(&self, source: Option<&str>) -> AnimeHomeFeed {
+        if source == Some("animekill") {
+            return match self.animekill.get_home().await {
+                Ok(feed) => feed,
+                Err(e) => {
+                    warn!("[AnimeAgg] AnimeKill home error: {}", e);
+                    AnimeHomeFeed {
+                        trending: None,
+                        currently_airing: None,
+                        featured: None,
+                        latest: None,
+                        popular: None,
+                        finished_airing: None,
+                    }
+                }
+            };
+        }
         if source == Some("animexin") {
             return match self.animexin.get_home().await {
                 Ok(feed) => feed,
@@ -560,8 +618,8 @@ impl AnimeAggregator {
         feed
     }
 
-    /// Discover / browse: route Chinese content through Animexin,
-    /// everything else through AniWave.
+    /// Discover / browse: route Chinese content through AnimeKill (fallback to
+    /// Animexin), everything else through AniWave.
     pub async fn discover(&self, params: &FilterParams) -> PaginatedResponse<AnimeCard> {
         let is_cn = params.country.as_deref() == Some("CN")
             || params
@@ -570,9 +628,16 @@ impl AnimeAggregator {
                 .map(|l| l.to_lowercase())
                 .filter(|l| l == "chinese" || l == "cn")
                 .is_some()
-            || params.source.as_deref() == Some("animexin");
+            || params.source.as_deref() == Some("animexin")
+            || params.source.as_deref() == Some("animekill");
 
         if is_cn {
+            if params.source.as_deref() != Some("animexin") {
+                match self.animekill.discover(params).await {
+                    Ok(resp) => return resp,
+                    Err(e) => warn!("[AnimeAgg] AnimeKill discover error: {}", e),
+                }
+            }
             match self.animexin.discover(params).await {
                 Ok(resp) => resp,
                 Err(e) => {

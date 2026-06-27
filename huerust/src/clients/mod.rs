@@ -1,6 +1,7 @@
 pub mod aisports;
 pub mod anilist;
 pub mod anime_agg;
+pub mod animekill;
 pub mod animexin;
 pub mod aniwatch;
 pub mod aniwave;

@@ -84,6 +84,7 @@ pub struct AppState {
     pub vidvault: Arc<crate::clients::vidvault::VidVaultClient>,
     pub aisports: Arc<crate::clients::aisports::AiSportsClient>,
     pub anime_agg: Arc<crate::clients::anime_agg::AnimeAggregator>,
+    pub animekill: Arc<crate::clients::animekill::AnimeKillClient>,
     pub secret: String,
     pub kkey: String,
     pub proxy_base_url: String,
@@ -114,6 +115,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let dramacool_client = Arc::new(crate::providers::dramacool::DramacoolClient::new());
     let kissasian_client = Arc::new(crate::providers::kissasian::KissAsianClient::new());
     let hianime_client = Arc::new(crate::clients::hianime::HianimeClient::new());
+    let animekill_client = Arc::new(crate::clients::animekill::AnimeKillClient::new());
     let anime_agg = Arc::new(crate::clients::anime_agg::AnimeAggregator::new(
         Arc::new(crate::clients::aniwave::AniwaveClient::new(
             cfg.cf_worker_url.clone(),
@@ -123,6 +125,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         Arc::new(crate::clients::aniwatch::AniWatchClient::new()),
         Arc::new(crate::clients::anilist::AniListClient::new()),
         Arc::new(crate::clients::animexin::AnimexinClient::new()),
+        animekill_client.clone(),
     ));
     let vixsrc_client = Arc::new(VixsrcClient::new(
         crate::http_client::build_client_with_retry(
@@ -251,6 +254,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         hianime: hianime_client.clone(),
         vidvault: vidvault_client.clone(),
         anime_agg: anime_agg.clone(),
+        animekill: animekill_client.clone(),
         aisports: Arc::new(crate::clients::aisports::AiSportsClient::new(
             crate::http_client::wrap_with_retry(
                 reqwest::Client::builder()
