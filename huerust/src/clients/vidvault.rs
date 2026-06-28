@@ -49,6 +49,7 @@ pub struct DownloadFile {
     pub url: String,
     pub size: String,
     pub format: String,
+    pub quality: String,
 }
 
 #[derive(Debug, Serialize, Clone, Default)]
@@ -285,6 +286,7 @@ impl VidVaultClient {
                     url: f.url,
                     size: f.size,
                     format: "mkv".to_string(),
+                    quality: "MKV".to_string(),
                 });
             }
         }
@@ -295,6 +297,7 @@ impl VidVaultClient {
                     url: d.url,
                     size: d._size,
                     format: "mkv".to_string(),
+                    quality: d.quality.clone(),
                 });
             }
         }
@@ -307,12 +310,13 @@ impl VidVaultClient {
                     let size_str = if size_bytes > 0 {
                         format!("{:.2} MB", size_bytes as f64 / 1_048_576.0)
                     } else {
-                        format!("{}p", d.resolution)
+                        String::new()
                     };
                     files.push(DownloadFile {
                         url: d.url,
                         size: size_str,
                         format: "mp4".to_string(),
+                        quality: format!("{}p", d.resolution),
                     });
                 }
                 captions = info.captions.unwrap_or_default();

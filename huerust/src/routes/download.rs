@@ -42,6 +42,7 @@ struct DownloadFileOut {
     url: String,
     size: String,
     format: String,
+    quality: String,
     filename: String,
     headers: Option<HashMap<String, String>>,
     downloadable: bool,
@@ -71,6 +72,15 @@ fn build_ffmpeg_args(target_url: &str, header_str: &str, output: &str) -> Vec<St
         target_url.to_string(),
         "-c".to_string(),
         "copy".to_string(),
+        // Normalise output timestamps to start at zero.
+        // HLS segments carry arbitrary PTS values (e.g. 90 kHz clock offset).
+        // Without this, the remuxed MP4 inherits the raw PTS, so
+        // ProgressiveMediaSource (local file) reports a non-zero initial
+        // position — shifting subtitles out of sync relative to the video.
+        // HlsMediaSource (live stream) handles this automatically, which is
+        // why live subtitles are in sync but downloaded ones aren't.
+        "-avoid_negative_ts".to_string(),
+        "make_zero".to_string(),
         output.to_string(),
     ]);
     args
@@ -210,16 +220,9 @@ pub async fn download_handler(
 
     match result {
         Ok(links) => {
-            let mut mkv_headers = HashMap::new();
-            mkv_headers.insert("Referer".to_string(), "https://vidvault.ru/".to_string());
-            mkv_headers.insert("Origin".to_string(), "https://vidvault.ru".to_string());
-
-            // hakunaymatata.com CDN blocks direct/proxied downloads (403).
-            // MKV files from workers.dev CDN work with direct URL + headers.
-            // MP4 files from blocked CDNs link to VidVault's own page instead.
-            let blocked_hosts = ["hakunaymatata.com", "vidsrc.xyz"];
-
-            let vidvault_url = format!("https://vidvault.ru/{}/{}", media_type, tmdb_id);
+            let mut vidvault_headers = HashMap::new();
+            vidvault_headers.insert("Referer".to_string(), "https://vidvault.ru/".to_string());
+            vidvault_headers.insert("Origin".to_string(), "https://vidvault.ru".to_string());
 
             let files: Vec<DownloadFileOut> = links
                 .files
@@ -240,10 +243,14 @@ pub async fn download_handler(
                     };
                     let filename = sanitize_filename(&base);
 
-                    if f.format == "mkv" {
+                    let url_lower = f.url.to_lowercase();
+
+                    if url_lower.contains("workers.dev") || f.format == "mkv" {
+                        // MKV from Cloudflare Workers CDN — backend-proxied with headers.
+                        // workers.dev allows backend-IP requests; hakunaymatata does not.
                         let proxied = build_background_download_proxy_url(
                             &f.url,
-                            mkv_headers.clone(),
+                            vidvault_headers.clone(),
                             &public_proxy_base,
                             &state.secret,
                         );
@@ -251,45 +258,24 @@ pub async fn download_handler(
                             url: proxied,
                             size: f.size,
                             format: f.format,
+                            quality: f.quality,
                             filename,
                             headers: None,
                             downloadable: true,
                         }
                     } else {
-                        let url_lower = f.url.to_lowercase();
-                        let is_blocked = blocked_hosts.iter().any(|h| url_lower.contains(h));
-                        if is_blocked {
-                            // CDN blocks direct access — link to VidVault page instead
-                            DownloadFileOut {
-                                url: vidvault_url.clone(),
-                                size: f.size,
-                                format: f.format,
-                                filename,
-                                headers: None,
-                                downloadable: false,
-                            }
-                        } else {
-                            // MP4 from accessible CDN — proxy through ts-proxy
-                            let mut headers = HashMap::new();
-                            headers
-                                .insert("Referer".to_string(), "https://vidvault.ru/".to_string());
-                            headers.insert("Origin".to_string(), "https://vidvault.ru".to_string());
-                            let token =
-                                crate::security::sign_proxy_url(&f.url, &state.secret, Some(headers));
-                            let proxied = format!(
-                                "{}/ts-proxy?{}&download=1&filename={}",
-                                public_proxy_base,
-                                token.to_query(),
-                                urlencoding::encode(&filename),
-                            );
-                            DownloadFileOut {
-                                url: proxied,
-                                size: f.size,
-                                format: f.format,
-                                filename,
-                                headers: None,
-                                downloadable: true,
-                            }
+                        // MP4 from hakunaymatata CDN (or any other direct CDN).
+                        // Return the raw URL + VidVault Referer/Origin so the Flutter
+                        // client downloads directly from the CDN. The backend-proxy path
+                        // returns 403 for hakunaymatata; device-direct requests succeed.
+                        DownloadFileOut {
+                            url: f.url,
+                            size: f.size,
+                            format: f.format,
+                            quality: f.quality,
+                            filename,
+                            headers: Some(vidvault_headers.clone()),
+                            downloadable: true,
                         }
                     }
                 })

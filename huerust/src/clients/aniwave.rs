@@ -127,7 +127,7 @@ impl AniwaveClient {
                 .build(),
             stream_cache: Cache::builder()
                 .max_capacity(500)
-                .time_to_live(Duration::from_secs(15 * 60))
+                .time_to_live(Duration::from_secs(90))
                 .build(),
             card_cache: Cache::builder()
                 .max_capacity(200)

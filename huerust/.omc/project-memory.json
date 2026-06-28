@@ -128,27 +128,39 @@
   },
   "hotPaths": [
     {
-      "path": "src/clients/aisports.rs",
-      "accessCount": 20,
-      "lastAccessed": 1782591648243,
+      "path": "src/clients/animekill.rs",
+      "accessCount": 37,
+      "lastAccessed": 1782595500762,
       "type": "file"
     },
     {
-      "path": "src/clients/animekill.rs",
-      "accessCount": 17,
-      "lastAccessed": 1782590867288,
+      "path": "src/clients/aisports.rs",
+      "accessCount": 29,
+      "lastAccessed": 1782597038003,
       "type": "file"
     },
     {
       "path": "src/routes/sports.rs",
-      "accessCount": 14,
-      "lastAccessed": 1782591619760,
+      "accessCount": 23,
+      "lastAccessed": 1782596856154,
+      "type": "file"
+    },
+    {
+      "path": "src/app.rs",
+      "accessCount": 10,
+      "lastAccessed": 1782596820416,
       "type": "file"
     },
     {
       "path": "src/clients/anime_agg.rs",
-      "accessCount": 2,
-      "lastAccessed": 1782591810394,
+      "accessCount": 6,
+      "lastAccessed": 1782595459611,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/anime.rs",
+      "accessCount": 3,
+      "lastAccessed": 1782595469440,
       "type": "file"
     },
     {
@@ -164,9 +176,9 @@
       "type": "file"
     },
     {
-      "path": "src/routes/anime.rs",
+      "path": "src/proxy/mod.rs",
       "accessCount": 1,
-      "lastAccessed": 1782591818896,
+      "lastAccessed": 1782597361371,
       "type": "file"
     }
   ],

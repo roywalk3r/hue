@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"pkill -f 'cargo run --manifest-path /home/rseann/projects/Misc/hue/huerust/Cargo.toml' || true\\ncargo run --manifest-path /home/rseann/projects/Misc/hue/huerust/Cargo.toml --bin huerust 2>...",
+  "tool_input_preview": "{\"command\":\"cd /home/rseann/projects/NuxtJs/hue-ui && pkill -f 'nuxt/bin/nuxt.mjs dev'; sleep 2; nohup pnpm dev > /tmp/hue-ui-dev.log 2>&1 &\\necho \\\"Nuxt dev server restarting...\\\"\",\"timeout\":120000,\"...",
   "error": "Exit code 144",
-  "timestamp": "2026-06-27T20:08:00.750Z",
+  "timestamp": "2026-06-27T22:00:27.485Z",
   "retry_count": 1
 }
