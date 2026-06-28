@@ -67,6 +67,12 @@ fn build_ffmpeg_args(target_url: &str, header_str: &str, output: &str) -> Vec<St
         };
         args.extend(["-headers".to_string(), headers]);
     }
+    // When writing to a pipe (non-seekable output), standard MP4 fails because
+    // the muxer needs to seek back to write the moov atom at the end.
+    // Fragmented MP4 (frag_keyframe+empty_moov+default_base_moof) writes a
+    // self-contained moov atom at the start and streams fragments as they are
+    // produced, which works correctly with pipe:1.
+    let is_pipe = output.starts_with("pipe:");
     args.extend([
         "-i".to_string(),
         target_url.to_string(),
@@ -81,8 +87,16 @@ fn build_ffmpeg_args(target_url: &str, header_str: &str, output: &str) -> Vec<St
         // why live subtitles are in sync but downloaded ones aren't.
         "-avoid_negative_ts".to_string(),
         "make_zero".to_string(),
-        output.to_string(),
     ]);
+    if is_pipe {
+        args.extend([
+            "-f".to_string(),
+            "mp4".to_string(),
+            "-movflags".to_string(),
+            "frag_keyframe+empty_moov+default_base_moof".to_string(),
+        ]);
+    }
+    args.push(output.to_string());
     args
 }
 
@@ -309,10 +323,22 @@ pub struct HlsDownloadQuery {
 }
 
 pub async fn hls_download_handler(
+    method: axum::http::Method,
     State(state): State<DownloadState>,
     Query(params): Query<HlsDownloadQuery>,
 ) -> impl IntoResponse {
     use tokio::process::Command as TokioCommand;
+
+    // Flutter's ChunkedMp4Downloader sends a HEAD request first to check
+    // Content-Length. Spawning ffmpeg for a HEAD probe is wasteful (and the
+    // probe times out in 5 s anyway). Return 200 + Content-Type immediately.
+    if method == axum::http::Method::HEAD {
+        return Response::builder()
+            .status(StatusCode::OK)
+            .header(axum::http::header::CONTENT_TYPE, "video/mp4")
+            .body(Body::empty())
+            .unwrap();
+    }
 
     let (target_url, token_headers) = match params.h_token.as_deref() {
         Some(token) => {

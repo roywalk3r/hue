@@ -129,8 +129,8 @@
   "hotPaths": [
     {
       "path": "src/clients/animekill.rs",
-      "accessCount": 39,
-      "lastAccessed": 1782681032463,
+      "accessCount": 40,
+      "lastAccessed": 1782683883698,
       "type": "file"
     },
     {
@@ -171,8 +171,8 @@
     },
     {
       "path": "src/proxy/mod.rs",
-      "accessCount": 2,
-      "lastAccessed": 1782657186274,
+      "accessCount": 3,
+      "lastAccessed": 1782684139366,
       "type": "file"
     },
     {
