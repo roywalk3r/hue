@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"cd /home/rseann/projects/NuxtJs/hue-ui && pkill -f 'nuxt/bin/nuxt.mjs dev'; sleep 2; nohup pnpm dev > /tmp/hue-ui-dev.log 2>&1 &\\necho \\\"Nuxt dev server restarting...\\\"\",\"timeout\":120000,\"...",
-  "error": "Exit code 144",
-  "timestamp": "2026-06-27T22:00:27.485Z",
+  "tool_input_preview": "{\"command\":\"echo \\\"=== Watch page: detail + episodes + stream ===\\\" && \\\\\\necho \\\"\\\" && \\\\\\necho \\\"1. Detail (?source=animexin, frontend's wrong inference):\\\" && \\\\\\ncurl -sS -w \\\"[STATUS:%{http_code}...",
+  "error": "Exit code 1\n=== Watch page: detail + episodes + stream ===\n\n1. Detail (?source=animexin, frontend's wrong inference):\nTraceback (most recent call last):\n  File \"<string>\", line 3, in <module>\n    d = json.load(sys.stdin.read().split('[STATUS:')[0])\n  File \"/home/linuxbrew/.linuxbrew/Cellar/python@3.14/3.14.6/lib/python3.14/json/__init__.py\", line 298, in load\n    return loads(fp.read(),\n                 ^^^^^^^\nAttributeError: 'str' object has no attribute 'read'\n\n2. Episodes:\nTraceback (most re...",
+  "timestamp": "2026-06-28T21:18:48.438Z",
   "retry_count": 1
 }

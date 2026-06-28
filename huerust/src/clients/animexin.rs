@@ -113,7 +113,11 @@ impl AnimexinClient {
     pub async fn get_detail(&self, season_slug: &str) -> Result<AnimeDetail> {
         let url = format!("{}/{}/", BASE_URL, season_slug.trim_end_matches('/'));
         let resp = self.client.get(&url).send().await?;
+        let status = resp.status();
         let html = resp.text().await?;
+        if status.as_u16() == 404 || html.contains("404 Not Found") {
+            return Err(anyhow!("Animexin series page not found ({})", season_slug));
+        }
 
         let title = extract_meta_content(&html, r#"property="og:title"\s+content="([^"]+)""#)
             .or_else(|| extract_meta_content(&html, r#"<title>([^<]+)</title>"#))

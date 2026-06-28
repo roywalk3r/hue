@@ -607,6 +607,31 @@ pub async fn m3u8_handler(
         || body_trim.starts_with("#EXTM3U")
         || (ct.is_empty() && body_trim.starts_with("#EXTM3U"));
 
+    // Upstream 404 on an m3u8 request almost always means the signed upstream
+    // URL (doodstream `expiry=`, vidzee token, etc.) has expired. Surface a
+    // structured STREAM_EXPIRED error so clients can re-resolve the stream URL
+    // from the Rust backend instead of treating this as a generic 404.
+    // Check before the non-HLS guard so 404s on HTML error pages also trigger.
+    if status.as_u16() == 404 {
+        tracing::warn!(
+            "[m3u8-proxy] Upstream 404 — likely expired stream URL for {}",
+            target_url
+        );
+        let payload = serde_json::json!({
+            "error": "STREAM_EXPIRED",
+            "code": "STREAM_EXPIRED",
+            "message": "Upstream CDN returned 404; the stream URL has likely expired. Re-resolve from the originating endpoint.",
+            "upstreamStatus": 404,
+            "host": Url::parse(&target_url).ok().and_then(|u| u.host_str().map(|s| s.to_string())),
+        });
+        return (
+            StatusCode::BAD_GATEWAY,
+            [(CONTENT_TYPE, "application/json")],
+            payload.to_string(),
+        )
+            .into_response();
+    }
+
     // m3u8-proxy was requested but upstream didn't return a valid M3U8 —
     // don't forward HTML error pages as 200; that causes HLS.js manifestParsingError
     let looks_like_html = body_trim.starts_with("<!DOCTYPE")
@@ -727,30 +752,6 @@ pub async fn m3u8_handler(
     } else {
         body
     };
-
-    // Upstream 404 on an m3u8 request almost always means the signed upstream
-    // URL (doodstream `expiry=`, vidzee token, etc.) has expired. Surface a
-    // structured STREAM_EXPIRED error so clients can re-resolve the stream URL
-    // from the Rust backend instead of treating this as a generic 404.
-    if status.as_u16() == 404 && is_hls {
-        tracing::warn!(
-            "[m3u8-proxy] Upstream 404 — likely expired stream URL for {}",
-            target_url
-        );
-        let payload = serde_json::json!({
-            "error": "STREAM_EXPIRED",
-            "code": "STREAM_EXPIRED",
-            "message": "Upstream CDN returned 404; the stream URL has likely expired. Re-resolve from the originating endpoint.",
-            "upstreamStatus": 404,
-            "host": Url::parse(&target_url).ok().and_then(|u| u.host_str().map(|s| s.to_string())),
-        });
-        return (
-            StatusCode::BAD_GATEWAY,
-            [(CONTENT_TYPE, "application/json")],
-            payload.to_string(),
-        )
-            .into_response();
-    }
 
     let mut builder =
         Response::builder().status(StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::OK));

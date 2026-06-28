@@ -129,8 +129,14 @@
   "hotPaths": [
     {
       "path": "src/clients/animekill.rs",
-      "accessCount": 37,
-      "lastAccessed": 1782595500762,
+      "accessCount": 39,
+      "lastAccessed": 1782681032463,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/anime_agg.rs",
+      "accessCount": 38,
+      "lastAccessed": 1782681155439,
       "type": "file"
     },
     {
@@ -152,15 +158,39 @@
       "type": "file"
     },
     {
-      "path": "src/clients/anime_agg.rs",
-      "accessCount": 6,
-      "lastAccessed": 1782595459611,
-      "type": "file"
-    },
-    {
       "path": "src/routes/anime.rs",
       "accessCount": 3,
       "lastAccessed": 1782595469440,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/animexin.rs",
+      "accessCount": 3,
+      "lastAccessed": 1782681372765,
+      "type": "file"
+    },
+    {
+      "path": "src/proxy/mod.rs",
+      "accessCount": 2,
+      "lastAccessed": 1782657186274,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/moviebox.rs",
+      "accessCount": 2,
+      "lastAccessed": 1782657519579,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/vidrock.rs",
+      "accessCount": 2,
+      "lastAccessed": 1782657521168,
+      "type": "file"
+    },
+    {
+      "path": "src/clients/aniwave.rs",
+      "accessCount": 2,
+      "lastAccessed": 1782681406009,
       "type": "file"
     },
     {
@@ -176,9 +206,9 @@
       "type": "file"
     },
     {
-      "path": "src/proxy/mod.rs",
+      "path": "src/config.rs",
       "accessCount": 1,
-      "lastAccessed": 1782597361371,
+      "lastAccessed": 1782657309110,
       "type": "file"
     }
   ],

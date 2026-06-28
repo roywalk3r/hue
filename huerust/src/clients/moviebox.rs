@@ -696,8 +696,8 @@ impl MovieBoxClient {
                         let end = rest.find('&').unwrap_or(rest.len());
                         if let Ok(ts) = rest[..end].parse::<i64>() {
                             let age = now - ts;
-                            if age > 2700 {
-                                // 45 minutes
+                            if age > 14400 {
+                                // 4 hours
                                 warn!(
                                     "[MovieBox Rust] Discarding expired URL (age={}s): {}",
                                     age,

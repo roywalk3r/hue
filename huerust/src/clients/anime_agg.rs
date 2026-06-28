@@ -114,13 +114,50 @@ impl AnimeAggregator {
             Err(e) => warn!("[AnimeAgg] AniWave search error: {}", e),
         }
 
-        let existing: std::collections::HashSet<String> = results
+        // Dedupe: if a donghua provider has a result for the same title, drop
+        // any AniWave entry with the same normalized title, OR a closely
+        // matching title (high token overlap). The AniWave entry may
+        // carry a bogus slug (bare-digit-id format) for content AniWave
+        // doesn't actually host — the donghua provider is the
+        // authoritative source for donghua.
+        let donghua_titles: std::collections::HashSet<String> = donghua_results
+            .iter()
+            .map(|c| normalize_dedupe_title(&c.title))
+            .collect();
+        let donghua_tokens: Vec<std::collections::HashSet<String>> =
+            donghua_results
+                .iter()
+                .map(|c| title_tokens(&c.title))
+                .collect();
+        // Drop AniWave entries whose title is also returned by donghua,
+        // or whose token-set substantially overlaps a donghua entry's.
+        results.retain(|c| {
+            if !matches!(c.source.as_deref(), Some("aniwave"))
+                || c.title.is_empty()
+            {
+                return true;
+            }
+            let norm = normalize_dedupe_title(&c.title);
+            if donghua_titles.contains(&norm) {
+                return false;
+            }
+            let tokens = title_tokens(&c.title);
+            if tokens.len() < 2 {
+                return true;
+            }
+            !donghua_tokens.iter().any(|dt| {
+                let inter = tokens.intersection(dt).count();
+                inter >= 2 && inter * 2 >= tokens.len()
+            })
+        });
+        // Drop donghua entries already present by slug.
+        let existing_slugs: std::collections::HashSet<String> = results
             .iter()
             .filter_map(|c| c.slug.clone())
             .collect();
         for card in donghua_results {
             if let Some(ref slug) = card.slug {
-                if existing.contains(slug) {
+                if existing_slugs.contains(slug) {
                     continue;
                 }
             }
@@ -148,9 +185,9 @@ impl AnimeAggregator {
                 Err(e) => warn!("[AnimeAgg] AnimeKill detail error for {}: {}", id, e),
             }
         }
-        if source == Some("animexin") || (source.is_none() && Self::prefer_donghua_scraper(id, source)) {
+if source == Some("animexin") || (source.is_none() && Self::prefer_donghua_scraper(id, source)) {
             if let Ok(detail) = self.animexin.get_detail(id).await {
-                if !detail.card.id.is_empty() {
+                if !detail.card.id.is_empty() && !is_not_found_card(&detail) {
                     return Some(detail);
                 }
             }
@@ -160,7 +197,7 @@ impl AnimeAggregator {
         if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
             match self.aniwave.get_detail(id).await {
                 Ok(mut detail) => {
-                    if !detail.card.id.is_empty() {
+                    if !detail.card.id.is_empty() && !is_not_found_card(&detail) {
                         // Fire all enrichment calls in parallel with a
                         // shared deadline so the slowest doesn't hold up
                         // the response. Each call is optional; misses
@@ -284,7 +321,17 @@ impl AnimeAggregator {
                         return Some(detail);
                     }
                 }
-                Err(e) => warn!("[AnimeAgg] Aniwave detail error for {}: {}", id, e),
+                Err(e) => {
+                    warn!("[AnimeAgg] Aniwave detail error for {}: {}", id, e);
+                    // Aniwave returned an error (likely 404). Slugs that
+                    // look AniWave-shaped by digit suffix are sometimes
+                    // AnimeKill donghua. Try that before giving up.
+                    if let Ok(d) = self.animekill.get_detail(id).await {
+                        if !d.card.id.is_empty() {
+                            return Some(d);
+                        }
+                    }
+                }
             }
         }
 
@@ -299,6 +346,19 @@ impl AnimeAggregator {
         // Try Animexin for WordPress slug-based series pages
         if id.contains('-') && !id.contains('/') {
             if let Ok(detail) = self.animexin.get_detail(id).await {
+                if !detail.card.id.is_empty() {
+                    return Some(detail);
+                }
+            }
+        }
+
+        // AnimeKill donghua scraper — last-resort fallback for slug-only
+        // requests that don't match AniWave, HiAnime, or Animexin patterns.
+        if !id.starts_with("mal-")
+            && !id.contains('/')
+            && !id.is_empty()
+        {
+            if let Ok(detail) = self.animekill.get_detail(id).await {
                 if !detail.card.id.is_empty() {
                     return Some(detail);
                 }
@@ -331,7 +391,7 @@ impl AnimeAggregator {
             }
         }
 
-        // Try Aniwave first (slugs end in numeric id like one-piece-81553)
+// Try Aniwave first (slugs end in numeric id like one-piece-81553)
         if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
             match self.aniwave.get_episodes(id).await {
                 Ok(eps) => {
@@ -339,7 +399,17 @@ impl AnimeAggregator {
                         return Some(eps);
                     }
                 }
-                Err(e) => warn!("[AnimeAgg] Aniwave episodes error for {}: {}", id, e),
+                Err(e) => {
+                    warn!("[AnimeAgg] Aniwave episodes error for {}: {}", id, e);
+                    // Aniwave returned an error (likely 404). Fall through
+                    // to AnimeKill — slugs that look AniWave-shaped by
+                    // digit suffix are sometimes AnimeKill donghua.
+                    if let Ok(eps) = self.animekill.get_episodes(id).await {
+                        if !eps.is_empty() {
+                            return Some(eps);
+                        }
+                    }
+                }
             }
         }
 
@@ -388,6 +458,22 @@ impl AnimeAggregator {
         if let Ok(eps) = self.animexin.get_episodes(id).await {
             if !eps.is_empty() {
                 return Some(eps);
+            }
+        }
+
+        // AnimeKill donghua scraper — last-resort fallback. Slugs without
+        // a digit suffix and without an explicit source can still be
+        // AnimeKill donghua (e.g. "beyond-time-s-gaze-guangyin-zhi-wai").
+        // Don't try when the slug clearly belongs to another provider
+        // (e.g. `mal-<id>` MAL references).
+        if !id.starts_with("mal-")
+            && !id.contains('/')
+            && !id.is_empty()
+        {
+            if let Ok(eps) = self.animekill.get_episodes(id).await {
+                if !eps.is_empty() {
+                    return Some(eps);
+                }
             }
         }
 
@@ -460,6 +546,16 @@ impl AnimeAggregator {
             }
         }
 
+        // AnimeKill last-resort fallback: slugs shaped like Animexin
+        // (no digit suffix) may actually live on AnimeKill. Try it.
+        if !Self::prefer_animekill(id, source) {
+            if let Ok(servers) = self.animekill.get_servers(id).await {
+                if !servers.sub.is_empty() || !servers.dub.is_empty() {
+                    return Some(servers);
+                }
+            }
+        }
+
         None
     }
 
@@ -515,6 +611,17 @@ impl AnimeAggregator {
         // default stream.
         if server.is_some() {
             if let Ok(stream) = self.animexin.get_stream(id, server).await {
+                if !stream.url.is_empty() {
+                    return Some(stream);
+                }
+            }
+        }
+
+        // AnimeKill last-resort fallback: the slug-shape inference sometimes
+        // points at Animexin for content that's actually on AnimeKill.
+        // Try AnimeKill if we haven't already, regardless of the source hint.
+        if !Self::prefer_animekill(id, source) {
+            if let Ok(stream) = self.animekill.get_stream(id, server).await {
                 if !stream.url.is_empty() {
                     return Some(stream);
                 }
@@ -969,6 +1076,64 @@ fn is_aniwave_slug(slug: &str) -> bool {
         .next()
         .map(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_digit()))
         .unwrap_or(false)
+}
+
+/// Lowercase, strip punctuation + whitespace, drop parentheticals. Used
+/// to dedupe search results that the same show returned from different
+/// providers with different slug shapes.
+fn normalize_dedupe_title(title: &str) -> String {
+    let mut out = String::with_capacity(title.len());
+    let mut depth = 0i32;
+    for c in title.chars() {
+        match c {
+            '(' | '[' | '（' => depth += 1,
+            ')' | ']' | '）' => {
+                depth -= 1;
+                continue;
+            }
+            _ if depth > 0 => continue,
+            c if c.is_alphanumeric() => out.extend(c.to_lowercase()),
+            _ => {}
+        }
+    }
+    out
+}
+
+/// Stop-word filtered lowercase token set for fuzzy title matching.
+/// Splits on the original whitespace + punctuation, NOT on the normalized
+/// concatenation (otherwise a 4-word title becomes one giant token).
+fn title_tokens(title: &str) -> std::collections::HashSet<String> {
+    const STOP: &[&str] = &[
+        "the", "a", "an", "of", "and", "or", "in", "on", "to", "for", "with",
+        "is", "at", "by", "season", "part", "movie", "series", "special",
+        "edition", "ver", "ova", "ona",
+    ];
+    title
+        .to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty() && w.len() > 1 && !STOP.contains(w))
+        .map(|w| w.to_string())
+        .collect()
+}
+
+/// True when a parsed AnimeCard looks like a 404 / not-found page that
+/// slipped through a scraper (title is "404 Not Found", "Page Not Found",
+/// or generic boilerplate). Used to reject bogus results so the aggregator
+/// keeps falling back to the next provider.
+fn is_not_found_card(detail: &AnimeDetail) -> bool {
+    let t = detail.card.title.trim().to_lowercase();
+    if t.is_empty() {
+        return true;
+    }
+    matches!(
+        t.as_str(),
+        "404 not found"
+            | "404"
+            | "not found"
+            | "page not found"
+            | "error"
+            | "notfound"
+    )
 }
 
 fn source_rank(card: &AnimeCard) -> u8 {

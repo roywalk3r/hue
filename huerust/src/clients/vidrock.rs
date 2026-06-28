@@ -222,7 +222,7 @@ impl VidRockClient {
                 let end = rest.find('&').unwrap_or(rest.len());
                 if let Ok(ts) = rest[..end].parse::<i64>() {
                     let age = now - ts;
-                    if age > 2700 {
+                    if age > 14400 {
                         tracing::warn!(
                             "[VidRock] Discarding expired URL (age={}s): {}",
                             age,
