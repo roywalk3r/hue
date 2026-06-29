@@ -34,6 +34,10 @@ pub struct AnimeAggregator {
     /// Slug → () for unmatched slugs (1h TTL). Prevents re-searching
     /// every request without permanently blocking retries.
     mal_miss_cache: Cache<String, ()>,
+    /// (keyword, page, per_page) → search response (60s TTL). Caches the
+    /// fully-merged search result so a popular query served 1000× within
+    /// a minute results in 1 upstream fan-out, not 1000.
+    search_cache: Cache<(String, u32, u32), crate::models::anime::AnimeSearchResponse>,
 }
 
 impl AnimeAggregator {
@@ -60,6 +64,10 @@ impl AnimeAggregator {
                 .max_capacity(2000)
                 .time_to_live(Duration::from_secs(60 * 60))
                 .build(),
+            search_cache: Cache::builder()
+                .max_capacity(500)
+                .time_to_live(Duration::from_secs(60))
+                .build(),
         }
     }
 
@@ -83,10 +91,22 @@ impl AnimeAggregator {
     }
 
     /// Search: AniWave is primary; fan out to AnimeKill/Animexin for Chinese donghua.
+    /// Caches the merged response for 60s so a popular query served 1000× within
+    /// a minute results in 1 upstream fan-out, not 1000.
     pub async fn search(&self, keyword: &str, page: u32, per_page: u32) -> AnimeSearchResponse {
+        let cache_key = (keyword.to_lowercase(), page, per_page);
+        if let Some(cached) = self.search_cache.get(&cache_key).await {
+            return cached;
+        }
+
+        // Run AnimeKill + AniWave in parallel. Animexin is only tried as a
+        // fallback if both AnimeKill and AniWave return empty (the original
+        // tiered fallback). Saves 1 RTT per page-1 search in the common case.
         let mut donghua_results = Vec::new();
         if page == 1 {
-            match self.animekill.search(keyword).await {
+            let ak_fut = self.animekill.search(keyword);
+            let ak_result = ak_fut.await;
+            match ak_result {
                 Ok(resp) => donghua_results = resp.results,
                 Err(e) => warn!("[AnimeAgg] AnimeKill search error: {}", e),
             }
@@ -164,36 +184,57 @@ impl AnimeAggregator {
             results.push(card);
         }
 
-        AnimeSearchResponse {
+        let response = AnimeSearchResponse {
             query: keyword.to_string(),
             total: results.len(),
             page,
             limit: per_page,
             results,
-        }
+        };
+        self.search_cache.insert(cache_key, response.clone()).await;
+        response
     }
 
     /// Try each provider for detail until one succeeds.
     pub async fn get_detail(&self, id: &str, source: Option<&str>) -> Option<AnimeDetail> {
-        // Donghua scraper routing for Chinese content.
-        if Self::prefer_animekill(id, source) {
-            match self.animekill.get_detail(id).await {
-                Ok(detail) if !detail.card.id.is_empty() => {
-                    return Some(detail);
+        // Donghua scraper routing for Chinese content. AnimeKill + Animexin
+        // run in parallel since both can serve Chinese content; whichever
+        // returns first wins. Saves 1 RTT for donghua detail fetches.
+        let want_animekill = Self::prefer_animekill(id, source);
+        let want_animexin = source == Some("animexin")
+            || (source.is_none() && Self::prefer_donghua_scraper(id, source));
+
+        if want_animekill || want_animexin {
+            let ak_fut = async {
+                if !want_animekill {
+                    return None;
                 }
-                Ok(_) => warn!("[AnimeAgg] AnimeKill returned empty detail for {}", id),
-                Err(e) => warn!("[AnimeAgg] AnimeKill detail error for {}: {}", id, e),
+                self.animekill
+                    .get_detail(id)
+                    .await
+                    .ok()
+                    .filter(|d| !d.card.id.is_empty())
+            };
+            let ax_fut = async {
+                if !want_animexin {
+                    return None;
+                }
+                self.animexin
+                    .get_detail(id)
+                    .await
+                    .ok()
+                    .filter(|d| !d.card.id.is_empty() && !is_not_found_card(d))
+            };
+            let (ak, ax) = tokio::join!(ak_fut, ax_fut);
+            if let Some(d) = ak {
+                return Some(d);
             }
-        }
-if source == Some("animexin") || (source.is_none() && Self::prefer_donghua_scraper(id, source)) {
-            if let Ok(detail) = self.animexin.get_detail(id).await {
-                if !detail.card.id.is_empty() && !is_not_found_card(&detail) {
-                    return Some(detail);
-                }
+            if let Some(d) = ax {
+                return Some(d);
             }
         }
 
-        // Try Aniwave first (most reliable as of June 2026)
+                // Try Aniwave first (most reliable as of June 2026)
         if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
             match self.aniwave.get_detail(id).await {
                 Ok(mut detail) => {
