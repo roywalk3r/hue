@@ -747,7 +747,6 @@ pub async fn m3u8_handler(
     }
 
     let proxy_base = dynamic_proxy_base(&request_headers, &state.proxy_base_url);
-    tracing::info!("[m3u8-proxy] is_hls={} target={} body_len={}", is_hls, target_url, body.len());
     let final_body = if is_hls {
         rewrite_playlist(&body, &target_url, &proxy_base, &state.secret, headers, is_hls)
     } else {
@@ -1403,7 +1402,6 @@ fn rewrite_playlist(
     };
 
     // Collect segment URLs for prefetch after rewrite
-    tracing::info!("[rewrite_playlist] ENTER manifest_is_hls={} target_url={}", manifest_is_hls, target_url);
     let mut segment_urls: Vec<String> = Vec::new();
 
     let mut rewritten_lines: Vec<String> = Vec::new();
@@ -1462,7 +1460,6 @@ fn rewrite_playlist(
             // browser doesn't replay a cached 4xx against the deterministic
             // h_token URL after upstream auth expires.
             let nonce = if manifest_is_hls {
-                tracing::info!("[rewrite_playlist] manifest_is_hls=true, dropping nonce for segment {}", abs_url);
                 String::new()
             } else {
                 format!(
