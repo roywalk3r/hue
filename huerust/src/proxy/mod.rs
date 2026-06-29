@@ -701,7 +701,7 @@ pub async fn m3u8_handler(
                     tracing::info!("[m3u8-proxy] Vixsrc retry succeeded with minimal headers");
                     let proxy_base = dynamic_proxy_base(&request_headers, &state.proxy_base_url);
                     let final_body =
-                        rewrite_playlist(&body2, &target_url, &proxy_base, &state.secret, None);
+                        rewrite_playlist(&body2, &target_url, &proxy_base, &state.secret, None, is_hls2);
                     let mut builder = Response::builder()
                         .status(StatusCode::from_u16(status2.as_u16()).unwrap_or(StatusCode::OK));
                     builder = builder.header("Access-Control-Allow-Origin", "*");
@@ -747,8 +747,9 @@ pub async fn m3u8_handler(
     }
 
     let proxy_base = dynamic_proxy_base(&request_headers, &state.proxy_base_url);
+    tracing::info!("[m3u8-proxy] is_hls={} target={} body_len={}", is_hls, target_url, body.len());
     let final_body = if is_hls {
-        rewrite_playlist(&body, &target_url, &proxy_base, &state.secret, headers)
+        rewrite_playlist(&body, &target_url, &proxy_base, &state.secret, headers, is_hls)
     } else {
         body
     };
@@ -1394,6 +1395,7 @@ fn rewrite_playlist(
     proxy_base: &str,
     secret: &str,
     headers: Option<HashMap<String, String>>,
+    manifest_is_hls: bool,
 ) -> String {
     let base_url = match Url::parse(target_url) {
         Ok(u) => u,
@@ -1401,6 +1403,7 @@ fn rewrite_playlist(
     };
 
     // Collect segment URLs for prefetch after rewrite
+    tracing::info!("[rewrite_playlist] ENTER manifest_is_hls={} target_url={}", manifest_is_hls, target_url);
     let mut segment_urls: Vec<String> = Vec::new();
 
     let mut rewritten_lines: Vec<String> = Vec::new();
@@ -1427,8 +1430,11 @@ fn rewrite_playlist(
         } else if !line.trim().is_empty() {
             let line_trim = line.trim();
             let abs_url = unwrap_aisports_worker_url(&resolve_segment_url(&base_url, line_trim));
-            let is_hls = looks_like_hls_playlist_url(&abs_url);
-            let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
+            // Use the manifest-level flag (passed in) rather than per-URL
+            // shape — segment URLs (.ts/.m4s) wouldn't otherwise be detected
+            // as HLS but their parent manifest IS HLS.
+            let segment_is_hls_playlist_ref = looks_like_hls_playlist_url(&abs_url);
+            let route = if segment_is_hls_playlist_ref { "m3u8-proxy" } else { "ts-proxy" };
 
             // MP3-wrapped-TS detection
             let is_mp3_wrapped_ts = abs_url.to_lowercase().contains(".mp3");
@@ -1439,20 +1445,34 @@ fn rewrite_playlist(
             };
 
             // Track segment URLs for prefetch
-            if !is_hls {
+            if !manifest_is_hls {
                 segment_urls.push(abs_url.clone());
             }
 
             let use_raw = is_whitelisted_raw_url(&abs_url) && headers.is_none();
-            // Per-rewrite nonce so the browser never replays a cached 4xx
-            // against the deterministic h_token / raw-url path.
-            let nonce = format!(
-                "&_n={:x}",
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_nanos())
-                    .unwrap_or(0)
-            );
+            // For HLS segments, drop the per-rewrite nonce. Each segment
+            // already has a natural cache-buster (the segment filename) and
+            // the manifest's segments rotate as the upstream publishes new
+            // files. Adding a fresh nonce per rewrite forces libmpv to
+            // open a new TCP connection for every segment (defeats HTTP/2
+            // multiplexing and connection pooling on the proxy), which
+            // surfaces as pause/resume stutter under network jitter.
+            //
+            // For progressive MP4 (non-HLS), keep the nonce so the
+            // browser doesn't replay a cached 4xx against the deterministic
+            // h_token URL after upstream auth expires.
+            let nonce = if manifest_is_hls {
+                tracing::info!("[rewrite_playlist] manifest_is_hls=true, dropping nonce for segment {}", abs_url);
+                String::new()
+            } else {
+                format!(
+                    "&_n={:x}",
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_nanos())
+                        .unwrap_or(0)
+                )
+            };
             let proxy_url = if use_raw {
                 let encoded_url = urlencoding::encode(&abs_url);
                 let header_part = if let Some(ref h) = headers {
@@ -1465,7 +1485,7 @@ fn rewrite_playlist(
                 };
                 let range_part = pending_byte_range
                     .take()
-                    .filter(|_| !is_hls)
+                    .filter(|_| !manifest_is_hls)
                     .map(|range| format!("&range={}", urlencoding::encode(&range)))
                     .unwrap_or_default();
                 format!(
@@ -1480,16 +1500,27 @@ fn rewrite_playlist(
                 )
             } else {
                 let token = security::sign_proxy_url(&abs_url, secret, headers.clone());
-                let segment_extra = if is_hls {
-                    ""
+                // For HLS segments, omit tailPrefetch/noSynth (they target
+                // MP4 progressive playback). The signed token is enough.
+                let segment_extra = if manifest_is_hls {
+                    String::new()
                 } else {
-                    "&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0"
+                    "&clampOpen=0&progressiveOpen=0&noSynth=1&tailPrefetch=0".to_string()
                 };
                 let range_part = pending_byte_range
                     .take()
-                    .filter(|_| !is_hls)
+                    .filter(|_| !manifest_is_hls)
                     .map(|range| format!("&range={}", urlencoding::encode(&range)))
                     .unwrap_or_default();
+                // Drop the nonce for HLS segments — see comment in the
+                // use_raw branch above. For non-HLS, keep it so the
+                // browser doesn't replay a cached 4xx against the
+                // deterministic h_token URL after upstream auth expires.
+                let final_nonce = if manifest_is_hls {
+                    String::new()
+                } else {
+                    nonce
+                };
                 format!(
                     "{}/{}?{}{}{}{}{}",
                     proxy_base,
@@ -1498,7 +1529,7 @@ fn rewrite_playlist(
                     segment_extra,
                     force_type_param,
                     range_part,
-                    nonce
+                    final_nonce
                 )
             };
             rewritten_lines.push(proxy_url);
