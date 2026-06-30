@@ -121,12 +121,30 @@ impl AnimeAggregator {
         // Chinese content is always sourced from the donghua scraper.
         let exclude_cn = !donghua_results.is_empty();
 
+        // Drop AniWave results that don't actually match the query. AniWave
+        // returns its default-sorted list (latest releases) when the keyword
+        // is rare/misspelled, so we tokenize the query and require at least
+        // one significant overlap with the title. "if wish could kill"
+        // would otherwise return 5 unrelated popular shows.
+        let query_tokens = title_tokens(keyword);
+        let query_has_signal = query_tokens.len() >= 2;
+
         let mut results = Vec::new();
         match self.aniwave.search(keyword, page, per_page).await {
             Ok(resp) => {
                 for card in resp.results {
                     if exclude_cn && card.country.as_deref() == Some("CN") {
                         continue;
+                    }
+                    if query_has_signal {
+                        let title_words = title_tokens(&card.title);
+                        let overlap = title_words.intersection(&query_tokens).count();
+                        // Single-word queries (e.g. "naruto") pass through
+                        // unfiltered. Multi-word queries require at least
+                        // one matching significant word.
+                        if query_tokens.len() >= 2 && overlap == 0 {
+                            continue;
+                        }
                     }
                     results.push(card);
                 }
