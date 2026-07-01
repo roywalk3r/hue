@@ -7,17 +7,23 @@
 
 pub mod dispatch;
 pub mod dramacool;
+pub mod dramacool9;
+pub mod dramacool9_provider;
 pub mod dramacool_provider;
 pub mod kissasian;
 pub mod kissasian_provider;
 pub mod kisskh;
 pub mod kisskh_provider;
+pub mod kisskh_xyra;
+pub mod kisskh_xyra_provider;
 pub mod lordflix_provider;
 pub mod moviebox_provider;
 pub mod mp4hydra;
 pub mod mp4hydra_provider;
 pub mod notorrent_provider;
 pub mod registry;
+pub mod streamhub;
+pub mod streamhub_provider;
 pub mod sflix;
 pub mod sflix_provider;
 pub mod videasy;
@@ -30,6 +36,7 @@ pub mod vidzee;
 pub mod vidzee_provider;
 pub mod vixsrc;
 pub mod vixsrc_provider;
+pub mod xyra_subtitle;
 
 use crate::clients::tmdb::TmdbNormalizedInfo;
 use crate::models::StreamResult;
@@ -69,13 +76,16 @@ pub fn display_to_real_name(display: &str) -> &str {
         "Luna" => "vidrock",
         "Aura" => "vixsrc",
         "Zenith" => "kisskh",
+        "Aurora" => "kisskh_xyra",
         "Orient" => "dramacool",
+        "Orient9" => "dramacool9",
         "Pearl" => "kissasian",
         "Hydra" => "mp4hydra",
         "VidZee" => "vidzee",
         "Vortex" => "videasy",
         "Nebula" => "vidsrcembed",
         "Vault" => "vidvault",
+        "StreamHub" => "streamhub",
         other => other,
     }
 }

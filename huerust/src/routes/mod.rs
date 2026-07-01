@@ -15,5 +15,6 @@ pub mod providers;
 pub mod sports;
 pub mod sse;
 pub mod streams;
+pub mod subtitle;
 pub mod system;
 pub mod tmdb;
