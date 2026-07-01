@@ -259,35 +259,63 @@ impl Dramacool9Client {
         };
 
         let mut results = Vec::new();
+        let mut emitted_iframe = false;
         for (server_name, server) in &data.servers {
-            if !server.m3u8 {
-                continue;
+            // Prefer direct m3u8 streams when the server provides one.
+            if server.m3u8 {
+                if let Some(stream_url) = server.stream.as_ref().filter(|u| !u.is_empty()) {
+                    let mut headers = HashMap::new();
+                    headers.insert("Referer".to_string(), "https://dramacool9.com.ro/".to_string());
+                    headers.insert("User-Agent".to_string(), USER_AGENT.to_string());
+
+                    let title = format!("Orient9 - {} - E{}", server_name, episode);
+                    results.push(StreamResult {
+                        url: stream_url.clone(),
+                        title,
+                        quality: "Auto".to_string(),
+                        provider: "Orient9".to_string(),
+                        format: "hls".to_string(),
+                        subtitles: None,
+                        headers: Some(headers),
+                        extra_metadata: Some({
+                            let mut m = HashMap::new();
+                            m.insert("server".to_string(), server_name.clone());
+                            m.insert("episode_id".to_string(), ep_id.clone());
+                            m
+                        }),
+                    });
+                    continue;
+                }
             }
-            let stream_url = match &server.stream {
-                Some(u) if !u.is_empty() => u.clone(),
-                _ => continue,
-            };
+            // Fallback: emit the first iframe embed so the player can still surface a source.
+            // Mobile player deprioritizes iframe (HueStream.isIframe); web player can't play it
+            // but the user will at least see a real URL in the streams list.
+            if !emitted_iframe {
+                if let Some(embed_url) = server.embeded_link.as_ref().filter(|u| !u.is_empty()) {
+                    let mut headers = HashMap::new();
+                    headers.insert("Referer".to_string(), "https://dramacool9.com.ro/".to_string());
+                    headers.insert("User-Agent".to_string(), USER_AGENT.to_string());
 
-            let mut headers = HashMap::new();
-            headers.insert("Referer".to_string(), "https://dramacool9.com.ro/".to_string());
-            headers.insert("User-Agent".to_string(), USER_AGENT.to_string());
-
-            let title = format!("Orient9 - {} - E{}", server_name, episode);
-            results.push(StreamResult {
-                url: stream_url,
-                title,
-                quality: "Auto".to_string(),
-                provider: "Orient9".to_string(),
-                format: "hls".to_string(),
-                subtitles: None,
-                headers: Some(headers),
-                extra_metadata: Some({
-                    let mut m = HashMap::new();
-                    m.insert("server".to_string(), server_name.clone());
-                    m.insert("episode_id".to_string(), ep_id.clone());
-                    m
-                }),
-            });
+                    let title = format!("Orient9 - iframe - E{}", episode);
+                    results.push(StreamResult {
+                        url: embed_url.clone(),
+                        title,
+                        quality: "Auto".to_string(),
+                        provider: "Orient9".to_string(),
+                        format: "iframe".to_string(),
+                        subtitles: None,
+                        headers: Some(headers),
+                        extra_metadata: Some({
+                            let mut m = HashMap::new();
+                            m.insert("iframe".to_string(), "true".to_string());
+                            m.insert("server".to_string(), server_name.clone());
+                            m.insert("episode_id".to_string(), ep_id.clone());
+                            m
+                        }),
+                    });
+                    emitted_iframe = true;
+                }
+            }
         }
 
         info!("[dramacool9] returning {} streams", results.len());
@@ -349,37 +377,61 @@ impl Dramacool9Client {
         };
 
         let mut results = Vec::new();
+        let mut emitted_iframe = false;
         for (server_name, server) in &data.servers {
-            // Only take m3u8 servers with a direct stream URL.
-            if !server.m3u8 {
-                continue;
+            // Prefer direct m3u8 streams when the server provides one.
+            if server.m3u8 {
+                if let Some(stream_url) = server.stream.as_ref().filter(|u| !u.is_empty()) {
+                    let mut headers = HashMap::new();
+                    headers.insert("Referer".to_string(), "https://dramacool9.com.ro/".to_string());
+                    headers.insert("User-Agent".to_string(), USER_AGENT.to_string());
+
+                    let title = format!("Orient9 - {} - E{}", server_name, episode);
+                    results.push(StreamResult {
+                        url: stream_url.clone(),
+                        title,
+                        quality: "Auto".to_string(),
+                        provider: "Orient9".to_string(),
+                        format: "hls".to_string(),
+                        subtitles: None,
+                        headers: Some(headers),
+                        extra_metadata: Some({
+                            let mut m = HashMap::new();
+                            m.insert("server".to_string(), server_name.clone());
+                            m.insert("episode_id".to_string(), ep_id.clone());
+                            m
+                        }),
+                    });
+                    continue;
+                }
             }
-            let stream_url = match &server.stream {
-                Some(u) if !u.is_empty() => u.clone(),
-                _ => continue,
-            };
+            // Fallback iframe so the player still gets a source when xyra only serves embeds.
+            if !emitted_iframe {
+                if let Some(embed_url) = server.embeded_link.as_ref().filter(|u| !u.is_empty()) {
+                    let mut headers = HashMap::new();
+                    headers.insert("Referer".to_string(), "https://dramacool9.com.ro/".to_string());
+                    headers.insert("User-Agent".to_string(), USER_AGENT.to_string());
 
-            let mut headers = HashMap::new();
-            // Referer / UA help the m3u8 CDN serve content reliably.
-            headers.insert("Referer".to_string(), "https://dramacool9.com.ro/".to_string());
-            headers.insert("User-Agent".to_string(), USER_AGENT.to_string());
-
-            let title = format!("Orient9 - {} - E{}", server_name, episode);
-            results.push(StreamResult {
-                url: stream_url,
-                title,
-                quality: "Auto".to_string(),
-                provider: "Orient9".to_string(),
-                format: "hls".to_string(),
-                subtitles: None,
-                headers: Some(headers),
-                extra_metadata: Some({
-                    let mut m = HashMap::new();
-                    m.insert("server".to_string(), server_name.clone());
-                    m.insert("episode_id".to_string(), ep_id.clone());
-                    m
-                }),
-            });
+                    let title = format!("Orient9 - iframe - E{}", episode);
+                    results.push(StreamResult {
+                        url: embed_url.clone(),
+                        title,
+                        quality: "Auto".to_string(),
+                        provider: "Orient9".to_string(),
+                        format: "iframe".to_string(),
+                        subtitles: None,
+                        headers: Some(headers),
+                        extra_metadata: Some({
+                            let mut m = HashMap::new();
+                            m.insert("iframe".to_string(), "true".to_string());
+                            m.insert("server".to_string(), server_name.clone());
+                            m.insert("episode_id".to_string(), ep_id.clone());
+                            m
+                        }),
+                    });
+                    emitted_iframe = true;
+                }
+            }
         }
 
         info!("[dramacool9] returning {} streams", results.len());
