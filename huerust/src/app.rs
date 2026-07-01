@@ -32,16 +32,22 @@ use crate::infra::rate_limit::RateLimitState;
 use crate::providers::registry::ProviderRegistry;
 use crate::providers::{
     dramacool::DramacoolClient,
+    dramacool9::Dramacool9Client,
+    dramacool9_provider::Dramacool9Provider,
     dramacool_provider::DramacoolProvider,
     kissasian::KissAsianClient,
     kissasian_provider::KissAsianProvider,
     kisskh::KissKhClient,
     kisskh_provider::KissKhProvider,
+    kisskh_xyra::KissKhXyraClient,
+    kisskh_xyra_provider::KissKhXyraProvider,
     lordflix_provider::LordflixProvider,
     moviebox_provider::MovieBoxProvider,
     notorrent_provider::NoTorrentProvider,
     // mp4hydra_provider::Mp4HydraProvider, // disabled — endpoint times out
     sflix_provider::SflixProvider,
+    streamhub::StreamHubClient,
+    streamhub_provider::StreamHubProvider,
     vidlink_provider::VidlinkProvider,
     // videasy::VideasyClient,       // disabled — upstream 500
     // videasy_provider::VideasyProvider,
@@ -52,6 +58,7 @@ use crate::providers::{
     vidzee_provider::VidzeeProvider,
     vixsrc::VixsrcClient,
     vixsrc_provider::VixsrcProvider,
+    xyra_subtitle::XyraSubtitleClient,
 };
 
 pub fn kisskh_enabled() -> bool {
@@ -85,6 +92,10 @@ pub struct AppState {
     pub aisports: Arc<crate::clients::aisports::AiSportsClient>,
     pub anime_agg: Arc<crate::clients::anime_agg::AnimeAggregator>,
     pub animekill: Arc<crate::clients::animekill::AnimeKillClient>,
+    pub xyra_subtitle: Arc<XyraSubtitleClient>,
+    pub streamhub: Arc<StreamHubClient>,
+    pub dramacool9: Arc<Dramacool9Client>,
+    pub kisskh_xyra: Arc<KissKhXyraClient>,
     pub secret: String,
     pub kkey: String,
     pub proxy_base_url: String,
@@ -116,6 +127,10 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let kissasian_client = Arc::new(crate::providers::kissasian::KissAsianClient::new());
     let hianime_client = Arc::new(crate::clients::hianime::HianimeClient::new());
     let animekill_client = Arc::new(crate::clients::animekill::AnimeKillClient::new());
+    let xyra_subtitle_client = Arc::new(XyraSubtitleClient::new());
+    let streamhub_client = Arc::new(StreamHubClient::new());
+    let dramacool9_client = Arc::new(Dramacool9Client::new());
+    let kisskh_xyra_client = Arc::new(KissKhXyraClient::new());
     let anime_agg = Arc::new(crate::clients::anime_agg::AnimeAggregator::new(
         Arc::new(crate::clients::aniwave::AniwaveClient::new(
             cfg.cf_worker_url.clone(),
@@ -199,6 +214,9 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         tracing::info!("KissKH provider disabled; set ENABLE_KISSKH=true to enable it");
     }
     registry.register(Arc::new(SflixProvider::new(sflix_client.clone())));
+    registry.register(Arc::new(StreamHubProvider::new(streamhub_client.clone())));
+    registry.register(Arc::new(Dramacool9Provider::new(dramacool9_client.clone())));
+    registry.register(Arc::new(KissKhXyraProvider::new(kisskh_xyra_client.clone())));
     registry.register(Arc::new(DramacoolProvider::new(dramacool_client.clone())));
     registry.register(Arc::new(KissAsianProvider::new(kissasian_client.clone())));
     registry.register(Arc::new(VixsrcProvider::new(vixsrc_client)));
@@ -255,6 +273,10 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         vidvault: vidvault_client.clone(),
         anime_agg: anime_agg.clone(),
         animekill: animekill_client.clone(),
+        xyra_subtitle: xyra_subtitle_client,
+        streamhub: streamhub_client,
+        dramacool9: dramacool9_client,
+        kisskh_xyra: kisskh_xyra_client,
         aisports: Arc::new(crate::clients::aisports::AiSportsClient::new(
             crate::http_client::wrap_with_retry(
                 reqwest::Client::builder()
@@ -405,6 +427,42 @@ pub fn build_router(state: AppState) -> Router {
             get(crate::routes::drama::dramacool_streams_handler),
         )
         .route(
+            "/api/drama/dramacool9/search",
+            get(crate::routes::drama::dramacool9_search_handler),
+        )
+        .route(
+            "/api/drama/dramacool9/streams/:id/:episode",
+            get(crate::routes::drama::dramacool9_streams_handler),
+        )
+        .route(
+            "/api/drama/dramacool9/home",
+            get(crate::routes::drama::dramacool9_home_handler),
+        )
+        .route(
+            "/api/drama/dramacool9/popular",
+            get(crate::routes::drama::dramacool9_popular_handler),
+        )
+        .route(
+            "/api/drama/dramacool9/list",
+            get(crate::routes::drama::dramacool9_list_handler),
+        )
+        .route(
+            "/api/drama/dramacool9/discover",
+            get(crate::routes::drama::dramacool9_discover_handler),
+        )
+        .route(
+            "/api/drama/kisskh_xyra/search",
+            get(crate::routes::drama::kisskh_xyra_search_handler),
+        )
+        .route(
+            "/api/drama/kisskh_xyra/streams/:id/:episode",
+            get(crate::routes::drama::kisskh_xyra_streams_handler),
+        )
+        .route(
+            "/api/drama/kisskh_xyra/home",
+            get(crate::routes::drama::kisskh_xyra_home_handler),
+        )
+        .route(
             "/api/drama/kissasian/search",
             get(crate::routes::drama::kissasian_search_handler),
         )
@@ -435,6 +493,14 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/drama/detail",
             get(crate::routes::drama::drama_detail_handler),
+        )
+        .route(
+            "/api/subtitle/search",
+            get(crate::routes::subtitle::subtitle_search_handler),
+        )
+        .route(
+            "/api/subtitle/download",
+            get(crate::routes::subtitle::subtitle_download_handler),
         )
         .route(
             "/api/moviebox/home",
@@ -887,6 +953,8 @@ impl FromRef<AppState> for StreamState {
 pub struct DramaState {
     pub kisskh: Arc<KissKhClient>,
     pub dramacool: Arc<DramacoolClient>,
+    pub dramacool9: Arc<Dramacool9Client>,
+    pub kisskh_xyra: Arc<KissKhXyraClient>,
     pub kissasian: Arc<KissAsianClient>,
     pub moviebox: Arc<MovieBoxClient>,
     pub tmdb: Arc<TmdbClient>,
@@ -900,6 +968,8 @@ impl FromRef<AppState> for DramaState {
         Self {
             kisskh: s.kisskh.clone(),
             dramacool: s.dramacool.clone(),
+            dramacool9: s.dramacool9.clone(),
+            kisskh_xyra: s.kisskh_xyra.clone(),
             kissasian: s.kissasian.clone(),
             moviebox: s.moviebox.clone(),
             tmdb: s.tmdb.clone(),

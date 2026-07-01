@@ -375,6 +375,171 @@ pub async fn dramacool_streams_handler(
     }
 }
 
+// ── Dramacool9 ─────────────────────────────────────────────────────
+
+pub async fn dramacool9_search_handler(
+    State(state): State<DramaState>,
+    Query(params): Query<SearchQuery>,
+) -> Response {
+    tracing::info!("[drama] dramacool9_search: q={}", params.q);
+    match state.dramacool9.search(&params.q).await {
+        Ok(items) => {
+            tracing::info!("[drama] dramacool9_search: {} results", items.len());
+            (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response()
+        }
+        Err(e) => {
+            tracing::warn!("[drama] dramacool9_search error: {}", e);
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
+    }
+}
+
+pub async fn dramacool9_streams_handler(
+    State(state): State<DramaState>,
+    headers: HeaderMap,
+    Path((id, episode)): Path<(String, u32)>,
+) -> Response {
+    tracing::info!("[drama] dramacool9_streams: id={} ep={}", id, episode);
+    let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
+    match state
+        .dramacool9
+        .get_streams_by_id(&id, episode)
+        .await
+    {
+        Ok(streams) => {
+            tracing::info!("[drama] dramacool9_streams: {} streams", streams.len());
+            let mut proxied = wrap_with_proxy(streams, &proxy_base, &state.secret);
+            encrypt_stream_result_urls(&mut proxied, &state.kkey);
+            (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
+        }
+        Err(e) => {
+            // Upstream lookup miss (id not on dramacool9.com.ro, or
+            // response shape mismatch) — return empty list so the player
+            // falls through to the next provider.
+            tracing::info!("[drama] dramacool9_streams: no match for {} ({}), returning []", id, e);
+            (StatusCode::OK, "[]").into_response()
+        }
+    }
+}
+
+// ── KissKH (xyra) ─────────────────────────────────────────────────
+
+pub async fn kisskh_xyra_search_handler(
+    State(state): State<DramaState>,
+    Query(params): Query<SearchQuery>,
+) -> Response {
+    tracing::info!("[drama] kisskh_xyra_search: q={}", params.q);
+    match state.kisskh_xyra.search(&params.q).await {
+        Ok(items) => {
+            tracing::info!("[drama] kisskh_xyra_search: {} results", items.len());
+            (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response()
+        }
+        Err(e) => {
+            tracing::warn!("[drama] kisskh_xyra_search error: {}", e);
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
+    }
+}
+
+pub async fn kisskh_xyra_streams_handler(
+    State(state): State<DramaState>,
+    headers: HeaderMap,
+    Path((id, episode)): Path<(String, u32)>,
+) -> Response {
+    tracing::info!("[drama] kisskh_xyra_streams: id={} ep={}", id, episode);
+    let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
+    match state
+        .kisskh_xyra
+        .get_streams_by_id(&id, episode)
+        .await
+    {
+        Ok(streams) => {
+            tracing::info!("[drama] kisskh_xyra_streams: {} streams", streams.len());
+            let mut proxied = wrap_with_proxy(streams, &proxy_base, &state.secret);
+            encrypt_stream_result_urls(&mut proxied, &state.kkey);
+            (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
+        }
+        Err(e) => {
+            tracing::info!("[drama] kisskh_xyra_streams: no match for {} ({}), returning []", id, e);
+            (StatusCode::OK, "[]").into_response()
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct ListQuery {
+    pub country: Option<String>,
+    pub genre: Option<String>,
+}
+
+pub async fn dramacool9_home_handler(State(state): State<DramaState>) -> Response {
+    tracing::info!("[drama] dramacool9_home");
+    match state.dramacool9.home().await {
+        Ok(value) => (StatusCode::OK, serde_json::to_string(&value).unwrap()).into_response(),
+        Err(e) => {
+            tracing::warn!("[drama] dramacool9_home error: {}", e);
+            (StatusCode::OK, "{}").into_response()
+        }
+    }
+}
+
+pub async fn dramacool9_popular_handler(State(state): State<DramaState>) -> Response {
+    tracing::info!("[drama] dramacool9_popular");
+    match state.dramacool9.popular().await {
+        Ok(value) => (StatusCode::OK, serde_json::to_string(&value).unwrap()).into_response(),
+        Err(e) => {
+            tracing::warn!("[drama] dramacool9_popular error: {}", e);
+            (StatusCode::OK, "[]").into_response()
+        }
+    }
+}
+
+pub async fn dramacool9_list_handler(
+    State(state): State<DramaState>,
+    Query(params): Query<ListQuery>,
+) -> Response {
+    tracing::info!(
+        "[drama] dramacool9_list: country={:?} genre={:?}",
+        params.country,
+        params.genre
+    );
+    match state
+        .dramacool9
+        .list(params.country.as_deref(), params.genre.as_deref())
+        .await
+    {
+        Ok(value) => (StatusCode::OK, serde_json::to_string(&value).unwrap()).into_response(),
+        Err(e) => {
+            tracing::warn!("[drama] dramacool9_list error: {}", e);
+            (StatusCode::OK, "[]").into_response()
+        }
+    }
+}
+
+pub async fn dramacool9_discover_handler(State(state): State<DramaState>) -> Response {
+    tracing::info!("[drama] dramacool9_discover");
+    match state.dramacool9.discover().await {
+        Ok(value) => (StatusCode::OK, serde_json::to_string(&value).unwrap()).into_response(),
+        Err(e) => {
+            tracing::warn!("[drama] dramacool9_discover error: {}", e);
+            (StatusCode::OK, "[]").into_response()
+        }
+    }
+}
+
+pub async fn kisskh_xyra_home_handler(State(state): State<DramaState>) -> Response {
+    tracing::info!("[drama] kisskh_xyra_home");
+    match state.kisskh_xyra.home().await {
+        Ok(value) => (StatusCode::OK, serde_json::to_string(&value).unwrap()).into_response(),
+        Err(e) => {
+            tracing::warn!("[drama] kisskh_xyra_home error: {}", e);
+            (StatusCode::OK, "{}").into_response()
+        }
+    }
+}
+
 // ── KissAsian ──────────────────────────────────────────────────────
 
 pub async fn kissasian_search_handler(

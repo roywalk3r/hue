@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"python3 << 'PYEOF'\\nimport re\\npath = \\\"/home/rseann/projects/Misc/hue/huerust/src/clients/anime_agg.rs\\\"\\nwith open(path) as f:\\n    text = f.read()\\n\\nold = '''    pub async fn get_detai...",
-  "error": "Exit code 1\nERROR: anchor not found",
-  "timestamp": "2026-06-29T20:04:10.018Z",
+  "tool_input_preview": "{\"command\":\"git add .omc src/providers/streamhub.rs src/providers/streamhub_provider.rs src/providers/dramacool9.rs src/providers/dramacool9_provider.rs src/providers/kisskh_xyra.rs src/providers/kiss...",
+  "error": "Exit code 1\nThe following paths are ignored by one of your .gitignore files:\nhuerust/.omc\nhint: Use -f if you really want to add them.\nhint: Disable this message with \"git config set advice.addIgnoredFile false\"",
+  "timestamp": "2026-07-01T18:03:46.774Z",
   "retry_count": 1
 }
