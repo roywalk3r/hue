@@ -402,7 +402,7 @@ pub async fn dramacool9_streams_handler(
 ) -> Response {
     tracing::info!("[drama] dramacool9_streams: id={} ep={}", id, episode);
     let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
-    match state
+    let mut resp = match state
         .dramacool9
         .get_streams_by_id(&id, episode)
         .await
@@ -411,16 +411,21 @@ pub async fn dramacool9_streams_handler(
             tracing::info!("[drama] dramacool9_streams: {} streams", streams.len());
             let mut proxied = wrap_with_proxy(streams, &proxy_base, &state.secret);
             encrypt_stream_result_urls(&mut proxied, &state.kkey);
-            (StatusCode::OK, serde_json::to_string(&proxied).unwrap()).into_response()
+            let body = axum::Json(proxied).into_response();
+            (StatusCode::OK, body).into_response()
         }
         Err(e) => {
-            // Upstream lookup miss (id not on dramacool9.com.ro, or
-            // response shape mismatch) — return empty list so the player
-            // falls through to the next provider.
             tracing::info!("[drama] dramacool9_streams: no match for {} ({}), returning []", id, e);
-            (StatusCode::OK, "[]").into_response()
+            let body = axum::Json(Vec::<crate::models::StreamResult>::new()).into_response();
+            (StatusCode::OK, body).into_response()
         }
-    }
+    };
+    // Stream lookups are per-(show, episode) and time-sensitive — never cache at the edge.
+    resp.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("no-store"),
+    );
+    resp
 }
 
 // ── KissKH (xyra) ─────────────────────────────────────────────────

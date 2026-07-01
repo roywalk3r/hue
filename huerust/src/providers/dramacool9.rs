@@ -233,17 +233,31 @@ impl Dramacool9Client {
             return Ok(vec![]);
         }
 
-        // Try to match by "Episode N" or "Episode N: ..." in the episode title.
-        // Fall back to index `episode-1` (1-based) if no match.
-        let needle = format!("episode {}", episode);
+        // Episode titles from xyra follow "Show Name Episode N" — use a regex
+        // with a word boundary on the episode number so "Episode 1" doesn't
+        // match the prefix of "Episode 15" / "Episode 100" / etc.
+        let episode_re = format!(r"(?i)\bepisode\s+{}\b", regex::escape(&episode.to_string()));
         let ep_id = info
             .episodes
             .iter()
-            .find(|e| e.title.to_lowercase().contains(&needle))
+            .find(|e| regex::Regex::new(&episode_re).map(|r| r.is_match(&e.title)).unwrap_or(false))
             .map(|e| e.episode_id.clone())
             .or_else(|| {
                 let idx = (episode as usize).saturating_sub(1);
                 info.episodes.get(idx).map(|e| e.episode_id.clone())
+            })
+            .or_else(|| {
+                // xyra lists newest episode first; if "Episode N" isn't there
+                // (e.g. ep 25 of a 30-ep show), fall back to ascending index.
+                let mut sorted: Vec<&D9Episode> = info.episodes.iter().collect();
+                sorted.sort_by_key(|e| {
+                    let re = regex::Regex::new(r"(\d+)$").unwrap();
+                    re.captures(&e.episode_id)
+                        .and_then(|c| c.get(1))
+                        .and_then(|m| m.as_str().parse::<u32>().ok())
+                });
+                let idx = (episode as usize).saturating_sub(1);
+                sorted.get(idx).map(|e| e.episode_id.clone())
             });
 
         let ep_id = match ep_id {
@@ -261,7 +275,6 @@ impl Dramacool9Client {
         let mut results = Vec::new();
         let mut emitted_iframe = false;
         for (server_name, server) in &data.servers {
-            // Prefer direct m3u8 streams when the server provides one.
             if server.m3u8 {
                 if let Some(stream_url) = server.stream.as_ref().filter(|u| !u.is_empty()) {
                     let mut headers = HashMap::new();
@@ -287,9 +300,6 @@ impl Dramacool9Client {
                     continue;
                 }
             }
-            // Fallback: emit the first iframe embed so the player can still surface a source.
-            // Mobile player deprioritizes iframe (HueStream.isIframe); web player can't play it
-            // but the user will at least see a real URL in the streams list.
             if !emitted_iframe {
                 if let Some(embed_url) = server.embeded_link.as_ref().filter(|u| !u.is_empty()) {
                     let mut headers = HashMap::new();
@@ -351,17 +361,28 @@ impl Dramacool9Client {
             return Ok(vec![]);
         }
 
-        // Try to match by "Episode N" or "Episode N: ..." in the episode title.
-        // Fall back to index `episode-1` (1-based) if no match.
-        let needle = format!("episode {}", episode);
+        // Use a regex with a word boundary on the episode number so "Episode 1"
+        // doesn't match the prefix of "Episode 15" / "Episode 100" / etc.
+        let episode_re = format!(r"(?i)\bepisode\s+{}\b", regex::escape(&episode.to_string()));
         let ep_id = info
             .episodes
             .iter()
-            .find(|e| e.title.to_lowercase().contains(&needle))
+            .find(|e| regex::Regex::new(&episode_re).map(|r| r.is_match(&e.title)).unwrap_or(false))
             .map(|e| e.episode_id.clone())
             .or_else(|| {
                 let idx = (episode as usize).saturating_sub(1);
                 info.episodes.get(idx).map(|e| e.episode_id.clone())
+            })
+            .or_else(|| {
+                let mut sorted: Vec<&D9Episode> = info.episodes.iter().collect();
+                sorted.sort_by_key(|e| {
+                    let re = regex::Regex::new(r"(\d+)$").unwrap();
+                    re.captures(&e.episode_id)
+                        .and_then(|c| c.get(1))
+                        .and_then(|m| m.as_str().parse::<u32>().ok())
+                });
+                let idx = (episode as usize).saturating_sub(1);
+                sorted.get(idx).map(|e| e.episode_id.clone())
             });
 
         let ep_id = match ep_id {
