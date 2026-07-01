@@ -30,7 +30,7 @@ impl StreamProvider for StreamHubProvider {
         true
     }
     fn timeout_secs(&self) -> u64 {
-        4
+        7
     }
 
     async fn fetch(
