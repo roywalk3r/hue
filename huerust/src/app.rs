@@ -435,6 +435,10 @@ pub fn build_router(state: AppState) -> Router {
             get(crate::routes::drama::dramacool9_streams_handler),
         )
         .route(
+            "/api/drama/dramacool9/v2/streams/:id/:episode",
+            get(crate::routes::drama::dramacool9_streams_handler),
+        )
+        .route(
             "/api/drama/dramacool9/home",
             get(crate::routes::drama::dramacool9_home_handler),
         )
@@ -456,6 +460,10 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(
             "/api/drama/kisskh_xyra/streams/:id/:episode",
+            get(crate::routes::drama::kisskh_xyra_streams_handler),
+        )
+        .route(
+            "/api/drama/kisskh_xyra/v2/streams/:id/:episode",
             get(crate::routes::drama::kisskh_xyra_streams_handler),
         )
         .route(
