@@ -728,7 +728,7 @@ pub fn build_router(state: AppState) -> Router {
 }
 
 async fn auth_middleware(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
@@ -741,34 +741,26 @@ async fn auth_middleware(
     {
         return Ok(next.run(req).await);
     }
-    if path.starts_with("/api/admin/") {
-        let api_key = env::var("API_KEY")
-            .ok()
-            .filter(|key| !key.trim().is_empty())
-            .ok_or(StatusCode::FORBIDDEN)?;
-        let auth = req.headers().get("x-api-key").and_then(|v| v.to_str().ok());
-        if auth != Some(api_key.as_str()) {
-            return Err(StatusCode::FORBIDDEN);
-        }
+
+    let api_key = state.config.api_key.trim();
+    if api_key.is_empty() {
+        // Development mode: no API key configured, allow all requests.
         return Ok(next.run(req).await);
     }
 
-    let is_local = req
-        .extensions()
-        .get::<SocketAddr>()
-        .map_or(false, |a| a.ip().is_loopback());
-    if is_local {
-        return Ok(next.run(req).await);
-    }
-
-    if let Ok(api_key) = env::var("API_KEY") {
-        if api_key.trim().is_empty() {
-            return Ok(next.run(req).await);
-        }
-        let auth = req.headers().get("x-api-key").and_then(|v| v.to_str().ok());
-        if auth != Some(&api_key) {
-            return Err(StatusCode::FORBIDDEN);
-        }
+    let header_auth = req.headers().get("x-api-key").and_then(|v| v.to_str().ok());
+    let query_auth = req
+        .uri()
+        .query()
+        .and_then(|q| q.split('&').find_map(|pair| {
+            let mut parts = pair.splitn(2, '=');
+            let key = parts.next()?;
+            let value = parts.next()?;
+            if key == "api_key" { Some(value) } else { None }
+        }));
+    let auth = header_auth.or(query_auth);
+    if auth != Some(api_key) {
+        return Err(StatusCode::FORBIDDEN);
     }
     Ok(next.run(req).await)
 }

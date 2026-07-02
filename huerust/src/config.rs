@@ -35,6 +35,7 @@ pub struct AppConfig {
     pub sticky_pref_ttl_secs: u64,
     pub sticky_pref_failure_threshold: u32,
     pub stale_cache_ttl_secs: u64,
+    pub api_key: String,
     /// Per-provider season split mappings:
     /// provider_real_name → { tmdb_id → [episodes_in_season_1, episodes_in_season_2, ...] }
     /// For shows where TMDB lists as one season but some providers split into multiple.
@@ -92,6 +93,7 @@ impl AppConfig {
             redis_url: env::var("REDIS_URL")
                 .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string()),
             kkey: env::var("KKEY").unwrap_or_else(|_| "hue-kkey-2026-default".to_string()),
+            api_key: env::var("API_KEY").unwrap_or_else(|_| "dev".to_string()),
             cf_worker_url: env::var("CF_WORKER_URL")
                 .ok()
                 .filter(|s| !s.trim().is_empty()),
