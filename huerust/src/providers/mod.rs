@@ -7,8 +7,6 @@
 
 pub mod dispatch;
 pub mod dramacool;
-pub mod dramacool9;
-pub mod dramacool9_provider;
 pub mod dramacool_provider;
 pub mod kissasian;
 pub mod kissasian_provider;
@@ -78,7 +76,6 @@ pub fn display_to_real_name(display: &str) -> &str {
         "Zenith" => "kisskh",
         "Aurora" => "kisskh_xyra",
         "Orient" => "dramacool",
-        "Orient9" => "dramacool9",
         "Pearl" => "kissasian",
         "Hydra" => "mp4hydra",
         "VidZee" => "vidzee",

@@ -32,8 +32,6 @@ use crate::infra::rate_limit::RateLimitState;
 use crate::providers::registry::ProviderRegistry;
 use crate::providers::{
     dramacool::DramacoolClient,
-    dramacool9::Dramacool9Client,
-    dramacool9_provider::Dramacool9Provider,
     dramacool_provider::DramacoolProvider,
     kissasian::KissAsianClient,
     kissasian_provider::KissAsianProvider,
@@ -94,7 +92,6 @@ pub struct AppState {
     pub animekill: Arc<crate::clients::animekill::AnimeKillClient>,
     pub xyra_subtitle: Arc<XyraSubtitleClient>,
     pub streamhub: Arc<StreamHubClient>,
-    pub dramacool9: Arc<Dramacool9Client>,
     pub kisskh_xyra: Arc<KissKhXyraClient>,
     pub secret: String,
     pub kkey: String,
@@ -129,7 +126,6 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let animekill_client = Arc::new(crate::clients::animekill::AnimeKillClient::new());
     let xyra_subtitle_client = Arc::new(XyraSubtitleClient::new());
     let streamhub_client = Arc::new(StreamHubClient::new());
-    let dramacool9_client = Arc::new(Dramacool9Client::new());
     let kisskh_xyra_client = Arc::new(KissKhXyraClient::new());
     let anime_agg = Arc::new(crate::clients::anime_agg::AnimeAggregator::new(
         Arc::new(crate::clients::aniwave::AniwaveClient::new(
@@ -215,7 +211,6 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     }
     registry.register(Arc::new(SflixProvider::new(sflix_client.clone())));
     registry.register(Arc::new(StreamHubProvider::new(streamhub_client.clone())));
-    registry.register(Arc::new(Dramacool9Provider::new(dramacool9_client.clone())));
     registry.register(Arc::new(KissKhXyraProvider::new(kisskh_xyra_client.clone())));
     registry.register(Arc::new(DramacoolProvider::new(dramacool_client.clone())));
     registry.register(Arc::new(KissAsianProvider::new(kissasian_client.clone())));
@@ -275,7 +270,6 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         animekill: animekill_client.clone(),
         xyra_subtitle: xyra_subtitle_client,
         streamhub: streamhub_client,
-        dramacool9: dramacool9_client,
         kisskh_xyra: kisskh_xyra_client,
         aisports: Arc::new(crate::clients::aisports::AiSportsClient::new(
             crate::http_client::wrap_with_retry(
@@ -425,34 +419,6 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/drama/dramacool/streams/:id/:episode",
             get(crate::routes::drama::dramacool_streams_handler),
-        )
-        .route(
-            "/api/drama/dramacool9/search",
-            get(crate::routes::drama::dramacool9_search_handler),
-        )
-        .route(
-            "/api/drama/dramacool9/streams/:id/:episode",
-            get(crate::routes::drama::dramacool9_streams_handler),
-        )
-        .route(
-            "/api/drama/dramacool9/v2/streams/:id/:episode",
-            get(crate::routes::drama::dramacool9_streams_handler),
-        )
-        .route(
-            "/api/drama/dramacool9/home",
-            get(crate::routes::drama::dramacool9_home_handler),
-        )
-        .route(
-            "/api/drama/dramacool9/popular",
-            get(crate::routes::drama::dramacool9_popular_handler),
-        )
-        .route(
-            "/api/drama/dramacool9/list",
-            get(crate::routes::drama::dramacool9_list_handler),
-        )
-        .route(
-            "/api/drama/dramacool9/discover",
-            get(crate::routes::drama::dramacool9_discover_handler),
         )
         .route(
             "/api/drama/kisskh_xyra/search",
@@ -961,7 +927,6 @@ impl FromRef<AppState> for StreamState {
 pub struct DramaState {
     pub kisskh: Arc<KissKhClient>,
     pub dramacool: Arc<DramacoolClient>,
-    pub dramacool9: Arc<Dramacool9Client>,
     pub kisskh_xyra: Arc<KissKhXyraClient>,
     pub kissasian: Arc<KissAsianClient>,
     pub moviebox: Arc<MovieBoxClient>,
@@ -976,7 +941,6 @@ impl FromRef<AppState> for DramaState {
         Self {
             kisskh: s.kisskh.clone(),
             dramacool: s.dramacool.clone(),
-            dramacool9: s.dramacool9.clone(),
             kisskh_xyra: s.kisskh_xyra.clone(),
             kissasian: s.kissasian.clone(),
             moviebox: s.moviebox.clone(),
