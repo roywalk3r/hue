@@ -353,6 +353,15 @@ fn host_rejects_cross_origin_headers(target_url: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// Return true for statuses where a different set of headers may recover the
+/// request. 404/410 are definitive and should not waste time on retries.
+fn status_is_retryable(status: reqwest::StatusCode) -> bool {
+    status.is_server_error()
+        || status == reqwest::StatusCode::FORBIDDEN
+        || status == reqwest::StatusCode::UNAUTHORIZED
+        || status == reqwest::StatusCode::TOO_MANY_REQUESTS
+}
+
 /// Route the upstream fetch through the Cloudflare Worker for hosts that
 /// geo-block datacenter IPs (e.g. MovieBox). The worker forwards the
 /// request with the same headers, returning the upstream response.
@@ -984,8 +993,9 @@ pub async fn ts_handler(
                 }
             }
 
-            // If upstream returned non-success, try direct with headers
-            if !status.is_success() && status != reqwest::StatusCode::PARTIAL_CONTENT {
+            // If upstream returned a retryable status, try direct with headers.
+            // 404/410 are definitive; don't waste time on retries.
+            if status_is_retryable(status) {
                 tracing::warn!(
                     "[ts-proxy] Upstream returned {} for {}, trying direct",
                     status.as_u16(),
