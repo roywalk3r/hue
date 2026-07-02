@@ -267,6 +267,7 @@ mod tests {
             sticky_pref_ttl_secs: 3600,
             sticky_pref_failure_threshold: 2,
             stale_cache_ttl_secs: 86400,
+            api_key: "dev".to_string(),
             season_splits: HashMap::new(),
         };
 
@@ -326,6 +327,7 @@ mod tests {
             sticky_pref_ttl_secs: 3600,
             sticky_pref_failure_threshold: 2,
             stale_cache_ttl_secs: 86400,
+            api_key: "dev".to_string(),
             season_splits: splits,
         };
 

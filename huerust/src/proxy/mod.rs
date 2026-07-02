@@ -1664,6 +1664,11 @@ fn parse_hls_byte_range(range_spec: &str, next_byte_offset: &mut Option<u64>) ->
 }
 
 /// Resolve a segment URL relative to the base playlist URL, inheriting query params for signed URLs.
+///
+/// Only inherits keys that are not already present in the resolved relative URL.
+/// This prevents providers that already sign their segment URLs (token/url params)
+/// from getting a duplicated, malformed query string when the parent playlist also
+/// carries those params.
 fn resolve_segment_url(base: &Url, relative: &str) -> String {
     let mut resolved = match base.join(relative) {
         Ok(u) => u,
@@ -1681,10 +1686,26 @@ fn resolve_segment_url(base: &Url, relative: &str) -> String {
         }
     };
 
-    // Inherit query parameters from parent playlist URL (crucial for signed HLS like VixSrc)
+    // Collect keys already present in the resolved relative URL so we never
+    // overwrite provider-specific params (token, url, etc.) with parent values.
+    let existing_keys: std::collections::HashSet<String> = resolved
+        .query_pairs()
+        .map(|(key, _)| key.into_owned())
+        .collect();
+
+    let mut inherited: Vec<(String, String)> = Vec::new();
     for (key, value) in base.query_pairs() {
-        if !resolved.query_pairs().any(|(k, _)| k == key) {
-            resolved.query_pairs_mut().append_pair(&key, &value);
+        if !existing_keys.contains(key.as_ref()) {
+            inherited.push((key.into_owned(), value.into_owned()));
+        }
+    }
+
+    if !inherited.is_empty() {
+        {
+            let mut pairs = resolved.query_pairs_mut();
+            for (key, value) in inherited {
+                pairs.append_pair(&key, &value);
+            }
         }
     }
 
@@ -2009,6 +2030,7 @@ Second cue"#;
             "http://proxy.local",
             secret,
             None,
+            true,
         );
         assert!(rewritten.contains("http://proxy.local/ts-proxy?url="));
         assert!(rewritten.contains("h_token="));
@@ -2025,6 +2047,7 @@ Second cue"#;
             "http://proxy.local",
             "secret",
             None,
+            true,
         );
         assert!(rewritten.contains("http://proxy.local/ts-proxy?url="));
         assert!(rewritten.contains("h_token="));
@@ -2046,6 +2069,7 @@ Second cue"#;
             "http://proxy.local",
             "secret",
             Some(headers),
+            true,
         );
 
         assert!(rewritten.contains("http://proxy.local/ts-proxy?url="));
@@ -2176,6 +2200,7 @@ Second cue"#;
             "http://proxy.local",
             "secret",
             None,
+            false,
         );
 
         assert!(rewritten.contains("range=bytes%3D5590180-6349887"));
@@ -2192,6 +2217,95 @@ Second cue"#;
         assert_eq!(
             infer_content_type("application/octet-stream", "foo.mkv"),
             "video/x-matroska"
+        );
+    }
+
+    #[test]
+    fn test_resolve_segment_url_inherits_missing_query_params() {
+        let base = Url::parse(
+            "https://cdn.example.com/show/playlist.m3u8?token=parent-token&expires=12345",
+        )
+        .unwrap();
+
+        // Relative has no query string: inherit token and expires from parent.
+        let resolved = resolve_segment_url(&base, "segment.ts");
+        assert!(
+            resolved.contains("token=parent-token"),
+            "should inherit token param: {}",
+            resolved
+        );
+        assert!(
+            resolved.contains("expires=12345"),
+            "should inherit expires param: {}",
+            resolved
+        );
+    }
+
+    #[test]
+    fn test_resolve_segment_url_does_not_duplicate_existing_query_params() {
+        let base = Url::parse(
+            "https://scalableimpactgroup.site/zj5Plm2kR/content/playlist.m3u8?token=parent-token&url=%2Fvid%2Fmovies%2F720p%2Ftt26657236_1280x690.m3u8",
+        )
+        .unwrap();
+
+        // Provider already signs segments with its own token/url — parent values must not duplicate.
+        let resolved = resolve_segment_url(
+            &base,
+            "page-0.html?token=segment-token&url=%2Fvid%2Fmovies%2F720p%2Fsegment.m3u8",
+        );
+        assert!(
+            resolved.contains("token=segment-token"),
+            "should keep segment token: {}",
+            resolved
+        );
+        assert!(
+            !resolved.contains("token=parent-token"),
+            "should not inherit parent token: {}",
+            resolved
+        );
+        assert!(
+            resolved.contains("url=%2Fvid%2Fmovies%2F720p%2Fsegment.m3u8"),
+            "should keep segment url: {}",
+            resolved
+        );
+        assert!(
+            !resolved.contains("url=%2Fvid%2Fmovies%2F720p%2Ftt26657236_1280x690.m3u8"),
+            "should not inherit parent url: {}",
+            resolved
+        );
+
+        // Count query separators to make sure params are not doubled.
+        assert_eq!(
+            resolved.matches('&').count(),
+            1,
+            "should have exactly two query params: {}",
+            resolved
+        );
+    }
+
+    #[test]
+    fn test_resolve_segment_url_keeps_partial_provider_params() {
+        let base = Url::parse(
+            "https://scalableimpactgroup.site/playlist.m3u8?token=parent-token&url=%2Fmovie.m3u8",
+        )
+        .unwrap();
+
+        // Segment carries url but not token: still do not duplicate url, and inherit token only.
+        let resolved = resolve_segment_url(&base, "page-0.html?url=%2Fseg.m3u8");
+        assert!(
+            resolved.contains("url=%2Fseg.m3u8"),
+            "should keep segment url: {}",
+            resolved
+        );
+        assert!(
+            !resolved.contains("url=%2Fmovie.m3u8"),
+            "should not inherit parent url: {}",
+            resolved
+        );
+        assert!(
+            resolved.contains("token=parent-token"),
+            "should inherit parent token when missing in segment: {}",
+            resolved
         );
     }
 }
