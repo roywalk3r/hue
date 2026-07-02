@@ -243,11 +243,16 @@ fn mobile_bypass_headers(
     headers
 }
 
-/// Inject CDN-specific headers based on target host
+/// Inject CDN-specific headers based on target host.
+///
+/// When `strip_cross_origin` is true (e.g. TikTok CDNs), no Referer or Origin
+/// is injected or derived from the token headers. This prevents the provider's
+/// cross-origin headers from triggering a 403 challenge.
 fn inject_cdn_headers(
     mut req: reqwest::RequestBuilder,
     target_url: &str,
     token_headers: &Option<HashMap<String, String>>,
+    strip_cross_origin: bool,
 ) -> reqwest::RequestBuilder {
     let host = match Url::parse(target_url) {
         Ok(u) => u.host_str().unwrap_or("").to_string(),
@@ -255,73 +260,78 @@ fn inject_cdn_headers(
     };
 
     tracing::info!(
-        "[inject_cdn_headers] Host: {}, has_referer: {}",
+        "[inject_cdn_headers] Host: {}, has_referer: {}, strip_cross_origin: {}",
         host,
-        has_header(token_headers, "referer")
+        has_header(token_headers, "referer"),
+        strip_cross_origin
     );
 
-    // Only inject host-based Referer/Origin if the token doesn't already have them
-    let has_referer = has_header(token_headers, "referer");
+    if !strip_cross_origin {
+        // Only inject host-based Referer/Origin if the token doesn't already have them
+        let has_referer = has_header(token_headers, "referer");
 
-    if !has_referer {
-        let referer = if host.contains("vixsrc.to") {
-            Some("https://vixsrc.to/")
-        } else if host.contains("hakunaymatata.com")
-            || host.contains("aisports.mobi")
-            || host.contains("poocloud.in")
-        {
-            Some("https://moviebox.ph/")
-        } else if host.contains("mewstream.buzz") || host.contains("animeplay.cfd") {
-            Some("https://hianimes.se/")
-        } else {
-            None
-        };
+        if !has_referer {
+            let referer = if host.contains("vixsrc.to") {
+                Some("https://vixsrc.to/")
+            } else if host.contains("hakunaymatata.com")
+                || host.contains("aisports.mobi")
+                || host.contains("poocloud.in")
+            {
+                Some("https://moviebox.ph/")
+            } else if host.contains("mewstream.buzz") || host.contains("animeplay.cfd") {
+                Some("https://hianimes.se/")
+            } else {
+                None
+            };
 
-        if let Some(r) = referer {
-            req = req.header("Referer", r);
-            if let Ok(origin_url) = Url::parse(r) {
-                let mut origin = origin_url.origin().unicode_serialization();
-                if origin.ends_with('/') {
-                    origin.pop();
+            if let Some(r) = referer {
+                req = req.header("Referer", r);
+                if let Ok(origin_url) = Url::parse(r) {
+                    let mut origin = origin_url.origin().unicode_serialization();
+                    if origin.ends_with('/') {
+                        origin.pop();
+                    }
+                    tracing::info!("[inject_cdn_headers] Added derived Origin: {}", origin);
+                    req = req.header("Origin", origin);
                 }
-                tracing::info!("[inject_cdn_headers] Added derived Origin: {}", origin);
-                req = req.header("Origin", origin);
+            }
+        } else {
+            // We have a Referer from token, but maybe no Origin. Match its logic.
+            if let Some(h) = token_headers {
+                tracing::info!(
+                    "[inject_cdn_headers] Has Referer, checking for Origin. Keys: {:?}",
+                    h.keys().collect::<Vec<_>>()
+                );
+
+                let referer_val = h.get("Referer").or_else(|| h.get("referer")).cloned();
+
+                if !has_header(token_headers, "origin") {
+                    if let Some(r) = referer_val {
+                        if let Ok(origin_url) = Url::parse(&r) {
+                            let mut origin = origin_url.origin().unicode_serialization();
+                            if origin.ends_with('/') {
+                                origin.pop();
+                            }
+                            tracing::info!(
+                                "[inject_cdn_headers] Derived Origin from Referer: {} -> {}",
+                                r,
+                                origin
+                            );
+                            req = req.header("Origin", origin);
+                        } else {
+                            tracing::warn!(
+                                "[inject_cdn_headers] Failed to parse Origin from Referer: {}",
+                                r
+                            );
+                        }
+                    }
+                } else {
+                    tracing::info!("[inject_cdn_headers] Origin already present");
+                }
             }
         }
     } else {
-        // We have a Referer from token, but maybe no Origin. Match its logic.
-        if let Some(h) = token_headers {
-            tracing::info!(
-                "[inject_cdn_headers] Has Referer, checking for Origin. Keys: {:?}",
-                h.keys().collect::<Vec<_>>()
-            );
-
-            let referer_val = h.get("Referer").or_else(|| h.get("referer")).cloned();
-
-            if !has_header(token_headers, "origin") {
-                if let Some(r) = referer_val {
-                    if let Ok(origin_url) = Url::parse(&r) {
-                        let mut origin = origin_url.origin().unicode_serialization();
-                        if origin.ends_with('/') {
-                            origin.pop();
-                        }
-                        tracing::info!(
-                            "[inject_cdn_headers] Derived Origin from Referer: {} -> {}",
-                            r,
-                            origin
-                        );
-                        req = req.header("Origin", origin);
-                    } else {
-                        tracing::warn!(
-                            "[inject_cdn_headers] Failed to parse Origin from Referer: {}",
-                            r
-                        );
-                    }
-                }
-            } else {
-                tracing::info!("[inject_cdn_headers] Origin already present");
-            }
-        }
+        tracing::info!("[inject_cdn_headers] Skipping Referer/Origin injection for cross-origin-rejecting host");
     }
 
     let has_ua = has_header(token_headers, "user-agent");
@@ -531,16 +541,16 @@ pub async fn m3u8_handler(
 
     let is_vix = is_vixsrc_target(&target_url, &headers);
     let is_mobile = is_mobile_client(&request_headers);
+    let strip_cross_origin = host_rejects_cross_origin_headers(&target_url);
     let mut req = state.raw_client.get(&worker_routed_url(
         &target_url,
         &state.config.cf_worker_url,
         &state.config.worker_upstream_hosts,
     ));
-    req = inject_cdn_headers(req, &target_url, &headers);
+    req = inject_cdn_headers(req, &target_url, &headers, strip_cross_origin);
 
     // Inject headers from token (overrides defaults). Some CDNs reject cross
     // provider Referer/Origin headers, so strip them for those hosts.
-    let strip_cross_origin = host_rejects_cross_origin_headers(&target_url);
     let mut referer_value = None;
     let mut has_origin = false;
     if let Some(ref h) = headers {
@@ -560,13 +570,14 @@ pub async fn m3u8_handler(
         }
     }
 
-    // Vixsrc Special: If it's Vixsrc, we MUST ensure the Referer is correct
-    if is_vix && referer_value.is_none() {
+    // Vixsrc Special: If it's Vixsrc, we MUST ensure the Referer is correct.
+    // Never add cross-origin headers to hosts that reject them.
+    if is_vix && referer_value.is_none() && !strip_cross_origin {
         req = req.header("Referer", "https://vixsrc.to/");
         referer_value = Some("https://vixsrc.to/".to_string());
     }
 
-    if !has_origin {
+    if !has_origin && !strip_cross_origin {
         if let Some(ref ref_url) = referer_value {
             if let Ok(origin_url) = Url::parse(ref_url) {
                 let mut origin = origin_url.origin().unicode_serialization();
@@ -879,6 +890,7 @@ pub async fn ts_handler(
     tracing::info!("[ts-proxy] Target: {}", target_url);
     tracing::info!("[ts-proxy] Token headers: {:?}", headers);
 
+    let strip_cross_origin = host_rejects_cross_origin_headers(&target_url);
     let mut req = state.raw_client.get(&worker_routed_url(
         &target_url,
         if is_download {
@@ -888,11 +900,10 @@ pub async fn ts_handler(
         },
         &state.config.worker_upstream_hosts,
     ));
-    req = inject_cdn_headers(req, &target_url, &headers);
+    req = inject_cdn_headers(req, &target_url, &headers, strip_cross_origin);
     req = req.header("Accept-Encoding", "identity");
 
     // Some CDNs reject cross-provider Referer/Origin headers.
-    let strip_cross_origin = host_rejects_cross_origin_headers(&target_url);
     let mut has_origin = false;
     let mut referer_value = None;
     if let Some(ref h) = headers {
@@ -912,14 +923,14 @@ pub async fn ts_handler(
         }
     }
 
-    if is_vix && referer_value.is_none() {
+    if is_vix && referer_value.is_none() && !strip_cross_origin {
         req = req.header("Referer", "https://vixsrc.to/");
         req = req.header("Origin", "https://vixsrc.to");
         referer_value = Some("https://vixsrc.to/".to_string());
         has_origin = true;
     }
 
-    if !has_origin {
+    if !has_origin && !strip_cross_origin {
         if let Some(ref_url) = referer_value {
             if let Ok(origin_url) = Url::parse(&ref_url) {
                 let mut origin = origin_url.origin().unicode_serialization();
@@ -1002,7 +1013,17 @@ pub async fn ts_handler(
                     target_url
                 );
                 let mut direct = state.raw_client.get(&target_url);
-                direct = inject_cdn_headers(direct, &target_url, &headers);
+                direct = inject_cdn_headers(direct, &target_url, &headers, strip_cross_origin);
+                if let Some(ref h) = headers {
+                    for (k, v) in h {
+                        let is_origin = k.eq_ignore_ascii_case("origin");
+                        let is_referer = k.eq_ignore_ascii_case("referer");
+                        if (is_origin || is_referer) && strip_cross_origin {
+                            continue;
+                        }
+                        direct = direct.header(k, v);
+                    }
+                }
                 if let Some(range) = effective_range.as_deref() {
                     direct = direct.header("Range", range);
                 }
@@ -1205,9 +1226,14 @@ pub async fn ts_handler(
                     &state.config.cf_worker_url,
                     &state.config.worker_upstream_hosts,
                 ));
-                retry = inject_cdn_headers(retry, &target_url, &headers);
+                retry = inject_cdn_headers(retry, &target_url, &headers, strip_cross_origin);
                 if let Some(ref h) = headers {
                     for (k, v) in h {
+                        let is_origin = k.eq_ignore_ascii_case("origin");
+                        let is_referer = k.eq_ignore_ascii_case("referer");
+                        if (is_origin || is_referer) && strip_cross_origin {
+                            continue;
+                        }
                         retry = retry.header(k, v);
                     }
                 }
@@ -1287,28 +1313,35 @@ pub async fn sub_handler(
         return (StatusCode::FORBIDDEN, "Blocked internal URL").into_response();
     }
 
+    let strip_cross_origin = host_rejects_cross_origin_headers(&target_url);
     let mut req = state.raw_client.get(&worker_routed_url(
         &target_url,
         &state.config.cf_worker_url,
         &state.config.worker_upstream_hosts,
     ));
-    req = inject_cdn_headers(req, &target_url, &headers);
+    req = inject_cdn_headers(req, &target_url, &headers, strip_cross_origin);
 
-    // Inject headers from token (overrides defaults)
+    // Inject headers from token (overrides defaults). Some CDNs reject cross
+    // provider Referer/Origin headers, so strip them for those hosts.
     let mut referer_value = None;
     let mut has_origin = false;
     if let Some(ref h) = headers {
         for (k, v) in h {
-            if k.eq_ignore_ascii_case("origin") {
+            let is_origin = k.eq_ignore_ascii_case("origin");
+            let is_referer = k.eq_ignore_ascii_case("referer");
+            if (is_origin || is_referer) && strip_cross_origin {
+                continue;
+            }
+            if is_origin {
                 has_origin = true;
             }
-            if k.eq_ignore_ascii_case("referer") {
+            if is_referer {
                 referer_value = Some(v.clone());
             }
             req = req.header(k, v);
         }
     }
-    if !has_origin {
+    if !has_origin && !strip_cross_origin {
         if let Some(ref_url) = referer_value {
             if let Ok(origin_url) = Url::parse(&ref_url) {
                 let mut origin = origin_url.origin().unicode_serialization();
@@ -1343,9 +1376,14 @@ pub async fn sub_handler(
                 // Try direct request bypassing worker
                 tracing::warn!("[sub-proxy] Trying direct request to {}", target_url);
                 let mut direct = state.raw_client.get(&target_url);
-                direct = inject_cdn_headers(direct, &target_url, &headers);
+                direct = inject_cdn_headers(direct, &target_url, &headers, strip_cross_origin);
                 if let Some(ref h) = headers {
                     for (k, v) in h {
+                        let is_origin = k.eq_ignore_ascii_case("origin");
+                        let is_referer = k.eq_ignore_ascii_case("referer");
+                        if (is_origin || is_referer) && strip_cross_origin {
+                            continue;
+                        }
                         direct = direct.header(k, v);
                     }
                 }
@@ -1903,12 +1941,13 @@ pub async fn generic_proxy_handler(
         return (StatusCode::FORBIDDEN, "Blocked internal URL").into_response();
     }
 
+    let strip_cross_origin = host_rejects_cross_origin_headers(&target_url);
     let mut req = state.raw_client.get(&worker_routed_url(
         &target_url,
         &state.config.cf_worker_url,
         &state.config.worker_upstream_hosts,
     ));
-    req = inject_cdn_headers(req, &target_url, &token_headers);
+    req = inject_cdn_headers(req, &target_url, &token_headers, strip_cross_origin);
 
     // Forward Range header from client (critical for mobile video downloads)
     if let Some(range) = request_headers.get("range").and_then(|v| v.to_str().ok()) {
@@ -1919,17 +1958,22 @@ pub async fn generic_proxy_handler(
     let mut has_origin = false;
     if let Some(ref h) = token_headers {
         for (k, v) in h.iter() {
-            if k.eq_ignore_ascii_case("origin") {
+            let is_origin = k.eq_ignore_ascii_case("origin");
+            let is_referer = k.eq_ignore_ascii_case("referer");
+            if (is_origin || is_referer) && strip_cross_origin {
+                continue;
+            }
+            if is_origin {
                 has_origin = true;
             }
-            if k.eq_ignore_ascii_case("referer") {
+            if is_referer {
                 referer_value = Some(v.clone());
             }
             req = req.header(k, v);
         }
     }
 
-    if !has_origin {
+    if !has_origin && !strip_cross_origin {
         if let Some(ref ref_url) = referer_value {
             if let Ok(origin_url) = Url::parse(ref_url) {
                 let mut origin = origin_url.origin().unicode_serialization();
