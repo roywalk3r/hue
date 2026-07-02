@@ -549,15 +549,6 @@ pub async fn m3u8_handler(
                 }
                 req = req.header("Origin", origin);
             }
-        } else {
-            // Fallback: derive Origin from the target host itself if Referer is missing
-            if let Ok(target_u) = Url::parse(&target_url) {
-                let mut origin = target_u.origin().unicode_serialization();
-                if origin.ends_with('/') {
-                    origin.pop();
-                }
-                req = req.header("Origin", origin);
-            }
         }
     }
 
@@ -1709,7 +1700,43 @@ fn resolve_segment_url(base: &Url, relative: &str) -> String {
         }
     }
 
+    let resolved = normalize_nested_query_params(resolved);
     resolved.to_string()
+}
+
+/// Fix malformed query strings where a provider accidentally embeds the same
+/// key as a nested prefix in the parameter value, e.g. `?token=?token=&url=...`.
+/// Without this the signed proxy URL carries the junk prefix and upstream CDNs
+/// reject the request with 403.
+fn normalize_nested_query_params(mut url: Url) -> Url {
+    let mut changed = false;
+    let pairs: Vec<(String, String)> = url
+        .query_pairs()
+        .map(|(k, v)| {
+            let key = k.into_owned();
+            let mut value = v.into_owned();
+            // If the value starts with `?{key}=`, the provider duplicated the
+            // key prefix. Strip it so `token=?token=` becomes `token=`.
+            let prefix = format!("?{}=", key);
+            if value.starts_with(&prefix) {
+                value = value[prefix.len()..].to_string();
+                changed = true;
+            }
+            (key, value)
+        })
+        .collect();
+
+    if changed {
+        url.set_query(None);
+        {
+            let mut qp = url.query_pairs_mut();
+            for (key, value) in pairs {
+                qp.append_pair(&key, &value);
+            }
+        }
+    }
+
+    url
 }
 
 // ── Content-Type Inference ─────────────────────────────────────────────────────
@@ -2305,6 +2332,36 @@ Second cue"#;
         assert!(
             resolved.contains("token=parent-token"),
             "should inherit parent token when missing in segment: {}",
+            resolved
+        );
+    }
+
+    #[test]
+    fn test_resolve_segment_url_normalizes_nested_token_prefix() {
+        let base = Url::parse(
+            "https://aqua-vulture-337623.hostingersite.com/vid1.php?url=/vid/movies/720p/tt37287335_1080x720.m3u8",
+        )
+        .unwrap();
+
+        // Upstream NoTorrent playlist accidentally emits `token=?token=`
+        let resolved = resolve_segment_url(
+            &base,
+            "https://scalableimpactgroup.site/8DZ5WpsK6/content/f526122d3a027aad7701629a45a5b71f/dc2fc2f6bd4c67a1060979e699154728/page-0.html?token=?token=%26url=%2Fvid%2Fmovies%2F720p%2Ftt37287335_1080x720.m3u8",
+        );
+
+        assert!(
+            resolved.contains("token="),
+            "should keep token param: {}",
+            resolved
+        );
+        assert!(
+            !resolved.contains("token=?token="),
+            "should strip nested token prefix: {}",
+            resolved
+        );
+        assert!(
+            resolved.contains("url=%2Fvid%2Fmovies%2F720p%2Ftt37287335_1080x720.m3u8"),
+            "should keep url param: {}",
             resolved
         );
     }
