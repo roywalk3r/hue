@@ -365,7 +365,18 @@ fn host_rejects_cross_origin_headers(target_url: &str) -> bool {
 
 /// Return true for statuses where a different set of headers may recover the
 /// request. 404/410 are definitive and should not waste time on retries.
-fn status_is_retryable(status: reqwest::StatusCode) -> bool {
+///
+/// For hosts that reject cross-provider headers (e.g. TikTok's signed ad CDN),
+/// a 403 is also definitive: even plain curl gets `failure-expired`. Retrying
+/// only adds latency to movie loading.
+fn status_is_retryable(status: reqwest::StatusCode, target_url: &str) -> bool {
+    let definitive = status == reqwest::StatusCode::NOT_FOUND
+        || status == reqwest::StatusCode::GONE
+        || (status == reqwest::StatusCode::FORBIDDEN
+            && host_rejects_cross_origin_headers(target_url));
+    if definitive {
+        return false;
+    }
     status.is_server_error()
         || status == reqwest::StatusCode::FORBIDDEN
         || status == reqwest::StatusCode::UNAUTHORIZED
@@ -1006,7 +1017,7 @@ pub async fn ts_handler(
 
             // If upstream returned a retryable status, try direct with headers.
             // 404/410 are definitive; don't waste time on retries.
-            if status_is_retryable(status) {
+            if status_is_retryable(status, &target_url) {
                 tracing::warn!(
                     "[ts-proxy] Upstream returned {} for {}, trying direct",
                     status.as_u16(),
