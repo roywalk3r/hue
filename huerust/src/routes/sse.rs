@@ -25,9 +25,12 @@ use futures_util::future::join_all;
 
 use crate::{
     app::StreamState,
+    clients::tmdb::TmdbNormalizedInfo,
+    config::AppConfig,
     filters::apply_filters,
     infra::{
         cache::CacheKey,
+        circuit_breaker::CircuitBreaker,
         sticky_pref::{StickyPrefEntry, StickyPrefKey},
     },
     models::StreamResult,
@@ -43,6 +46,7 @@ fn is_generic_movie_tv_provider_allowed(media_type: &str, real_name: &str) -> bo
     }
 
     real_name != "kisskh"
+        && real_name != "kisskh_xyra"
         && real_name != "dramacool"
         && real_name != "kissasian"
         && real_name != "vidvault"
@@ -76,6 +80,165 @@ async fn is_stream_reachable(client: &reqwest_middleware::ClientWithMiddleware, 
             warn!("[SSE] HEAD check timed out for {}", stream.provider);
             false
         }
+    }
+}
+
+/// Shared context for spawning a single provider fetch task. Cloning this
+/// struct is cheap because every field is either a small value or an `Arc`.
+#[derive(Clone)]
+struct ProviderTaskEnv {
+    cb: Arc<CircuitBreaker>,
+    tmdb_info: TmdbNormalizedInfo,
+    m_type: String,
+    season: u32,
+    episode: u32,
+    tmdb_id: String,
+    tx: mpsc::Sender<Result<Event, Infallible>>,
+    secret: String,
+    kkey: String,
+    proxy_base: String,
+    enable_proxy: bool,
+    stream_count: Arc<AtomicUsize>,
+    config: Arc<AppConfig>,
+    client: Arc<reqwest_middleware::ClientWithMiddleware>,
+    head_timeout: u64,
+}
+
+impl ProviderTaskEnv {
+    fn spawn(
+        &self,
+        provider: Arc<dyn StreamProvider>,
+        provider_tasks: &mut tokio::task::JoinSet<Vec<StreamResult>>,
+        emit_skip: bool,
+        start_delay: Duration,
+    ) {
+        let env = self.clone();
+        provider_tasks.spawn(async move {
+            if !start_delay.is_zero() {
+                tokio::time::sleep(start_delay).await;
+            }
+            let name = provider.name().to_string();
+            let real_name = provider.real_name().to_string();
+            let timeout_secs = provider.timeout_secs();
+            if !env.cb.is_healthy(&real_name) {
+                if emit_skip {
+                    info!("[SSE] provider {} skipped — circuit open", name);
+                    let _ = env
+                        .tx
+                        .send(Ok(Event::default().event("provider_skip").data(
+                            json!({"provider": name, "reason": "circuit_open"}).to_string(),
+                        )))
+                        .await;
+                }
+                return vec![];
+            }
+            let (provider_season, provider_episode) =
+                env.config.map_season_episode(&real_name, &env.tmdb_id, env.season, env.episode);
+            let t0 = std::time::Instant::now();
+            info!("[SSE] spawning provider {} (timeout {}s)", name, timeout_secs);
+            let mut result = timeout(
+                Duration::from_secs(timeout_secs),
+                provider.fetch(&env.tmdb_info, &env.m_type, provider_season, provider_episode),
+            )
+            .await;
+
+            // Retry once on transient error or timeout (not on empty success)
+            if matches!(result, Ok(Err(_)) | Err(_)) {
+                info!("[SSE] provider {} retrying after initial failure", name);
+                let retry = timeout(
+                    Duration::from_secs(3),
+                    provider.fetch(&env.tmdb_info, &env.m_type, provider_season, provider_episode),
+                )
+                .await;
+                result = retry;
+            }
+
+            // Auto-detect season split: if season 1 returns empty and
+            // episode > 12, try season 2 with episode shifted by 12.
+            if matches!(result, Ok(Ok(ref s)) if s.is_empty()) && env.season == 1 && env.episode > 12 {
+                let fallback = timeout(
+                    Duration::from_secs(3),
+                    provider.fetch(&env.tmdb_info, &env.m_type, 2, env.episode - 12),
+                )
+                .await;
+                if matches!(fallback, Ok(Ok(ref s)) if !s.is_empty()) {
+                    result = fallback;
+                }
+            }
+
+            let elapsed_ms = t0.elapsed().as_millis() as u64;
+            match result {
+                Ok(Ok(streams)) if !streams.is_empty() => {
+                    let checks = join_all(
+                        streams.iter().map(|s| is_stream_reachable(&env.client, s, env.head_timeout)),
+                    )
+                    .await;
+                    let streams: Vec<StreamResult> = streams
+                        .into_iter()
+                        .zip(checks)
+                        .filter(|(_, ok)| *ok)
+                        .map(|(s, _)| s)
+                        .collect();
+                    if streams.is_empty() {
+                        info!("[SSE] provider {} returned only unreachable streams", name);
+                        env.cb.record_failure(&real_name);
+                        return vec![];
+                    }
+                    env.cb.record_success(&real_name);
+                    env.stream_count.fetch_add(streams.len(), Ordering::Relaxed);
+                    info!(
+                        "[SSE] provider {} returned {} reachable streams in {}ms",
+                        name,
+                        streams.len(),
+                        elapsed_ms
+                    );
+                    let mut display = if env.enable_proxy {
+                        wrap_with_proxy(streams.clone(), &env.proxy_base, &env.secret)
+                    } else {
+                        streams.clone()
+                    };
+                    encrypt_stream_result_urls(&mut display, &env.kkey);
+                    let _ = env
+                        .tx
+                        .send(Ok(Event::default().event("provider").data(
+                            json!({
+                                "provider": name,
+                                "streams": display,
+                                "count": display.len(),
+                                "elapsed_ms": elapsed_ms
+                            })
+                            .to_string(),
+                        )))
+                        .await;
+                    streams
+                }
+                Ok(Err(e)) => {
+                    warn!("[SSE] Provider {} failed: {}", name, e);
+                    env.cb.record_failure(&real_name);
+                    info!(
+                        "[SSE] provider {} outcome=failure elapsed_ms={}",
+                        name, elapsed_ms
+                    );
+                    vec![]
+                }
+                Err(_) => {
+                    warn!("[SSE] Provider {} timed out after {}s", name, timeout_secs);
+                    env.cb.record_failure(&real_name);
+                    info!(
+                        "[SSE] provider {} outcome=timeout elapsed_ms={}",
+                        name, elapsed_ms
+                    );
+                    vec![]
+                }
+                _ => {
+                    info!(
+                        "[SSE] provider {} outcome=empty elapsed_ms={}",
+                        name, elapsed_ms
+                    );
+                    vec![]
+                }
+            }
+        });
     }
 }
 
@@ -378,20 +541,45 @@ pub async fn sse_streams_handler(
         let mut raw_all: Vec<StreamResult> = Vec::new();
 
         let priority_names = ["Luna", "Aura"];
+        let slow_names = ["Aurora", "Orient", "StreamHub"];
         let (priority, rest): (Vec<_>, Vec<_>) = all_providers
             .into_iter()
             .partition(|p| priority_names.contains(&p.name()));
+        let (fast, slow): (Vec<_>, Vec<_>) = rest
+            .into_iter()
+            .partition(|p| !slow_names.contains(&p.name()));
 
         info!(
-            "[SSE] priority phase providers: {:?} | health: {:?}",
+            "[SSE] priority={:?} fast={:?} slow={:?} | health: {:?}",
             priority.iter().map(|p| p.name()).collect::<Vec<_>>(),
+            fast.iter().map(|p| p.name()).collect::<Vec<_>>(),
+            slow.iter().map(|p| p.name()).collect::<Vec<_>>(),
             priority
                 .iter()
                 .map(|p| (p.name(), cb.is_healthy(p.real_name())))
+                .chain(fast.iter().map(|p| (p.name(), cb.is_healthy(p.real_name()))))
+                .chain(slow.iter().map(|p| (p.name(), cb.is_healthy(p.real_name()))))
                 .collect::<Vec<_>>()
         );
 
         let mut provider_tasks = tokio::task::JoinSet::new();
+        let env = ProviderTaskEnv {
+            cb: cb.clone(),
+            tmdb_info: tmdb_info.clone(),
+            m_type: m_type.clone(),
+            season,
+            episode,
+            tmdb_id: tmdb_id.clone(),
+            tx: tx.clone(),
+            secret: state.secret.clone(),
+            kkey: state.kkey.clone(),
+            proxy_base: proxy_base.clone(),
+            enable_proxy: state.config.enable_proxy,
+            stream_count: stream_count.clone(),
+            config: state.config.clone(),
+            client: Arc::new(state.client.clone()),
+            head_timeout: state.config.head_check_timeout_secs,
+        };
 
         // 10s partial emission timer — tells the frontend "you have enough to
         // start playing, more may arrive" without waiting for stragglers.
@@ -413,141 +601,7 @@ pub async fn sse_streams_handler(
         // Phase 1: spawn priority providers first (Luna, Aura, and any
         // globally top-scoring provider for this title).
         for provider in priority.clone() {
-            let cb = cb.clone();
-            let tmdb = tmdb_info.clone();
-            let mtype = m_type.clone();
-            let tx = tx.clone();
-            let secret = state.secret.clone();
-            let kkey = state.kkey.clone();
-            let proxy_base = proxy_base.clone();
-            let enable_proxy = state.config.enable_proxy;
-            let stream_count = stream_count.clone();
-            let config = state.config.clone();
-            let client = state.client.clone();
-            let head_timeout = state.config.head_check_timeout_secs;
-            let tmdb_id = tmdb_id.clone();
-            provider_tasks.spawn(async move {
-                let name = provider.name().to_string();
-                let real_name = provider.real_name().to_string();
-                let timeout_secs = provider.timeout_secs();
-                if !cb.is_healthy(&real_name) {
-                    info!("[SSE] provider {} skipped — circuit open", name);
-                    let _ = tx
-                        .send(Ok(Event::default().event("provider_skip").data(
-                            json!({"provider": name, "reason": "circuit_open"}).to_string(),
-                        )))
-                        .await;
-                    return vec![];
-                }
-                let (provider_season, provider_episode) =
-                    config.map_season_episode(&real_name, &tmdb_id, season, episode);
-                let t0 = std::time::Instant::now();
-                info!(
-                    "[SSE] spawning provider {} (timeout {}s)",
-                    name, timeout_secs
-                );
-                let mut result = timeout(
-                    Duration::from_secs(timeout_secs),
-                    provider.fetch(&tmdb, &mtype, provider_season, provider_episode),
-                )
-                .await;
-
-                // Retry once on transient error or timeout (not on empty success)
-                if matches!(result, Ok(Err(_)) | Err(_)) {
-                    info!("[SSE] provider {} retrying after initial failure", name);
-                    let retry = timeout(
-                        Duration::from_secs(3),
-                        provider.fetch(&tmdb, &mtype, provider_season, provider_episode),
-                    )
-                    .await;
-                    result = retry;
-                }
-
-                // Auto-detect season split: if season 1 returns empty and
-                // episode > 12, try season 2 with episode shifted by 12.
-                if matches!(result, Ok(Ok(ref s)) if s.is_empty()) && season == 1 && episode > 12 {
-                    let fallback = timeout(
-                        Duration::from_secs(3),
-                        provider.fetch(&tmdb, &mtype, 2, episode - 12),
-                    )
-                    .await;
-                    if matches!(fallback, Ok(Ok(ref s)) if !s.is_empty()) {
-                        result = fallback;
-                    }
-                }
-
-                let elapsed_ms = t0.elapsed().as_millis() as u64;
-                match result {
-                    Ok(Ok(streams)) if !streams.is_empty() => {
-                        let checks = join_all(
-                            streams.iter().map(|s| is_stream_reachable(&client, s, head_timeout)),
-                        )
-                        .await;
-                        let streams: Vec<StreamResult> = streams
-                            .into_iter()
-                            .zip(checks)
-                            .filter(|(_, ok)| *ok)
-                            .map(|(s, _)| s)
-                            .collect();
-                        if streams.is_empty() {
-                            info!("[SSE] provider {} returned only unreachable streams", name);
-                            cb.record_failure(&real_name);
-                            return vec![];
-                        }
-                        cb.record_success(&real_name);
-                        stream_count.fetch_add(streams.len(), Ordering::Relaxed);
-                        info!(
-                            "[SSE] provider {} returned {} reachable streams in {}ms",
-                            name,
-                            streams.len(),
-                            elapsed_ms
-                        );
-                        let mut display = if enable_proxy {
-                            wrap_with_proxy(streams.clone(), &proxy_base, &secret)
-                        } else {
-                            streams.clone()
-                        };
-                        encrypt_stream_result_urls(&mut display, &kkey);
-                        let _ = tx
-                            .send(Ok(Event::default().event("provider").data(
-                                json!({
-                                    "provider": name,
-                                    "streams": display,
-                                    "count": display.len(),
-                                    "elapsed_ms": elapsed_ms
-                                })
-                                .to_string(),
-                            )))
-                            .await;
-                        streams
-                    }
-                    Ok(Err(e)) => {
-                        warn!("[SSE] Provider {} failed: {}", name, e);
-                        cb.record_failure(&real_name);
-                        info!(
-                            "[SSE] provider {} outcome=failure elapsed_ms={}",
-                            name, elapsed_ms
-                        );
-                        vec![]
-                    }
-                    Err(_) => {
-                        warn!("[SSE] Provider {} timed out after {}s", name, timeout_secs);
-                        cb.record_failure(&real_name);
-                        info!(
-                            "[SSE] provider {} outcome=timeout elapsed_ms={}",
-                            name, elapsed_ms
-                        );
-                        vec![]
-                    }
-                    _ => {
-                        info!(
-                            "[SSE] provider {} outcome=empty elapsed_ms={}",
-                            name, elapsed_ms
-                        );
-                        vec![]
-                    }
-                }
-            });
+            env.spawn(provider, &mut provider_tasks, true, Duration::ZERO);
         }
 
         let aggregate_deadline = state.config.slow_deadline();
@@ -589,122 +643,16 @@ pub async fn sse_streams_handler(
         // can fail over to Phase 2 streams when the priority stream dies.
         let _ = priority_streams_found;
 
-        // Phase 2: spawn remaining providers (all for TV, rest for movies)
-        for provider in rest {
-            let cb = cb.clone();
-            let tmdb = tmdb_info.clone();
-            let mtype = m_type.clone();
-            let tx = tx.clone();
-            let secret = state.secret.clone();
-            let kkey = state.kkey.clone();
-            let proxy_base = proxy_base.clone();
-            let enable_proxy = state.config.enable_proxy;
-            let stream_count = stream_count.clone();
-            let config = state.config.clone();
-            let client = state.client.clone();
-            let head_timeout = state.config.head_check_timeout_secs;
-            let tmdb_id = tmdb_id.clone();
-            provider_tasks.spawn(async move {
-                let name = provider.name().to_string();
-                let real_name = provider.real_name().to_string();
-                let timeout_secs = provider.timeout_secs();
-                if !cb.is_healthy(&real_name) {
-                    return vec![];
-                }
-                let (provider_season, provider_episode) =
-                    config.map_season_episode(&real_name, &tmdb_id, season, episode);
-                let t0 = std::time::Instant::now();
-                let mut result = timeout(
-                    Duration::from_secs(timeout_secs),
-                    provider.fetch(&tmdb, &mtype, provider_season, provider_episode),
-                )
-                .await;
+        // Phase 2a: spawn fast providers so the player can start quickly.
+        for provider in fast {
+            env.spawn(provider, &mut provider_tasks, false, Duration::ZERO);
+        }
 
-                // Auto-detect season split: if season 1 returns empty and
-                // episode > 12, try season 2 with episode shifted by 12.
-                if matches!(result, Ok(Ok(ref s)) if s.is_empty()) && season == 1 && episode > 12 {
-                    let fallback = timeout(
-                        Duration::from_secs(3),
-                        provider.fetch(&tmdb, &mtype, 2, episode - 12),
-                    )
-                    .await;
-                    if matches!(fallback, Ok(Ok(ref s)) if !s.is_empty()) {
-                        result = fallback;
-                    }
-                }
-
-                let elapsed_ms = t0.elapsed().as_millis() as u64;
-                match result {
-                    Ok(Ok(streams)) if !streams.is_empty() => {
-                        let checks = join_all(
-                            streams.iter().map(|s| is_stream_reachable(&client, s, head_timeout)),
-                        )
-                        .await;
-                        let streams: Vec<StreamResult> = streams
-                            .into_iter()
-                            .zip(checks)
-                            .filter(|(_, ok)| *ok)
-                            .map(|(s, _)| s)
-                            .collect();
-                        if streams.is_empty() {
-                            info!("[SSE] provider {} returned only unreachable streams", name);
-                            cb.record_failure(&real_name);
-                            return vec![];
-                        }
-                        cb.record_success(&real_name);
-                        stream_count.fetch_add(streams.len(), Ordering::Relaxed);
-                        info!(
-                            "[SSE] provider {} returned {} reachable streams in {}ms",
-                            name,
-                            streams.len(),
-                            elapsed_ms
-                        );
-                        let mut display = if enable_proxy {
-                            wrap_with_proxy(streams.clone(), &proxy_base, &secret)
-                        } else {
-                            streams.clone()
-                        };
-                        encrypt_stream_result_urls(&mut display, &kkey);
-                        let _ = tx
-                            .send(Ok(Event::default().event("provider").data(
-                                json!({
-                                    "provider": name,
-                                    "streams": display,
-                                    "count": display.len(),
-                                    "elapsed_ms": elapsed_ms
-                                })
-                                .to_string(),
-                            )))
-                            .await;
-                        streams
-                    }
-                    Ok(Err(e)) => {
-                        warn!("[SSE] Provider {} failed: {}", name, e);
-                        cb.record_failure(&real_name);
-                        info!(
-                            "[SSE] provider {} outcome=failure elapsed_ms={}",
-                            name, elapsed_ms
-                        );
-                        vec![]
-                    }
-                    Err(_) => {
-                        warn!("[SSE] Provider {} timed out after {}s", name, timeout_secs);
-                        cb.record_failure(&real_name);
-                        info!(
-                            "[SSE] provider {} outcome=timeout elapsed_ms={}",
-                            name, elapsed_ms
-                        );
-                        vec![]
-                    }
-                    _ => {
-                        info!(
-                            "[SSE] provider {} outcome=empty elapsed_ms={}",
-                            name, elapsed_ms
-                        );
-                        vec![]
-                    }
-                }
-            });
+        // Phase 2b: defer slow/xyra providers by a couple of seconds. These
+        // are useful fallback/iframe sources but they shouldn't block the
+        // fast providers from reaching the player.
+        for provider in slow {
+            env.spawn(provider, &mut provider_tasks, false, Duration::from_secs(2));
         }
 
         match timeout(aggregate_deadline, async {
