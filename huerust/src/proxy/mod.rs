@@ -343,6 +343,16 @@ fn has_header(headers: &Option<HashMap<String, String>>, name: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// Some CDNs (e.g. TikTok) reject requests that carry a provider's
+/// Referer/Origin. Stripping those headers avoids a 403 challenge page.
+fn host_rejects_cross_origin_headers(target_url: &str) -> bool {
+    Url::parse(target_url)
+        .ok()
+        .and_then(|u| u.host_str().map(|h| h.to_lowercase()))
+        .map(|h| h == "tiktokcdn.com" || h.ends_with(".tiktokcdn.com"))
+        .unwrap_or(false)
+}
+
 /// Route the upstream fetch through the Cloudflare Worker for hosts that
 /// geo-block datacenter IPs (e.g. MovieBox). The worker forwards the
 /// request with the same headers, returning the upstream response.
@@ -519,15 +529,22 @@ pub async fn m3u8_handler(
     ));
     req = inject_cdn_headers(req, &target_url, &headers);
 
-    // Inject headers from token (overrides defaults)
+    // Inject headers from token (overrides defaults). Some CDNs reject cross
+    // provider Referer/Origin headers, so strip them for those hosts.
+    let strip_cross_origin = host_rejects_cross_origin_headers(&target_url);
     let mut referer_value = None;
     let mut has_origin = false;
     if let Some(ref h) = headers {
         for (k, v) in h.iter() {
-            if k.eq_ignore_ascii_case("origin") {
+            let is_origin = k.eq_ignore_ascii_case("origin");
+            let is_referer = k.eq_ignore_ascii_case("referer");
+            if (is_origin || is_referer) && strip_cross_origin {
+                continue;
+            }
+            if is_origin {
                 has_origin = true;
             }
-            if k.eq_ignore_ascii_case("referer") {
+            if is_referer {
                 referer_value = Some(v.clone());
             }
             req = req.header(k, v);
@@ -865,15 +882,22 @@ pub async fn ts_handler(
     req = inject_cdn_headers(req, &target_url, &headers);
     req = req.header("Accept-Encoding", "identity");
 
+    // Some CDNs reject cross-provider Referer/Origin headers.
+    let strip_cross_origin = host_rejects_cross_origin_headers(&target_url);
     let mut has_origin = false;
     let mut referer_value = None;
     if let Some(ref h) = headers {
         for (k, v) in h {
+            let is_origin = k.eq_ignore_ascii_case("origin");
+            let is_referer = k.eq_ignore_ascii_case("referer");
+            if (is_origin || is_referer) && strip_cross_origin {
+                continue;
+            }
             req = req.header(k, v);
-            if k.eq_ignore_ascii_case("origin") {
+            if is_origin {
                 has_origin = true;
             }
-            if k.eq_ignore_ascii_case("referer") {
+            if is_referer {
                 referer_value = Some(v.clone());
             }
         }
@@ -890,14 +914,6 @@ pub async fn ts_handler(
         if let Some(ref_url) = referer_value {
             if let Ok(origin_url) = Url::parse(&ref_url) {
                 let mut origin = origin_url.origin().unicode_serialization();
-                if origin.ends_with('/') {
-                    origin.pop();
-                }
-                req = req.header("Origin", origin);
-            }
-        } else {
-            if let Ok(target_u) = Url::parse(&target_url) {
-                let mut origin = target_u.origin().unicode_serialization();
                 if origin.ends_with('/') {
                     origin.pop();
                 }
