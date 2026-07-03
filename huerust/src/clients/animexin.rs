@@ -775,13 +775,26 @@ fn extract_episode_number(slug: &str) -> u32 {
     0
 }
 
-/// Clean "- AnimeXin" suffix from titles.
+/// Clean "- AnimeXin" suffix and episode-specific junk from titles.
+/// Animexin episode pages include the current episode in the page title,
+/// e.g. "Shrouding the Heavens Episode 10 Indonesia, English Sub - AnimeXin".
+/// Strip everything from " Episode N" onward so the series title is clean.
 fn clean_title(raw: &str) -> String {
-    raw.trim()
+    let trimmed = raw.trim();
+    // Remove trailing site suffix first.
+    let without_suffix = trimmed
         .trim_end_matches("- AnimeXin")
         .trim_end_matches("– AnimeXin")
-        .trim()
-        .to_string()
+        .trim();
+    // Strip " Episode N ..." tail. Case-insensitive, captures any trailing
+    // language/subtitle text Animexin appends after the episode number.
+    let re = Regex::new(r"(?i)\s+Episode\s+\d+.*").unwrap();
+    let cleaned = re.replace(without_suffix, "").trim().to_string();
+    if cleaned.is_empty() {
+        trimmed.to_string()
+    } else {
+        cleaned
+    }
 }
 
 /// Filter out non-anime utility pages.
