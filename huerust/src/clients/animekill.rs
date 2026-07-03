@@ -203,6 +203,8 @@ impl AnimeKillClient {
         }
         .ok_or_else(|| anyhow!("No stream sources found"))?;
 
+        let referer = infer_iframe_referer(&target.id);
+
         Ok(StreamPayload {
             url: target.id.clone(),
             stream_type: "iframe".to_string(),
@@ -210,7 +212,7 @@ impl AnimeKillClient {
             intro: None,
             outro: None,
             server: Some(target.name.clone()),
-            referer: Some(BASE_URL.to_string()),
+            referer: Some(referer),
         })
     }
 
@@ -817,20 +819,13 @@ fn clean_title(raw: &str) -> String {
     raw.trim().to_string()
 }
 
-fn extract_server_name_from_url(url: &str) -> String {
-    let host = url
-        .trim_start_matches("https://")
-        .trim_start_matches("http://")
-        .trim_start_matches("//")
-        .split('/')
-        .next()
-        .unwrap_or("Unknown");
-    let name = host
-        .trim_start_matches("www.")
-        .split('.')
-        .next()
-        .unwrap_or("Unknown");
-    name.to_uppercase()
+/// Embed hosts often require a specific Referer or they return 403.
+fn infer_iframe_referer(url: &str) -> String {
+    if url.to_lowercase().contains("donghuaplanet.com") {
+        "https://donghuaworld.com/".to_string()
+    } else {
+        BASE_URL.to_string()
+    }
 }
 
 /// Prefer reliable embeds over obscure hosters that drop offline.
@@ -848,7 +843,7 @@ fn server_reliability_score(url: &str) -> u32 {
     if lower.contains("dood") || lower.contains("dooood.com") {
         return 40;
     }
-    if lower.contains("streamhide") || lower.contains("guccihide.com") {
+    if lower.contains("streamhide") || lower.contains("guccihide.com") || lower.contains("louishide.com") {
         return 30;
     }
     10
