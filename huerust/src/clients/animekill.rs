@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use regex::Regex;
 use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
-use tracing::{debug, warn};
+use tracing::debug;
 
 use crate::models::anime::{
     AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, EpisodeSummary, FilterParams,
@@ -137,16 +137,37 @@ impl AnimeKillClient {
     }
 
     /// Scrape an episode page for available servers and stream info.
+    /// AnimeKill exposes two APIs:
+    ///   /api/data/videos/{anime_id}/{episode_number} — primary (often dead hosters like gotaku1)
+    ///   /api/data/parser/{anime_id}/{episode_number} — fallback with multiple live mirrors
+    /// We use the parser API as the authoritative source because it returns Dailymotion,
+    /// YouTube, OK.ru and other embeds that actually resolve.
     pub async fn get_servers(&self, episode_id: &str) -> Result<ServerList> {
-        let html = self.fetch_episode_html(episode_id).await?;
-        let episode = extract_episode_payload(&html, episode_id)?;
+        let (canonical, number) = canonical_episode_id(episode_id);
+        let series_id = series_id_from_episode(&canonical);
+
+        let url = format!("{}/api/data/parser/{}/{}", BASE_URL, series_id, number);
+        let resp = self.client.get(&url).send().await?;
+        let status = resp.status();
+        let body = resp.text().await?;
+        debug!(
+            "[AnimeKill] parser status={} len={} id={}",
+            status,
+            body.len(),
+            canonical
+        );
+
+        let payload: ParserApiResponse = serde_json::from_str(&body)
+            .map_err(|e| anyhow!("AnimeKill parser response invalid: {}", e))?;
 
         let mut sub = Vec::new();
-        if let (Some(host), Some(path)) = (episode.video_host, episode.video_path) {
-            let url = format!("https://{}{}", host, path);
+        for item in payload.data {
+            if item.decode_url.is_empty() {
+                continue;
+            }
             sub.push(ServerEntry {
-                id: url.clone(),
-                name: extract_server_name_from_url(&url),
+                id: item.decode_url.clone(),
+                name: item.server_name.clone(),
                 audio_type: "sub".to_string(),
                 format: "iframe".to_string(),
             });
@@ -155,17 +176,32 @@ impl AnimeKillClient {
         Ok(ServerList { sub, dub: vec![] })
     }
 
-    /// Return the first available stream as a StreamPayload.
+    /// Return the best available stream as a StreamPayload.
+    /// Prefers well-known reliable players (Dailymotion, YouTube, OK.ru) over
+    /// obscure hosters that frequently go offline.
     pub async fn get_stream(
         &self,
         episode_id: &str,
-        _server: Option<&str>,
+        server: Option<&str>,
     ) -> Result<StreamPayload> {
         let servers = self.get_servers(episode_id).await?;
-        let target = servers
-            .sub
-            .first()
-            .ok_or_else(|| anyhow!("No stream sources found"))?;
+        let pool = servers.sub;
+        if pool.is_empty() {
+            return Err(anyhow!("No stream sources found"));
+        }
+
+        let target = if let Some(srv) = server {
+            pool.iter()
+                .find(|s| s.name.eq_ignore_ascii_case(srv))
+                .or_else(|| pool.first())
+                .cloned()
+        } else {
+            pool.iter()
+                .max_by_key(|s| server_reliability_score(&s.id))
+                .cloned()
+                .or_else(|| pool.first().cloned())
+        }
+        .ok_or_else(|| anyhow!("No stream sources found"))?;
 
         Ok(StreamPayload {
             url: target.id.clone(),
@@ -334,6 +370,24 @@ struct ListData {
     has_next: bool,
     #[serde(default)]
     has_prev: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct ParserApiResponse {
+    #[serde(default)]
+    data: Vec<ParserResult>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ParserResult {
+    #[serde(default, alias = "serverName")]
+    server_name: String,
+    #[serde(default, alias = "decodeUrl")]
+    decode_url: String,
+    #[serde(default)]
+    host: String,
+    #[serde(default)]
+    path: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -777,6 +831,27 @@ fn extract_server_name_from_url(url: &str) -> String {
         .next()
         .unwrap_or("Unknown");
     name.to_uppercase()
+}
+
+/// Prefer reliable embeds over obscure hosters that drop offline.
+fn server_reliability_score(url: &str) -> u32 {
+    let lower = url.to_lowercase();
+    if lower.contains("dailymotion.com") || lower.contains("youtube.com/embed") {
+        return 100;
+    }
+    if lower.contains("ok.ru") {
+        return 90;
+    }
+    if lower.contains("streamsb") || lower.contains("lvturbo.com") {
+        return 50;
+    }
+    if lower.contains("dood") || lower.contains("dooood.com") {
+        return 40;
+    }
+    if lower.contains("streamhide") || lower.contains("guccihide.com") {
+        return 30;
+    }
+    10
 }
 
 #[cfg(test)]
