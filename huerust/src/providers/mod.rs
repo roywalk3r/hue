@@ -20,8 +20,8 @@ pub mod mp4hydra;
 pub mod mp4hydra_provider;
 pub mod notorrent_provider;
 pub mod registry;
-pub mod streamhub;
-pub mod streamhub_provider;
+// pub mod streamhub;          // disabled — upstream returns Aura duplicates
+// pub mod streamhub_provider;
 pub mod sflix;
 pub mod sflix_provider;
 pub mod videasy;

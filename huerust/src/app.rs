@@ -39,13 +39,13 @@ use crate::providers::{
     kisskh_provider::KissKhProvider,
     kisskh_xyra::KissKhXyraClient,
     kisskh_xyra_provider::KissKhXyraProvider,
-    lordflix_provider::LordflixProvider,
+    // lordflix_provider::LordflixProvider, // disabled — upstream requires Cloudflare attestation
     moviebox_provider::MovieBoxProvider,
     notorrent_provider::NoTorrentProvider,
     // mp4hydra_provider::Mp4HydraProvider, // disabled — endpoint times out
     sflix_provider::SflixProvider,
-    streamhub::StreamHubClient,
-    streamhub_provider::StreamHubProvider,
+    // streamhub::StreamHubClient,      // disabled — upstream returns Aura duplicates
+    // streamhub_provider::StreamHubProvider,
     vidlink_provider::VidlinkProvider,
     // videasy::VideasyClient,       // disabled — upstream 500
     // videasy_provider::VideasyProvider,
@@ -91,7 +91,6 @@ pub struct AppState {
     pub anime_agg: Arc<crate::clients::anime_agg::AnimeAggregator>,
     pub animekill: Arc<crate::clients::animekill::AnimeKillClient>,
     pub xyra_subtitle: Arc<XyraSubtitleClient>,
-    pub streamhub: Arc<StreamHubClient>,
     pub kisskh_xyra: Arc<KissKhXyraClient>,
     pub secret: String,
     pub kkey: String,
@@ -125,7 +124,6 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let hianime_client = Arc::new(crate::clients::hianime::HianimeClient::new());
     let animekill_client = Arc::new(crate::clients::animekill::AnimeKillClient::new());
     let xyra_subtitle_client = Arc::new(XyraSubtitleClient::new());
-    let streamhub_client = Arc::new(StreamHubClient::new());
     let kisskh_xyra_client = Arc::new(KissKhXyraClient::new());
     let anime_agg = Arc::new(crate::clients::anime_agg::AnimeAggregator::new(
         Arc::new(crate::clients::aniwave::AniwaveClient::new(
@@ -180,17 +178,8 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
                 .unwrap(),
         ),
     ));
-    let lordflix_client = Arc::new(crate::clients::lordflix::LordflixClient::new(
-        crate::http_client::wrap_with_retry(
-            reqwest::Client::builder()
-                .tcp_keepalive(Duration::from_secs(60))
-                .connect_timeout(Duration::from_secs(8))
-                .timeout(Duration::from_secs(15))
-                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
-                .build()
-                .unwrap(),
-        ),
-    ));
+    // Lordflix disabled — upstream requires Cloudflare attestation (x-attest header).
+    // let lordflix_client = Arc::new(crate::clients::lordflix::LordflixClient::new(...));
     let notorrent_client = Arc::new(crate::clients::notorrent::NoTorrentClient::new(
         crate::http_client::wrap_with_retry(
             reqwest::Client::builder()
@@ -210,9 +199,9 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         tracing::info!("KissKH provider disabled; set ENABLE_KISSKH=true to enable it");
     }
     registry.register(Arc::new(SflixProvider::new(sflix_client.clone())));
-    registry.register(Arc::new(StreamHubProvider::new(streamhub_client.clone())));
-    registry.register(Arc::new(KissKhXyraProvider::new(kisskh_xyra_client.clone())));
-    registry.register(Arc::new(DramacoolProvider::new(dramacool_client.clone())));
+    // registry.register(Arc::new(StreamHubProvider::new(streamhub_client.clone()))); // disabled — upstream returns Aura duplicates
+    // registry.register(Arc::new(KissKhXyraProvider::new(kisskh_xyra_client.clone()))); // disabled — xyra faulty
+    // registry.register(Arc::new(DramacoolProvider::new(dramacool_client.clone()))); // disabled — xyra faulty
     registry.register(Arc::new(KissAsianProvider::new(kissasian_client.clone())));
     registry.register(Arc::new(VixsrcProvider::new(vixsrc_client)));
     // registry.register(Arc::new(Mp4HydraProvider::new())); // disabled — endpoint times out
@@ -224,7 +213,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         vidsrcembed_client.clone(),
     )));
     registry.register(Arc::new(VidlinkProvider::new(vidlink_client)));
-    registry.register(Arc::new(LordflixProvider::new(lordflix_client)));
+    // registry.register(Arc::new(LordflixProvider::new(lordflix_client))); // disabled — upstream requires Cloudflare attestation
     registry.register(Arc::new(NoTorrentProvider::new(notorrent_client)));
 
     let redis_pool = if cfg.cache_backend == "redis" {
@@ -269,7 +258,6 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         anime_agg: anime_agg.clone(),
         animekill: animekill_client.clone(),
         xyra_subtitle: xyra_subtitle_client,
-        streamhub: streamhub_client,
         kisskh_xyra: kisskh_xyra_client,
         aisports: Arc::new(crate::clients::aisports::AiSportsClient::new(
             crate::http_client::wrap_with_retry(
@@ -369,6 +357,10 @@ pub fn build_router(state: AppState) -> Router {
             get(crate::routes::sse::sse_streams_handler),
         )
         .route(
+            "/api/streams/:type/:tmdbId/report-failure",
+            axum::routing::post(crate::routes::sse::report_failure_handler),
+        )
+        .route(
             "/api/warm/:type/:tmdbId",
             get(crate::routes::sse::warm_handler),
         )
@@ -412,30 +404,31 @@ pub fn build_router(state: AppState) -> Router {
             "/api/drama/kisskh/streams/:id/:episode",
             get(crate::routes::drama::kisskh_streams_handler),
         )
-        .route(
-            "/api/drama/dramacool/search",
-            get(crate::routes::drama::dramacool_search_handler),
-        )
-        .route(
-            "/api/drama/dramacool/streams/:id/:episode",
-            get(crate::routes::drama::dramacool_streams_handler),
-        )
-        .route(
-            "/api/drama/kisskh_xyra/search",
-            get(crate::routes::drama::kisskh_xyra_search_handler),
-        )
-        .route(
-            "/api/drama/kisskh_xyra/streams/:id/:episode",
-            get(crate::routes::drama::kisskh_xyra_streams_handler),
-        )
-        .route(
-            "/api/drama/kisskh_xyra/v2/streams/:id/:episode",
-            get(crate::routes::drama::kisskh_xyra_streams_handler),
-        )
-        .route(
-            "/api/drama/kisskh_xyra/home",
-            get(crate::routes::drama::kisskh_xyra_home_handler),
-        )
+        // Xyra-based drama routes disabled — xyra faulty
+        // .route(
+        //     "/api/drama/dramacool/search",
+        //     get(crate::routes::drama::dramacool_search_handler),
+        // )
+        // .route(
+        //     "/api/drama/dramacool/streams/:id/:episode",
+        //     get(crate::routes::drama::dramacool_streams_handler),
+        // )
+        // .route(
+        //     "/api/drama/kisskh_xyra/search",
+        //     get(crate::routes::drama::kisskh_xyra_search_handler),
+        // )
+        // .route(
+        //     "/api/drama/kisskh_xyra/streams/:id/:episode",
+        //     get(crate::routes::drama::kisskh_xyra_streams_handler),
+        // )
+        // .route(
+        //     "/api/drama/kisskh_xyra/v2/streams/:id/:episode",
+        //     get(crate::routes::drama::kisskh_xyra_streams_handler),
+        // )
+        // .route(
+        //     "/api/drama/kisskh_xyra/home",
+        //     get(crate::routes::drama::kisskh_xyra_home_handler),
+        // )
         .route(
             "/api/drama/kissasian/search",
             get(crate::routes::drama::kissasian_search_handler),
@@ -468,14 +461,15 @@ pub fn build_router(state: AppState) -> Router {
             "/api/drama/detail",
             get(crate::routes::drama::drama_detail_handler),
         )
-        .route(
-            "/api/subtitle/search",
-            get(crate::routes::subtitle::subtitle_search_handler),
-        )
-        .route(
-            "/api/subtitle/download",
-            get(crate::routes::subtitle::subtitle_download_handler),
-        )
+        // Xyra subtitle routes disabled — xyra faulty
+        // .route(
+        //     "/api/subtitle/search",
+        //     get(crate::routes::subtitle::subtitle_search_handler),
+        // )
+        // .route(
+        //     "/api/subtitle/download",
+        //     get(crate::routes::subtitle::subtitle_download_handler),
+        // )
         .route(
             "/api/moviebox/home",
             get(crate::routes::moviebox::home_handler),

@@ -15,6 +15,8 @@ pub mod providers;
 pub mod sports;
 pub mod sse;
 pub mod streams;
+// re-export report-failure types so app.rs can wire the route without
+// knowing the request body shape.
 pub mod subtitle;
 pub mod system;
 pub mod tmdb;

@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"git add .omc src/providers/streamhub.rs src/providers/streamhub_provider.rs src/providers/dramacool9.rs src/providers/dramacool9_provider.rs src/providers/kisskh_xyra.rs src/providers/kiss...",
-  "error": "Exit code 1\nThe following paths are ignored by one of your .gitignore files:\nhuerust/.omc\nhint: Use -f if you really want to add them.\nhint: Disable this message with \"git config set advice.addIgnoredFile false\"",
-  "timestamp": "2026-07-01T18:03:46.774Z",
-  "retry_count": 1
+  "tool_input_preview": "{\"command\":\"curl -sS http://127.0.0.1:24610/health\",\"timeout\":30000,\"description\":\"Check scraper service health\"}",
+  "error": "Exit code 7\ncurl: (7) Failed to connect to 127.0.0.1 port 24610 after 0 ms: Could not connect to server",
+  "timestamp": "2026-07-03T08:57:48.174Z",
+  "retry_count": 2
 }

@@ -92,33 +92,40 @@ pub struct TsProxyQuery {
 
 /// Derive the public proxy base URL.
 ///
-/// If the configured `fallback` is a valid URL with a real public host
-/// (not localhost/127.0.0.1), use it directly. This prevents proxy URLs from
-/// pointing back to the frontend domain (e.g. Vercel) when requests arrive
-/// through a reverse-proxy that preserves the browser's Host header.
-///
-/// Only fall back to header detection when the configured URL is localhost,
-/// which is the expected setup behind nginx or in local development.
+/// Use the request's `Host` header by default so proxy URLs point to the same
+/// backend that signed them. When the request came through a reverse proxy
+/// (`x-forwarded-host` or `x-forwarded-proto` is present), use the configured
+/// public fallback instead so proxy URLs don't point at the frontend/proxy host.
 pub fn dynamic_proxy_base(headers: &HeaderMap, fallback: &str) -> String {
     let fallback_url = fallback.parse::<Url>().ok();
-    let default_proto = fallback_url.as_ref().map(|u| u.scheme()).unwrap_or("http");
+    let via_reverse_proxy = headers.get("x-forwarded-host").is_some()
+        || headers.get("x-forwarded-proto").is_some()
+        || headers.get("x-forwarded-protocol").is_some();
+    let default_proto = if via_reverse_proxy {
+        fallback_url.as_ref().map(|u| u.scheme()).unwrap_or("http")
+    } else {
+        "http"
+    };
     let default_host = fallback_url
         .as_ref()
         .and_then(|u| u.host_str())
         .unwrap_or("localhost");
 
-    // Prefer the explicitly configured fallback when it points to a real host.
-    // Use the full origin so configured ports are preserved.
-    if let Some(ref url) = fallback_url {
-        if let Some(host) = url.host_str() {
-            let lower = host.to_lowercase();
-            if lower != "localhost" && lower != "127.0.0.1" && lower != "0.0.0.0" && lower != "::1"
-            {
-                return url
-                    .origin()
-                    .unicode_serialization()
-                    .trim_end_matches('/')
-                    .to_string();
+    if via_reverse_proxy {
+        if let Some(ref url) = fallback_url {
+            if let Some(host) = url.host_str() {
+                let lower = host.to_lowercase();
+                if lower != "localhost"
+                    && lower != "127.0.0.1"
+                    && lower != "0.0.0.0"
+                    && lower != "::1"
+                {
+                    return url
+                        .origin()
+                        .unicode_serialization()
+                        .trim_end_matches('/')
+                        .to_string();
+                }
             }
         }
     }
@@ -2097,7 +2104,7 @@ Second cue"#;
     }
 
     #[test]
-    fn test_dynamic_proxy_base_prefers_public_configured_origin() {
+    fn test_dynamic_proxy_base_prefers_public_configured_origin_behind_proxy() {
         let mut headers = HeaderMap::new();
         headers.insert("host", "www.vexli.online".parse().unwrap());
         headers.insert("x-forwarded-proto", "https".parse().unwrap());
@@ -2108,9 +2115,20 @@ Second cue"#;
     }
 
     #[test]
-    fn test_dynamic_proxy_base_preserves_configured_public_port() {
+    fn test_dynamic_proxy_base_uses_host_header_direct_request() {
+        let mut headers = HeaderMap::new();
+        headers.insert("host", "127.0.0.1:24609".parse().unwrap());
+
+        let base = dynamic_proxy_base(&headers, "https://api.vexli.online");
+
+        assert_eq!(base, "http://127.0.0.1:24609");
+    }
+
+    #[test]
+    fn test_dynamic_proxy_base_preserves_configured_public_port_behind_proxy() {
         let mut headers = HeaderMap::new();
         headers.insert("host", "www.vexli.online".parse().unwrap());
+        headers.insert("x-forwarded-proto", "https".parse().unwrap());
 
         let base = dynamic_proxy_base(&headers, "https://api.vexli.online:24609");
 

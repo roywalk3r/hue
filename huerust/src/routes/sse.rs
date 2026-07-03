@@ -9,7 +9,9 @@ use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::sse::{Event, KeepAlive, Sse},
+    Json,
 };
+use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
 use std::convert::Infallible;
@@ -775,6 +777,61 @@ pub async fn sse_streams_handler(
 /// Fire-and-forget cache warmer. Called during browse / search so that by the
 /// time the user clicks Play the cache is already hot. Returns 202 immediately
 /// and spawns the same aggregation logic in the background.
+#[derive(Debug, Deserialize)]
+pub struct ReportFailureBody {
+    provider: String,
+    #[allow(dead_code)]
+    url: Option<String>,
+    #[allow(dead_code)]
+    reason: Option<String>,
+}
+
+/// Client-side playback failure reporting. When the player fails to play a
+/// stream (keyLoadError, fragLoadError, manifestParsingError, etc.) it can tell
+/// the backend so we stop sticking this user to that provider and penalize it
+/// in the circuit breaker. This short-circuits the ~6s fail-over window the user
+/// otherwise waits through.
+pub async fn report_failure_handler(
+    State(state): State<StreamState>,
+    Path((m_type, tmdb_id)): Path<(String, String)>,
+    headers: HeaderMap,
+    Json(body): Json<ReportFailureBody>,
+) -> StatusCode {
+    let real_name = crate::providers::display_to_real_name(&body.provider);
+    let cb = state.registry.circuit_breaker();
+
+    cb.record_failure(real_name);
+    info!(
+        "[SSE] client reported playback failure for provider {} (real_name {}) on {}/{}",
+        body.provider, real_name, m_type, tmdb_id
+    );
+
+    let user_id = headers
+        .get_all(axum::http::header::COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|s| s.split(';'))
+        .map(str::trim)
+        .find_map(|pair| {
+            let (k, v) = pair.split_once('=')?;
+            if k == "hue_anon" {
+                Some(v.to_string())
+            } else {
+                None
+            }
+        })
+        .unwrap_or_else(|| "anon".to_string());
+
+    let sticky_key = StickyPrefKey::new(&user_id, &m_type, &tmdb_id);
+    if let Some(entry) = state.sticky_pref.get(&sticky_key).await {
+        if entry.provider_real_name == real_name {
+            state.sticky_pref.record_failure(&sticky_key).await;
+        }
+    }
+
+    StatusCode::NO_CONTENT
+}
+
 pub async fn warm_handler(
     State(state): State<StreamState>,
     Path((m_type, tmdb_id)): Path<(String, String)>,
