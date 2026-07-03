@@ -144,8 +144,12 @@ impl ProviderTaskEnv {
             )
             .await;
 
-            // Retry once on transient error or timeout (not on empty success)
-            if matches!(result, Ok(Err(_)) | Err(_)) {
+            // Retry once on transient error or timeout (not on empty success), but only
+            // for providers that are not on the critical fast path. Fast providers must
+            // deliver within their timeout budget so the player can start within 5s.
+            if !env.config.fast_deadline().is_zero()
+                && matches!(result, Ok(Err(_)) | Err(_))
+            {
                 info!("[SSE] provider {} retrying after initial failure", name);
                 let retry = timeout(
                     Duration::from_secs(3),
@@ -542,11 +546,33 @@ pub async fn sse_streams_handler(
         let cb = registry.circuit_breaker().clone();
         let mut raw_all: Vec<StreamResult> = Vec::new();
 
-        let priority_names = ["Luna", "Aura"];
-        let slow_names = ["Aurora", "Orient", "StreamHub"];
-        let (priority, rest): (Vec<_>, Vec<_>) = all_providers
+        // Priority phase: fast, healthy providers plus any title-specific top
+        // scorer. We used to hard-code [Luna, Aura], but Aura (vixsrc) marks
+        // itself as slow (`is_fast() -> false`), so it occupied the fast window
+        // without guaranteeing speed. Let the truly fast providers (Luna,
+        // Cinema, Nova) race first; globally top-scoring providers join them
+        // regardless of speed so a known-good source can win immediately.
+        let top_provider = state
+            .provider_score
+            .get_top_provider(&m_type, &tmdb_id)
+            .await
+            .and_then(|name| {
+                all_providers
+                    .iter()
+                    .find(|p| p.real_name() == name)
+                    .map(|p| p.name().to_string())
+            });
+        let slow_names = ["Aurora", "Orient"];
+        let (mut priority, rest): (Vec<_>, Vec<_>) = all_providers
             .into_iter()
-            .partition(|p| priority_names.contains(&p.name()));
+            .partition(|p| {
+                let healthy = cb.is_healthy(p.real_name());
+                let is_fast = p.is_fast();
+                let is_top = top_provider.as_deref() == Some(p.name());
+                healthy && (is_fast || is_top)
+            });
+        // Ensure the top provider appears only once (if it is also fast it is
+        // already included; the partition above guarantees uniqueness).
         let (fast, slow): (Vec<_>, Vec<_>) = rest
             .into_iter()
             .partition(|p| !slow_names.contains(&p.name()));
@@ -583,13 +609,13 @@ pub async fn sse_streams_handler(
             head_timeout: state.config.head_check_timeout_secs,
         };
 
-        // 10s partial emission timer — tells the frontend "you have enough to
+        // 2s partial emission timer — tells the frontend "you have enough to
         // start playing, more may arrive" without waiting for stragglers.
         let tx_partial = tx.clone();
         let stream_count_partial = stream_count.clone();
         let done_sent_partial = done_sent.clone();
         tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_secs(10)).await;
+            tokio::time::sleep(Duration::from_secs(2)).await;
             let count = stream_count_partial.load(Ordering::Relaxed);
             if count > 0 && !done_sent_partial.load(Ordering::Relaxed) {
                 let _ = tx_partial
@@ -607,12 +633,13 @@ pub async fn sse_streams_handler(
         }
 
         let aggregate_deadline = state.config.slow_deadline();
-        let fast_cutoff = std::time::Instant::now() + Duration::from_secs(5);
+        let fast_cutoff = std::time::Instant::now() + Duration::from_secs(4);
         let mut priority_streams_found = false;
 
-        // Collect from priority phase first
+        // Collect from priority phase first — cap at 3s so the player can start
+        // on fast providers quickly even if priority providers are slow.
         if !priority.is_empty() {
-            match timeout(Duration::from_secs(5), async {
+            match timeout(Duration::from_secs(3), async {
                 while let Some(Ok(streams)) = provider_tasks.join_next().await {
                     if !streams.is_empty() {
                         raw_all.extend(streams);
@@ -645,7 +672,7 @@ pub async fn sse_streams_handler(
         // can fail over to Phase 2 streams when the priority stream dies.
         let _ = priority_streams_found;
 
-        // Phase 2a: spawn fast providers so the player can start quickly.
+        // Phase 2a: spawn fast providers immediately so they race with priority results.
         for provider in fast {
             env.spawn(provider, &mut provider_tasks, false, Duration::ZERO);
         }
@@ -657,22 +684,44 @@ pub async fn sse_streams_handler(
             env.spawn(provider, &mut provider_tasks, false, Duration::from_secs(2));
         }
 
+        // Hard ceiling: emit `done` at the 6s mark even if slow providers are
+        // still in flight so the frontend never waits longer than the 5s UX
+        // target plus 1s network buffer.
+        let tx_done_ceil = tx.clone();
+        let done_sent_ceil = done_sent.clone();
+        let stream_count_ceil = stream_count.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(6)).await;
+            if !done_sent_ceil.load(Ordering::Relaxed) {
+                done_sent_ceil.store(true, Ordering::Relaxed);
+                let _ = tx_done_ceil
+                    .send(Ok(Event::default().event("done").data(
+                        json!({"total": stream_count_ceil.load(Ordering::Relaxed), "ceiling": true}).to_string(),
+                    )))
+                    .await;
+            }
+        });
+
         match timeout(aggregate_deadline, async {
             while let Some(Ok(streams)) = provider_tasks.join_next().await {
-                let had_any = !raw_all.is_empty();
                 raw_all.extend(streams);
 
-                // If this is the first successful provider and we're still
-                // within the fast window, emit "done" early so the frontend
-                // Same rationale as the priority-phase early-done above —
-                // when the first stream from any Phase 2 provider arrives, we
-                // used to fire `done` to let the player start. That cost is
-                // the same: when that first stream fails, the client thinks
-                // SSE is finished and can't fail over to later providers. Keep
-                // the connection open so subsequent `provider` events still
-                // count toward the failover queue.
-                let _ = had_any;
-                let _ = fast_cutoff;
+                // If we have at least one stream and are still within the 4s
+                // fast-start window, emit `done` early so the frontend starts
+                // playback immediately while slow/xyra fallbacks finish in the
+                // background. The client keeps the SSE connection open, so
+                // later `provider` events still feed its failover queue.
+                if !raw_all.is_empty()
+                    && std::time::Instant::now() < fast_cutoff
+                    && !done_sent.load(Ordering::Relaxed)
+                {
+                    done_sent.store(true, Ordering::Relaxed);
+                    let _ = tx
+                        .send(Ok(Event::default().event("done").data(
+                            json!({"total": raw_all.len(), "fast": true}).to_string(),
+                        )))
+                        .await;
+                }
             }
         })
         .await
@@ -689,9 +738,9 @@ pub async fn sse_streams_handler(
 
         // Merge sticky fast-path results (if any) so they participate in the
         // final dedup/cache/sticky decision rather than being a dead-end early
-        // event.
+        // event. Give it the remainder of the 5s budget.
         if let Some(task) = sticky_task {
-            match timeout(Duration::from_secs(1), task).await {
+            match timeout(Duration::from_secs(2), task).await {
                 Ok(Ok(streams)) if !streams.is_empty() => {
                     raw_all.extend(streams);
                 }
