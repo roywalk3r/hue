@@ -196,6 +196,7 @@ impl VixsrcClient {
         media_type: &str,
         season: u32,
         episode: u32,
+        title: Option<&str>,
     ) -> Result<Vec<StreamResult>> {
         info!(
             "[Vixsrc Rust] Fetching: TMDB {} ({}) S{} E{}",
@@ -209,10 +210,14 @@ impl VixsrcClient {
         };
 
         let api_url = if media_type == "movie" {
-            format!("https://vixsrc.to/api/movie/{}", tmdb_id)
+            let mut url = format!("https://vixsrc.to/api/movie/{}?h=1", tmdb_id);
+            if let Some(t) = title {
+                url.push_str(&format!("&t={}", urlencoding::encode(t)));
+            }
+            url
         } else {
             format!(
-                "https://vixsrc.to/api/tv/{}/{}/{}",
+                "https://vixsrc.to/api/tv/{}/{}/{}?h=1",
                 tmdb_id, season, episode
             )
         };
@@ -266,12 +271,27 @@ impl VixsrcClient {
                     for s in streams {
                         let mut h = headers.clone();
                         h.insert("Referer".to_string(), page_url.clone());
+                        let stream_format = if s.url.contains("vixsrc.to/playlist/")
+                            || s.url.contains("vixsrc.to/movie/")
+                            || s.url.contains("vixsrc.to/tv/")
+                        {
+                            // Vixsrc.to is an HTML iframe player page. Marking
+                            // as iframe lets the player embed it directly and
+                            // bypass HLS.js fragParsingError retries.
+                            "iframe"
+                        } else {
+                            // vid1.php?url= and similar return m3u8 manifests
+                            // that wrap MP4 segments. Treat as HLS so the
+                            // player uses HLS.js (or fails over after a
+                            // few junk errors).
+                            "hls"
+                        };
                         results.push(StreamResult {
                             url: s.url,
                             title: s.title,
                             quality: s.quality,
                             provider: "Aura".to_string(),
-                            format: "hls".to_string(),
+                            format: stream_format.to_string(),
                             subtitles: external_subs.clone(),
                             headers: Some(h),
                             extra_metadata: None,

@@ -46,7 +46,13 @@ impl StreamProvider for VixsrcProvider {
         episode: u32,
     ) -> Result<Vec<StreamResult>> {
         self.vixsrc
-            .get_streams_normalized(tmdb_info.id, media_type, season, episode)
+            .get_streams_normalized(
+                tmdb_info.id,
+                media_type,
+                season,
+                episode,
+                Some(&tmdb_info.title),
+            )
             .await
     }
 }
