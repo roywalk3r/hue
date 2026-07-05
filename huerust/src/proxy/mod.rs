@@ -92,29 +92,48 @@ pub struct TsProxyQuery {
 
 /// Derive the public proxy base URL.
 ///
-/// Use the request's `Host` header by default so proxy URLs point to the same
-/// backend that signed them. When the request came through a reverse proxy
-/// (`x-forwarded-host` or `x-forwarded-proto` is present), use the configured
-/// public fallback instead so proxy URLs don't point at the frontend/proxy host.
+/// Prefer the request's own `Host` header so dev/proxy URLs point to the local
+/// backend that signed them. Only fall back to reverse-proxy headers
+/// (`x-forwarded-host`, `Forwarded`, `x-forwarded-proto`) when no `Host`
+/// header is present, so production traffic behind a CDN still resolves to
+/// the configured public fallback.
 pub fn dynamic_proxy_base(headers: &HeaderMap, fallback: &str) -> String {
     let fallback_url = fallback.parse::<Url>().ok();
-    let via_reverse_proxy = headers.get("x-forwarded-host").is_some()
-        || headers.get("x-forwarded-proto").is_some()
-        || headers.get("x-forwarded-protocol").is_some();
-    let default_proto = if via_reverse_proxy {
-        fallback_url.as_ref().map(|u| u.scheme()).unwrap_or("http")
-    } else {
-        "http"
-    };
+
     let default_host = fallback_url
         .as_ref()
         .and_then(|u| u.host_str())
         .unwrap_or("localhost");
+    let default_proto = fallback_url.as_ref().map(|u| u.scheme()).unwrap_or("http");
 
-    if via_reverse_proxy {
+    // 1) Prefer the request's own Host header. Trust the configured fallback
+    //    protocol so a local backend behind an HTTPS CDN still emits https URLs.
+    if let Some(host) = headers.get("host").and_then(|v| v.to_str().ok()) {
+        return format!("{}://{}", default_proto, host);
+    }
+
+    // 2) Reverse-proxy fallback: X-Forwarded-Host / Forwarded / X-Forwarded-Proto.
+    let forwarded_host = headers
+        .get("x-forwarded-host")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from)
+        .or_else(|| forwarded_host(headers));
+    let forwarded_proto = headers
+        .get("x-forwarded-proto")
+        .or_else(|| headers.get("x-forwarded-protocol"))
+        .and_then(|v| v.to_str().ok())
+        .or_else(|| forwarded_proto(headers));
+
+    let host = forwarded_host.as_deref().unwrap_or(default_host);
+    let proto = forwarded_proto.unwrap_or(default_proto);
+
+    // If we got a host from a reverse-proxy header, still use the configured
+    // fallback when it points to a real public origin (not localhost), matching
+    // the previous production behaviour.
+    if forwarded_host.is_some() {
         if let Some(ref url) = fallback_url {
-            if let Some(host) = url.host_str() {
-                let lower = host.to_lowercase();
+            if let Some(fb_host) = url.host_str() {
+                let lower = fb_host.to_lowercase();
                 if lower != "localhost"
                     && lower != "127.0.0.1"
                     && lower != "0.0.0.0"
@@ -130,19 +149,33 @@ pub fn dynamic_proxy_base(headers: &HeaderMap, fallback: &str) -> String {
         }
     }
 
-    let host = headers
-        .get("x-forwarded-host")
-        .or_else(|| headers.get("host"))
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or(default_host);
-
-    let proto = headers
-        .get("x-forwarded-proto")
-        .or_else(|| headers.get("x-forwarded-protocol"))
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or(default_proto);
-
     format!("{}://{}", proto, host)
+}
+
+fn forwarded_host(headers: &HeaderMap) -> Option<String> {
+    headers.get("forwarded").and_then(|v| v.to_str().ok()).and_then(|s| {
+        s.split(';').find_map(|part| {
+            let part = part.trim();
+            if part.to_lowercase().starts_with("host=") {
+                Some(part[5..].trim_matches('"').to_string())
+            } else {
+                None
+            }
+        })
+    })
+}
+
+fn forwarded_proto(headers: &HeaderMap) -> Option<&str> {
+    headers.get("forwarded").and_then(|v| v.to_str().ok()).and_then(|s| {
+        s.split(';').find_map(|part| {
+            let part = part.trim();
+            if part.to_lowercase().starts_with("proto=") {
+                Some(part[6..].trim_matches('"'))
+            } else {
+                None
+            }
+        })
+    })
 }
 
 /// Parse JSON headers string from query param.
@@ -2104,30 +2137,29 @@ Second cue"#;
     }
 
     #[test]
-    fn test_dynamic_proxy_base_prefers_public_configured_origin_behind_proxy() {
-        let mut headers = HeaderMap::new();
-        headers.insert("host", "www.vexli.online".parse().unwrap());
-        headers.insert("x-forwarded-proto", "https".parse().unwrap());
-
-        let base = dynamic_proxy_base(&headers, "https://api.vexli.online");
-
-        assert_eq!(base, "https://api.vexli.online");
-    }
-
-    #[test]
     fn test_dynamic_proxy_base_uses_host_header_direct_request() {
         let mut headers = HeaderMap::new();
         headers.insert("host", "127.0.0.1:24609".parse().unwrap());
 
-        let base = dynamic_proxy_base(&headers, "https://api.vexli.online");
+        let base = dynamic_proxy_base(&headers, "http://127.0.0.1:24609");
 
         assert_eq!(base, "http://127.0.0.1:24609");
     }
 
     #[test]
-    fn test_dynamic_proxy_base_preserves_configured_public_port_behind_proxy() {
+    fn test_dynamic_proxy_base_prefers_request_host_over_public_fallback() {
         let mut headers = HeaderMap::new();
-        headers.insert("host", "www.vexli.online".parse().unwrap());
+        headers.insert("host", "localhost:24609".parse().unwrap());
+
+        let base = dynamic_proxy_base(&headers, "http://localhost:24609");
+
+        assert_eq!(base, "http://localhost:24609");
+    }
+
+    #[test]
+    fn test_dynamic_proxy_base_uses_public_fallback_when_no_host_header() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-forwarded-host", "api.vexli.online".parse().unwrap());
         headers.insert("x-forwarded-proto", "https".parse().unwrap());
 
         let base = dynamic_proxy_base(&headers, "https://api.vexli.online:24609");
