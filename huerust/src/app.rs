@@ -139,15 +139,20 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let vixsrc_client = Arc::new(VixsrcClient::new(
         crate::http_client::build_client_with_retry(
             reqwest::Client::builder()
-                .tcp_keepalive(Duration::from_secs(60))
-                .connect_timeout(Duration::from_secs(8))
-                .pool_max_idle_per_host(2)
-                .pool_idle_timeout(Duration::from_secs(90))
-                .timeout(Duration::from_secs(15))
-                // vixsrc.to uses Cloudflare bot management. HTTP/2 + rustls is
-                // fingerprinted and 403'd; HTTP/1.1 is accepted but the embed
-                // page body is sometimes sent raw-gzipped without the proper
-                // Content-Encoding header, so we decompress manually in the client.
+                .connect_timeout(Duration::from_secs(5))
+                // Fresh connection per call — vixsrc is hit at most once per
+                // request, so pooling only risks reusing a stale CDN socket.
+                .pool_max_idle_per_host(0)
+                // Under the 8s provider deadline so a stall fails fast and frees
+                // the dispatch slot instead of being cancelled mid-flight.
+                .timeout(Duration::from_secs(7))
+                // vixsrc.to publishes AAAA records but this host has no working
+                // IPv6 route. reqwest intermittently tries the IPv6 address and
+                // stalls until the connect timeout (curl side-steps this with
+                // happy-eyeballs), which blew the provider budget so Aura
+                // silently returned nothing. Binding a v4 local address forces
+                // IPv4-only egress, matching curl's effective behaviour.
+                .local_address(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED))
                 .http1_only()
                 .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"),
             "VIXSRC_PROXY_URL",
