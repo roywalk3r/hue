@@ -8,13 +8,13 @@
   "enableSflixProvider": true,
   "enableVixsrcProvider": true,
   "enableKisskhProvider": true,
-  "enableDramacoolProvider": true,
+  "enableDramacoolProvider": false,
   "enable9animeProvider": false,
   "enableMP4HydraProvider": true,
-  "sflixCookie": "sflix_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjM2MzA1ODI4MjY2ODM4NDQ2NDgsImF0cCI6MywiZXh0IjoiMTc4MjU0NzM1NiIsImV4cCI6MTc5MDMyMzM1NiwiaWF0IjoxNzgyNTQ3MDU2fQ.vpIsNWGYljVV00cJdZ3dcfhm5mS6O2HycQQyAOvmxQY%22; sflix_i18n_lang=en",
-  "sflixUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.6 Safari/537.36",
+  "sflixCookie": "sflix_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjYzOTM2ODg4NTkwNTE3MDg1ODQsImF0cCI6MywiZXh0IjoiMTc4MzI1ODEyMyIsImV4cCI6MTc5MTAzNDEyMywiaWF0IjoxNzgzMjU3ODIzfQ.NI2IrPGg5reAgSN6-DCtmEF9WKG9KEeH83h6DZzqYLM%22; sflix_i18n_lang=en",
+  "sflixUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.22 Safari/537.36",
   "configVersion": 1,
-  "movieboxCookie": "mb_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjI1ODI0NzA0MTI1NjkzMDIyNjQsImF0cCI6MywiZXh0IjoiMTc4MTk2NDQ2MSIsImV4cCI6MTc4OTc0MDQ2MSwiaWF0IjoxNzgxOTY0MTYxfQ.cGs2sCFh0PZOxULrKcrXOCm0FQfqIkNZR-4OqRNnZNg%22",
-  "movieboxUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.6 Safari/537.36",
-  "movieboxHost": "moviebox.id"
+  "movieboxCookie": "mb_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjI3NDQyMjg2NTM2MTYyNzQ4MCwiYXRwIjozLCJleHQiOiIxNzgzMjU4MTUyIiwiZXhwIjoxNzkxMDM0MTUyLCJpYXQiOjE3ODMyNTc4NTJ9.zbv1fTZnR1WTr2O9pC99dBnZWTz0mh2pg0x_PhySQ30%22",
+  "movieboxUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.22 Safari/537.36",
+  "movieboxHost": "moviebox.ph"
 }
