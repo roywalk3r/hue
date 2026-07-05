@@ -30,7 +30,7 @@ impl StreamProvider for KissKhXyraProvider {
         false
     }
     fn timeout_secs(&self) -> u64 {
-        25
+        8
     }
 
     async fn fetch(

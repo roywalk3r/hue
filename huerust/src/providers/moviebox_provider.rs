@@ -35,7 +35,7 @@ impl StreamProvider for MovieBoxProvider {
         true
     }
     fn timeout_secs(&self) -> u64 {
-        15
+        8
     }
 
     async fn fetch(

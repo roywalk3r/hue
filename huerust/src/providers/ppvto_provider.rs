@@ -30,7 +30,7 @@ impl StreamProvider for PpvToProvider {
     fn name(&self) -> &'static str { "PpVTo" }
     fn real_name(&self) -> &'static str { "ppvto" }
     fn is_fast(&self) -> bool { false }
-    fn timeout_secs(&self) -> u64 { 15 }
+    fn timeout_secs(&self) -> u64 { 8 }
 
     async fn fetch(
         &self,

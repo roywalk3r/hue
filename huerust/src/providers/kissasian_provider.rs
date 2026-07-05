@@ -35,7 +35,7 @@ impl StreamProvider for KissAsianProvider {
         false
     }
     fn timeout_secs(&self) -> u64 {
-        25
+        8
     }
 
     async fn fetch(

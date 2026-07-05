@@ -76,15 +76,15 @@ impl AppConfig {
             fast_provider_deadline_secs: env::var("FAST_PROVIDER_DEADLINE_SECS")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(5),
+                .unwrap_or(4),
             slow_provider_deadline_secs: env::var("SLOW_PROVIDER_DEADLINE_SECS")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(18),
+                .unwrap_or(8),
             head_check_timeout_secs: env::var("HEAD_CHECK_TIMEOUT_SECS")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(2),
+                .unwrap_or(3),
             enable_proxy: env::var("ENABLE_PROXY")
                 .ok()
                 .map(|s| s == "true" || s == "1")

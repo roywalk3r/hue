@@ -35,7 +35,7 @@ impl StreamProvider for KissKhProvider {
         false
     }
     fn timeout_secs(&self) -> u64 {
-        20
+        8
     }
 
     async fn fetch(

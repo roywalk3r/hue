@@ -39,7 +39,7 @@ impl StreamProvider for VideasyProvider {
         false
     }
     fn timeout_secs(&self) -> u64 {
-        15
+        8
     }
 
     async fn fetch(

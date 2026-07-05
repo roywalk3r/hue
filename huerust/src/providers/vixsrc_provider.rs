@@ -32,10 +32,10 @@ impl StreamProvider for VixsrcProvider {
         "vixsrc"
     }
     fn is_fast(&self) -> bool {
-        true
+        false
     }
     fn timeout_secs(&self) -> u64 {
-        15
+        8
     }
 
     async fn fetch(

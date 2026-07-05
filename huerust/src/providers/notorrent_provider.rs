@@ -37,7 +37,7 @@ impl StreamProvider for NoTorrentProvider {
         true
     }
     fn timeout_secs(&self) -> u64 {
-        20
+        8
     }
 
     async fn fetch(

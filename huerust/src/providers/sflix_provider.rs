@@ -48,7 +48,7 @@ impl StreamProvider for SflixProvider {
         true
     }
     fn timeout_secs(&self) -> u64 {
-        15
+        8
     }
 
     async fn fetch(
