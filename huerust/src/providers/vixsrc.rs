@@ -271,27 +271,17 @@ impl VixsrcClient {
                     for s in streams {
                         let mut h = headers.clone();
                         h.insert("Referer".to_string(), page_url.clone());
-                        let stream_format = if s.url.contains("vixsrc.to/playlist/")
-                            || s.url.contains("vixsrc.to/movie/")
-                            || s.url.contains("vixsrc.to/tv/")
-                        {
-                            // Vixsrc.to is an HTML iframe player page. Marking
-                            // as iframe lets the player embed it directly and
-                            // bypass HLS.js fragParsingError retries.
-                            "iframe"
-                        } else {
-                            // vid1.php?url= and similar return m3u8 manifests
-                            // that wrap MP4 segments. Treat as HLS so the
-                            // player uses HLS.js (or fails over after a
-                            // few junk errors).
-                            "hls"
-                        };
+                        // Every stream we extract is a real HLS playlist — the
+                        // master's `vixsrc.to/playlist/…?type=video` variants
+                        // (which the proxy rewrites: AES key + vix-content.net
+                        // segments), or a raw m3u8 fallback. Serve native HLS,
+                        // not an iframe embed.
                         results.push(StreamResult {
                             url: s.url,
                             title: s.title,
                             quality: s.quality,
                             provider: "Aura".to_string(),
-                            format: stream_format.to_string(),
+                            format: "hls".to_string(),
                             subtitles: external_subs.clone(),
                             headers: Some(h),
                             extra_metadata: None,

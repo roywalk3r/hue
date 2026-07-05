@@ -32,7 +32,7 @@ impl StreamProvider for VixsrcProvider {
         "vixsrc"
     }
     fn is_fast(&self) -> bool {
-        false
+        true
     }
     fn timeout_secs(&self) -> u64 {
         8
