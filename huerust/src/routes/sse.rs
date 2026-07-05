@@ -212,25 +212,18 @@ impl ProviderTaskEnv {
             let elapsed_ms = t0.elapsed().as_millis() as u64;
             match result {
                 Ok(Ok(streams)) if !streams.is_empty() => {
-                    let checks = join_all(
-                        streams.iter().map(|s| is_stream_reachable(&env.client, s, env.head_timeout)),
-                    )
-                    .await;
-                    let streams: Vec<StreamResult> = streams
-                        .into_iter()
-                        .zip(checks)
-                        .filter(|(_, ok)| *ok)
-                        .map(|(s, _)| s)
-                        .collect();
-                    if streams.is_empty() {
-                        info!("[SSE] provider {} returned only unreachable streams", name);
-                        env.cb.record_failure(&real_name);
-                        return vec![];
-                    }
+                    // Emit streams immediately so the player gets the first
+                    // event without waiting for the reachability check. The
+                    // check runs in parallel and we follow up with a
+                    // `provider_invalidate` event for any URL that 404s, so
+                    // the player can drop it without burning 10s of HLS
+                    // retries. On a slow network this means the player
+                    // gets a stream in 1-2s; on a fast network the check
+                    // completes by the time HLS.js requests the manifest.
                     env.cb.record_success(&real_name);
                     env.stream_count.fetch_add(streams.len(), Ordering::Relaxed);
                     info!(
-                        "[SSE] provider {} returned {} reachable streams in {}ms",
+                        "[SSE] provider {} returned {} streams in {}ms",
                         name,
                         streams.len(),
                         elapsed_ms
@@ -253,6 +246,37 @@ impl ProviderTaskEnv {
                             .to_string(),
                         )))
                         .await;
+
+                    // Background reachability check. Emit invalidation
+                    // events for any stream whose URL didn't respond.
+                    let head_timeout = env.head_timeout;
+                    let provider_name = name.clone();
+                    let tx_invalidate = env.tx.clone();
+                    let client = env.client.clone();
+                    let streams_for_check = streams.clone();
+                    tokio::spawn(async move {
+                        let checks = join_all(
+                            streams_for_check
+                                .iter()
+                                .map(|s| is_stream_reachable(&client, s, head_timeout)),
+                        )
+                        .await;
+                        for (s, ok) in streams_for_check.iter().zip(checks.iter()) {
+                            if !ok {
+                                let _ = tx_invalidate
+                                    .send(Ok(Event::default().event("provider_invalidate").data(
+                                        json!({
+                                            "provider": provider_name,
+                                            "url": s.url,
+                                            "reason": "head_check_failed"
+                                        })
+                                        .to_string(),
+                                    )))
+                                    .await;
+                            }
+                        }
+                    });
+
                     streams
                 }
                 Ok(Err(e)) => {
@@ -503,6 +527,26 @@ pub async fn sse_streams_handler(
                         let elapsed_ms = t0.elapsed().as_millis() as u64;
                         match result {
                             Ok(Ok(streams)) if !streams.is_empty() => {
+                                // Emit event immediately with unfiltered streams.
+                                let mut display = if enable_proxy {
+                                    wrap_with_proxy(streams.clone(), &proxy_base, &secret)
+                                } else {
+                                    streams.clone()
+                                };
+                                encrypt_stream_result_urls(&mut display, &kkey);
+                                let _ = tx
+                                    .send(Ok(Event::default().event("provider").data(
+                                        json!({
+                                            "provider": name,
+                                            "streams": display,
+                                            "count": display.len(),
+                                            "elapsed_ms": elapsed_ms,
+                                            "sticky": true
+                                        })
+                                        .to_string(),
+                                    )))
+                                    .await;
+
                                 let checks = join_all(
                                     streams.iter().map(|s| is_stream_reachable(&client, s, head_timeout)),
                                 )
@@ -526,24 +570,6 @@ pub async fn sse_streams_handler(
                                     streams.len(),
                                     elapsed_ms
                                 );
-                                let mut display = if enable_proxy {
-                                    wrap_with_proxy(streams.clone(), &proxy_base, &secret)
-                                } else {
-                                    streams.clone()
-                                };
-                                encrypt_stream_result_urls(&mut display, &kkey);
-                                let _ = tx
-                                    .send(Ok(Event::default().event("provider").data(
-                                        json!({
-                                            "provider": name,
-                                            "streams": display,
-                                            "count": display.len(),
-                                            "elapsed_ms": elapsed_ms,
-                                            "sticky": true
-                                        })
-                                        .to_string(),
-                                    )))
-                                    .await;
                                 streams
                             }
                             Ok(Err(e)) => {
