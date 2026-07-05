@@ -1,9 +1,9 @@
 //! System handlers for monitoring, health, and administration
 
-use crate::app::SystemState;
+use crate::app::{extract_client_ip, SystemState};
 use axum::{
     extract::State,
-    http::StatusCode,
+    http::{Request, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
@@ -130,4 +130,48 @@ pub async fn status_handler(State(state): State<SystemState>) -> Response {
         "providers": providers
     });
     (StatusCode::OK, Json(resp)).into_response()
+}
+
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct AuthTokenResponse {
+    /// Bearer token. Send in `Authorization: Bearer <token>`.
+    pub token: String,
+    /// Absolute expiry in ms since the Unix epoch.
+    pub expires: u64,
+    /// Lifetime in ms.
+    pub expires_in: u64,
+}
+
+/// Mint a short-lived HMAC-signed Bearer token. The token is bound to the
+/// caller's IP so it cannot be replayed from a different egress. TTL is 1
+/// hour; clients refresh proactively.
+#[utoipa::path(
+    get,
+    path = "/api/auth/token",
+    tag = "system",
+    responses(
+        (status = 200, description = "Token minted", body = AuthTokenResponse),
+    )
+)]
+pub async fn auth_token_handler(
+    State(state): State<SystemState>,
+    req: Request<axum::body::Body>,
+) -> Response {
+    let client_ip = extract_client_ip(&req);
+    let ttl_ms: u64 = 60 * 60 * 1000;
+    let (token, expires) =
+        crate::security::sign_api_token(&state.config.secret, &client_ip, ttl_ms);
+    info!(
+        "[auth] minted token (ip={}, ttl_ms={}, expires_ms={})",
+        client_ip, ttl_ms, expires
+    );
+    (
+        StatusCode::OK,
+        Json(AuthTokenResponse {
+            token,
+            expires,
+            expires_in: ttl_ms,
+        }),
+    )
+        .into_response()
 }

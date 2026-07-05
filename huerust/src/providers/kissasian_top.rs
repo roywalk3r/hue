@@ -29,9 +29,10 @@ use std::collections::HashMap;
 use tracing::{info, warn};
 
 const BASE_URL: &str = "https://kissasian.top";
-const ORIGIN: &str = "https://kissasian.top";
-const REFERER: &str = "https://kissasian.top/";
-const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36";
+// NOTE: do NOT send a full browser fingerprint. Cloudflare bot management
+// returns 403 to over-spoofed requests from datacenter egress IPs and 200 to
+// default reqwest clients. Keep headers minimal.
+const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36";
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct KADrama {
@@ -142,8 +143,6 @@ impl KissAsianTopClient {
     fn request(&self, method: reqwest::Method, path: &str) -> reqwest_middleware::RequestBuilder {
         self.client
             .request(method, format!("{}{}", BASE_URL, path))
-            .header("Origin", ORIGIN)
-            .header("Referer", REFERER)
             .header("User-Agent", USER_AGENT)
             .header("Accept", "application/json")
     }
@@ -234,7 +233,6 @@ impl KissAsianTopClient {
         };
 
         let mut headers = HashMap::new();
-        headers.insert("Referer".to_string(), REFERER.to_string());
         headers.insert("User-Agent".to_string(), USER_AGENT.to_string());
 
         let subtitles: Vec<Subtitle> = data

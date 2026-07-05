@@ -157,6 +157,51 @@ pub fn verify_proxy_url(
     })
 }
 
+// ── API auth tokens (Bearer) ────────────────────────────────────────────────
+
+/// Mint a short-lived API token bound to the caller's IP.
+/// Format: `base64url(payload).base64url(sig)` where payload = `<expiry_ms>:<ip>`.
+/// The IP binding means a stolen token cannot be replayed from a different egress.
+pub fn sign_api_token(secret: &str, client_ip: &str, ttl_ms: u64) -> (String, u64) {
+    use base64::{engine::general_purpose, Engine as _};
+    let expires = (chrono::Utc::now().timestamp_millis() as u64) + ttl_ms;
+    let payload = format!("{}:{}", expires, client_ip);
+    let key = hmac_key(secret);
+    let mut mac = HmacSha256::new_from_slice(&key).expect("HMAC accepts any key size");
+    mac.update(payload.as_bytes());
+    let sig = mac.finalize().into_bytes();
+    let token = format!(
+        "{}.{}",
+        general_purpose::URL_SAFE_NO_PAD.encode(payload.as_bytes()),
+        general_purpose::URL_SAFE_NO_PAD.encode(sig)
+    );
+    (token, expires)
+}
+
+/// Verify a Bearer token. Returns `Some(expires_ms)` if the signature is valid,
+/// the token hasn't expired, and the IP matches.
+pub fn verify_api_token(token: &str, secret: &str, client_ip: &str) -> Option<u64> {
+    use base64::{engine::general_purpose, Engine as _};
+    let (payload_b64, sig_b64) = token.split_once('.')?;
+    let payload = general_purpose::URL_SAFE_NO_PAD.decode(payload_b64).ok()?;
+    let sig = general_purpose::URL_SAFE_NO_PAD.decode(sig_b64).ok()?;
+    let payload_str = std::str::from_utf8(&payload).ok()?;
+    let (exp_str, ip_in_token) = payload_str.split_once(':')?;
+    let expires: u64 = exp_str.parse().ok()?;
+    let now = chrono::Utc::now().timestamp_millis() as u64;
+    if now > expires {
+        return None;
+    }
+    if !ip_in_token.is_empty() && !client_ip.is_empty() && ip_in_token != client_ip {
+        return None;
+    }
+    let key = hmac_key(secret);
+    let mut mac = HmacSha256::new_from_slice(&key).expect("HMAC accepts any key size");
+    mac.update(&payload);
+    mac.verify_slice(&sig).ok()?;
+    Some(expires)
+}
+
 fn constant_time_eq(a: &str, b: &str) -> bool {
     let a = a.as_bytes();
     let b = b.as_bytes();
@@ -446,5 +491,34 @@ mod tests {
         // The canonical h_headers param should list keys in sorted order.
         let h_headers = token_a.to_query();
         assert!(h_headers.contains("h_headers="));
+    }
+
+    #[test]
+    fn test_api_token_roundtrip() {
+        let (token, expires) = sign_api_token("s3cret-1234567890", "203.0.113.7", 60_000);
+        assert!(!token.contains(':'));
+        assert!(token.contains('.'));
+        let verified = verify_api_token(&token, "s3cret-1234567890", "203.0.113.7");
+        assert_eq!(verified, Some(expires));
+    }
+
+    #[test]
+    fn test_api_token_wrong_ip_rejected() {
+        let (token, _) = sign_api_token("s3cret-1234567890", "203.0.113.7", 60_000);
+        assert!(verify_api_token(&token, "s3cret-1234567890", "198.51.100.4").is_none());
+    }
+
+    #[test]
+    fn test_api_token_wrong_secret_rejected() {
+        let (token, _) = sign_api_token("s3cret-1234567890", "203.0.113.7", 60_000);
+        assert!(verify_api_token(&token, "different-secret", "203.0.113.7").is_none());
+    }
+
+    #[test]
+    fn test_api_token_expired_rejected() {
+        let (token, _) = sign_api_token("s3cret-1234567890", "203.0.113.7", 0);
+        // ttl=0 → expiry is the same ms we computed it, so by verify time it's already past
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        assert!(verify_api_token(&token, "s3cret-1234567890", "203.0.113.7").is_none());
     }
 }

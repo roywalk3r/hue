@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"cd /home/rseann/projects/Misc/hue/huerust\\necho \\\"=== standalone .unwrap() lines NOT preceded by to_string (potential false hits):\\\"\\nfor f in play hitv subtitle system tmdb drama sports p...",
-  "error": "Exit code 1\n=== standalone .unwrap() lines NOT preceded by to_string (potential false hits):\nhitv:75\nhitv:87\nhitv:122\nhitv:134\nhitv:172\nhitv:184\nhitv:222\nhitv:234\nhitv:252\nhitv:285\nhitv:297\nhitv:314\nhitv:323\nhitv:334\nhitv:414\nhitv:427\nhitv:451\nhitv:464\nhitv:504\nhitv:516\ntmdb:72\ntmdb:84\ntmdb:126\ntmdb:159\nsports:218\nsports:247\nsports:290\nsports:348\nsports:400\nsports:494\nsports:528\nsports:576\nsports:643\nsports:657\nsports:817\nproviders:62\n=== total standalone .unwrap() lines per file:\nplay: 0\nhitv: ...",
-  "timestamp": "2026-07-05T13:07:53.330Z",
+  "tool_input_preview": "{\"command\":\"PROXY='https://api.vexli.online/ts-proxy?url=https%3A%2F%2Fshy-smoke-85df.xxw8bjzldt.workers.dev%2Ffile2%2FNGY1ZGNjY2Q3MjMzMWY4ZWI0MDdmOTViMjM2MDJkNTkxNzgzMDE0Nzc2NzM0MzM2%2F480p%2Fpage-0....",
+  "error": "Exit code 7\n=== through PRODUCTION ts-proxy (what the player hits):\n  code=200 ttfb=2.754587s total=23.871913s size=1307540 speed=54773B/s\n=== DIRECT to shy-smoke worker (bypassing prod proxy), default/IPv4/IPv6:\n  mode[default]: code=200 ttfb=9.458154s total=30.000740s size=437495 speed=14582B/s\n  mode[-4]: code=200 ttfb=5.979051s total=30.000786s size=395997 speed=13199B/s\n  mode[-6]: code=000 ttfb=0.000000s total=0.001332s size=0 speed=0B/s",
+  "timestamp": "2026-07-05T15:26:30.421Z",
   "retry_count": 1
 }
