@@ -336,7 +336,7 @@ fn filter_cacheable_streams(streams: Vec<StreamResult>) -> Vec<StreamResult> {
         .filter(|stream| {
             let provider = stream.provider.to_lowercase();
             let url = stream.url.to_lowercase();
-            !matches!(provider.as_str(), "aura" | "cinema" | "nova")
+            !matches!(provider.as_str(), "cinema" | "nova")
                 && !url.contains("vixsrc.to")
                 && !url.contains("hakunaymatata")
                 && !url.contains("token=")
