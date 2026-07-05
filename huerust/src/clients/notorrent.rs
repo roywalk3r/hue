@@ -113,6 +113,22 @@ impl NoTorrentClient {
             if url.contains("github.com") || url.contains("googleusercontent") {
                 continue;
             }
+            // vid1.php/vid2.php and the /vid/ paths on hostingersite serve raw
+            // HLS manifests whose segments are ad HTML pages
+            // (page-N.html?token=?token= on scalableimpactgroup.site) — fake
+            // playlists that fail in HLS.js and hang silently in an <iframe>.
+            if url.contains("vid1.php?url=")
+                || url.contains("vid2.php?url=")
+                || url.contains("/vid/series/")
+                || url.contains("/vid/movie/")
+                // 321moviesfree "streams" point at HTML detail pages, not media
+                || url.contains("321moviesfree.com/detail")
+                // p.111477.xyz serves tiny range probes but 429s every real
+                // transfer — passes reachability checks, then never plays
+                || url.contains("p.111477.xyz/bulk")
+            {
+                continue;
+            }
             let clean_title = clean_text(item.title.as_deref().unwrap_or(""));
             let quality = extract_quality(&clean_title);
             let language = if let Some(cap) = regex_lang(&clean_title) {
@@ -157,7 +173,21 @@ impl NoTorrentClient {
             } else {
                 format!("NoTorrent • {language}")
             };
-            let format = if url.contains(".m3u8") { "hls" } else { "mp4" };
+            let format = if url.contains("vixsrc.to/playlist/")
+                || url.contains("vixsrc.to/movie/")
+                || url.contains("vixsrc.to/tv/")
+                || url.contains("filme/")
+            {
+                // NoTorrent's iframe-wrapped streams (Vixsrc, filme) are HTML
+                // player pages, not raw HLS. Marking as iframe lets the player
+                // embed directly in <iframe> and bypass HLS.js
+                // fragParsingError retries.
+                "iframe"
+            } else if url.contains(".m3u8") {
+                "hls"
+            } else {
+                "mp4"
+            };
             out.push(StreamResult {
                 url,
                 title: quality.clone(),
