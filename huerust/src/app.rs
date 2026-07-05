@@ -238,6 +238,12 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
             .connect_timeout(Duration::from_secs(10))
             .pool_max_idle_per_host(32)
             .pool_idle_timeout(Duration::from_secs(120))
+            // Force IPv4 egress. Some upstreams (e.g. vixsrc.to) publish AAAA
+            // records with no working IPv6 route, so reqwest would stall on the
+            // v6 address until timeout when the proxy fetches their manifest/
+            // segments. Every stream CDN serves IPv4, so this only removes the
+            // broken-IPv6 hang — matching curl's happy-eyeballs fallback.
+            .local_address(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED))
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
         "STREAM_PROXY_URL",
     )
