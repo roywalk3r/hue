@@ -90,10 +90,18 @@ pub(crate) fn wrap_with_proxy(
                     || is_moviebox_cdn
                     || is_mp4_mkv
                 {
-                    if is_hls { "m3u8-proxy" } else { "ts-proxy" }
+                    if is_hls {
+                        "m3u8-proxy"
+                    } else {
+                        "ts-proxy"
+                    }
                 } else {
                     // Default: hls → m3u8-proxy, everything else → ts-proxy
-                    if is_hls { "m3u8-proxy" } else { "ts-proxy" }
+                    if is_hls {
+                        "m3u8-proxy"
+                    } else {
+                        "ts-proxy"
+                    }
                 };
                 format!("{}/{}?{}", proxy_base, route, token.to_query())
             };

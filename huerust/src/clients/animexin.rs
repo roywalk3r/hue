@@ -242,7 +242,10 @@ impl AnimexinClient {
         // 1. Base64-encoded iframe embeds (primary sources)
         // The dropdown may use <li> buttons instead of <option> tags.
         let mut seen_sources: std::collections::HashSet<String> = std::collections::HashSet::new();
-        let option_re = Regex::new(r#"<option\s+value="([A-Za-z0-9+/=]+)"(?:\s+data-index="[^"]*")?\s*>([^<]+)</option>"#).ok();
+        let option_re = Regex::new(
+            r#"<option\s+value="([A-Za-z0-9+/=]+)"(?:\s+data-index="[^"]*")?\s*>([^<]+)</option>"#,
+        )
+        .ok();
         let li_re = Regex::new(r#"(?s)<li[^>]*>.*?value="([A-Za-z0-9+/=]+)".*?</li>"#).ok();
         let li_label_re = Regex::new(r#"<li[^>]*>.*?<span[^>]*>([^<]+)</span>.*?</li>"#)
             .ok()
@@ -341,7 +344,11 @@ impl AnimexinClient {
             .filter(|s| !s.name.to_uppercase().ends_with("-DL"))
             .collect();
         let fallback: Vec<_> = servers.sub.iter().collect();
-        let pool = if playable.is_empty() { &fallback } else { &playable };
+        let pool = if playable.is_empty() {
+            &fallback
+        } else {
+            &playable
+        };
 
         let target = if let Some(srv) = server {
             pool.iter()
@@ -463,7 +470,10 @@ impl AnimexinClient {
             let html = match self.client.get(&url).send().await {
                 Ok(resp) => resp.text().await?,
                 Err(e) => {
-                    warn!("[Animexin] discover page {} fetch failed: {}", current_page, e);
+                    warn!(
+                        "[Animexin] discover page {} fetch failed: {}",
+                        current_page, e
+                    );
                     break;
                 }
             };
@@ -471,7 +481,9 @@ impl AnimexinClient {
             let mut page_items = 0usize;
             for cap in article_re.captures_iter(&html) {
                 let block = cap.get(1).map(|m| m.as_str()).unwrap_or("");
-                let Some(link_cap) = link_re.captures(block) else { continue };
+                let Some(link_cap) = link_re.captures(block) else {
+                    continue;
+                };
                 let slug = link_cap
                     .get(1)
                     .map(|m| m.as_str().to_string())
@@ -551,7 +563,11 @@ impl AnimexinClient {
 }
 
 /// Slice the HTML between a start marker and the nearest end marker.
-fn extract_section_html<'a>(html: &'a str, start_marker: &str, end_markers: &[&str]) -> Option<&'a str> {
+fn extract_section_html<'a>(
+    html: &'a str,
+    start_marker: &str,
+    end_markers: &[&str],
+) -> Option<&'a str> {
     let start = html.find(start_marker)? + start_marker.len();
     let end = end_markers
         .iter()
@@ -563,7 +579,8 @@ fn extract_section_html<'a>(html: &'a str, start_marker: &str, end_markers: &[&s
 
 /// Parse `<article class="bs">` blocks into cards.
 fn parse_article_cards(html: &str) -> Vec<AnimeCard> {
-    let Some(article_re) = Regex::new(r#"(?s)<article[^>]*class="bs"[^>]*>(.*?)</article>"#).ok() else {
+    let Some(article_re) = Regex::new(r#"(?s)<article[^>]*class="bs"[^>]*>(.*?)</article>"#).ok()
+    else {
         return Vec::new();
     };
     let Some(link_re) =
@@ -580,7 +597,9 @@ fn parse_article_cards(html: &str) -> Vec<AnimeCard> {
     let mut cards = Vec::new();
     for cap in article_re.captures_iter(html) {
         let block = cap.get(1).map(|m| m.as_str()).unwrap_or("");
-        let Some(link_cap) = link_re.captures(block) else { continue };
+        let Some(link_cap) = link_re.captures(block) else {
+            continue;
+        };
         let slug = link_cap
             .get(1)
             .map(|m| m.as_str().to_string())
@@ -639,15 +658,15 @@ fn parse_serieslist_cards(html: &str) -> Vec<AnimeCard> {
     let Some(li_re) = Regex::new(r#"(?s)<li>(.*?)</li>"#).ok() else {
         return Vec::new();
     };
-    let Some(link_re) = Regex::new(r#"<a\s+class="series"\s+href="https://animexin\.dev/([^"]+)/"[^>]*>"#).ok()
+    let Some(link_re) =
+        Regex::new(r#"<a\s+class="series"\s+href="https://animexin\.dev/([^"]+)/"[^>]*>"#).ok()
     else {
         return Vec::new();
     };
     let Some(img_re) = Regex::new(r#"<img[^>]+src="([^"]+)""#).ok() else {
         return Vec::new();
     };
-    let Some(title_re) = Regex::new(r#"<h4>[^<]*<a\s+class="series"[^>]*>([^<]+)</a>"#).ok()
-    else {
+    let Some(title_re) = Regex::new(r#"<h4>[^<]*<a\s+class="series"[^>]*>([^<]+)</a>"#).ok() else {
         return Vec::new();
     };
     let score_re = Regex::new(r#"<div\s+class="numscore">([^<]+)</div>"#).ok();
@@ -655,7 +674,9 @@ fn parse_serieslist_cards(html: &str) -> Vec<AnimeCard> {
     let mut cards = Vec::new();
     for cap in li_re.captures_iter(html) {
         let block = cap.get(1).map(|m| m.as_str()).unwrap_or("");
-        let Some(link_cap) = link_re.captures(block) else { continue };
+        let Some(link_cap) = link_re.captures(block) else {
+            continue;
+        };
         let slug = link_cap
             .get(1)
             .map(|m| m.as_str().to_string())

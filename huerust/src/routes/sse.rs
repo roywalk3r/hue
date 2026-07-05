@@ -51,6 +51,7 @@ fn is_generic_movie_tv_provider_allowed(media_type: &str, real_name: &str) -> bo
         && real_name != "kisskh_xyra"
         && real_name != "dramacool"
         && real_name != "kissasian"
+        && real_name != "kissasian_top"
         && real_name != "vidvault"
 }
 
@@ -64,7 +65,11 @@ fn is_generic_movie_tv_provider_allowed(media_type: &str, real_name: &str) -> bo
 /// immediately on the manifest request, so a pre-emptive HEAD just adds
 /// latency and false-positives (slow CDNs trigger 1s timeouts that
 /// kill working streams).
-pub(crate) async fn is_stream_reachable(client: &reqwest_middleware::ClientWithMiddleware, stream: &StreamResult, timeout_secs: u64) -> bool {
+pub(crate) async fn is_stream_reachable(
+    client: &reqwest_middleware::ClientWithMiddleware,
+    stream: &StreamResult,
+    timeout_secs: u64,
+) -> bool {
     if stream.url.contains("/m3u8-proxy")
         || stream.url.contains("/ts-proxy")
         || stream.url.contains("/sub-proxy")
@@ -181,25 +186,37 @@ impl ProviderTaskEnv {
                 return vec![];
             }
             let (provider_season, provider_episode) =
-                env.config.map_season_episode(&real_name, &env.tmdb_id, env.season, env.episode);
+                env.config
+                    .map_season_episode(&real_name, &env.tmdb_id, env.season, env.episode);
             let t0 = std::time::Instant::now();
-            info!("[SSE] spawning provider {} (timeout {}s)", name, timeout_secs);
+            info!(
+                "[SSE] spawning provider {} (timeout {}s)",
+                name, timeout_secs
+            );
             let mut result = timeout(
                 Duration::from_secs(timeout_secs),
-                provider.fetch(&env.tmdb_info, &env.m_type, provider_season, provider_episode),
+                provider.fetch(
+                    &env.tmdb_info,
+                    &env.m_type,
+                    provider_season,
+                    provider_episode,
+                ),
             )
             .await;
 
             // Retry once on transient error or timeout (not on empty success), but only
             // for providers that are not on the critical fast path. Fast providers must
             // deliver within their timeout budget so the player can start within 5s.
-            if !env.config.fast_deadline().is_zero()
-                && matches!(result, Ok(Err(_)) | Err(_))
-            {
+            if !env.config.fast_deadline().is_zero() && matches!(result, Ok(Err(_)) | Err(_)) {
                 info!("[SSE] provider {} retrying after initial failure", name);
                 let retry = timeout(
                     Duration::from_secs(3),
-                    provider.fetch(&env.tmdb_info, &env.m_type, provider_season, provider_episode),
+                    provider.fetch(
+                        &env.tmdb_info,
+                        &env.m_type,
+                        provider_season,
+                        provider_episode,
+                    ),
                 )
                 .await;
                 result = retry;
@@ -207,7 +224,10 @@ impl ProviderTaskEnv {
 
             // Auto-detect season split: if season 1 returns empty and
             // episode > 12, try season 2 with episode shifted by 12.
-            if matches!(result, Ok(Ok(ref s)) if s.is_empty()) && env.season == 1 && env.episode > 12 {
+            if matches!(result, Ok(Ok(ref s)) if s.is_empty())
+                && env.season == 1
+                && env.episode > 12
+            {
                 let fallback = timeout(
                     Duration::from_secs(3),
                     provider.fetch(&env.tmdb_info, &env.m_type, 2, env.episode - 12),
@@ -557,7 +577,9 @@ pub async fn sse_streams_handler(
                                     .await;
 
                                 let checks = join_all(
-                                    streams.iter().map(|s| is_stream_reachable(&client, s, head_timeout)),
+                                    streams
+                                        .iter()
+                                        .map(|s| is_stream_reachable(&client, s, head_timeout)),
                                 )
                                 .await;
                                 let streams: Vec<StreamResult> = streams
@@ -635,14 +657,12 @@ pub async fn sse_streams_handler(
                     .map(|p| p.name().to_string())
             });
         let slow_names = ["Aurora", "Orient"];
-        let (mut priority, rest): (Vec<_>, Vec<_>) = all_providers
-            .into_iter()
-            .partition(|p| {
-                let healthy = cb.is_healthy(p.real_name());
-                let is_fast = p.is_fast();
-                let is_top = top_provider.as_deref() == Some(p.name());
-                healthy && (is_fast || is_top)
-            });
+        let (mut priority, rest): (Vec<_>, Vec<_>) = all_providers.into_iter().partition(|p| {
+            let healthy = cb.is_healthy(p.real_name());
+            let is_fast = p.is_fast();
+            let is_top = top_provider.as_deref() == Some(p.name());
+            healthy && (is_fast || is_top)
+        });
         // Ensure the top provider appears only once (if it is also fast it is
         // already included; the partition above guarantees uniqueness).
         let (fast, slow): (Vec<_>, Vec<_>) = rest
@@ -657,8 +677,14 @@ pub async fn sse_streams_handler(
             priority
                 .iter()
                 .map(|p| (p.name(), cb.is_healthy(p.real_name())))
-                .chain(fast.iter().map(|p| (p.name(), cb.is_healthy(p.real_name()))))
-                .chain(slow.iter().map(|p| (p.name(), cb.is_healthy(p.real_name()))))
+                .chain(
+                    fast.iter()
+                        .map(|p| (p.name(), cb.is_healthy(p.real_name())))
+                )
+                .chain(
+                    slow.iter()
+                        .map(|p| (p.name(), cb.is_healthy(p.real_name())))
+                )
                 .collect::<Vec<_>>()
         );
 
@@ -1001,10 +1027,17 @@ pub async fn report_failure_handler(
     // current user, not the global circuit breaker (which is reserved
     // for server-side fetch failures).
     let sticky_key = StickyPrefKey::new(&user_id, &m_type, &tmdb_id);
-    let sticky_fail_key: StickyFailureKey = (user_id.clone(), m_type.clone(), tmdb_id.clone(), real_name.to_string());
+    let sticky_fail_key: StickyFailureKey = (
+        user_id.clone(),
+        m_type.clone(),
+        tmdb_id.clone(),
+        real_name.to_string(),
+    );
     let should_drop_sticky = {
         let mut map = sticky_failures().lock().unwrap();
-        let entry = map.entry(sticky_fail_key).or_insert((0, std::time::Instant::now()));
+        let entry = map
+            .entry(sticky_fail_key)
+            .or_insert((0, std::time::Instant::now()));
         if entry.1.elapsed() > STICKY_FAILURE_WINDOW {
             *entry = (1, std::time::Instant::now());
         } else {
@@ -1022,7 +1055,12 @@ pub async fn report_failure_handler(
                 );
             }
         }
-        sticky_failures().lock().unwrap().remove(&(user_id, m_type.clone(), tmdb_id.clone(), real_name.to_string()));
+        sticky_failures().lock().unwrap().remove(&(
+            user_id,
+            m_type.clone(),
+            tmdb_id.clone(),
+            real_name.to_string(),
+        ));
     }
 
     StatusCode::NO_CONTENT
@@ -1111,7 +1149,9 @@ pub async fn warm_handler(
                         // The warm cache is populated after all tasks complete, so this
                         // task will finish before its result is consumed.
                         let checks = join_all(
-                            streams.iter().map(|s| is_stream_reachable(&client, s, head_timeout)),
+                            streams
+                                .iter()
+                                .map(|s| is_stream_reachable(&client, s, head_timeout)),
                         )
                         .await;
                         let streams: Vec<StreamResult> = streams
@@ -1121,7 +1161,10 @@ pub async fn warm_handler(
                             .map(|(s, _)| s)
                             .collect();
                         if streams.is_empty() {
-                            info!("[Warm] provider {} returned only unreachable streams", real_name);
+                            info!(
+                                "[Warm] provider {} returned only unreachable streams",
+                                real_name
+                            );
                             cb.record_failure(&real_name);
                         } else {
                             cb.record_success(&real_name);

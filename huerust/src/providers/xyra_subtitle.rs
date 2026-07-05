@@ -122,7 +122,12 @@ impl XyraSubtitleClient {
 
     /// Download a subtitle file. xyra auto-decompresses gzip. Returns raw SRT/VTT.
     pub async fn download(&self, url: &str) -> Result<String> {
-        let full = format!("{}/download?api_key={}&url={}", XYRA_BASE, API_KEY, urlencoding::encode(url));
+        let full = format!(
+            "{}/download?api_key={}&url={}",
+            XYRA_BASE,
+            API_KEY,
+            urlencoding::encode(url)
+        );
         info!("[xyra subtitle] download {}", url);
         let resp = self.client.get(&full).send().await?;
         if !resp.status().is_success() {

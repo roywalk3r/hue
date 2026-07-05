@@ -149,13 +149,30 @@ impl AniwaveClient {
     fn base_headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
         headers.insert("User-Agent", HeaderValue::from_static(UA_DESKTOP));
-        headers.insert("Accept", HeaderValue::from_static("application/json, text/javascript, */*; q=0.01"));
-        headers.insert("Accept-Language", HeaderValue::from_static("en-US,en;q=0.9"));
-        headers.insert("Accept-Encoding", HeaderValue::from_static("gzip, deflate, br"));
+        headers.insert(
+            "Accept",
+            HeaderValue::from_static("application/json, text/javascript, */*; q=0.01"),
+        );
+        headers.insert(
+            "Accept-Language",
+            HeaderValue::from_static("en-US,en;q=0.9"),
+        );
+        headers.insert(
+            "Accept-Encoding",
+            HeaderValue::from_static("gzip, deflate, br"),
+        );
         headers.insert("DNT", HeaderValue::from_static("1"));
-        headers.insert("Sec-Ch-Ua", HeaderValue::from_static("\"Not.A/Brand\";v=\"24\", \"Chromium\";v=\"137\", \"Google Chrome\";v=\"137\""));
+        headers.insert(
+            "Sec-Ch-Ua",
+            HeaderValue::from_static(
+                "\"Not.A/Brand\";v=\"24\", \"Chromium\";v=\"137\", \"Google Chrome\";v=\"137\"",
+            ),
+        );
         headers.insert("Sec-Ch-Ua-Mobile", HeaderValue::from_static("?0"));
-        headers.insert("Sec-Ch-Ua-Platform", HeaderValue::from_static("\"Windows\""));
+        headers.insert(
+            "Sec-Ch-Ua-Platform",
+            HeaderValue::from_static("\"Windows\""),
+        );
         headers.insert("Sec-Fetch-Dest", HeaderValue::from_static("empty"));
         headers.insert("Sec-Fetch-Mode", HeaderValue::from_static("cors"));
         headers.insert("Sec-Fetch-Site", HeaderValue::from_static("same-origin"));
@@ -407,14 +424,20 @@ impl AniwaveClient {
                 url.clone(),
                 embed.intro.and_then(|i| {
                     if i.end > i.start {
-                        Some(SkipRange { start: i.start as u32, end: i.end as u32 })
+                        Some(SkipRange {
+                            start: i.start as u32,
+                            end: i.end as u32,
+                        })
                     } else {
                         None
                     }
                 }),
                 embed.outro.and_then(|o| {
                     if o.end > o.start {
-                        Some(SkipRange { start: o.start as u32, end: o.end as u32 })
+                        Some(SkipRange {
+                            start: o.start as u32,
+                            end: o.end as u32,
+                        })
                     } else {
                         None
                     }
@@ -425,7 +448,13 @@ impl AniwaveClient {
             let (mp4, origin) = self
                 .resolve_doodstream(&url, &format!("{}/watch/{}", BASE_URL, show_id))
                 .await?;
-            (mp4, origin, to_skip(&skip_intro), to_skip(&skip_outro), Vec::new())
+            (
+                mp4,
+                origin,
+                to_skip(&skip_intro),
+                to_skip(&skip_outro),
+                Vec::new(),
+            )
         };
 
         let stream = AniwaveStream {
@@ -621,10 +650,7 @@ impl AniwaveClient {
     }
 
     /// Browse Aniwave with the same typed params as the shared discover API.
-    pub async fn discover(
-        &self,
-        params: &FilterParams,
-    ) -> Result<PaginatedResponse<AnimeCard>> {
+    pub async fn discover(&self, params: &FilterParams) -> Result<PaginatedResponse<AnimeCard>> {
         let start_page = params.page.unwrap_or(1).max(1);
         let limit = params.limit.unwrap_or(20).clamp(1, 50) as usize;
         let country = params.country.as_deref().and_then(country_code_from_filter);
@@ -749,12 +775,7 @@ impl AniwaveClient {
         Ok((StatusCode::OK, worker_body))
     }
 
-    async fn worker_fetch_text(
-        &self,
-        url: &str,
-        referer: &str,
-        ajax: bool,
-    ) -> Result<String> {
+    async fn worker_fetch_text(&self, url: &str, referer: &str, ajax: bool) -> Result<String> {
         let worker_url = self
             .worker_url
             .as_deref()
@@ -944,10 +965,7 @@ impl AniwaveClient {
 
     /// Merge hiAnime v2 rich episode data into `EpisodeSummary` objects.
     /// Matches by `ep.num` ↔ `summary.number`.
-    pub fn enrich_episodes_v2(
-        rich: &[HianimeRichEpisode],
-        summaries: &mut Vec<EpisodeSummary>,
-    ) {
+    pub fn enrich_episodes_v2(rich: &[HianimeRichEpisode], summaries: &mut Vec<EpisodeSummary>) {
         for ep in summaries.iter_mut() {
             if let Some(r) = rich.iter().find(|re| re.ep_num == ep.number) {
                 if ep.title.is_none() {
@@ -2102,8 +2120,14 @@ mod hianime_info_tests {
         "dateCreated": "2026-01-08T13:05:01Z"
         "#;
         let meta = parse_info_page(html, "https://hianimes.ru");
-        assert_eq!(meta.og_image.as_deref(), Some("https://static.hianimes.ru/cover.jpg"));
-        assert_eq!(meta.description.as_deref(), Some("An anime about something."));
+        assert_eq!(
+            meta.og_image.as_deref(),
+            Some("https://static.hianimes.ru/cover.jpg")
+        );
+        assert_eq!(
+            meta.description.as_deref(),
+            Some("An anime about something.")
+        );
         assert_eq!(meta.keywords, vec!["Action", "Fantasy", "Shounen"]);
         assert_eq!(meta.date_created.as_deref(), Some("2026-01-08T13:05:01Z"));
     }

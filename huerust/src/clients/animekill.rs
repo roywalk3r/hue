@@ -259,7 +259,9 @@ impl AnimeKillClient {
             _ => ("a-z", None),
         };
 
-        let results: Vec<ApiResult> = self.api_list(category, page, limit, letter.as_deref()).await?;
+        let results: Vec<ApiResult> = self
+            .api_list(category, page, limit, letter.as_deref())
+            .await?;
         let has_more = results.len() >= limit;
 
         let items: Vec<AnimeCard> = results.into_iter().filter_map(api_result_to_card).collect();
@@ -329,10 +331,7 @@ impl AnimeKillClient {
             canonical
         );
         if is_animekill_not_found(&html) {
-            return Err(anyhow!(
-                "AnimeKill episode page not found ({})",
-                canonical
-            ));
+            return Err(anyhow!("AnimeKill episode page not found ({})", canonical));
         }
         Ok(html)
     }
@@ -545,12 +544,10 @@ fn extract_anime_payload(html: &str, anime_id: &str) -> Result<SsrAnime> {
     }
 
     // Fallback: search any self-contained JSON object containing this anime_id.
-    let fallback_re = Regex::new(
-        &format!(
-            r#"\"anime_id\":\"{}\"[^}}]*\"name\":\"[^\"]+\""#,
-            regex::escape(anime_id)
-        ),
-    )?;
+    let fallback_re = Regex::new(&format!(
+        r#"\"anime_id\":\"{}\"[^}}]*\"name\":\"[^\"]+\""#,
+        regex::escape(anime_id)
+    ))?;
     if let Some(m) = fallback_re.find(html) {
         let extended = extend_json_object(html, m.start(), m.end());
         if let Ok(anime) = serde_json::from_str::<SsrAnime>(&extended) {
@@ -560,12 +557,14 @@ fn extract_anime_payload(html: &str, anime_id: &str) -> Result<SsrAnime> {
         }
     }
 
-    Err(anyhow!("AnimeKill detail payload not found for {}", anime_id))
+    Err(anyhow!(
+        "AnimeKill detail payload not found for {}",
+        anime_id
+    ))
 }
 
 fn is_animekill_not_found(html: &str) -> bool {
-    html.contains(r#"<title>404"#)
-        || html.to_lowercase().contains(r#"<title>not found"#)
+    html.contains(r#"<title>404"#) || html.to_lowercase().contains(r#"<title>not found"#)
 }
 
 /// Locate the __next_f.push payload chunk containing `anime_id` and parse the
@@ -623,7 +622,8 @@ fn find_anime_props(value: &serde_json::Value, anime_id: &str) -> Option<serde_j
     match value {
         serde_json::Value::Array(arr) if arr.len() == 4 => {
             if let Some(props) = arr.get(3) {
-                if props.get("anime")
+                if props
+                    .get("anime")
                     .and_then(|a| a.get("anime_id"))
                     .and_then(|v| v.as_str())
                     == Some(anime_id)
@@ -732,17 +732,11 @@ fn canonical_episode_id(episode_id: &str) -> (String, u32) {
     let re = Regex::new(r"^(.+)-episode-(\d+)").unwrap();
     if let Some(cap) = re.captures(id) {
         let series = cap.get(1).unwrap().as_str().to_string();
-        let number: u32 = cap
-            .get(2)
-            .unwrap()
-            .as_str()
-            .parse()
-            .unwrap_or(1);
+        let number: u32 = cap.get(2).unwrap().as_str().parse().unwrap_or(1);
         return (format!("{}-episode-{}", series, number), number);
     }
     (id.to_string(), 1)
 }
-
 
 fn series_id_from_episode(episode_id: &str) -> String {
     episode_id
@@ -843,7 +837,10 @@ fn server_reliability_score(url: &str) -> u32 {
     if lower.contains("dood") || lower.contains("dooood.com") {
         return 40;
     }
-    if lower.contains("streamhide") || lower.contains("guccihide.com") || lower.contains("louishide.com") {
+    if lower.contains("streamhide")
+        || lower.contains("guccihide.com")
+        || lower.contains("louishide.com")
+    {
         return 30;
     }
     10
@@ -859,17 +856,19 @@ mod tests {
             Ok(h) => h,
             Err(_) => return,
         };
-        let anime = extract_anime_payload(
-            &html,
-            "dragons-triumph-in-the-celestial-realm",
-        )
-        .unwrap();
+        let anime = extract_anime_payload(&html, "dragons-triumph-in-the-celestial-realm").unwrap();
         assert_eq!(anime.anime_id, "dragons-triumph-in-the-celestial-realm");
         assert!(!anime.name.is_empty());
         let eps = anime.episode_list.unwrap();
         assert!(!eps.is_empty());
-        let ep1 = eps.iter().find(|e| e.number as u32 == 1).expect("episode 1");
-        assert_eq!(ep1.episode_id, "dragons-triumph-in-the-celestial-realm-episode-1");
+        let ep1 = eps
+            .iter()
+            .find(|e| e.number as u32 == 1)
+            .expect("episode 1");
+        assert_eq!(
+            ep1.episode_id,
+            "dragons-triumph-in-the-celestial-realm-episode-1"
+        );
     }
 
     #[test]
@@ -878,12 +877,12 @@ mod tests {
             Ok(h) => h,
             Err(_) => return,
         };
-        let ep = extract_episode_payload(
-            &html,
-            "dragons-triumph-in-the-celestial-realm-episode-1",
-        )
-        .unwrap();
-        assert_eq!(ep.episode_id, "dragons-triumph-in-the-celestial-realm-episode-1");
+        let ep = extract_episode_payload(&html, "dragons-triumph-in-the-celestial-realm-episode-1")
+            .unwrap();
+        assert_eq!(
+            ep.episode_id,
+            "dragons-triumph-in-the-celestial-realm-episode-1"
+        );
         assert!(ep.video_host.is_some());
         assert!(!ep.video_host.unwrap().is_empty());
     }

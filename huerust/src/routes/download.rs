@@ -7,8 +7,8 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use serde::{Deserialize, Serialize};
 use futures_util::TryStreamExt;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -352,8 +352,7 @@ pub async fn hls_download_handler(
             Some(source) => {
                 // If the client sent a proxied URL, decrypt it to the real
                 // upstream target so ffmpeg talks to the CDN directly.
-                if let Some((url, headers)) =
-                    resolve_upstream_from_proxy_url(source, &state.secret)
+                if let Some((url, headers)) = resolve_upstream_from_proxy_url(source, &state.secret)
                 {
                     (url, headers)
                 } else if validated_proxy_source(source, &state.proxy_base_url).is_some() {
@@ -402,14 +401,8 @@ pub async fn hls_download_handler(
         }
     };
 
-    let stdout = child
-        .stdout
-        .take()
-        .expect("ffmpeg stdout was requested");
-    let mut stderr = child
-        .stderr
-        .take()
-        .expect("ffmpeg stderr was requested");
+    let stdout = child.stdout.take().expect("ffmpeg stdout was requested");
+    let mut stderr = child.stderr.take().expect("ffmpeg stderr was requested");
 
     // Read stdout as an async byte stream and map it into axum Bytes.
     let stdout_stream = tokio_util::io::ReaderStream::new(stdout)

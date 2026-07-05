@@ -203,7 +203,11 @@ pub async fn detail_handler(
     Query(params): Query<DetailQuery>,
 ) -> Response {
     info!("[anime] detail: {} source={:?}", slug, params.source);
-    match state.anime_agg.get_detail(&slug, params.source.as_deref()).await {
+    match state
+        .anime_agg
+        .get_detail(&slug, params.source.as_deref())
+        .await
+    {
         Some(detail) => {
             if detail.card.id.is_empty() {
                 return error_json(StatusCode::NOT_FOUND, "Anime not found");
@@ -234,8 +238,15 @@ pub async fn episodes_handler(
     Query(params): Query<EpisodesQuery>,
 ) -> Response {
     let start = params.start.unwrap_or(0);
-    info!("[anime] episodes: {} start={} source={:?}", id, start, params.source);
-    match state.anime_agg.episodes_response(&id, start, params.source.as_deref()).await {
+    info!(
+        "[anime] episodes: {} start={} source={:?}",
+        id, start, params.source
+    );
+    match state
+        .anime_agg
+        .episodes_response(&id, start, params.source.as_deref())
+        .await
+    {
         Some(resp) => success_json(resp),
         None => {
             warn!("[anime] episodes not found: {}", id);
@@ -271,7 +282,12 @@ pub async fn servers_handler(
     );
     match state
         .anime_agg
-        .get_servers(&params.id, Some(episode), link_type, params.source.as_deref())
+        .get_servers(
+            &params.id,
+            Some(episode),
+            link_type,
+            params.source.as_deref(),
+        )
         .await
     {
         Some(servers) => success_json(servers),

@@ -160,29 +160,35 @@ pub fn dynamic_proxy_base(headers: &HeaderMap, fallback: &str) -> String {
 }
 
 fn forwarded_host(headers: &HeaderMap) -> Option<String> {
-    headers.get("forwarded").and_then(|v| v.to_str().ok()).and_then(|s| {
-        s.split(';').find_map(|part| {
-            let part = part.trim();
-            if part.to_lowercase().starts_with("host=") {
-                Some(part[5..].trim_matches('"').to_string())
-            } else {
-                None
-            }
+    headers
+        .get("forwarded")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| {
+            s.split(';').find_map(|part| {
+                let part = part.trim();
+                if part.to_lowercase().starts_with("host=") {
+                    Some(part[5..].trim_matches('"').to_string())
+                } else {
+                    None
+                }
+            })
         })
-    })
 }
 
 fn forwarded_proto(headers: &HeaderMap) -> Option<&str> {
-    headers.get("forwarded").and_then(|v| v.to_str().ok()).and_then(|s| {
-        s.split(';').find_map(|part| {
-            let part = part.trim();
-            if part.to_lowercase().starts_with("proto=") {
-                Some(part[6..].trim_matches('"'))
-            } else {
-                None
-            }
+    headers
+        .get("forwarded")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| {
+            s.split(';').find_map(|part| {
+                let part = part.trim();
+                if part.to_lowercase().starts_with("proto=") {
+                    Some(part[6..].trim_matches('"'))
+                } else {
+                    None
+                }
+            })
         })
-    })
 }
 
 /// Parse JSON headers string from query param.
@@ -819,8 +825,14 @@ pub async fn m3u8_handler(
                 if is_hls2 {
                     tracing::info!("[m3u8-proxy] Vixsrc retry succeeded with minimal headers");
                     let proxy_base = dynamic_proxy_base(&request_headers, &state.proxy_base_url);
-                    let final_body =
-                        rewrite_playlist(&body2, &target_url, &proxy_base, &state.secret, None, is_hls2);
+                    let final_body = rewrite_playlist(
+                        &body2,
+                        &target_url,
+                        &proxy_base,
+                        &state.secret,
+                        None,
+                        is_hls2,
+                    );
                     let mut builder = Response::builder()
                         .status(StatusCode::from_u16(status2.as_u16()).unwrap_or(StatusCode::OK));
                     builder = builder.header("Access-Control-Allow-Origin", "*");
@@ -867,7 +879,14 @@ pub async fn m3u8_handler(
 
     let proxy_base = dynamic_proxy_base(&request_headers, &state.proxy_base_url);
     let final_body = if is_hls {
-        rewrite_playlist(&body, &target_url, &proxy_base, &state.secret, headers, is_hls)
+        rewrite_playlist(
+            &body,
+            &target_url,
+            &proxy_base,
+            &state.secret,
+            headers,
+            is_hls,
+        )
     } else {
         body
     };
@@ -1078,10 +1097,8 @@ pub async fn ts_handler(
                                 }
                             }
                             builder = builder.header("Access-Control-Allow-Origin", "*");
-                            builder = builder.header(
-                                "Cache-Control",
-                                segment_cache_control(&target_url),
-                            );
+                            builder =
+                                builder.header("Cache-Control", segment_cache_control(&target_url));
                             if params.download.is_some() {
                                 let filename = params.filename.as_deref().unwrap_or("video.mp4");
                                 builder = builder.header(
@@ -1596,7 +1613,11 @@ fn rewrite_playlist(
             let segment_is_hls_playlist_ref =
                 next_uri_is_playlist || looks_like_hls_playlist_url(&abs_url);
             next_uri_is_playlist = false;
-            let route = if segment_is_hls_playlist_ref { "m3u8-proxy" } else { "ts-proxy" };
+            let route = if segment_is_hls_playlist_ref {
+                "m3u8-proxy"
+            } else {
+                "ts-proxy"
+            };
 
             // MP3-wrapped-TS detection
             let is_mp3_wrapped_ts = abs_url.to_lowercase().contains(".mp3");
@@ -1735,7 +1756,10 @@ fn looks_like_blob_hack(content: &str) -> bool {
         if !trimmed.starts_with("#") && !trimmed.is_empty() {
             segment_count += 1;
         }
-        if trimmed.contains("EXT-X-KEY") || trimmed.contains("EXT-X-DISCONTINUITY") || trimmed.contains("EXT-X-MAP") {
+        if trimmed.contains("EXT-X-KEY")
+            || trimmed.contains("EXT-X-DISCONTINUITY")
+            || trimmed.contains("EXT-X-MAP")
+        {
             return false;
         }
     }
@@ -2057,14 +2081,15 @@ fn infer_content_type(upstream_ct: &str, target_url: &str) -> &'static str {
     // (e.g. shy-smoke-85df.workers.dev/.../480p/page-N.html). Detect
     // this and return the actual container so HLS.js doesn't try to
     // parse MP4 as MPEG-TS and emit fragParsingError.
-    if url_lower.contains(".html") && (url_lower.contains(".workers.dev")
-        || url_lower.contains("berrylium.workers.dev")
-        || url_lower.contains("fortimax.shop")
-        || url_lower.contains("1shows.app")
-        || url_lower.contains("hostingersite.com")
-        || url_lower.contains("vixsrc.to")
-        || url_lower.contains("hls-proxy")
-        || url_lower.contains("hellstorm.lol"))
+    if url_lower.contains(".html")
+        && (url_lower.contains(".workers.dev")
+            || url_lower.contains("berrylium.workers.dev")
+            || url_lower.contains("fortimax.shop")
+            || url_lower.contains("1shows.app")
+            || url_lower.contains("hostingersite.com")
+            || url_lower.contains("vixsrc.to")
+            || url_lower.contains("hls-proxy")
+            || url_lower.contains("hellstorm.lol"))
     {
         return "video/mp4";
     }

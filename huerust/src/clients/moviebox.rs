@@ -109,7 +109,11 @@ pub fn quality_from_resolutions(resolutions: Option<&str>) -> String {
         None => {
             // Non-numeric resolution (e.g. "Auto") — keep as-is.
             let first = raw.split(',').next().unwrap_or(raw).trim();
-            if first.is_empty() { "Auto".to_string() } else { first.to_string() }
+            if first.is_empty() {
+                "Auto".to_string()
+            } else {
+                first.to_string()
+            }
         }
     }
 }
@@ -584,8 +588,7 @@ impl MovieBoxClient {
         let title_matches: Vec<&MovieBoxItem> = items
             .iter()
             .filter(|item| {
-                item.subject_type == target_type
-                    && normalize_title(&item.title) == normalized_title
+                item.subject_type == target_type && normalize_title(&item.title) == normalized_title
             })
             .collect();
 
@@ -733,15 +736,10 @@ impl MovieBoxClient {
                             .as_deref()
                             .map(str::to_string)
                             .filter(|q| !q.trim().is_empty() && q.to_lowercase() != "auto")
-                            .unwrap_or_else(|| {
-                                quality_from_resolutions(s.resolutions.as_deref())
-                            });
+                            .unwrap_or_else(|| quality_from_resolutions(s.resolutions.as_deref()));
                         results.push(StreamResult {
                             url: s.url,
-                            title: format!(
-                                "Cinema - {} (MP4)",
-                                quality
-                            ),
+                            title: format!("Cinema - {} (MP4)", quality),
                             quality,
                             provider: "Cinema".to_string(),
                             format: "mp4".to_string(),
@@ -762,9 +760,7 @@ impl MovieBoxClient {
                             .as_deref()
                             .map(str::to_string)
                             .filter(|q| !q.trim().is_empty() && q.to_lowercase() != "auto")
-                            .unwrap_or_else(|| {
-                                quality_from_resolutions(s.resolutions.as_deref())
-                            });
+                            .unwrap_or_else(|| quality_from_resolutions(s.resolutions.as_deref()));
                         results.push(StreamResult {
                             url: s.url,
                             title: format!("Cinema - {} (HLS)", quality),
@@ -788,9 +784,7 @@ impl MovieBoxClient {
                             .as_deref()
                             .map(str::to_string)
                             .filter(|q| !q.trim().is_empty() && q.to_lowercase() != "auto")
-                            .unwrap_or_else(|| {
-                                quality_from_resolutions(s.resolutions.as_deref())
-                            });
+                            .unwrap_or_else(|| quality_from_resolutions(s.resolutions.as_deref()));
                         results.push(StreamResult {
                             url: s.url,
                             title: format!("Cinema - {} (DASH)", quality),

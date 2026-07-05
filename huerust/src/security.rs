@@ -110,7 +110,8 @@ pub fn sign_proxy_url(
 fn canonical_headers_json(headers: Option<&HashMap<String, String>>) -> String {
     headers
         .map(|h| {
-            let sorted: BTreeMap<String, String> = h.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+            let sorted: BTreeMap<String, String> =
+                h.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
             serde_json::to_string(&sorted).unwrap_or_default()
         })
         .unwrap_or_default()
@@ -433,20 +434,17 @@ mod tests {
         headers_b.insert("User-Agent".to_string(), "UA".to_string());
         headers_b.insert("Referer".to_string(), "https://example.com/".to_string());
         headers_b.insert("Origin".to_string(), "https://example.com".to_string());
-        assert!(
-            verify_proxy_url(
-                url,
-                token_a.expires,
-                &token_a.signature,
-                Some(headers_b),
-                secret
-            )
-            .is_some()
-        );
+        assert!(verify_proxy_url(
+            url,
+            token_a.expires,
+            &token_a.signature,
+            Some(headers_b),
+            secret
+        )
+        .is_some());
 
         // The canonical h_headers param should list keys in sorted order.
         let h_headers = token_a.to_query();
         assert!(h_headers.contains("h_headers="));
     }
-
 }

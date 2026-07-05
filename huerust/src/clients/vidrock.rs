@@ -359,8 +359,7 @@ impl VidRockClient {
                     .to_lowercase();
                 let maybe_json = resp.text().await.unwrap_or_default();
                 if content_type.contains("json") || maybe_json.trim_start().starts_with('[') {
-                    if let Ok(entries) =
-                        serde_json::from_str::<Vec<serde_json::Value>>(&maybe_json)
+                    if let Ok(entries) = serde_json::from_str::<Vec<serde_json::Value>>(&maybe_json)
                     {
                         if !entries.is_empty()
                             && entries
@@ -398,7 +397,11 @@ impl VidRockClient {
                 }
             }
             Ok(Err(e)) => {
-                tracing::warn!("[VidRock] failed to probe MP4 playlist {}: {}", stream.url, e);
+                tracing::warn!(
+                    "[VidRock] failed to probe MP4 playlist {}: {}",
+                    stream.url,
+                    e
+                );
             }
             Err(_) => {
                 tracing::warn!("[VidRock] timed out probing MP4 playlist {}", stream.url);

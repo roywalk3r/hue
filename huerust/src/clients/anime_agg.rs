@@ -1,6 +1,6 @@
+use moka::future::Cache;
 use std::sync::Arc;
 use std::time::Duration;
-use moka::future::Cache;
 use tokio::time::timeout;
 use tracing::warn;
 
@@ -162,17 +162,14 @@ impl AnimeAggregator {
             .iter()
             .map(|c| normalize_dedupe_title(&c.title))
             .collect();
-        let donghua_tokens: Vec<std::collections::HashSet<String>> =
-            donghua_results
-                .iter()
-                .map(|c| title_tokens(&c.title))
-                .collect();
+        let donghua_tokens: Vec<std::collections::HashSet<String>> = donghua_results
+            .iter()
+            .map(|c| title_tokens(&c.title))
+            .collect();
         // Drop AniWave entries whose title is also returned by donghua,
         // or whose token-set substantially overlaps a donghua entry's.
         results.retain(|c| {
-            if !matches!(c.source.as_deref(), Some("aniwave"))
-                || c.title.is_empty()
-            {
+            if !matches!(c.source.as_deref(), Some("aniwave")) || c.title.is_empty() {
                 return true;
             }
             let norm = normalize_dedupe_title(&c.title);
@@ -189,10 +186,8 @@ impl AnimeAggregator {
             })
         });
         // Drop donghua entries already present by slug.
-        let existing_slugs: std::collections::HashSet<String> = results
-            .iter()
-            .filter_map(|c| c.slug.clone())
-            .collect();
+        let existing_slugs: std::collections::HashSet<String> =
+            results.iter().filter_map(|c| c.slug.clone()).collect();
         for card in donghua_results {
             if let Some(ref slug) = card.slug {
                 if existing_slugs.contains(slug) {
@@ -252,7 +247,7 @@ impl AnimeAggregator {
             }
         }
 
-                // Try Aniwave first (most reliable as of June 2026)
+        // Try Aniwave first (most reliable as of June 2026)
         if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
             match self.aniwave.get_detail(id).await {
                 Ok(mut detail) => {
@@ -271,8 +266,7 @@ impl AnimeAggregator {
                             }
                         };
 
-                        let show_id =
-                            crate::clients::aniwave::AniwaveClient::show_id_from_slug(id);
+                        let show_id = crate::clients::aniwave::AniwaveClient::show_id_from_slug(id);
                         let ep_fut = async {
                             if self.aniwave.mirror_base().is_some() {
                                 if let Some(ref sid) = show_id {
@@ -297,11 +291,10 @@ impl AnimeAggregator {
                                 return None;
                             }
                             let raw = self.hianime.search(&detail.card.title).await.ok()?;
-                            let results =
-                                crate::clients::hianime::transform_search_results(
-                                    raw,
-                                    &detail.card.title,
-                                );
+                            let results = crate::clients::hianime::transform_search_results(
+                                raw,
+                                &detail.card.title,
+                            );
                             let title_lower = detail.card.title.to_lowercase();
                             let jp_lower = detail
                                 .card
@@ -315,8 +308,7 @@ impl AnimeAggregator {
                                     || c_lower.starts_with(&title_lower)
                                     || title_lower.starts_with(&c_lower)
                                     || (!jp_lower.is_empty()
-                                        && (c_lower == jp_lower
-                                            || c_lower.starts_with(&jp_lower)))
+                                        && (c_lower == jp_lower || c_lower.starts_with(&jp_lower)))
                                     || token_overlap(&c_lower, &title_lower) >= 3
                             })
                         };
@@ -328,54 +320,44 @@ impl AnimeAggregator {
                         );
 
                         if let Some(meta) = meta {
-                            detail.card.synopsis =
-                                detail.card.synopsis.or(meta.description);
+                            detail.card.synopsis = detail.card.synopsis.or(meta.description);
                             let og = meta.og_image.clone();
-                            detail.card.banner_image =
-                                detail.card.banner_image.or(og);
+                            detail.card.banner_image = detail.card.banner_image.or(og);
                             if detail.card.image.is_none() {
                                 detail.card.image = meta.og_image;
                             }
-                            if detail.card.genres.is_none()
-                                && !meta.keywords.is_empty()
-                            {
+                            if detail.card.genres.is_none() && !meta.keywords.is_empty() {
                                 detail.card.genres = Some(meta.keywords);
                             }
                         }
                         if let Some(rich) = rich_eps.as_ref() {
                             if let Some(episodes) = detail.episodes.as_mut() {
-                                crate::clients::aniwave::AniwaveClient::enrich_episodes_v2(rich, episodes);
+                                crate::clients::aniwave::AniwaveClient::enrich_episodes_v2(
+                                    rich, episodes,
+                                );
                             }
                         }
                         // Apply cached mal_id even when we skipped the search.
                         if detail.card.mal_id.is_none() {
-                            if let Some(Some(cached)) =
-                                self.mal_id_cache.get(id).await
-                            {
+                            if let Some(Some(cached)) = self.mal_id_cache.get(id).await {
                                 detail.card.mal_id = Some(cached);
                             }
                         }
                         if let Some(best) = mal_match {
                             detail.card.mal_id = best.mal_id;
                             detail.card.score = detail.card.score.or(best.score);
-                            detail.card.rating =
-                                detail.card.rating.or(best.rating);
+                            detail.card.rating = detail.card.rating.or(best.rating);
                             detail.card.aired = detail.card.aired.or(best.aired);
-                            detail.card.duration =
-                                detail.card.duration.or(best.duration);
+                            detail.card.duration = detail.card.duration.or(best.duration);
                             if detail.card.genres.is_none() {
                                 detail.card.genres = best.genres;
                             }
                             // Cache the mal_id for this slug so subsequent
                             // detail requests skip the search entirely.
-                            self.mal_id_cache
-                                .insert(id.to_string(), best.mal_id)
-                                .await;
+                            self.mal_id_cache.insert(id.to_string(), best.mal_id).await;
                         } else if need_mal_search {
                             // Short-TTL negative cache — re-search in 1h.
-                            self.mal_miss_cache
-                                .insert(id.to_string(), ())
-                                .await;
+                            self.mal_miss_cache.insert(id.to_string(), ()).await;
                         }
                         return Some(detail);
                     }
@@ -413,10 +395,7 @@ impl AnimeAggregator {
 
         // AnimeKill donghua scraper — last-resort fallback for slug-only
         // requests that don't match AniWave, HiAnime, or Animexin patterns.
-        if !id.starts_with("mal-")
-            && !id.contains('/')
-            && !id.is_empty()
-        {
+        if !id.starts_with("mal-") && !id.contains('/') && !id.is_empty() {
             if let Ok(detail) = self.animekill.get_detail(id).await {
                 if !detail.card.id.is_empty() {
                     return Some(detail);
@@ -450,7 +429,7 @@ impl AnimeAggregator {
             }
         }
 
-// Try Aniwave first (slugs end in numeric id like one-piece-81553)
+        // Try Aniwave first (slugs end in numeric id like one-piece-81553)
         if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
             match self.aniwave.get_episodes(id).await {
                 Ok(eps) => {
@@ -525,10 +504,7 @@ impl AnimeAggregator {
         // AnimeKill donghua (e.g. "beyond-time-s-gaze-guangyin-zhi-wai").
         // Don't try when the slug clearly belongs to another provider
         // (e.g. `mal-<id>` MAL references).
-        if !id.starts_with("mal-")
-            && !id.contains('/')
-            && !id.is_empty()
-        {
+        if !id.starts_with("mal-") && !id.contains('/') && !id.is_empty() {
             if let Ok(eps) = self.animekill.get_episodes(id).await {
                 if !eps.is_empty() {
                     return Some(eps);
@@ -647,7 +623,11 @@ impl AnimeAggregator {
         // episode is the episode number. Skip if id doesn't look like a slug.
         if id.contains('-') && id.chars().last().unwrap_or(' ').is_ascii_digit() {
             let server_id = server.and_then(|s| s.parse::<u32>().ok());
-            match self.aniwave.get_stream(id, episode, server_id, link_type).await {
+            match self
+                .aniwave
+                .get_stream(id, episode, server_id, link_type)
+                .await
+            {
                 Ok(stream) if !stream.url.is_empty() => return Some(stream),
                 Ok(_) => {}
                 Err(e) => warn!(
@@ -658,7 +638,11 @@ impl AnimeAggregator {
         }
 
         // HiAnime fallback when the slug is HiAnime-shaped (24-hex id or path slug).
-        if let Ok(data) = self.hianime.get_stream(id, server, link_type, episode).await {
+        if let Ok(data) = self
+            .hianime
+            .get_stream(id, server, link_type, episode)
+            .await
+        {
             if !data.link.file.is_empty() {
                 return Some(stream_data_to_payload(data));
             }
@@ -1109,8 +1093,7 @@ fn normalize_title(title: &str) -> String {
 }
 
 fn token_overlap(a: &str, b: &str) -> usize {
-    let a_tokens: std::collections::HashSet<&str> =
-        a.split_whitespace().collect();
+    let a_tokens: std::collections::HashSet<&str> = a.split_whitespace().collect();
     b.split_whitespace()
         .filter(|t| a_tokens.contains(t))
         .count()
@@ -1163,9 +1146,8 @@ fn normalize_dedupe_title(title: &str) -> String {
 /// concatenation (otherwise a 4-word title becomes one giant token).
 fn title_tokens(title: &str) -> std::collections::HashSet<String> {
     const STOP: &[&str] = &[
-        "the", "a", "an", "of", "and", "or", "in", "on", "to", "for", "with",
-        "is", "at", "by", "season", "part", "movie", "series", "special",
-        "edition", "ver", "ova", "ona",
+        "the", "a", "an", "of", "and", "or", "in", "on", "to", "for", "with", "is", "at", "by",
+        "season", "part", "movie", "series", "special", "edition", "ver", "ova", "ona",
     ];
     title
         .to_lowercase()
@@ -1186,12 +1168,7 @@ fn is_not_found_card(detail: &AnimeDetail) -> bool {
     }
     matches!(
         t.as_str(),
-        "404 not found"
-            | "404"
-            | "not found"
-            | "page not found"
-            | "error"
-            | "notfound"
+        "404 not found" | "404" | "not found" | "page not found" | "error" | "notfound"
     )
 }
 

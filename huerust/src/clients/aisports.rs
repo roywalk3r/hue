@@ -2,10 +2,10 @@
 //! Fetches live sports streams from the Aoneroom API (thesports.today)
 
 use anyhow::{anyhow, Result};
+use chrono::prelude::*;
 use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
-use chrono::prelude::*;
 
 const API_LIST_URL: &str =
     "https://h5-api.aoneroom.com/wefeed-h5api-bff/live/match-list-v5?leagueId=0";
@@ -280,7 +280,10 @@ impl AiSportsClient {
         let count_string = count.to_string();
         let url = reqwest::Url::parse_with_params(
             API_LATEST_URL,
-            [("matchType", match_type.as_str()), ("count", count_string.as_str())],
+            [
+                ("matchType", match_type.as_str()),
+                ("count", count_string.as_str()),
+            ],
         )?;
 
         self.get_json(url, "latest").await
@@ -322,10 +325,7 @@ impl AiSportsClient {
         Ok(streams)
     }
 
-    pub async fn search_streams_grouped(
-        &self,
-        query: &str,
-    ) -> Result<GroupedSportsStreams> {
+    pub async fn search_streams_grouped(&self, query: &str) -> Result<GroupedSportsStreams> {
         let clean_query = query.to_lowercase().replace("-", " ");
         info!("[AiSports] Searching for: {}", query);
 
@@ -457,14 +457,20 @@ impl AiSportsClient {
                     for item in list {
                         if item.get("id").and_then(|v| v.as_str()) == Some(match_id) {
                             if let Ok(m) = serde_json::from_value::<Match>(item) {
-                                info!("[AiSports] match_detail fallback found {} in {}/{}", match_id, match_type, status);
+                                info!(
+                                    "[AiSports] match_detail fallback found {} in {}/{}",
+                                    match_id, match_type, status
+                                );
                                 return Ok(Some(m));
                             }
                         }
                     }
                 }
                 Err(e) => {
-                    warn!("[AiSports] match_detail fallback list error ({}/{}): {}", match_type, status, e);
+                    warn!(
+                        "[AiSports] match_detail fallback list error ({}/{}): {}",
+                        match_type, status, e
+                    );
                 }
             }
         }

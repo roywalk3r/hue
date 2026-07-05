@@ -198,11 +198,7 @@ impl KissKhXyraClient {
         Ok(res.data)
     }
 
-    pub async fn get_stream(
-        &self,
-        id: &str,
-        episode_id: &str,
-    ) -> Result<Option<KkXyraStreamData>> {
+    pub async fn get_stream(&self, id: &str, episode_id: &str) -> Result<Option<KkXyraStreamData>> {
         let res = self
             .make_request::<KkXyraStreamData>(
                 "/stream",
@@ -264,7 +260,10 @@ impl KissKhXyraClient {
             Some(id) => id,
             None => return Ok(vec![]),
         };
-        info!("[kisskh_xyra] resolved episode_id={} for E{}", ep_id, episode);
+        info!(
+            "[kisskh_xyra] resolved episode_id={} for E{}",
+            ep_id, episode
+        );
 
         let data = match self.get_stream(show_id, &ep_id).await? {
             Some(d) => d,
@@ -316,11 +315,17 @@ impl KissKhXyraClient {
         let show_id = match best_match.slug() {
             Some(s) => s,
             None => {
-                warn!("[kisskh_xyra] no slug in best match link: {}", best_match.link);
+                warn!(
+                    "[kisskh_xyra] no slug in best match link: {}",
+                    best_match.link
+                );
                 return Ok(vec![]);
             }
         };
-        info!("[kisskh_xyra] best match: {} ({})", best_match.title, show_id);
+        info!(
+            "[kisskh_xyra] best match: {} ({})",
+            best_match.title, show_id
+        );
 
         let info = match self.get_info(&show_id).await? {
             Some(i) => i,
@@ -360,7 +365,10 @@ impl KissKhXyraClient {
             Some(id) => id,
             None => return Ok(vec![]),
         };
-        info!("[kisskh_xyra] resolved episode_id={} for E{}", ep_id, episode);
+        info!(
+            "[kisskh_xyra] resolved episode_id={} for E{}",
+            ep_id, episode
+        );
 
         let data = match self.get_stream(&show_id, &ep_id).await? {
             Some(d) => d,

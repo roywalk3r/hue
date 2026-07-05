@@ -24,7 +24,9 @@ const DEFAULT_COOKIE: &str = "sflix_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ
 /// Extract the raw JWT value from the sflix_token cookie. The cookie value is
 /// URL-encoded as `sflix_token=%22<jwt>%22`; we strip the quotes and decode.
 fn extract_sflix_jwt(cookie: &str) -> Option<String> {
-    let token_part = cookie.split(';').find(|p| p.trim().starts_with("sflix_token="))?;
+    let token_part = cookie
+        .split(';')
+        .find(|p| p.trim().starts_with("sflix_token="))?;
     let value = token_part.split_once('=')?.1.trim();
     let decoded = urlencoding::decode(value).ok()?;
     let jwt = decoded.trim_matches('"').trim_matches('\'');
@@ -332,9 +334,7 @@ impl SflixClient {
                             .as_deref()
                             .map(str::to_string)
                             .filter(|q| !q.trim().is_empty() && q.to_lowercase() != "auto")
-                            .unwrap_or_else(|| {
-                                quality_from_resolutions(s.resolutions.as_deref())
-                            });
+                            .unwrap_or_else(|| quality_from_resolutions(s.resolutions.as_deref()));
                         results.push(StreamResult {
                             url: s.url,
                             title: format!("Nova - {} (MP4)", quality),
@@ -363,9 +363,7 @@ impl SflixClient {
                             .as_deref()
                             .map(str::to_string)
                             .filter(|q| !q.trim().is_empty() && q.to_lowercase() != "auto")
-                            .unwrap_or_else(|| {
-                                quality_from_resolutions(s.resolutions.as_deref())
-                            });
+                            .unwrap_or_else(|| quality_from_resolutions(s.resolutions.as_deref()));
                         results.push(StreamResult {
                             url: s.url,
                             title: format!("Nova - {} (HLS)", quality),
@@ -394,9 +392,7 @@ impl SflixClient {
                             .as_deref()
                             .map(str::to_string)
                             .filter(|q| !q.trim().is_empty() && q.to_lowercase() != "auto")
-                            .unwrap_or_else(|| {
-                                quality_from_resolutions(s.resolutions.as_deref())
-                            });
+                            .unwrap_or_else(|| quality_from_resolutions(s.resolutions.as_deref()));
                         results.push(StreamResult {
                             url: s.url,
                             title: format!("Nova - {} (DASH)", quality),
