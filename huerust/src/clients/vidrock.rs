@@ -12,7 +12,7 @@
 //!
 //! API flow:
 //!   1. AES-256-CBC encrypt item ID with static passphrase (base64url output)
-//!   2. GET vidrock.net/api/{type}/{encrypted} → source URLs keyed by provider
+//!   2. GET vidrock.ru/api/{type}/{encrypted} → source URLs keyed by provider
 //!   3. GET hls2.vdrk.site/playlist/{id} → resolution-specific MP4 URLs
 //!   4. GET sub.vdrk.site/v2/{type}/{tmdbId} → VTT subtitle files
 
@@ -31,7 +31,7 @@ use tokio::time::timeout;
 type Aes256Cbc = Encryptor<Aes256>;
 
 const PASSPHRASE: &str = "x7k9mPqT2rWvY8zA5bC3nF6hJ2lK4mN9";
-const API_BASE: &str = "https://vidrock.net";
+const API_BASE: &str = "https://vidrock.ru";
 const SUB_BASE: &str = "https://sub.vdrk.site";
 
 // ─── API Response Types ────────────────────────────────────────────────────────
@@ -262,7 +262,7 @@ impl VidRockClient {
                 format,
                 provider: format!("VidRock/{}", provider_name),
                 headers: serde_json::json!({
-                    "Referer": "https://vidrock.net/",
+                    "Referer": "https://vidrock.ru/",
                     "Origin": origin,
                     "User-Agent": UA_DESKTOP
                 }),
