@@ -901,6 +901,24 @@ pub struct ReportFailureBody {
     reason: Option<String>,
 }
 
+/// In-memory tracker for repeated client-side playback failures per
+/// (user, provider, title). When a user accumulates 3 consecutive
+/// playback:stalled reports on the same provider, we drop their sticky
+/// preference for that provider so the next SSE round picks a different
+/// one. This is a soft rotation — the provider is not opened in the
+/// global circuit (that stays tied to server-side fetch errors), but
+/// the user is nudged off a provider that's failing them specifically.
+type StickyFailureKey = (String, String, String, String); // (user, m_type, tmdb_id, real_name)
+type StickyFailureMap = std::collections::HashMap<StickyFailureKey, (u32, std::time::Instant)>;
+static STICKY_FAILURES: std::sync::OnceLock<std::sync::Mutex<StickyFailureMap>> =
+    std::sync::OnceLock::new();
+const STICKY_FAILURE_WINDOW: std::time::Duration = std::time::Duration::from_secs(180);
+const STICKY_FAILURE_THRESHOLD: u32 = 3;
+
+fn sticky_failures() -> &'static std::sync::Mutex<StickyFailureMap> {
+    STICKY_FAILURES.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+}
+
 /// Client-side playback failure reporting. When the player fails to play a
 /// stream (keyLoadError, fragLoadError, manifestParsingError, etc.) it can tell
 /// the backend so we stop sticking this user to that provider and penalize it
@@ -910,16 +928,30 @@ pub async fn report_failure_handler(
     State(state): State<StreamState>,
     Path((m_type, tmdb_id)): Path<(String, String)>,
     headers: HeaderMap,
+    Query(params): Query<HashMap<String, String>>,
     Json(body): Json<ReportFailureBody>,
 ) -> StatusCode {
     let real_name = crate::providers::display_to_real_name(&body.provider);
-    let cb = state.registry.circuit_breaker();
 
-    cb.record_failure(real_name);
     info!(
-        "[SSE] client reported playback failure for provider {} (real_name {}) on {}/{}",
-        body.provider, real_name, m_type, tmdb_id
+        "[SSE] client reported playback failure for provider {} (real_name {}) on {}/{} reason={:?}",
+        body.provider,
+        real_name,
+        m_type,
+        tmdb_id,
+        body.reason
     );
+
+    // Do NOT call cb.record_failure here for a single client error. The
+    // provider's own fetch already penalises itself when its own request
+    // fails (timeout, 5xx, empty result). Penalising the provider for a
+    // single client-side stall would open the circuit after 2 reports and
+    // lock out the provider for 3-15 minutes — a single stale-token Vixsrc
+    // stream would kill Luna, Nova, and VidZee across the whole user
+    // session. Instead, just clear the title cache so the next SSE round
+    // re-fetches from upstream; the fresh stream URLs may bypass the
+    // bad-token problem entirely. The sticky preference is kept so the
+    // user keeps their preferred provider for the next episode.
 
     let user_id = headers
         .get_all(axum::http::header::COOKIE)
@@ -937,11 +969,51 @@ pub async fn report_failure_handler(
         })
         .unwrap_or_else(|| "anon".to_string());
 
-    let sticky_key = StickyPrefKey::new(&user_id, &m_type, &tmdb_id);
-    if let Some(entry) = state.sticky_pref.get(&sticky_key).await {
-        if entry.provider_real_name == real_name {
-            state.sticky_pref.record_failure(&sticky_key).await;
+    // Invalidate the cached stream list for this title so the next SSE round
+    // re-fetches from upstream. Without this, an SSE reattempt started ~50ms
+    // after the report races with the in-flight fetch and may keep returning
+    // the same expired source. The player passes season/episode so we target
+    // the specific cache key.
+    if let (Some(season), Some(episode)) = (
+        params.get("season").and_then(|s| s.parse::<u32>().ok()),
+        params.get("episode").and_then(|e| e.parse::<u32>().ok()),
+    ) {
+        if season > 0 && episode > 0 {
+            let key = CacheKey::new(&m_type, &tmdb_id, season, episode);
+            state.cache.invalidate(&key).await;
         }
+    }
+
+    // Soft per-user rotation: after 3 consecutive playback:stalled or
+    // manifest:invalid reports on the same provider for the same user
+    // and title, drop the user's sticky preference for that provider.
+    // The next SSE round will pick a different provider based on the
+    // global score instead of the broken sticky. This only affects the
+    // current user, not the global circuit breaker (which is reserved
+    // for server-side fetch failures).
+    let sticky_key = StickyPrefKey::new(&user_id, &m_type, &tmdb_id);
+    let sticky_fail_key: StickyFailureKey = (user_id.clone(), m_type.clone(), tmdb_id.clone(), real_name.to_string());
+    let should_drop_sticky = {
+        let mut map = sticky_failures().lock().unwrap();
+        let entry = map.entry(sticky_fail_key).or_insert((0, std::time::Instant::now()));
+        if entry.1.elapsed() > STICKY_FAILURE_WINDOW {
+            *entry = (1, std::time::Instant::now());
+        } else {
+            entry.0 += 1;
+        }
+        entry.0 >= STICKY_FAILURE_THRESHOLD
+    };
+    if should_drop_sticky {
+        if let Some(entry) = state.sticky_pref.get(&sticky_key).await {
+            if entry.provider_real_name == real_name {
+                state.sticky_pref.record_failure(&sticky_key).await;
+                info!(
+                    "[SSE] dropping sticky preference for {} (user={}) after {} consecutive failures",
+                    real_name, user_id, STICKY_FAILURE_THRESHOLD
+                );
+            }
+        }
+        sticky_failures().lock().unwrap().remove(&(user_id, m_type.clone(), tmdb_id.clone(), real_name.to_string()));
     }
 
     StatusCode::NO_CONTENT
