@@ -642,6 +642,206 @@ pub async fn luna_streams_handler(
         .into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/streams/xyra/{type}/{tmdbId}",
+    params(
+        ("type" = String, Path, description = "Content type: movie or tv"),
+        ("tmdbId" = String, Path, description = "TMDB ID"),
+        ("season" = Option<u32>, Query, description = "Season number (tv only)"),
+        ("episode" = Option<u32>, Query, description = "Episode number (tv only)"),
+    ),
+    responses(
+        (status = 200, description = "Xyra fast-path stream results", body = StreamsResponse),
+        (status = 502, description = "Xyra upstream error"),
+        (status = 504, description = "Xyra upstream timeout"),
+    ),
+)]
+pub async fn xyra_streams_handler(
+    State(state): State<StreamState>,
+    headers: HeaderMap,
+    Path((m_type, tmdb_id)): Path<(String, String)>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Response {
+    let season = params
+        .get("season")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(1);
+    let episode = params
+        .get("episode")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(1);
+    let xyra_type = if m_type == "movie" { "movie" } else { "series" };
+
+    let enable_proxy = state.config.enable_proxy;
+    let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
+    let secret = state.secret.clone();
+
+    let mut url = format!(
+        "https://api.xyra.stream/v1/streamhub/streams?api_key=key1&tmdb_id={}&type={}",
+        tmdb_id, xyra_type
+    );
+    if xyra_type == "series" {
+        url.push_str(&format!("&season={}&episode={}", season, episode));
+    }
+
+    info!(
+        "[api] Xyra fast-path: {} {} S{} E{}",
+        m_type, tmdb_id, season, episode
+    );
+
+    let resp = match tokio::time::timeout(
+        std::time::Duration::from_secs(8),
+        state.client.get(&url).send(),
+    )
+    .await
+    {
+        Ok(Ok(r)) if r.status().is_success() => r,
+        Ok(Ok(r)) => {
+            warn!("[api] Xyra returned {}", r.status());
+            return (StatusCode::BAD_GATEWAY, "xyra upstream error").into_response();
+        }
+        Ok(Err(e)) => {
+            warn!("[api] Xyra request failed: {}", e);
+            return (StatusCode::BAD_GATEWAY, format!("xyra error: {e}")).into_response();
+        }
+        Err(_) => {
+            warn!("[api] Xyra request timed out after 8s");
+            return (StatusCode::GATEWAY_TIMEOUT, "xyra timeout").into_response();
+        }
+    };
+
+    #[derive(serde::Deserialize)]
+    struct XyraStream {
+        url: String,
+        #[serde(default)]
+        title: Option<String>,
+        #[serde(default)]
+        quality: Option<String>,
+        #[serde(default)]
+        provider: Option<String>,
+        #[serde(default)]
+        headers: Option<HashMap<String, String>>,
+    }
+    #[derive(serde::Deserialize)]
+    struct XyraResp {
+        #[serde(default)]
+        success: bool,
+        #[serde(default)]
+        streams: Vec<XyraStream>,
+        #[serde(default)]
+        provider_timings: HashMap<String, u64>,
+    }
+
+    let body: XyraResp = match resp.json().await {
+        Ok(b) => b,
+        Err(e) => {
+            warn!("[api] Xyra json decode failed: {}", e);
+            return (StatusCode::BAD_GATEWAY, "xyra bad response").into_response();
+        }
+    };
+    if !body.success {
+        return (
+            StatusCode::OK,
+            Json(StreamsResponse {
+                success: true,
+                tmdb_id,
+                media_type: m_type,
+                season,
+                episode,
+                count: 0,
+                streams: vec![],
+                provider_timings: vec![],
+            }),
+        )
+            .into_response();
+    }
+
+    let mut timings: Vec<ProviderTiming> = body
+        .provider_timings
+        .into_iter()
+        .map(|(provider, elapsed_ms)| ProviderTiming {
+            provider,
+            elapsed_ms,
+            streams_found: 0,
+            cancelled: false,
+        })
+        .collect();
+    let mut seen_timings: HashMap<String, usize> = timings
+        .iter()
+        .enumerate()
+        .map(|(i, t)| (t.provider.clone(), i))
+        .collect();
+
+    let provider_counts: HashMap<String, usize> =
+        body.streams
+            .iter()
+            .filter_map(|s| s.provider.clone())
+            .fold(HashMap::new(), |mut acc, p| {
+                *acc.entry(p).or_insert(0) += 1;
+                acc
+            });
+    for (p, c) in provider_counts {
+        if let Some(i) = seen_timings.get(&p) {
+            timings[*i].streams_found = c;
+        } else {
+            timings.push(ProviderTiming {
+                provider: p,
+                elapsed_ms: 0,
+                streams_found: c,
+                cancelled: false,
+            });
+        }
+    }
+
+    let streams: Vec<StreamResult> = body
+        .streams
+        .into_iter()
+        .map(|s| {
+            let lower = s.url.to_lowercase();
+            let format = if lower.contains(".m3u8") || lower.contains("/playlist/") {
+                "hls".to_string()
+            } else if lower.contains(".mp4") || lower.contains(".mkv") {
+                "mp4".to_string()
+            } else {
+                "hls".to_string()
+            };
+            StreamResult {
+                url: s.url,
+                title: s.title.unwrap_or_default(),
+                quality: s.quality.unwrap_or_else(|| "Auto".to_string()),
+                provider: s.provider.unwrap_or_else(|| "Xyra".to_string()),
+                format,
+                subtitles: None,
+                headers: s.headers,
+                extra_metadata: None,
+            }
+        })
+        .collect();
+
+    let mut final_streams = if enable_proxy {
+        wrap_with_proxy(streams, &proxy_base, &secret)
+    } else {
+        streams
+    };
+    encrypt_stream_result_urls(&mut final_streams, &state.kkey);
+
+    (
+        StatusCode::OK,
+        Json(StreamsResponse {
+            success: true,
+            tmdb_id,
+            media_type: m_type,
+            season,
+            episode,
+            count: final_streams.len(),
+            streams: final_streams,
+            provider_timings: timings,
+        }),
+    )
+        .into_response()
+}
+
 #[cfg(test)]
 mod tests {
     use super::{is_web_playable_stream, should_fetch_slow_providers};
