@@ -357,37 +357,33 @@ impl VixsrcClient {
             }
         }
 
-        // Try parsing window.streams as JSON array
+        // Parse window.streams only when no master was found — see the note in
+        // extract_from_embed_page: adding the per-rendition variants alongside
+        // the master breaks HLS.js adaptive bitrate.
         let re_streams = &*RE_STREAMS_ARR;
-        if let Some(caps) = re_streams.captures(&html) {
-            if let Some(block) = caps.get(1) {
-                if let Ok(servers) = serde_json::from_str::<Vec<VixsrcStream>>(block.as_str()) {
-                    for server in servers {
-                        if let Some(u) = server.url.filter(|s| !s.is_empty()) {
-                            let authed =
-                                if let (Some(ref t), Some(ref e)) = (&auth_token, &auth_expires) {
+        if results.is_empty() {
+            if let Some(caps) = re_streams.captures(&html) {
+                if let Some(block) = caps.get(1) {
+                    if let Ok(servers) = serde_json::from_str::<Vec<VixsrcStream>>(block.as_str()) {
+                        for server in servers {
+                            if let Some(u) = server.url.filter(|s| !s.is_empty()) {
+                                let authed = if let (Some(ref t), Some(ref e)) =
+                                    (&auth_token, &auth_expires)
+                                {
                                     let sep = if u.contains('?') { '&' } else { '?' };
-                                    format!(
-                                        "{}{sep}token={t}&expires={e}&h=1&lang=en",
-                                        u,
-                                        sep = sep,
-                                        t = t,
-                                        e = e
-                                    )
+                                    format!("{}{sep}token={t}&expires={e}&h=1&lang=en", u)
                                 } else {
                                     u
                                 };
-                            let name = server.name.as_deref().unwrap_or("Server");
-                            // VidXsrc URLs include ?rendition=1080p/480p/720p when a
-                            // specific resolution is available. Extract it so quality is
-                            // meaningful instead of always "Auto".
-                            let quality = extract_rendition_quality(&authed)
-                                .unwrap_or_else(|| "Auto".to_string());
-                            results.push(InternalStream {
-                                url: authed,
-                                quality: quality.clone(),
-                                title: format!("Aura - {} - {}", name, quality),
-                            });
+                                let name = server.name.as_deref().unwrap_or("Server");
+                                let quality = extract_rendition_quality(&authed)
+                                    .unwrap_or_else(|| "Auto".to_string());
+                                results.push(InternalStream {
+                                    url: authed,
+                                    quality: quality.clone(),
+                                    title: format!("Aura - {} - {}", name, quality),
+                                });
+                            }
                         }
                     }
                 }
@@ -557,7 +553,12 @@ impl VixsrcClient {
             }
         }
 
-        // ── Parse window.streams as JSON array ──
+        // ── Parse window.streams as JSON array (fallback only) ──
+        // When we already have the master playlist, DON'T also add the
+        // individual per-rendition streams it lists — that gives the frontend
+        // separate 480p/720p/1080p entries and it locks onto one quality,
+        // defeating HLS.js adaptive bitrate. The master alone lets ABR drop
+        // quality on slow egress. Only mine window.streams if no master exists.
         let re_streams = &*RE_STREAMS_ARR;
         info!(
             "[Vixsrc Rust] window.masterPlaylist found={} window.streams found={} token_found={}",
@@ -565,52 +566,54 @@ impl VixsrcClient {
             re_streams.captures(&html).is_some(),
             auth_token.is_some(),
         );
-        if let Some(caps) = re_streams.captures(&html) {
-            if let Some(block) = caps.get(1) {
-                info!(
-                    "[Vixsrc Rust] window.streams block: {}",
-                    block.as_str().chars().take(200).collect::<String>()
-                );
-                match serde_json::from_str::<Vec<VixsrcStream>>(block.as_str()) {
-                    Ok(servers) => {
-                        info!(
-                            "[Vixsrc Rust] parsed {} servers from window.streams",
-                            servers.len()
-                        );
-                        for server in servers {
-                            if let Some(u) = server.url.filter(|s| !s.is_empty()) {
-                                let authed = if let (Some(ref t), Some(ref e)) =
-                                    (&auth_token, &auth_expires)
-                                {
-                                    let sep = if u.contains('?') { '&' } else { '?' };
-                                    format!(
-                                        "{}{sep}token={t}&expires={e}&h=1&lang=en",
-                                        u,
-                                        sep = sep,
-                                        t = t,
-                                        e = e
-                                    )
-                                } else {
-                                    u
-                                };
-                                let name = server.name.as_deref().unwrap_or("Server");
-                                // VidXsrc URLs include ?rendition=1080p/480p/720p when a
-                                // specific resolution is available. Extract it so quality is
-                                // meaningful instead of always "Auto".
-                                let quality = extract_rendition_quality(&authed)
-                                    .unwrap_or_else(|| "Auto".to_string());
-                                // dedupe by URL
-                                if !streams.iter().any(|s| s.url == authed) {
-                                    streams.push(InternalStream {
-                                        url: authed,
-                                        quality: quality.clone(),
-                                        title: format!("Aura - {} - {}", name, quality),
-                                    });
+        if streams.is_empty() {
+            if let Some(caps) = re_streams.captures(&html) {
+                if let Some(block) = caps.get(1) {
+                    info!(
+                        "[Vixsrc Rust] window.streams block: {}",
+                        block.as_str().chars().take(200).collect::<String>()
+                    );
+                    match serde_json::from_str::<Vec<VixsrcStream>>(block.as_str()) {
+                        Ok(servers) => {
+                            info!(
+                                "[Vixsrc Rust] parsed {} servers from window.streams",
+                                servers.len()
+                            );
+                            for server in servers {
+                                if let Some(u) = server.url.filter(|s| !s.is_empty()) {
+                                    let authed = if let (Some(ref t), Some(ref e)) =
+                                        (&auth_token, &auth_expires)
+                                    {
+                                        let sep = if u.contains('?') { '&' } else { '?' };
+                                        format!(
+                                            "{}{sep}token={t}&expires={e}&h=1&lang=en",
+                                            u,
+                                            sep = sep,
+                                            t = t,
+                                            e = e
+                                        )
+                                    } else {
+                                        u
+                                    };
+                                    let name = server.name.as_deref().unwrap_or("Server");
+                                    // VidXsrc URLs include ?rendition=1080p/480p/720p when a
+                                    // specific resolution is available. Extract it so quality is
+                                    // meaningful instead of always "Auto".
+                                    let quality = extract_rendition_quality(&authed)
+                                        .unwrap_or_else(|| "Auto".to_string());
+                                    // dedupe by URL
+                                    if !streams.iter().any(|s| s.url == authed) {
+                                        streams.push(InternalStream {
+                                            url: authed,
+                                            quality: quality.clone(),
+                                            title: format!("Aura - {} - {}", name, quality),
+                                        });
+                                    }
                                 }
                             }
                         }
+                        Err(e) => warn!("[Vixsrc Rust] window.streams JSON parse failed: {}", e),
                     }
-                    Err(e) => warn!("[Vixsrc Rust] window.streams JSON parse failed: {}", e),
                 }
             }
         }
@@ -654,95 +657,25 @@ fn resolution_to_quality(resolution: &str) -> Option<String> {
     None
 }
 
-/// Fetch a vixsrc master playlist and expand its variants into separate streams
-/// with quality derived from RESOLUTION/BANDWIDTH attributes.
+/// Return the vixsrc master playlist as a single HLS stream so HLS.js reads the
+/// variants and does adaptive bitrate — dropping to 480p/360p on its own when
+/// bandwidth is tight. Expanding the master into separate per-rendition streams
+/// (the old behaviour) locked the player to whichever quality the frontend
+/// picked, so on slow/variable egress it sat on 1080p (~1.9 MB / 4 s segments)
+/// and stuttered. The proxy rewrites the master's variant URIs through
+/// m3u8-proxy, so ABR works end-to-end. Not fetching the master here also saves
+/// a round-trip.
 async fn expand_master_variants(
-    client: &ClientWithMiddleware,
+    _client: &ClientWithMiddleware,
     master_url: &str,
-    headers: &[(String, String)],
+    _headers: &[(String, String)],
     title_prefix: &str,
 ) -> Vec<InternalStream> {
-    let mut req = client.get(master_url);
-    for (k, v) in headers {
-        if let Ok(name) = reqwest::header::HeaderName::from_bytes(k.as_bytes()) {
-            if let Ok(value) = reqwest::header::HeaderValue::from_str(v) {
-                req = req.header(name, value);
-            }
-        }
-    }
-
-    let body = match req.send().await {
-        Ok(resp) if resp.status().is_success() => resp.text().await.unwrap_or_default(),
-        _ => return vec![],
-    };
-
-    let mut variants = Vec::new();
-    let mut last_inf: Option<String> = None;
-    for line in body.lines() {
-        let line = line.trim();
-        if line.starts_with("#EXT-X-STREAM-INF") {
-            last_inf = Some(line.to_string());
-        } else if !line.is_empty() && !line.starts_with('#') {
-            if let Some(ref inf) = last_inf {
-                let resolution = Regex::new(r"RESOLUTION=(\d+x\d+)")
-                    .ok()
-                    .and_then(|re| re.captures(inf))
-                    .and_then(|c| c.get(1))
-                    .map(|m| m.as_str());
-                let bandwidth = Regex::new(r"BANDWIDTH=(\d+)")
-                    .ok()
-                    .and_then(|re| re.captures(inf))
-                    .and_then(|c| c.get(1))
-                    .map(|m| m.as_str().parse::<u64>().unwrap_or(0));
-
-                let quality = resolution
-                    .and_then(resolution_to_quality)
-                    .unwrap_or_else(|| {
-                        bandwidth
-                            .map(|bw| match bw {
-                                0..=400_000 => "240p".to_string(),
-                                400_001..=800_000 => "360p".to_string(),
-                                800_001..=1_500_000 => "480p".to_string(),
-                                1_500_001..=3_000_000 => "720p".to_string(),
-                                3_000_001..=5_000_000 => "1080p".to_string(),
-                                _ => "4K".to_string(),
-                            })
-                            .unwrap_or_else(|| "Auto".to_string())
-                    });
-
-                // Resolve relative variant URLs against the master URL.
-                let variant_url = if line.starts_with("http://") || line.starts_with("https://") {
-                    line.to_string()
-                } else {
-                    match reqwest::Url::parse(master_url) {
-                        Ok(base) => base
-                            .join(line)
-                            .map(|u| u.to_string())
-                            .unwrap_or_else(|_| line.to_string()),
-                        Err(_) => line.to_string(),
-                    }
-                };
-
-                variants.push(InternalStream {
-                    url: variant_url,
-                    quality: quality.clone(),
-                    title: format!("{} - {}", title_prefix, quality),
-                });
-            }
-            last_inf = None;
-        }
-    }
-
-    if variants.is_empty() {
-        // Fallback: if the URL isn't actually a multi-variant master, keep it as-is.
-        return vec![InternalStream {
-            url: master_url.to_string(),
-            quality: "1080p".to_string(),
-            title: format!("{} - 1080p", title_prefix),
-        }];
-    }
-
-    variants
+    vec![InternalStream {
+        url: master_url.to_string(),
+        quality: "Auto".to_string(),
+        title: format!("{} - Auto", title_prefix),
+    }]
 }
 
 /// Extract subtitle URLs from embed page HTML.
