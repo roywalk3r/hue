@@ -1560,6 +1560,12 @@ fn rewrite_playlist(
     let mut rewritten_lines: Vec<String> = Vec::new();
     let mut pending_byte_range: Option<String> = None;
     let mut next_byte_offset: Option<u64> = None;
+    // Per the HLS spec, the URI line following #EXT-X-STREAM-INF is always a
+    // media playlist — even when the URL has no .m3u8 extension (megacloud-style
+    // hosts). Without this, extensionless variants get routed to ts-proxy, which
+    // returns the playlist unrewritten; the player then resolves its relative
+    // segments against the app origin and every fragment fails as HTML.
+    let mut next_uri_is_playlist = false;
 
     for line in content.lines() {
         let trimmed = line.trim();
@@ -1571,6 +1577,9 @@ fn rewrite_playlist(
 
         // Tags that carry a URI attribute
         if line.starts_with("#") {
+            if trimmed.starts_with("#EXT-X-STREAM-INF") {
+                next_uri_is_playlist = true;
+            }
             if let Some(rewritten_line) =
                 rewrite_hls_tag_uri(line, proxy_base, secret, &base_url, &headers)
             {
@@ -1584,7 +1593,9 @@ fn rewrite_playlist(
             // Use the manifest-level flag (passed in) rather than per-URL
             // shape — segment URLs (.ts/.m4s) wouldn't otherwise be detected
             // as HLS but their parent manifest IS HLS.
-            let segment_is_hls_playlist_ref = looks_like_hls_playlist_url(&abs_url);
+            let segment_is_hls_playlist_ref =
+                next_uri_is_playlist || looks_like_hls_playlist_url(&abs_url);
+            next_uri_is_playlist = false;
             let route = if segment_is_hls_playlist_ref { "m3u8-proxy" } else { "ts-proxy" };
 
             // MP3-wrapped-TS detection
