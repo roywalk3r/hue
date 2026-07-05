@@ -35,6 +35,8 @@ use crate::providers::{
     dramacool_provider::DramacoolProvider,
     kissasian::KissAsianClient,
     kissasian_provider::KissAsianProvider,
+    kissasian_top::KissAsianTopClient,
+    kissasian_top_provider::KissAsianTopProvider,
     kisskh::KissKhClient,
     kisskh_provider::KissKhProvider,
     kisskh_xyra::KissKhXyraClient,
@@ -84,6 +86,7 @@ pub struct AppState {
     pub kisskh: Arc<KissKhClient>,
     pub dramacool: Arc<DramacoolClient>,
     pub kissasian: Arc<KissAsianClient>,
+    pub kissasian_top: Arc<KissAsianTopClient>,
     pub moviebox: Arc<MovieBoxClient>,
     pub hianime: Arc<crate::clients::hianime::HianimeClient>,
     pub vidvault: Arc<crate::clients::vidvault::VidVaultClient>,
@@ -110,7 +113,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let circuit_breaker = Arc::new(CircuitBreaker::new());
     let metrics = Arc::new(Metrics::new(&[
         "Cinema", "Nova", "Zenith", "Orient", "Pearl", "Aura", "Hydra", "Luna", "Vault", "VidZee",
-        "Nebula",
+        "Nebula", "Rose",
     ]));
     circuit_breaker.set_metrics(metrics.clone());
     let filter_config = Arc::new(FilterConfig::default());
@@ -121,6 +124,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let sflix_client = Arc::new(crate::providers::sflix::SflixClient::new());
     let dramacool_client = Arc::new(crate::providers::dramacool::DramacoolClient::new());
     let kissasian_client = Arc::new(crate::providers::kissasian::KissAsianClient::new());
+    let kissasian_top_client = Arc::new(crate::providers::kissasian_top::KissAsianTopClient::new());
     let hianime_client = Arc::new(crate::clients::hianime::HianimeClient::new());
     let animekill_client = Arc::new(crate::clients::animekill::AnimeKillClient::new());
     let xyra_subtitle_client = Arc::new(XyraSubtitleClient::new());
@@ -208,6 +212,9 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     // registry.register(Arc::new(KissKhXyraProvider::new(kisskh_xyra_client.clone()))); // disabled — xyra faulty
     // registry.register(Arc::new(DramacoolProvider::new(dramacool_client.clone()))); // disabled — xyra faulty
     registry.register(Arc::new(KissAsianProvider::new(kissasian_client.clone())));
+    registry.register(Arc::new(KissAsianTopProvider::new(
+        kissasian_top_client.clone(),
+    )));
     registry.register(Arc::new(VixsrcProvider::new(vixsrc_client)));
     // registry.register(Arc::new(Mp4HydraProvider::new())); // disabled — endpoint times out
     registry.register(Arc::new(VidrockProvider::new(vidrock_client.clone())));
@@ -263,6 +270,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         kisskh: kisskh_client,
         dramacool: dramacool_client,
         kissasian: kissasian_client,
+        kissasian_top: kissasian_top_client,
         moviebox: moviebox_client.clone(),
         hianime: hianime_client.clone(),
         vidvault: vidvault_client.clone(),
@@ -447,6 +455,22 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/drama/kissasian/streams/:id/:episode",
             get(crate::routes::drama::kissasian_streams_handler),
+        )
+        .route(
+            "/api/drama/kissasian_top/search",
+            get(crate::routes::drama::kissasian_top_search_handler),
+        )
+        .route(
+            "/api/drama/kissasian_top/browse",
+            get(crate::routes::drama::kissasian_top_browse_handler),
+        )
+        .route(
+            "/api/drama/kissasian_top/info/:slug",
+            get(crate::routes::drama::kissasian_top_info_handler),
+        )
+        .route(
+            "/api/drama/kissasian_top/streams/:slug/:episode",
+            get(crate::routes::drama::kissasian_top_streams_handler),
         )
         .route(
             "/api/drama/moviebox/browse",
@@ -754,15 +778,18 @@ async fn auth_middleware(
     }
 
     let header_auth = req.headers().get("x-api-key").and_then(|v| v.to_str().ok());
-    let query_auth = req
-        .uri()
-        .query()
-        .and_then(|q| q.split('&').find_map(|pair| {
+    let query_auth = req.uri().query().and_then(|q| {
+        q.split('&').find_map(|pair| {
             let mut parts = pair.splitn(2, '=');
             let key = parts.next()?;
             let value = parts.next()?;
-            if key == "api_key" { Some(value) } else { None }
-        }));
+            if key == "api_key" {
+                Some(value)
+            } else {
+                None
+            }
+        })
+    });
     let auth = header_auth.or(query_auth);
     if auth != Some(api_key) {
         return Err(StatusCode::FORBIDDEN);
@@ -926,6 +953,7 @@ pub struct DramaState {
     pub dramacool: Arc<DramacoolClient>,
     pub kisskh_xyra: Arc<KissKhXyraClient>,
     pub kissasian: Arc<KissAsianClient>,
+    pub kissasian_top: Arc<KissAsianTopClient>,
     pub moviebox: Arc<MovieBoxClient>,
     pub tmdb: Arc<TmdbClient>,
     pub secret: String,
@@ -940,6 +968,7 @@ impl FromRef<AppState> for DramaState {
             dramacool: s.dramacool.clone(),
             kisskh_xyra: s.kisskh_xyra.clone(),
             kissasian: s.kissasian.clone(),
+            kissasian_top: s.kissasian_top.clone(),
             moviebox: s.moviebox.clone(),
             tmdb: s.tmdb.clone(),
             secret: s.secret.clone(),

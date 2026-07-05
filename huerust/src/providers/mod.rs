@@ -10,6 +10,8 @@ pub mod dramacool;
 pub mod dramacool_provider;
 pub mod kissasian;
 pub mod kissasian_provider;
+pub mod kissasian_top;
+pub mod kissasian_top_provider;
 pub mod kisskh;
 pub mod kisskh_provider;
 pub mod kisskh_xyra;
@@ -77,6 +79,7 @@ pub fn display_to_real_name(display: &str) -> &str {
         "Aurora" => "kisskh_xyra",
         "Orient" => "dramacool",
         "Pearl" => "kissasian",
+        "Rose" => "kissasian_top",
         "Hydra" => "mp4hydra",
         "VidZee" => "vidzee",
         "Vortex" => "videasy",
