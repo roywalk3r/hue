@@ -129,8 +129,14 @@
   "hotPaths": [
     {
       "path": "src/app.rs",
-      "accessCount": 17,
-      "lastAccessed": 1783270438238,
+      "accessCount": 18,
+      "lastAccessed": 1783279951612,
+      "type": "file"
+    },
+    {
+      "path": "src/proxy/mod.rs",
+      "accessCount": 6,
+      "lastAccessed": 1783273143342,
       "type": "file"
     },
     {
@@ -173,12 +179,6 @@
       "path": "src/routes/drama.rs",
       "accessCount": 1,
       "lastAccessed": 1783262323105,
-      "type": "file"
-    },
-    {
-      "path": "src/proxy/mod.rs",
-      "accessCount": 1,
-      "lastAccessed": 1783266266303,
       "type": "file"
     }
   ],
