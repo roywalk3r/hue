@@ -153,6 +153,55 @@ pub async fn streams_handler(
     let mut captured_timings: Vec<ProviderTiming> = vec![];
 
     // ── Background fill: after fast return, keep fetching all providers ──
+    /// Drop streams whose upstream fails a quick reachability probe. Without
+    /// this the player ranks dead 1080p mirrors above live 480p ones and
+    /// burns 8s per corpse before reaching a playable stream.
+    async fn drop_unreachable(
+        client: &reqwest_middleware::ClientWithMiddleware,
+        streams: Vec<StreamResult>,
+        timeout_secs: u64,
+        hls_only: bool,
+    ) -> Vec<StreamResult> {
+        // hls_only: the inline response path probes just manifests (fast
+        // HEADs that catch dead worker hosts). Slow mp4 mirror probes are
+        // the ones that eat the 5s budget, and the player rotates past a
+        // dead mp4 in ~2s anyway — only the background fill (which feeds
+        // the cache) pays for the full pass.
+        let checks = futures_util::future::join_all(streams.iter().map(|s| async move {
+            let is_hls = s.format == "hls" || s.url.to_lowercase().contains(".m3u8");
+            if hls_only && !is_hls {
+                return true;
+            }
+            crate::routes::sse::is_stream_reachable(client, s, timeout_secs).await
+        }))
+        .await;
+        let before = streams.len();
+        // Fail open: if every probe failed the problem is more likely the
+        // probe (slow mirrors, egress path) than all upstreams at once —
+        // a possibly-stale list beats a guaranteed 404.
+        if !checks.iter().any(|&ok| ok) {
+            warn!(
+                "[api] Reachability: all {} probes failed — serving unfiltered list",
+                before
+            );
+            return streams;
+        }
+        let alive: Vec<StreamResult> = streams
+            .into_iter()
+            .zip(checks)
+            .filter(|(_, ok)| *ok)
+            .map(|(s, _)| s)
+            .collect();
+        if alive.len() < before {
+            info!(
+                "[api] Reachability: dropped {} dead streams, {} remain",
+                before - alive.len(),
+                alive.len()
+            );
+        }
+        alive
+    }
+
     fn spawn_background_fill(
         state: StreamState,
         cache_key: CacheKey,
@@ -186,13 +235,28 @@ pub async fn streams_handler(
                 &m_type,
                 apply_filters(unique, &state.filter_config),
             );
+            let filtered = drop_unreachable(
+                &state.client,
+                filtered,
+                state.config.head_check_timeout_secs,
+                false,
+            )
+            .await;
             let count = filtered.len();
-            if count > 0 {
+            // A thin round (one flaky provider answered) would lock a bad
+            // list into the cache for the full TTL. Leave the cache empty
+            // instead so the next request re-fetches until a full round lands.
+            if count >= 3 {
                 state.cache.set(&cache_key, filtered).await;
                 info!(
                     "[api] Background fill: cached {} streams in {:?}",
                     count,
                     start.elapsed()
+                );
+            } else if count > 0 {
+                info!(
+                    "[api] Background fill: only {} streams — not caching thin round",
+                    count
                 );
             }
         });
@@ -332,6 +396,17 @@ pub async fn streams_handler(
         Some(v) => v,
         None => return (StatusCode::NOT_FOUND, "No streams found").into_response(),
     };
+
+    let filtered = drop_unreachable(
+        &state.client,
+        filtered,
+        state.config.head_check_timeout_secs,
+        true,
+    )
+    .await;
+    if filtered.is_empty() {
+        return (StatusCode::NOT_FOUND, "No streams found").into_response();
+    }
 
     let mut final_streams = if enable_proxy {
         wrap_with_proxy(filtered, &proxy_base, &secret)
