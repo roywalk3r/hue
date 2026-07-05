@@ -9,6 +9,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
+    Json,
 };
 use serde::Serialize;
 use std::collections::HashMap;
@@ -111,7 +112,7 @@ pub async fn streams_handler(
 
             return (
                 StatusCode::OK,
-                serde_json::to_string(&StreamsResponse {
+                Json(StreamsResponse {
                     success: true,
                     tmdb_id: tmdb_id.clone(),
                     media_type: m_type.clone(),
@@ -120,8 +121,7 @@ pub async fn streams_handler(
                     count: final_streams.len(),
                     streams: final_streams,
                     provider_timings: vec![],
-                })
-                .unwrap(),
+                }),
             )
                 .into_response();
         }
@@ -417,7 +417,7 @@ pub async fn streams_handler(
 
     (
         StatusCode::OK,
-        serde_json::to_string(&StreamsResponse {
+        Json(StreamsResponse {
             success: true,
             tmdb_id,
             media_type: m_type,
@@ -426,8 +426,7 @@ pub async fn streams_handler(
             count: final_streams.len(),
             streams: final_streams,
             provider_timings: captured_timings,
-        })
-        .unwrap(),
+        }),
     )
         .into_response()
 }
