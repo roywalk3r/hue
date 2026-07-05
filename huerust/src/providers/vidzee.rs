@@ -33,7 +33,9 @@ use std::sync::LazyLock;
 static CHUNK_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"/_next/static/chunks/app/embed/[^"]+\.js"#).unwrap());
 static SECRET_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"let a="([a-f0-9]{32})",l="(https://core\.vidzee\.wtf/api-key)""#).unwrap()
+    // The JS variable holding the api-key URL rotates names (l, s, ...), so capture any
+    // single-letter identifier. The hex secret is always assigned to `a` first.
+    Regex::new(r#"let a="([a-f0-9]{32})",([a-z])="(https://core\.vidzee\.wtf/api-key)""#).unwrap()
 });
 use crate::models::{StreamResult, Subtitle};
 use std::collections::HashMap;
@@ -46,7 +48,7 @@ use crate::constants::UA_DESKTOP;
 
 const VIDZEE_API: &str = "https://player.vidzee.wtf/api/server";
 const DEFAULT_KEY_API: &str = "https://core.vidzee.wtf/api-key";
-const DEFAULT_HEX_SECRET: &str = "4f2a9c7d1e8b3a6f0d5c2e9a7b1f4d8c";
+const DEFAULT_HEX_SECRET: &str = "c4a8f1d7e2b9a6c3d0f5e8a1b7c4d9e2";
 const VIDZEE_REFERER: &str = "https://core.vidzee.wtf/";
 
 /// Cached secrets extracted from the VidZee JS bundle at runtime.
@@ -116,14 +118,14 @@ async fn try_fetch_secrets(client: &ClientWithMiddleware) -> Result<VidzeeSecret
         .await?;
 
     // Step 4: Extract hex secret and api-key URL
-    // Pattern: let a="<32-hex>",l="https://core.vidzee.wtf/api-key"
+    // Pattern: let a="<32-hex>",VAR="https://core.vidzee.wtf/api-key" (VAR rotates per build)
     let caps = SECRET_RE
         .captures(&js)
         .ok_or_else(|| anyhow!("hex secret pattern not found in chunk JS"))?;
 
     Ok(VidzeeSecrets {
         hex_secret: caps[1].to_string(),
-        key_api: caps[2].to_string(),
+        key_api: caps[3].to_string(),
     })
 }
 
