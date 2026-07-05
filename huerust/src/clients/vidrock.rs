@@ -147,7 +147,19 @@ impl VidRockClient {
 
         let encrypted = encrypt_item_id(&item_id)?;
         let api_url = format!("{}/api/{}/{}", API_BASE, api_type, encrypted);
-        let referer_url = format!("{}/{}/{}", API_BASE, api_type, tmdb_id);
+        // Match the browser's Referer exactly: the tv page path carries the
+        // season/episode segments (/tv/{id}/{s}/{e}), not just /tv/{id}.
+        let referer_url = if api_type == "tv" {
+            format!(
+                "{}/tv/{}/{}/{}",
+                API_BASE,
+                tmdb_id,
+                season.unwrap_or(1),
+                episode.unwrap_or(1)
+            )
+        } else {
+            format!("{}/movie/{}", API_BASE, tmdb_id)
+        };
 
         // Fetch source map from API
         let resp = self
