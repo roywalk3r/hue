@@ -5,6 +5,7 @@
 //! @license MIT
 
 use axum::{
+    Json,
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
@@ -211,11 +212,10 @@ pub async fn leagues_handler(State(state): State<AppState>) -> Response {
     match state.aisports.get_league_tabs().await {
         Ok(data) => (
             StatusCode::OK,
-            serde_json::to_string(&SportsDataResponse {
+            Json(SportsDataResponse {
                 success: true,
                 data,
-            })
-            .unwrap(),
+            }),
         )
             .into_response(),
         Err(e) => {
@@ -240,11 +240,10 @@ pub async fn league_tabs_handler(State(state): State<AppState>) -> Response {
     match state.aisports.get_league_tabs().await {
         Ok(data) => (
             StatusCode::OK,
-            serde_json::to_string(&SportsDataResponse {
+            Json(SportsDataResponse {
                 success: true,
                 data,
-            })
-            .unwrap(),
+            }),
         )
             .into_response(),
         Err(e) => {
@@ -283,11 +282,10 @@ pub async fn matches_handler(
     match state.aisports.get_match_list_v5(&params.league_id).await {
         Ok(data) => (
             StatusCode::OK,
-            serde_json::to_string(&SportsDataResponse {
+            Json(SportsDataResponse {
                 success: true,
                 data,
-            })
-            .unwrap(),
+            }),
         )
             .into_response(),
         Err(e) => {
@@ -341,11 +339,10 @@ pub async fn grouped_matches_handler(
     {
         Ok(data) => (
             StatusCode::OK,
-            serde_json::to_string(&SportsDataResponse {
+            Json(SportsDataResponse {
                 success: true,
                 data,
-            })
-            .unwrap(),
+            }),
         )
             .into_response(),
         Err(e) => {
@@ -393,11 +390,10 @@ pub async fn live_matches_handler(
     {
         Ok(data) => (
             StatusCode::OK,
-            serde_json::to_string(&SportsDataResponse {
+            Json(SportsDataResponse {
                 success: true,
                 data,
-            })
-            .unwrap(),
+            }),
         )
             .into_response(),
         Err(e) => {
@@ -482,7 +478,7 @@ pub async fn filter_tabs_handler(
 
     (
         StatusCode::OK,
-        serde_json::to_string(&SportsDataResponse {
+        Json(SportsDataResponse {
             success: true,
             data: json!({
                 "matchType": params.match_type,
@@ -490,8 +486,7 @@ pub async fn filter_tabs_handler(
                 "endTime": params.end_time,
                 "tabs": tabs
             }),
-        })
-        .unwrap(),
+        }),
     )
         .into_response()
 }
@@ -521,11 +516,10 @@ pub async fn home_handler(
     match state.aisports.get_aggregate(&params.league_id).await {
         Ok(data) => (
             StatusCode::OK,
-            serde_json::to_string(&SportsDataResponse {
+            Json(SportsDataResponse {
                 success: true,
                 data,
-            })
-            .unwrap(),
+            }),
         )
             .into_response(),
         Err(e) => {
@@ -569,11 +563,10 @@ pub async fn latest_handler(
     {
         Ok(data) => (
             StatusCode::OK,
-            serde_json::to_string(&SportsDataResponse {
+            Json(SportsDataResponse {
                 success: true,
                 data,
-            })
-            .unwrap(),
+            }),
         )
             .into_response(),
         Err(e) => {
@@ -634,13 +627,12 @@ pub async fn streams_handler(
 
             (
                 StatusCode::OK,
-                serde_json::to_string(&SportsStreamsResponse {
+                Json(SportsStreamsResponse {
                     success: true,
                     query: query.to_string(),
                     count: streams.len(),
                     streams,
-                })
-                .unwrap(),
+                }),
             )
                 .into_response()
         }
@@ -648,13 +640,12 @@ pub async fn streams_handler(
             info!("[api] No sports streams found for '{}'", query);
             (
                 StatusCode::OK,
-                serde_json::to_string(&SportsStreamsResponse {
+                Json(SportsStreamsResponse {
                     success: true,
                     query: query.to_string(),
                     count: 0,
                     streams: vec![],
-                })
-                .unwrap(),
+                }),
             )
                 .into_response()
         }
@@ -753,13 +744,28 @@ pub async fn detail_handler(
 
     let title = format!(
         "{} vs {}",
-        m.team1.as_ref().and_then(|t| t.name.clone()).unwrap_or_else(|| "Unknown".to_string()),
-        m.team2.as_ref().and_then(|t| t.name.clone()).unwrap_or_else(|| "Unknown".to_string())
+        m.team1
+            .as_ref()
+            .and_then(|t| t.name.clone())
+            .unwrap_or_else(|| "Unknown".to_string()),
+        m.team2
+            .as_ref()
+            .and_then(|t| t.name.clone())
+            .unwrap_or_else(|| "Unknown".to_string())
     );
     let status = m.status.clone().unwrap_or_default();
-    let is_live = status == "MatchLive" || status == "MatchIng" || m.status_live.as_deref() == Some("1");
-    let score1 = m.team_match_info1.as_ref().and_then(|i| i.score.clone()).unwrap_or_default();
-    let score2 = m.team_match_info2.as_ref().and_then(|i| i.score.clone()).unwrap_or_default();
+    let is_live =
+        status == "MatchLive" || status == "MatchIng" || m.status_live.as_deref() == Some("1");
+    let score1 = m
+        .team_match_info1
+        .as_ref()
+        .and_then(|i| i.score.clone())
+        .unwrap_or_default();
+    let score2 = m
+        .team_match_info2
+        .as_ref()
+        .and_then(|i| i.score.clone())
+        .unwrap_or_default();
 
     let grouped = crate::clients::aisports::AiSportsClient::grouped_streams_from_match(&m);
     let mut streams_json = json!({
@@ -771,7 +777,10 @@ pub async fn detail_handler(
     if state.config.enable_proxy {
         if let Some(obj) = streams_json.as_object_mut() {
             for (_key, val) in obj.iter_mut() {
-                if let Ok(list) = serde_json::from_value::<Vec<crate::clients::aisports::SportsStream>>(val.clone()) {
+                if let Ok(list) = serde_json::from_value::<
+                    Vec<crate::clients::aisports::SportsStream>,
+                >(val.clone())
+                {
                     let wrapped = wrap_sports_streams(list, &proxy_base, &state.secret);
                     *val = serde_json::to_value(wrapped).unwrap_or_else(|_| val.clone());
                 }
@@ -781,7 +790,7 @@ pub async fn detail_handler(
 
     (
         StatusCode::OK,
-        serde_json::to_string(&SportsDetailResponse {
+        Json(SportsDetailResponse {
             success: true,
             match_id: m.id,
             title,
@@ -795,8 +804,7 @@ pub async fn detail_handler(
             round: m.match_round.unwrap_or_default(),
             time_desc: m.time_desc.unwrap_or_default(),
             streams: streams_json,
-        })
-        .unwrap(),
+        }),
     )
         .into_response()
 }

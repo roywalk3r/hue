@@ -6,6 +6,7 @@
 //! @license MIT
 
 use axum::{
+    Json,
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -55,11 +56,10 @@ pub async fn providers_handler(State(state): State<ProvidersState>) -> Response 
 
     (
         StatusCode::OK,
-        serde_json::to_string(&serde_json::json!({
+        Json(serde_json::json!({
             "count": providers.len(),
             "providers": providers
-        }))
-        .unwrap(),
+        })),
     )
         .into_response()
 }

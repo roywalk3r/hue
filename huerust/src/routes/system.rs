@@ -36,7 +36,9 @@ mod tests {
 
         assert_eq!(info["service"], "huerust");
         assert_eq!(info["version"], env!("CARGO_PKG_VERSION"));
-        assert!(info["commit"].as_str().is_some_and(|value| !value.is_empty()));
+        assert!(info["commit"]
+            .as_str()
+            .is_some_and(|value| !value.is_empty()));
     }
 }
 
@@ -55,7 +57,7 @@ pub async fn metrics_handler(State(state): State<SystemState>) -> Response {
 
 pub async fn hitv_library_handler(State(state): State<SystemState>) -> Response {
     let items = state.hitv.get_library().await;
-    (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response()
+    (StatusCode::OK, Json(items)).into_response()
 }
 
 pub async fn admin_reload_handler() -> Response {
@@ -127,5 +129,5 @@ pub async fn status_handler(State(state): State<SystemState>) -> Response {
         "metrics": {},
         "providers": providers
     });
-    (StatusCode::OK, serde_json::to_string(&resp).unwrap()).into_response()
+    (StatusCode::OK, Json(resp)).into_response()
 }

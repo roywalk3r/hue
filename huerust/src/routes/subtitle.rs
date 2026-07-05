@@ -5,6 +5,7 @@
 //!   GET /api/subtitle/download?url=...
 
 use axum::{
+    Json,
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -55,7 +56,7 @@ pub async fn subtitle_search_handler(
     {
         Ok(items) => {
             tracing::info!("[subtitle] search: {} results", items.len());
-            (StatusCode::OK, serde_json::to_string(&items).unwrap()).into_response()
+            (StatusCode::OK, Json(items)).into_response()
         }
         Err(e) => {
             tracing::warn!("[subtitle] search error: {}", e);
@@ -80,7 +81,14 @@ pub async fn subtitle_download_handler(
             // xyra decompresses gzip and returns raw subtitle text. Pass
             // through to the client as-is. Default content type is fine —
             // SRT/VTT are both plain text.
-            (StatusCode::OK, [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")], text)
+            (
+                StatusCode::OK,
+                [(
+                    axum::http::header::CONTENT_TYPE,
+                    "text/plain; charset=utf-8",
+                )],
+                text,
+            )
                 .into_response()
         }
         Err(e) => {

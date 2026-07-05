@@ -15,6 +15,7 @@ use crate::{
     security::kkey_encrypt,
 };
 use axum::{
+    Json,
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
@@ -97,7 +98,7 @@ pub async fn play_handler(
     if let Some(cached) = state.cache.get(&cache_key).await {
         if let Some(best) = pick_best_stream(cached, &state).await {
             let best = proxify_play_response(best, &state, &proxy_base);
-            return (StatusCode::OK, serde_json::to_string(&best).unwrap()).into_response();
+            return (StatusCode::OK, Json(best)).into_response();
         }
     }
 
@@ -153,7 +154,7 @@ pub async fn play_handler(
     // 6. Pick best stream
     if let Some(best) = pick_best_stream(filtered, &state).await {
         let best = proxify_play_response(best, &state, &proxy_base);
-        (StatusCode::OK, serde_json::to_string(&best).unwrap()).into_response()
+        (StatusCode::OK, Json(best)).into_response()
     } else {
         (StatusCode::NOT_FOUND, "No playable streams found").into_response()
     }

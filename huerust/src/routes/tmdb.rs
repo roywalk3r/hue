@@ -6,6 +6,7 @@
 //! @license MIT
 
 use axum::{
+    Json,
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -65,11 +66,10 @@ pub struct SearchQuery {
 fn list_response(items: Vec<TmdbNormalizedInfo>) -> Response {
     (
         StatusCode::OK,
-        serde_json::to_string(&TmdbListResponse {
+        Json(TmdbListResponse {
             success: true,
             items,
-        })
-        .unwrap(),
+        }),
     )
         .into_response()
 }
@@ -77,11 +77,10 @@ fn list_response(items: Vec<TmdbNormalizedInfo>) -> Response {
 fn error_response() -> Response {
     (
         StatusCode::BAD_GATEWAY,
-        serde_json::to_string(&TmdbListResponse {
+        Json(TmdbListResponse {
             success: false,
             items: vec![],
-        })
-        .unwrap(),
+        }),
     )
         .into_response()
 }
@@ -119,11 +118,10 @@ pub async fn home_handler(
 
         (
             StatusCode::OK,
-            serde_json::to_string(&TmdbHomeResponse {
+            Json(TmdbHomeResponse {
                 success: true,
                 shelves,
-            })
-            .unwrap(),
+            }),
         )
             .into_response()
     } else {
@@ -152,11 +150,10 @@ pub async fn home_handler(
 
         (
             StatusCode::OK,
-            serde_json::to_string(&TmdbHomeResponse {
+            Json(TmdbHomeResponse {
                 success: true,
                 shelves,
-            })
-            .unwrap(),
+            }),
         )
             .into_response()
     }

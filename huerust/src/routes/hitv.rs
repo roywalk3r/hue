@@ -7,6 +7,7 @@
 
 use crate::{app::HiTvState, clients::hitv::HiTvItem, proxy::dynamic_proxy_base};
 use axum::{
+    Json,
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
@@ -67,24 +68,22 @@ pub async fn browse_handler(
     {
         Ok(res) => (
             StatusCode::OK,
-            serde_json::to_string(&HitvListResponse {
+            Json(HitvListResponse {
                 success: true,
                 items: res.items,
                 total: res.total,
-            })
-            .unwrap(),
+            }),
         )
             .into_response(),
         Err(e) => {
             warn!("[hitv] Browse failed: {}", e);
             (
                 StatusCode::BAD_GATEWAY,
-                serde_json::to_string(&HitvListResponse {
+                Json(HitvListResponse {
                     success: false,
                     items: vec![],
                     total: 0,
-                })
-                .unwrap(),
+                }),
             )
                 .into_response()
         }
@@ -114,24 +113,22 @@ pub async fn search_handler(
     match state.hitv.search(query, page, page_size).await {
         Ok(res) => (
             StatusCode::OK,
-            serde_json::to_string(&HitvListResponse {
+            Json(HitvListResponse {
                 success: true,
                 items: res.items,
                 total: res.total,
-            })
-            .unwrap(),
+            }),
         )
             .into_response(),
         Err(e) => {
             warn!("[hitv] Search failed: {}", e);
             (
                 StatusCode::BAD_GATEWAY,
-                serde_json::to_string(&HitvListResponse {
+                Json(HitvListResponse {
                     success: false,
                     items: vec![],
                     total: 0,
-                })
-                .unwrap(),
+                }),
             )
                 .into_response()
         }
@@ -164,24 +161,22 @@ pub async fn latest_handler(
     {
         Ok(res) => (
             StatusCode::OK,
-            serde_json::to_string(&HitvListResponse {
+            Json(HitvListResponse {
                 success: true,
                 items: res.items,
                 total: res.total,
-            })
-            .unwrap(),
+            }),
         )
             .into_response(),
         Err(e) => {
             warn!("[hitv] Latest failed: {}", e);
             (
                 StatusCode::BAD_GATEWAY,
-                serde_json::to_string(&HitvListResponse {
+                Json(HitvListResponse {
                     success: false,
                     items: vec![],
                     total: 0,
-                })
-                .unwrap(),
+                }),
             )
                 .into_response()
         }
@@ -214,24 +209,22 @@ pub async fn trending_handler(
     {
         Ok(res) => (
             StatusCode::OK,
-            serde_json::to_string(&HitvListResponse {
+            Json(HitvListResponse {
                 success: true,
                 items: res.items,
                 total: res.total,
-            })
-            .unwrap(),
+            }),
         )
             .into_response(),
         Err(e) => {
             warn!("[hitv] Trending failed: {}", e);
             (
                 StatusCode::BAD_GATEWAY,
-                serde_json::to_string(&HitvListResponse {
+                Json(HitvListResponse {
                     success: false,
                     items: vec![],
                     total: 0,
-                })
-                .unwrap(),
+                }),
             )
                 .into_response()
         }
@@ -244,12 +237,11 @@ pub async fn hero_handler(State(state): State<HiTvState>) -> Response {
 
     (
         StatusCode::OK,
-        serde_json::to_string(&HitvListResponse {
+        Json(HitvListResponse {
             success: true,
             items,
             total: 10,
-        })
-        .unwrap(),
+        }),
     )
         .into_response()
 }
@@ -277,24 +269,22 @@ pub async fn drama_handler(
     {
         Ok(res) => (
             StatusCode::OK,
-            serde_json::to_string(&HitvListResponse {
+            Json(HitvListResponse {
                 success: true,
                 items: res.items,
                 total: res.total,
-            })
-            .unwrap(),
+            }),
         )
             .into_response(),
         Err(e) => {
             warn!("[hitv] Drama browse failed: {}", e);
             (
                 StatusCode::BAD_GATEWAY,
-                serde_json::to_string(&HitvListResponse {
+                Json(HitvListResponse {
                     success: false,
                     items: vec![],
                     total: 0,
-                })
-                .unwrap(),
+                }),
             )
                 .into_response()
         }
@@ -307,31 +297,28 @@ pub async fn info_handler(State(state): State<HiTvState>, Path(id): Path<String>
     match state.hitv.get_detail(&id).await {
         Ok(Some(item)) => (
             StatusCode::OK,
-            serde_json::to_string(&HitvDetailResponse {
+            Json(HitvDetailResponse {
                 success: true,
                 item: Some(item),
-            })
-            .unwrap(),
+            }),
         )
             .into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
-            serde_json::to_string(&HitvDetailResponse {
+            Json(HitvDetailResponse {
                 success: false,
                 item: None,
-            })
-            .unwrap(),
+            }),
         )
             .into_response(),
         Err(e) => {
             warn!("[hitv] Info failed: {}", e);
             (
                 StatusCode::BAD_GATEWAY,
-                serde_json::to_string(&HitvDetailResponse {
+                Json(HitvDetailResponse {
                     success: false,
                     item: None,
-                })
-                .unwrap(),
+                }),
             )
                 .into_response()
         }
@@ -407,11 +394,10 @@ pub async fn countries_handler() -> Response {
     let countries = vec!["Korea", "China", "Thailand", "Japan"];
     (
         StatusCode::OK,
-        serde_json::to_string(&StaticListResponse {
+        Json(StaticListResponse {
             success: true,
             items: countries.into_iter().map(String::from).collect(),
-        })
-        .unwrap(),
+        }),
     )
         .into_response()
 }
@@ -420,11 +406,10 @@ pub async fn categories_handler() -> Response {
     let categories = vec!["Drama", "Movie", "Variety"];
     (
         StatusCode::OK,
-        serde_json::to_string(&StaticListResponse {
+        Json(StaticListResponse {
             success: true,
             items: categories.into_iter().map(String::from).collect(),
-        })
-        .unwrap(),
+        }),
     )
         .into_response()
 }
@@ -444,11 +429,10 @@ pub async fn genres_handler() -> Response {
     ];
     (
         StatusCode::OK,
-        serde_json::to_string(&StaticListResponse {
+        Json(StaticListResponse {
             success: true,
             items: genres.into_iter().map(String::from).collect(),
-        })
-        .unwrap(),
+        }),
     )
         .into_response()
 }
@@ -457,11 +441,10 @@ pub async fn sorts_handler() -> Response {
     let sorts = vec!["Hottest", "Newest", "TopRated"];
     (
         StatusCode::OK,
-        serde_json::to_string(&StaticListResponse {
+        Json(StaticListResponse {
             success: true,
             items: sorts.into_iter().map(String::from).collect(),
-        })
-        .unwrap(),
+        }),
     )
         .into_response()
 }
@@ -496,24 +479,22 @@ pub async fn dynamic_browse_handler(
     {
         Ok(res) => (
             StatusCode::OK,
-            serde_json::to_string(&HitvListResponse {
+            Json(HitvListResponse {
                 success: true,
                 items: res.items,
                 total: res.total,
-            })
-            .unwrap(),
+            }),
         )
             .into_response(),
         Err(e) => {
             warn!("[hitv] Dynamic browse failed: {}", e);
             (
                 StatusCode::BAD_GATEWAY,
-                serde_json::to_string(&HitvListResponse {
+                Json(HitvListResponse {
                     success: false,
                     items: vec![],
                     total: 0,
-                })
-                .unwrap(),
+                }),
             )
                 .into_response()
         }
