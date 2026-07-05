@@ -1,7 +1,19 @@
 use reqwest::{Client, ClientBuilder, Proxy};
 use reqwest_middleware::{ClientBuilder as MiddlewareClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
+use std::time::Duration;
 use tracing::warn;
+
+/// One retry, with a tight backoff. The default (3 retries, exponential
+/// backoff to ~3 s) stacks ~5 s of sleeps *inside* a caller's timeout — which
+/// made reachability probes drop slow-but-alive streams as "timed out" and
+/// dragged every provider round. A streaming aggregator with 4-8 s deadlines
+/// wants fast-fail: a single quick retry for a transient blip, no more.
+fn retry_policy() -> ExponentialBackoff {
+    ExponentialBackoff::builder()
+        .retry_bounds(Duration::from_millis(150), Duration::from_millis(600))
+        .build_with_max_retries(1)
+}
 
 pub fn with_optional_proxy(builder: ClientBuilder, specific_env: &str) -> ClientBuilder {
     let proxy_url = std::env::var(specific_env)
@@ -34,16 +46,14 @@ pub fn build_client_with_retry(builder: ClientBuilder, specific_env: &str) -> Cl
     let client = with_optional_proxy(builder, specific_env)
         .build()
         .expect("Failed to build reqwest Client");
-    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
     MiddlewareClientBuilder::new(client)
-        .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+        .with(RetryTransientMiddleware::new_with_policy(retry_policy()))
         .build()
 }
 
 /// Wrap an existing [`Client`] with retry middleware.
 pub fn wrap_with_retry(client: Client) -> ClientWithMiddleware {
-    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
     MiddlewareClientBuilder::new(client)
-        .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+        .with(RetryTransientMiddleware::new_with_policy(retry_policy()))
         .build()
 }
