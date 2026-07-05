@@ -1943,6 +1943,21 @@ fn infer_content_type(upstream_ct: &str, target_url: &str) -> &'static str {
     if url_lower.contains(".mkv") {
         return "video/x-matroska";
     }
+    // Vidrock Cloudflare Workers serve MP4 bytes behind `.html` paths
+    // (e.g. shy-smoke-85df.workers.dev/.../480p/page-N.html). Detect
+    // this and return the actual container so HLS.js doesn't try to
+    // parse MP4 as MPEG-TS and emit fragParsingError.
+    if url_lower.contains(".html") && (url_lower.contains(".workers.dev")
+        || url_lower.contains("berrylium.workers.dev")
+        || url_lower.contains("fortimax.shop")
+        || url_lower.contains("1shows.app")
+        || url_lower.contains("hostingersite.com")
+        || url_lower.contains("vixsrc.to")
+        || url_lower.contains("hls-proxy")
+        || url_lower.contains("hellstorm.lol"))
+    {
+        return "video/mp4";
+    }
     if url_lower.contains(".mp4") {
         return "video/mp4";
     }
