@@ -19,6 +19,7 @@ use utoipa::ToSchema;
 use crate::providers::dispatch::{
     ProviderTiming, fetch_from_providers, fetch_from_providers_matching, single_provider_registry,
 };
+use crate::providers::vdrk_subtitles::fetch_vdrk_subtitles;
 use crate::proxy::dynamic_proxy_base;
 use crate::proxy::wrap::wrap_with_proxy;
 use crate::{
@@ -482,6 +483,27 @@ pub async fn streams_handler(
         return (StatusCode::NOT_FOUND, "No streams found").into_response();
     }
 
+    let needs_subs = filtered.iter().any(|s| s.subtitles.is_none());
+    let vdrk_subs = if needs_subs {
+        let n = tmdb_id.parse::<u64>().unwrap_or(0);
+        if n > 0 {
+            fetch_vdrk_subtitles(&state.client, n, &m_type, season, episode).await
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    let filtered: Vec<StreamResult> = filtered
+        .into_iter()
+        .map(|mut s| {
+            if s.subtitles.is_none() {
+                s.subtitles = vdrk_subs.clone();
+            }
+            s
+        })
+        .collect();
+
     let mut final_streams = if enable_proxy {
         wrap_with_proxy(filtered, &proxy_base, &secret)
     } else {
@@ -816,6 +838,22 @@ pub async fn xyra_streams_handler(
                 headers: s.headers,
                 extra_metadata: None,
             }
+        })
+        .collect();
+
+    let tmdb_id_num = tmdb_id.parse::<u64>().unwrap_or(0);
+    let subs = if tmdb_id_num > 0 {
+        fetch_vdrk_subtitles(&state.client, tmdb_id_num, &m_type, season, episode).await
+    } else {
+        None
+    };
+    let streams: Vec<StreamResult> = streams
+        .into_iter()
+        .map(|mut s| {
+            if s.subtitles.is_none() {
+                s.subtitles = subs.clone();
+            }
+            s
         })
         .collect();
 

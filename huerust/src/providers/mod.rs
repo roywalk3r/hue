@@ -35,6 +35,7 @@ pub mod vidvault_provider;
 pub mod vidzee;
 pub mod vidzee_provider;
 pub mod vixsrc;
+pub mod vdrk_subtitles;
 pub mod vixsrc_provider;
 pub mod xyra_subtitle;
 pub mod xyra_vixsrc;
