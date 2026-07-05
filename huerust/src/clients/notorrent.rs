@@ -219,19 +219,15 @@ fn clean_text(s: &str) -> String {
 
 fn extract_quality(s: &str) -> String {
     let bytes = s.as_bytes();
-    for i in 0..bytes.len().saturating_sub(3) {
-        if bytes[i].is_ascii_digit()
-            && bytes[i + 1].is_ascii_digit()
-            && bytes[i + 2].is_ascii_digit()
-            && bytes[i + 3] == b'p'
-        {
-            return format!(
-                "{}{}{}{}",
-                bytes[i] as char,
-                bytes[i + 1] as char,
-                bytes[i + 2] as char,
-                'p'
-            );
+    for i in 0..bytes.len() {
+        if bytes[i] == b'p' {
+            let mut start = i;
+            while start > 0 && bytes[start - 1].is_ascii_digit() {
+                start -= 1;
+            }
+            if i - start >= 3 {
+                return format!("{}p", &s[start..i]);
+            }
         }
     }
     if s.to_uppercase().contains("FREE") {
