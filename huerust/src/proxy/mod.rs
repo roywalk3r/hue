@@ -1866,7 +1866,18 @@ fn rewrite_hls_tag_uri(
 
     let abs_url = resolve_segment_url(base_url, value);
     let abs_url = unwrap_aisports_worker_url(&abs_url);
-    let is_hls = looks_like_hls_playlist_url(&abs_url);
+    // Per the HLS spec the URI in #EXT-X-MEDIA (audio/subtitle renditions) and
+    // #EXT-X-I-FRAME-STREAM-INF is ALWAYS a media playlist, even when the URL
+    // has no .m3u8 extension (Akamai-tokenized `?hdntl=…`, megacloud-style
+    // hosts). Routing those by URL shape sent them to ts-proxy, which serves
+    // the playlist raw — so its relative segments (seg-1-v1-a1.ts) never got
+    // rewritten and 404'd against the page origin. Force m3u8-proxy for these
+    // tags. #EXT-X-KEY / #EXT-X-MAP URIs are NOT playlists, so they stay
+    // shape-routed (a key/init segment belongs on ts-proxy).
+    let trimmed = line.trim_start();
+    let uri_is_always_playlist = trimmed.starts_with("#EXT-X-MEDIA")
+        || trimmed.starts_with("#EXT-X-I-FRAME-STREAM-INF");
+    let is_hls = uri_is_always_playlist || looks_like_hls_playlist_url(&abs_url);
     let route = if is_hls { "m3u8-proxy" } else { "ts-proxy" };
 
     let proxy_url = if is_whitelisted_raw_url(&abs_url) && headers.is_none() {
@@ -2402,6 +2413,42 @@ Second cue"#;
         assert!(rewritten.contains("h_token="));
         assert!(rewritten.contains("http://proxy.local/ts-proxy?url="));
         assert!(rewritten.contains("h_token="));
+    }
+
+    #[tokio::test]
+    async fn test_ext_x_media_audio_routes_to_m3u8_proxy_even_without_m3u8_ext() {
+        // An #EXT-X-MEDIA audio rendition URI is always a media playlist, even
+        // when the URL has no .m3u8 extension (Akamai `?hdntl=` token). It must
+        // route to m3u8-proxy so its segments get rewritten — routing it to
+        // ts-proxy serves the playlist raw and its segments 404.
+        let content = concat!(
+            "#EXTM3U\n",
+            "#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud\",NAME=\"English\",DEFAULT=YES,",
+            "URI=\"https://cdn.example.com/audio/eng?hdntl=exp=123_hmac=abc\"\n",
+            "#EXT-X-STREAM-INF:BANDWIDTH=1200000,AUDIO=\"aud\"\n",
+            "https://cdn.example.com/video/720p?hdntl=exp=123_hmac=abc\n"
+        );
+        let rewritten = rewrite_playlist(
+            content,
+            "https://cdn.example.com/master.m3u8",
+            "http://proxy.local",
+            "secret",
+            None,
+            true,
+        );
+        // The audio rendition line must be rewritten through m3u8-proxy.
+        let audio_line = rewritten
+            .lines()
+            .find(|l| l.starts_with("#EXT-X-MEDIA"))
+            .expect("audio media line present");
+        assert!(
+            audio_line.contains("/m3u8-proxy?"),
+            "audio rendition must route to m3u8-proxy, got: {audio_line}"
+        );
+        assert!(
+            !audio_line.contains("/ts-proxy?"),
+            "audio rendition must NOT route to ts-proxy, got: {audio_line}"
+        );
     }
 
     #[tokio::test]
