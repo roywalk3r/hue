@@ -699,10 +699,13 @@ pub async fn sse_streams_handler(
         let fast_cutoff = std::time::Instant::now() + Duration::from_secs(4);
         let mut priority_streams_found = false;
 
-        // Collect from priority phase first — cap at 3s so the player can start
-        // on fast providers quickly even if priority providers are slow.
+        // Collect from priority phase first — cap at 1.5s so the player can
+        // start on fast providers quickly even if priority providers are slow.
+        // Slow providers (NoTorrent, VidZee) that return empty can take
+        // 4-5s; the 1.5s cap cuts them off so we don't block on slow empty
+        // responses when faster providers have already returned streams.
         if !priority.is_empty() {
-            match timeout(Duration::from_secs(3), async {
+            match timeout(Duration::from_millis(1500), async {
                 while let Some(Ok(streams)) = provider_tasks.join_next().await {
                     if !streams.is_empty() {
                         raw_all.extend(streams);
@@ -747,14 +750,14 @@ pub async fn sse_streams_handler(
             env.spawn(provider, &mut provider_tasks, false, Duration::from_secs(2));
         }
 
-        // Hard ceiling: emit `done` at the 6s mark even if slow providers are
+        // Hard ceiling: emit `done` at the 3s mark even if slow providers are
         // still in flight so the frontend never waits longer than the 5s UX
-        // target plus 1s network buffer.
+        // target.
         let tx_done_ceil = tx.clone();
         let done_sent_ceil = done_sent.clone();
         let stream_count_ceil = stream_count.clone();
         tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_secs(6)).await;
+            tokio::time::sleep(Duration::from_secs(3)).await;
             if !done_sent_ceil.load(Ordering::Relaxed) {
                 done_sent_ceil.store(true, Ordering::Relaxed);
                 let _ = tx_done_ceil
