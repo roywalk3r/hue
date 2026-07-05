@@ -57,12 +57,28 @@ fn is_generic_movie_tv_provider_allowed(media_type: &str, real_name: &str) -> bo
 /// HEAD-check a stream manifest/URL. Returns true for HTTP 2xx/206 responses
 /// within the configured timeout. HLS manifests are checked with a plain GET/HEAD;
 /// MP4/direct files use a Range request to avoid downloading the whole file.
-async fn is_stream_reachable(client: &reqwest_middleware::ClientWithMiddleware, stream: &StreamResult, timeout_secs: u64) -> bool {
+///
+/// Skipped when the URL is already wrapped by the Rust proxy (contains
+/// `/m3u8-proxy` or `/ts-proxy`): the proxy itself is the source of truth
+/// — it returns 502 on bad content and the browser will see that
+/// immediately on the manifest request, so a pre-emptive HEAD just adds
+/// latency and false-positives (slow CDNs trigger 1s timeouts that
+/// kill working streams).
+pub(crate) async fn is_stream_reachable(client: &reqwest_middleware::ClientWithMiddleware, stream: &StreamResult, timeout_secs: u64) -> bool {
+    if stream.url.contains("/m3u8-proxy")
+        || stream.url.contains("/ts-proxy")
+        || stream.url.contains("/sub-proxy")
+        || stream.url.contains("/storage/enc.key")
+    {
+        return true;
+    }
     let is_hls = stream.format == "hls" || stream.url.to_lowercase().contains(".m3u8");
     let mut req = if is_hls {
         client.head(&stream.url)
     } else {
-        client.get(&stream.url).header("Range", "bytes=0-1")
+        // 32KB, not 2 bytes: rate-limited mirrors serve tiny probes with 206
+        // but reject real transfers with 429 — a probe must look like playback.
+        client.get(&stream.url).header("Range", "bytes=0-32767")
     };
     if let Some(ref headers) = stream.headers {
         for (k, v) in headers {
@@ -72,7 +88,24 @@ async fn is_stream_reachable(client: &reqwest_middleware::ClientWithMiddleware, 
     match timeout(Duration::from_secs(timeout_secs), req.send()).await {
         Ok(Ok(resp)) => {
             let status = resp.status();
-            status.is_success() || status.as_u16() == 206
+            if !(status.is_success() || status.as_u16() == 206) {
+                return false;
+            }
+            // A 200 with text/html is an error/detail page pretending to be
+            // media — it plays as a black screen. Only iframes may be HTML.
+            let ct = resp
+                .headers()
+                .get("content-type")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("");
+            if stream.format != "iframe" && ct.starts_with("text/html") {
+                warn!(
+                    "[SSE] probe got text/html for {} ({}) — junk page",
+                    stream.provider, stream.url
+                );
+                return false;
+            }
+            true
         }
         Ok(Err(e)) => {
             warn!("[SSE] HEAD check failed for {}: {}", stream.provider, e);
@@ -80,7 +113,11 @@ async fn is_stream_reachable(client: &reqwest_middleware::ClientWithMiddleware, 
         }
         Err(_) => {
             warn!("[SSE] HEAD check timed out for {}", stream.provider);
-            false
+            // A timeout is weak evidence for mp4 mirrors: cold workers proxy
+            // the origin on demand and can exceed the budget while being
+            // perfectly playable. Dropping them poisons the cache with thin
+            // lists. Manifest hosts that can't answer a HEAD are dead.
+            !is_hls
         }
     }
 }
@@ -960,6 +997,9 @@ pub async fn warm_handler(
 
                 match result {
                     Ok(Ok(streams)) if !streams.is_empty() => {
+                        // Run reachability checks but still return only verified streams.
+                        // The warm cache is populated after all tasks complete, so this
+                        // task will finish before its result is consumed.
                         let checks = join_all(
                             streams.iter().map(|s| is_stream_reachable(&client, s, head_timeout)),
                         )
