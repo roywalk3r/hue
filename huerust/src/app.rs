@@ -88,6 +88,23 @@ pub fn vixsrc_enabled() -> bool {
         .unwrap_or(false)
 }
 
+/// Force IPv4 egress on the segment proxy. Off by default: a host with a
+/// working IPv6 route (e.g. the production VPS reaching Cloudflare workers)
+/// should use its normal path — pinning to IPv4 there routes segments over a
+/// slower link and makes playback rebuffer. Only set this on a host whose IPv6
+/// route is broken (reqwest hangs on the AAAA address until timeout), where
+/// forcing IPv4 is the fix.
+pub fn force_ipv4_egress() -> bool {
+    env::var("FORCE_IPV4_EGRESS")
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub client: ClientWithMiddleware,
@@ -156,27 +173,24 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         Arc::new(crate::clients::animexin::AnimexinClient::new()),
         animekill_client.clone(),
     ));
+    let mut vixsrc_builder = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(5))
+        // Fresh connection per call — vixsrc is hit at most once per request, so
+        // pooling only risks reusing a stale CDN socket.
+        .pool_max_idle_per_host(0)
+        // Under the 8s provider deadline so a stall fails fast and frees the
+        // dispatch slot instead of being cancelled mid-flight.
+        .timeout(Duration::from_secs(7))
+        .http1_only()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36");
+    if force_ipv4_egress() {
+        // Only when the host's IPv6 route is broken (reqwest hangs on the AAAA
+        // address). A host with working IPv6 should use its normal path.
+        vixsrc_builder =
+            vixsrc_builder.local_address(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
+    }
     let vixsrc_client = Arc::new(VixsrcClient::new(
-        crate::http_client::build_client_with_retry(
-            reqwest::Client::builder()
-                .connect_timeout(Duration::from_secs(5))
-                // Fresh connection per call — vixsrc is hit at most once per
-                // request, so pooling only risks reusing a stale CDN socket.
-                .pool_max_idle_per_host(0)
-                // Under the 8s provider deadline so a stall fails fast and frees
-                // the dispatch slot instead of being cancelled mid-flight.
-                .timeout(Duration::from_secs(7))
-                // vixsrc.to publishes AAAA records but this host has no working
-                // IPv6 route. reqwest intermittently tries the IPv6 address and
-                // stalls until the connect timeout (curl side-steps this with
-                // happy-eyeballs), which blew the provider budget so Aura
-                // silently returned nothing. Binding a v4 local address forces
-                // IPv4-only egress, matching curl's effective behaviour.
-                .local_address(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED))
-                .http1_only()
-                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"),
-            "VIXSRC_PROXY_URL",
-        ),
+        crate::http_client::build_client_with_retry(vixsrc_builder, "VIXSRC_PROXY_URL"),
     ));
 
     let vidrock_client = Arc::new(crate::clients::vidrock::VidRockClient::new());
@@ -260,25 +274,23 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         None
     };
 
-    let raw_client = crate::http_client::with_optional_proxy(
-        reqwest::Client::builder()
-            .tcp_keepalive(Duration::from_secs(60))
-            .tcp_nodelay(true)
-            .timeout(Duration::from_secs(600))
-            .connect_timeout(Duration::from_secs(10))
-            .pool_max_idle_per_host(32)
-            .pool_idle_timeout(Duration::from_secs(120))
-            // Force IPv4 egress. Some upstreams (e.g. vixsrc.to) publish AAAA
-            // records with no working IPv6 route, so reqwest would stall on the
-            // v6 address until timeout when the proxy fetches their manifest/
-            // segments. Every stream CDN serves IPv4, so this only removes the
-            // broken-IPv6 hang — matching curl's happy-eyeballs fallback.
-            .local_address(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED))
-            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
-        "STREAM_PROXY_URL",
-    )
-    .build()
-    .unwrap();
+    let mut raw_builder = reqwest::Client::builder()
+        .tcp_keepalive(Duration::from_secs(60))
+        .tcp_nodelay(true)
+        .timeout(Duration::from_secs(600))
+        .connect_timeout(Duration::from_secs(10))
+        .pool_max_idle_per_host(32)
+        .pool_idle_timeout(Duration::from_secs(120))
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+    if force_ipv4_egress() {
+        // Only for hosts whose IPv6 route is broken (reqwest hangs on the AAAA
+        // address). On a host with working IPv6, pinning IPv4 slows segments.
+        raw_builder =
+            raw_builder.local_address(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
+    }
+    let raw_client = crate::http_client::with_optional_proxy(raw_builder, "STREAM_PROXY_URL")
+        .build()
+        .unwrap();
 
     AppState {
         client: crate::http_client::wrap_with_retry(raw_client.clone()),
