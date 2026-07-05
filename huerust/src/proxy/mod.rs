@@ -14,7 +14,14 @@ use axum::{
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::net::IpAddr;
+use std::time::Duration;
 use url::Url;
+
+/// Manifests and subtitles are small text bodies; without a per-request cap a
+/// dead upstream holds the fetch for Cloudflare's full 522 window (~20s),
+/// which is what makes playback take 30s+ to start. Segment/download handlers
+/// must NOT use this — they stream large bodies on the 600s client timeout.
+const TEXT_FETCH_TIMEOUT: Duration = Duration::from_secs(8);
 
 use crate::{app::AppState, security};
 use std::env;
@@ -593,11 +600,14 @@ pub async fn m3u8_handler(
     let is_vix = is_vixsrc_target(&target_url, &headers);
     let is_mobile = is_mobile_client(&request_headers);
     let strip_cross_origin = host_rejects_cross_origin_headers(&target_url);
-    let mut req = state.raw_client.get(&worker_routed_url(
-        &target_url,
-        &state.config.cf_worker_url,
-        &state.config.worker_upstream_hosts,
-    ));
+    let mut req = state
+        .raw_client
+        .get(&worker_routed_url(
+            &target_url,
+            &state.config.cf_worker_url,
+            &state.config.worker_upstream_hosts,
+        ))
+        .timeout(TEXT_FETCH_TIMEOUT);
     req = inject_cdn_headers(req, &target_url, &headers, strip_cross_origin);
 
     // Inject headers from token (overrides defaults). Some CDNs reject cross
@@ -757,11 +767,14 @@ pub async fn m3u8_handler(
                 "[m3u8-proxy] Vixsrc got {} — retrying with minimal header set",
                 status.as_u16()
             );
-            let mut retry = state.raw_client.get(&worker_routed_url(
-                &target_url,
-                &state.config.cf_worker_url,
-                &state.config.worker_upstream_hosts,
-            ));
+            let mut retry = state
+                .raw_client
+                .get(&worker_routed_url(
+                    &target_url,
+                    &state.config.cf_worker_url,
+                    &state.config.worker_upstream_hosts,
+                ))
+                .timeout(TEXT_FETCH_TIMEOUT);
             retry = retry.header("Referer", "https://vixsrc.to/");
             retry = retry.header("Origin", "https://vixsrc.to");
             retry = retry.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
@@ -1365,11 +1378,14 @@ pub async fn sub_handler(
     }
 
     let strip_cross_origin = host_rejects_cross_origin_headers(&target_url);
-    let mut req = state.raw_client.get(&worker_routed_url(
-        &target_url,
-        &state.config.cf_worker_url,
-        &state.config.worker_upstream_hosts,
-    ));
+    let mut req = state
+        .raw_client
+        .get(&worker_routed_url(
+            &target_url,
+            &state.config.cf_worker_url,
+            &state.config.worker_upstream_hosts,
+        ))
+        .timeout(TEXT_FETCH_TIMEOUT);
     req = inject_cdn_headers(req, &target_url, &headers, strip_cross_origin);
 
     // Inject headers from token (overrides defaults). Some CDNs reject cross
