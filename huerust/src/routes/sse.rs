@@ -72,6 +72,15 @@ pub(crate) async fn is_stream_reachable(client: &reqwest_middleware::ClientWithM
     {
         return true;
     }
+    // iframe streams are only ever emitted for known-good embed players
+    // (e.g. vixsrc.to/embed), which the browser loads directly. Probing the
+    // embed host from the server is both pointless and actively harmful: it
+    // sits behind the same Cloudflare bot-management that rejects our
+    // server-side TLS, so the probe errors and would wrongly drop a good
+    // stream. Trust iframes.
+    if stream.format == "iframe" {
+        return true;
+    }
     let is_hls = stream.format == "hls" || stream.url.to_lowercase().contains(".m3u8");
     let mut req = if is_hls {
         client.head(&stream.url)
