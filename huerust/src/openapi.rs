@@ -17,6 +17,7 @@ use utoipa::OpenApi;
     ),
     paths(
         crate::routes::streams::streams_handler,
+        crate::routes::streams::luna_streams_handler,
         crate::routes::sse::sse_streams_handler,
         crate::routes::providers::providers_handler,
         crate::routes::play::play_handler,

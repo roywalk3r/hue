@@ -6,17 +6,19 @@
 //! @license MIT
 
 use axum::{
+    Json,
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::Serialize;
 use std::collections::HashMap;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-use crate::providers::dispatch::{fetch_from_providers, ProviderTiming};
+use crate::providers::dispatch::{
+    ProviderTiming, fetch_from_providers, fetch_from_providers_matching, single_provider_registry,
+};
 use crate::proxy::dynamic_proxy_base;
 use crate::proxy::wrap::wrap_with_proxy;
 use crate::{
@@ -53,6 +55,26 @@ fn filter_generic_movie_tv_streams(
         .collect()
 }
 
+fn is_web_playable_stream(stream: &StreamResult) -> bool {
+    let provider = stream.provider.to_lowercase();
+    let format = stream.format.to_lowercase();
+    let url = stream.url.to_lowercase();
+
+    provider != "notorrent" && format != "dash" && !url.contains(".mpd") && !url.contains(".mkv")
+}
+
+fn should_fetch_slow_providers(web_client: bool, streams: &[StreamResult]) -> bool {
+    streams.is_empty() || (web_client && !streams.iter().any(is_web_playable_stream))
+}
+
+fn filter_for_client(web_client: bool, streams: Vec<StreamResult>) -> Vec<StreamResult> {
+    if !web_client {
+        return streams;
+    }
+
+    streams.into_iter().filter(is_web_playable_stream).collect()
+}
+
 #[utoipa::path(
     get,
     path = "/api/streams/{type}/{tmdbId}",
@@ -83,6 +105,9 @@ pub async fn streams_handler(
         .and_then(|e| e.parse::<u32>().ok())
         .unwrap_or(1);
     let no_cache = params.get("nocache").map(|v| v == "1").unwrap_or(false);
+    let web_client = params
+        .get("client")
+        .is_some_and(|value| value.eq_ignore_ascii_case("web"));
 
     info!(
         "[api] Rust Streams: {} {} S{} E{}",
@@ -97,33 +122,40 @@ pub async fn streams_handler(
     // 1. Check cache
     if !no_cache {
         if let Some(cached) = state.cache.get(&cache_key).await {
-            let filtered = filter_generic_movie_tv_streams(
-                &m_type,
-                apply_filters(cached, &state.filter_config),
+            let filtered = filter_for_client(
+                web_client,
+                filter_generic_movie_tv_streams(
+                    &m_type,
+                    apply_filters(cached, &state.filter_config),
+                ),
             );
 
-            // Proxy wrap even on cache hits
-            let mut final_streams = if enable_proxy {
-                wrap_with_proxy(filtered, &proxy_base, &secret)
+            if filtered.is_empty() && web_client {
+                info!("[api] Cached streams are not web-playable; fetching providers");
             } else {
-                filtered
-            };
-            crate::security::re_encrypt_cached_urls(&mut final_streams, &state.kkey);
+                // Proxy wrap even on cache hits
+                let mut final_streams = if enable_proxy {
+                    wrap_with_proxy(filtered, &proxy_base, &secret)
+                } else {
+                    filtered
+                };
+                crate::security::re_encrypt_cached_urls(&mut final_streams, &state.kkey);
 
-            return (
-                StatusCode::OK,
-                Json(StreamsResponse {
-                    success: true,
-                    tmdb_id: tmdb_id.clone(),
-                    media_type: m_type.clone(),
-                    season,
-                    episode,
-                    count: final_streams.len(),
-                    streams: final_streams,
-                    provider_timings: vec![],
-                }),
-            )
-                .into_response();
+                return (
+                    StatusCode::OK,
+                    Json(StreamsResponse {
+                        success: true,
+                        tmdb_id: tmdb_id.clone(),
+                        media_type: m_type.clone(),
+                        season,
+                        episode,
+                        count: final_streams.len(),
+                        streams: final_streams,
+                        provider_timings: vec![],
+                    }),
+                )
+                    .into_response();
+            }
         }
     }
 
@@ -222,7 +254,7 @@ pub async fn streams_handler(
                 season,
                 episode,
                 false, // all providers
-                1,
+                3,
                 slow_deadline,
             )
             .await;
@@ -265,25 +297,35 @@ pub async fn streams_handler(
     let coalesced = if no_cache {
         // Bypass coalescer — start all providers simultaneously, per-provider timeouts apply.
         let start = std::time::Instant::now();
-        let (mut streams, mut timings) = fetch_from_providers(
-            registry.clone(),
-            metrics.clone(),
-            &tmdb_info_c,
-            &m_type_c,
-            season,
-            episode,
-            true,
-            // Wait for ALL fast providers (Luna + Aura + Moviebox + ...) to
-            // finish before aborting — the fast phase is meant to be a
-            // parallel race, not a "first one wins" cancel. Once we have
-            // a base of fast streams, fall back to slow providers to fill
-            // gaps. Without this, the threshold of 1 was killing Aura
-            // before it could return Vixsrc streams.
-            4,
-            fast_deadline,
-        )
-        .await;
-        if streams.is_empty() {
+        let (mut streams, mut timings) = if web_client {
+            fetch_from_providers_matching(
+                registry.clone(),
+                metrics.clone(),
+                &tmdb_info_c,
+                &m_type_c,
+                season,
+                episode,
+                false,
+                1,
+                slow_deadline,
+                is_web_playable_stream,
+            )
+            .await
+        } else {
+            fetch_from_providers(
+                registry.clone(),
+                metrics.clone(),
+                &tmdb_info_c,
+                &m_type_c,
+                season,
+                episode,
+                true,
+                4,
+                fast_deadline,
+            )
+            .await
+        };
+        if !web_client && should_fetch_slow_providers(false, &streams) {
             let (slow_streams, slow_timings) = fetch_from_providers(
                 registry.clone(),
                 metrics.clone(),
@@ -296,9 +338,9 @@ pub async fn streams_handler(
                 slow_deadline,
             )
             .await;
-            streams = slow_streams;
+            streams.extend(slow_streams);
             timings.extend(slow_timings);
-        } else {
+        } else if !web_client {
             // Fast stream found — return immediately and backfill cache in background.
             spawn_background_fill(
                 state.clone(),
@@ -332,6 +374,37 @@ pub async fn streams_handler(
             .coalescer
             .execute(&cache_key, &cache, || async move {
                 let start = std::time::Instant::now();
+                if web_client {
+                    let (streams, _) = fetch_from_providers_matching(
+                        registry.clone(),
+                        metrics.clone(),
+                        &tmdb_info_c,
+                        &m_type_c,
+                        season,
+                        episode,
+                        false,
+                        1,
+                        slow_deadline,
+                        is_web_playable_stream,
+                    )
+                    .await;
+                    let mut seen_urls = std::collections::HashSet::new();
+                    let unique: Vec<_> = streams
+                        .into_iter()
+                        .filter(|stream| seen_urls.insert(stream.url.clone()))
+                        .collect();
+                    let filtered = filter_generic_movie_tv_streams(
+                        &m_type_c,
+                        apply_filters(unique, &filter_config),
+                    );
+                    info!(
+                        "[api] Coalesced web fetch: {} streams in {:?}",
+                        filtered.len(),
+                        start.elapsed()
+                    );
+                    return filtered;
+                }
+
                 // Fast providers first so a working source can reach the player quickly.
                 let (mut streams, _) = fetch_from_providers(
                     registry.clone(),
@@ -346,7 +419,7 @@ pub async fn streams_handler(
                     fast_deadline,
                 )
                 .await;
-                if streams.is_empty() {
+                if should_fetch_slow_providers(false, &streams) {
                     let (slow_streams, _) = fetch_from_providers(
                         registry.clone(),
                         metrics.clone(),
@@ -359,7 +432,7 @@ pub async fn streams_handler(
                         slow_deadline,
                     )
                     .await;
-                    streams = slow_streams;
+                    streams.extend(slow_streams);
                 } else {
                     // Fast stream found — backfill cache in background.
                     spawn_background_fill(
@@ -396,6 +469,7 @@ pub async fn streams_handler(
         Some(v) => v,
         None => return (StatusCode::NOT_FOUND, "No streams found").into_response(),
     };
+    let filtered = filter_for_client(web_client, filtered);
 
     let filtered = drop_unreachable(
         &state.client,
@@ -429,4 +503,194 @@ pub async fn streams_handler(
         }),
     )
         .into_response()
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/streams/luna/{type}/{tmdbId}",
+    params(
+        ("type" = String, Path, description = "Content type: movie or tv"),
+        ("tmdbId" = String, Path, description = "TMDB ID"),
+        ("season" = Option<u32>, Query, description = "Season number (tv only)"),
+        ("episode" = Option<u32>, Query, description = "Episode number (tv only)"),
+        ("nocache" = Option<String>, Query, description = "Set to 1 to bypass cache"),
+    ),
+    responses(
+        (status = 200, description = "Luna-only stream aggregation results", body = StreamsResponse),
+        (status = 404, description = "TMDB info not found"),
+        (status = 501, description = "Luna provider not registered"),
+    ),
+)]
+pub async fn luna_streams_handler(
+    State(state): State<StreamState>,
+    headers: HeaderMap,
+    Path((m_type, tmdb_id)): Path<(String, String)>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Response {
+    let season = params
+        .get("season")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(1);
+    let episode = params
+        .get("episode")
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(1);
+    let no_cache = params.get("nocache").map(|v| v == "1").unwrap_or(false);
+
+    info!(
+        "[api] Rust Luna-only Streams: {} {} S{} E{}",
+        &m_type, tmdb_id, season, episode
+    );
+
+    let cache_key = CacheKey::new(&format!("luna:{}", m_type), &tmdb_id, season, episode);
+    let enable_proxy = state.config.enable_proxy;
+    let proxy_base = dynamic_proxy_base(&headers, &state.proxy_base_url);
+    let secret = state.secret.clone();
+
+    if !no_cache {
+        if let Some(cached) = state.cache.get(&cache_key).await {
+            let filtered = filter_generic_movie_tv_streams(
+                &m_type,
+                apply_filters(cached, &state.filter_config),
+            );
+            let mut final_streams = if enable_proxy {
+                wrap_with_proxy(filtered, &proxy_base, &secret)
+            } else {
+                filtered
+            };
+            crate::security::re_encrypt_cached_urls(&mut final_streams, &state.kkey);
+
+            return (
+                StatusCode::OK,
+                Json(StreamsResponse {
+                    success: true,
+                    tmdb_id: tmdb_id.clone(),
+                    media_type: m_type.clone(),
+                    season,
+                    episode,
+                    count: final_streams.len(),
+                    streams: final_streams,
+                    provider_timings: vec![],
+                }),
+            )
+                .into_response();
+        }
+    }
+
+    let tmdb_info = match state
+        .tmdb
+        .get_details(&m_type, tmdb_id.parse().unwrap_or(0))
+        .await
+    {
+        Ok(info) => info,
+        Err(e) => {
+            warn!("[api] TMDB lookup failed for {}: {}", tmdb_id, e);
+            return (StatusCode::NOT_FOUND, "TMDB info not found").into_response();
+        }
+    };
+
+    let registry = match single_provider_registry(&state.registry, "vidrock") {
+        Some(r) => r,
+        None => {
+            return (StatusCode::NOT_IMPLEMENTED, "Luna provider not registered").into_response();
+        }
+    };
+
+    let (streams, timings) = fetch_from_providers(
+        registry,
+        state.metrics.clone(),
+        &tmdb_info,
+        &m_type,
+        season,
+        episode,
+        false,
+        1,
+        state.config.slow_deadline(),
+    )
+    .await;
+
+    let filtered =
+        filter_generic_movie_tv_streams(&m_type, apply_filters(streams, &state.filter_config));
+    if filtered.is_empty() {
+        return (StatusCode::NOT_FOUND, "No streams found").into_response();
+    }
+
+    // Keep cache entries raw. Proxy wrapping and kkey encryption are
+    // response-specific and must be regenerated for each request.
+    state.cache.set(&cache_key, filtered.clone()).await;
+
+    let mut final_streams = if enable_proxy {
+        wrap_with_proxy(filtered, &proxy_base, &secret)
+    } else {
+        filtered
+    };
+    encrypt_stream_result_urls(&mut final_streams, &state.kkey);
+
+    (
+        StatusCode::OK,
+        Json(StreamsResponse {
+            success: true,
+            tmdb_id,
+            media_type: m_type,
+            season,
+            episode,
+            count: final_streams.len(),
+            streams: final_streams,
+            provider_timings: timings,
+        }),
+    )
+        .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_web_playable_stream, should_fetch_slow_providers};
+    use crate::models::StreamResult;
+
+    fn stream(provider: &str, format: &str, url: &str) -> StreamResult {
+        StreamResult {
+            url: url.to_string(),
+            title: String::new(),
+            quality: String::new(),
+            provider: provider.to_string(),
+            format: format.to_string(),
+            subtitles: None,
+            headers: None,
+            extra_metadata: None,
+        }
+    }
+
+    #[test]
+    fn web_playability_excludes_known_browser_incompatible_sources() {
+        assert!(!is_web_playable_stream(&stream(
+            "NoTorrent",
+            "mp4",
+            "https://example.com/video"
+        )));
+        assert!(!is_web_playable_stream(&stream(
+            "Nova",
+            "dash",
+            "https://example.com/manifest.mpd"
+        )));
+        assert!(!is_web_playable_stream(&stream(
+            "Nova",
+            "mp4",
+            "https://example.com/video.mkv"
+        )));
+        assert!(is_web_playable_stream(&stream(
+            "VidZee",
+            "hls",
+            "https://example.com/master.m3u8"
+        )));
+    }
+
+    #[test]
+    fn web_client_fetches_slow_providers_when_fast_results_are_unplayable() {
+        let no_torrent = vec![stream("NoTorrent", "mp4", "https://example.com/video")];
+        let hls = vec![stream("VidZee", "hls", "https://example.com/master.m3u8")];
+
+        assert!(should_fetch_slow_providers(true, &no_torrent));
+        assert!(!should_fetch_slow_providers(false, &no_torrent));
+        assert!(!should_fetch_slow_providers(true, &hls));
+    }
 }
