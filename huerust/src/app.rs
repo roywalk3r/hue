@@ -72,6 +72,22 @@ pub fn kisskh_enabled() -> bool {
         .unwrap_or(false)
 }
 
+/// VixSrc (Aura) is off by default: vixsrc.to's Cloudflare bot management
+/// 403s datacenter IPs (the production VPS), so it returns nothing there and a
+/// residential proxy to bypass it isn't worth the cost. It still works from a
+/// clean/residential IP, so a deploy on one can re-enable it with
+/// `ENABLE_VIXSRC=true`.
+pub fn vixsrc_enabled() -> bool {
+    env::var("ENABLE_VIXSRC")
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub client: ClientWithMiddleware,
@@ -215,7 +231,14 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     registry.register(Arc::new(KissAsianTopProvider::new(
         kissasian_top_client.clone(),
     )));
-    registry.register(Arc::new(VixsrcProvider::new(vixsrc_client)));
+    if vixsrc_enabled() {
+        registry.register(Arc::new(VixsrcProvider::new(vixsrc_client)));
+    } else {
+        let _ = vixsrc_client;
+        tracing::info!(
+            "VixSrc (Aura) provider disabled; set ENABLE_VIXSRC=true to enable it (needs a clean/residential egress IP — datacenter IPs get 403'd)"
+        );
+    }
     // registry.register(Arc::new(Mp4HydraProvider::new())); // disabled — endpoint times out
     registry.register(Arc::new(VidrockProvider::new(vidrock_client.clone())));
     // registry.register(Arc::new(VidvaultProvider::new(vidvault_client.clone()))); // disabled — hakunaymatata CDN 403s all URLs, even freshly resolved
@@ -736,6 +759,10 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route("/api/tmdb/search", get(crate::routes::tmdb::search_handler))
         .route("/api/status", get(crate::routes::system::status_handler))
+        .route(
+            "/api/auth/token",
+            get(crate::routes::system::auth_token_handler),
+        )
         .merge(
             SwaggerUi::new("/api/docs")
                 .url("/api/docs/openapi.json", crate::openapi::ApiDoc::openapi()),
@@ -762,11 +789,14 @@ async fn auth_middleware(
     next: Next,
 ) -> Result<Response, StatusCode> {
     let path = req.uri().path();
-    // Proxy routes are self-authenticated via encrypted h_token — skip API key check
+    // Proxy routes are self-authenticated via encrypted h_token — skip API key check.
+    // The auth-token endpoint is public so clients can mint a Bearer before making
+    // any other call.
     if path == "/ts-proxy"
         || path == "/m3u8-proxy"
         || path == "/sub-proxy"
         || path == "/storage/enc.key"
+        || path == "/api/auth/token"
     {
         return Ok(next.run(req).await);
     }
@@ -777,7 +807,23 @@ async fn auth_middleware(
         return Ok(next.run(req).await);
     }
 
+    // Priority 1: Authorization: Bearer <token> (preferred — secret never leaves headers)
+    if let Some(bearer) = req
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer ").or_else(|| v.strip_prefix("bearer ")))
+    {
+        let client_ip = extract_client_ip(&req);
+        if crate::security::verify_api_token(bearer, &state.config.secret, &client_ip).is_some() {
+            return Ok(next.run(req).await);
+        }
+    }
+
+    // Priority 2: X-API-Key header (server-to-server callers — Nuxt nitro, etc.)
     let header_auth = req.headers().get("x-api-key").and_then(|v| v.to_str().ok());
+
+    // Priority 3: ?api_key=... query (legacy, log once per process)
     let query_auth = req.uri().query().and_then(|q| {
         q.split('&').find_map(|pair| {
             let mut parts = pair.splitn(2, '=');
@@ -790,11 +836,54 @@ async fn auth_middleware(
             }
         })
     });
-    let auth = header_auth.or(query_auth);
-    if auth != Some(api_key) {
-        return Err(StatusCode::FORBIDDEN);
+
+    if header_auth == Some(api_key) || query_auth == Some(api_key) {
+        if query_auth == Some(api_key) {
+            use std::sync::OnceLock;
+            use std::sync::atomic::{AtomicBool, Ordering};
+            static WARNED: OnceLock<AtomicBool> = OnceLock::new();
+            let flag = WARNED.get_or_init(|| AtomicBool::new(false));
+            if !flag.swap(true, Ordering::Relaxed) {
+                tracing::warn!(
+                    "client is still sending ?api_key=... in query string; switch to Authorization: Bearer"
+                );
+            }
+        }
+        return Ok(next.run(req).await);
     }
-    Ok(next.run(req).await)
+
+    Err(StatusCode::FORBIDDEN)
+}
+
+/// Best-effort client IP extraction. The Rust process sits behind the Nuxt
+/// nitro proxy (and possibly a CDN), so `X-Forwarded-For` (first hop) and
+/// `X-Real-IP` are the only realistic sources. Returns an empty string when
+/// the caller cannot be identified — the token verifier treats that as a
+/// hard failure (fails closed).
+pub fn extract_client_ip(req: &Request<Body>) -> String {
+    if let Some(xff) = req
+        .headers()
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+    {
+        if let Some(first) = xff.split(',').next() {
+            let trimmed = first.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
+            }
+        }
+    }
+    if let Some(real) = req
+        .headers()
+        .get("x-real-ip")
+        .and_then(|v| v.to_str().ok())
+    {
+        let trimmed = real.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    String::new()
 }
 
 async fn request_id_middleware(req: Request<Body>, next: Next) -> Response {
@@ -1068,6 +1157,8 @@ pub struct SystemState {
     pub registry: Arc<ProviderRegistry>,
     pub start_time: std::time::Instant,
     pub client: ClientWithMiddleware,
+    pub secret: String,
+    pub config: std::sync::Arc<crate::config::AppConfig>,
 }
 
 impl FromRef<AppState> for SystemState {
@@ -1078,6 +1169,8 @@ impl FromRef<AppState> for SystemState {
             registry: s.registry.clone(),
             start_time: s.start_time,
             client: s.client.clone(),
+            secret: s.config.secret.clone(),
+            config: s.config.clone(),
         }
     }
 }
