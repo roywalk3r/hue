@@ -80,6 +80,15 @@ pub struct MovieBoxClient {
     host: String,
 }
 
+/// Lowercase and strip every non-alphanumeric char so punctuation/spacing
+/// differences ("Spider-Man: No Way Home" vs "SpiderMan No Way Home") compare
+/// equal while genuinely different titles stay distinct.
+fn normalize_title(title: &str) -> String {
+    title
+        .to_lowercase()
+        .replace(|c: char| !c.is_alphanumeric(), "")
+}
+
 /// Extract a single quality label from a MovieBox `resolutions` string.
 /// Values are usually "360", "480", "720", "1080" or comma-separated
 /// lists like "1080,720,480". Return the highest numeric value so the
@@ -563,44 +572,48 @@ impl MovieBoxClient {
             return Ok(vec![]);
         }
 
-        // Find best match by title + year + subjectType (same logic as Node.js)
+        // Find best match by normalized title + subjectType, preferring a year
+        // match. MovieBox has no TMDB mapping and a thin Hollywood catalog, so a
+        // title search for something it doesn't carry returns unrelated films
+        // (e.g. "Inception" → "Masters of the Universe"). We require a genuine
+        // normalized-title match: serving a wrong movie's streams is worse than
+        // returning nothing, since the aggregator has other providers.
         let target_type = if media_type == "movie" { 1 } else { 2 };
-        let normalized_title = title
-            .to_lowercase()
-            .replace(|c: char| !c.is_alphanumeric(), "");
+        let normalized_title = normalize_title(title);
 
-        let best_match = items
+        let title_matches: Vec<&MovieBoxItem> = items
             .iter()
-            .find(|item| {
-                let item_title = item
-                    .title
-                    .to_lowercase()
-                    .replace(|c: char| !c.is_alphanumeric(), "");
-                let item_year = item
-                    .release_date
-                    .as_ref()
-                    .and_then(|d| d.split('-').next())
-                    .and_then(|y| y.parse::<u32>().ok());
-                let title_match = item_title == normalized_title;
-                let year_match = year.map_or(true, |y| item_year == Some(y));
-                let type_match = item.subject_type == target_type;
-                title_match && year_match && type_match
+            .filter(|item| {
+                item.subject_type == target_type
+                    && normalize_title(&item.title) == normalized_title
             })
-            .or_else(|| {
-                items.iter().find(|item| {
-                    let item_title = item
-                        .title
-                        .to_lowercase()
-                        .replace(|c: char| !c.is_alphanumeric(), "");
-                    let type_match = item.subject_type == target_type;
-                    item_title == normalized_title && type_match
+            .collect();
+
+        // Among exact-title matches, prefer the one whose release year matches
+        // (±1 for release-window skew); otherwise take the first title match.
+        let best_match = year
+            .and_then(|y| {
+                title_matches.iter().copied().find(|item| {
+                    item.release_date
+                        .as_ref()
+                        .and_then(|d| d.split('-').next())
+                        .and_then(|yr| yr.parse::<u32>().ok())
+                        .is_some_and(|iy| iy.abs_diff(y) <= 1)
                 })
             })
-            .or_else(|| items.first());
+            .or_else(|| title_matches.first().copied());
 
         let best_match = match best_match {
             Some(m) => m,
-            None => return Ok(vec![]),
+            None => {
+                info!(
+                    "[MovieBox Rust] No title match for \"{}\" ({:?}) among {} results — skipping",
+                    title,
+                    year,
+                    items.len()
+                );
+                return Ok(vec![]);
+            }
         };
 
         info!(
