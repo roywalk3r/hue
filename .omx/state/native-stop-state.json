@@ -6,11 +6,11 @@
     },
     "019e7a1f-5773-7653-ac0d-601f20f85790": {
       "ordinary_no_progress_guard": {
-        "fingerprint": "ordinary|implemented the reliability batch. **changes** - unified vtt/srt parser with markup cleanup, entity decoding, html rejection and timing offsets. - atomic downloaded subtitle writes. - persistent per-title/episode subtitle track and ±0.5s delay controls. - local playback now uses stored subtitle paths. - startup reconciliation handles missing files, paused, canceled and running tasks. - redacted media diagnostics for signed urls and credentials. - added `/health/version` with commit/build identity. - added end-to-end offline playback regression coverage. **verification** - flutter: 109 tests passed. - debug apk built successfully. - rust download and health route tests passed. - pm2 `hueapi` is online. - local health: commit `fe1887a3ec79`. - `git diff --check` passed. **remaining risks** - `api.vexli.online` still serves the separate legacy deployment: `/health/version` returns 404 and `/api/status` reports `3.1.0`. - full analyzer has 110 existing warnings/info items, but no compile errors. - repository-wide formatting check identifies 48 pre-existing unformatted files. - physical-device subtitle timing and process-restart download tests remain necessary.",
-        "first_seen_at": "2026-06-23T15:20:02.871Z",
-        "last_seen_at": "2026-06-23T15:20:02.871Z",
+        "fingerprint": "ordinary|implemented and deployed. - frontend now uses json aggregate only, never `/live`. - backend races providers concurrently and ignores browser-incompatible notorrent/dash/mkv results. - added luna-only endpoint: `/api/streams/luna/:type/:tmdbid`. - exact s3e18 request improved from 10.8s to 4.35s cold; warm requests are near-instant. - browser playback verified advancing past 16 seconds. verification: 179 frontend tests, 97 backend tests, typecheck and production build passed. all pm2 services are online. remaining risk: individual upstream hls mirrors can still return 502, but automatic failover successfully selected another mirror.",
+        "first_seen_at": "2026-07-05T20:28:59.525Z",
+        "last_seen_at": "2026-07-05T20:28:59.525Z",
         "repeat_count": 1,
-        "last_turn_id": "019ef4f5-c7c2-7b31-9abf-fad34805449f",
+        "last_turn_id": "019f33df-fd0a-75a3-8180-0936f0c1aca7",
         "last_thread_id": null
       }
     }

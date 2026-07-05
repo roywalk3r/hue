@@ -10,6 +10,22 @@ use crate::infra::metrics::Metrics;
 use crate::models::StreamResult;
 use crate::providers::registry::ProviderRegistry;
 
+/// Build a fresh registry containing exactly the named provider, sharing
+/// the circuit breaker from the main registry. Used by single-provider
+/// routes (e.g. /api/streams/luna/...) that should not fan out to siblings.
+pub fn single_provider_registry(
+    main: &Arc<ProviderRegistry>,
+    real_name: &str,
+) -> Option<Arc<ProviderRegistry>> {
+    let provider = main.list_all_arc().into_iter().find(|p| {
+        p.real_name().eq_ignore_ascii_case(real_name) || p.name().eq_ignore_ascii_case(real_name)
+    })?;
+    let cb = main.circuit_breaker().clone();
+    let mut r = ProviderRegistry::new(cb);
+    r.register(provider);
+    Some(Arc::new(r))
+}
+
 #[derive(Serialize, Clone, ToSchema)]
 pub struct ProviderTiming {
     pub provider: String,
@@ -28,6 +44,33 @@ pub async fn fetch_from_providers(
     fast_only: bool,
     min_streams_threshold: usize,
     aggregate_deadline: Duration,
+) -> (Vec<StreamResult>, Vec<ProviderTiming>) {
+    fetch_from_providers_matching(
+        registry,
+        metrics,
+        tmdb_info,
+        media_type,
+        season,
+        episode,
+        fast_only,
+        min_streams_threshold,
+        aggregate_deadline,
+        |_| true,
+    )
+    .await
+}
+
+pub async fn fetch_from_providers_matching(
+    registry: Arc<ProviderRegistry>,
+    metrics: Arc<Metrics>,
+    tmdb_info: &TmdbNormalizedInfo,
+    media_type: &str,
+    season: u32,
+    episode: u32,
+    fast_only: bool,
+    min_streams_threshold: usize,
+    aggregate_deadline: Duration,
+    threshold_matcher: fn(&StreamResult) -> bool,
 ) -> (Vec<StreamResult>, Vec<ProviderTiming>) {
     use tokio::time::Instant;
 
@@ -125,7 +168,13 @@ pub async fn fetch_from_providers(
                     cancelled: was_cancelled,
                 });
                 all.extend(streams);
-                if abort_on_threshold && all.len() >= min_streams_threshold {
+                if abort_on_threshold
+                    && all
+                        .iter()
+                        .filter(|stream| threshold_matcher(stream))
+                        .count()
+                        >= min_streams_threshold
+                {
                     tasks.abort_all();
                     break;
                 }

@@ -1,111 +1,296 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Stream Player Lab</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/player.css">
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
-  <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hue Stream Diagnostic Player</title>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+<script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, sans-serif; background: #0e0f13; color: #e6e6e6; }
+  header { padding: 12px 16px; background: #16181f; border-bottom: 1px solid #262a35; }
+  header h1 { margin: 0; font-size: 16px; }
+  header p { margin: 4px 0 0; color: #8b93a5; font-size: 12px; }
+  main { display: grid; grid-template-columns: 420px 1fr; gap: 0; height: calc(100vh - 58px); }
+  .panel { padding: 16px; overflow-y: auto; }
+  .left { border-right: 1px solid #262a35; }
+  label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #8b93a5; margin: 10px 0 4px; }
+  input, select { width: 100%; padding: 8px; background: #0b0c10; border: 1px solid #2a2f3a; border-radius: 6px; color: #e6e6e6; font: inherit; }
+  .row { display: flex; gap: 8px; }
+  .row > div { flex: 1; }
+  button { cursor: pointer; padding: 8px 12px; background: #f5c518; color: #111; border: 0; border-radius: 6px; font-weight: 600; font: inherit; }
+  button.sec { background: #2a2f3a; color: #e6e6e6; }
+  button:disabled { opacity: .5; cursor: default; }
+  .actions { display: flex; gap: 8px; margin-top: 14px; }
+  #status { margin-top: 12px; font-size: 12px; color: #9aa3b5; white-space: pre-wrap; }
+  #status.err { color: #ff7676; }
+  video { width: 100%; background: #000; aspect-ratio: 16/9; border-radius: 8px; }
+  .stream { border: 1px solid #262a35; border-radius: 8px; padding: 10px; margin-top: 8px; background: #14161d; }
+  .stream .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .stream .meta { font-size: 12px; color: #9aa3b5; word-break: break-all; margin-top: 4px; }
+  .badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: .03em; }
+  .b-hls { background: #1d3a5f; color: #8fc0ff; }
+  .b-mp4 { background: #1d5f3a; color: #8fffb0; }
+  .b-dash { background: #5f1d5a; color: #ff8ff0; }
+  .b-iframe, .b-other { background: #5f4a1d; color: #ffe08f; }
+  .verdict { font-size: 12px; font-weight: 600; margin-top: 6px; }
+  .v-pass { color: #6fe08f; }
+  .v-fail { color: #ff7676; }
+  .v-pending { color: #9aa3b5; }
+  .hint { font-size: 11px; color: #6b7280; margin-top: 8px; }
+  code { background: #0b0c10; padding: 1px 4px; border-radius: 3px; }
+</style>
 </head>
-<body class="player-body">
-  <div class="glow glow-a"></div>
-  <div class="glow glow-b"></div>
-  <div class="player-shell">
-    <header class="topbar">
+<body>
+<header>
+  <h1>Hue Stream Diagnostic Player</h1>
+  <p>Fetches <code>/api/streams</code>, kkey-decrypts every stream, and plays each one in isolation so you can see which sources are playable and how fast they start — independent of the Nuxt frontend.</p>
+</header>
+<main>
+  <div class="panel left">
+    <div class="row">
       <div>
-        <p class="eyebrow">TMDB Embed API helper</p>
-        <h1>Stream Player Lab</h1>
-        <p class="lede">Drop a TMDB id or raw JSON response, decode VidZee tokens, and test playback with an HLS-capable player.</p>
+        <label>Type</label>
+        <select id="type"><option value="tv">tv</option><option value="movie">movie</option></select>
       </div>
-      <div class="chip chip-soft">beta</div>
-    </header>
-
-    <main class="layout">
-      <section class="panel video-panel">
-        <div class="video-frame">
-          <video id="video" controls playsinline poster="" preload="metadata"></video>
-          <div id="watermark">Stream Player Lab</div>
-        </div>
-        <div class="now-playing" id="nowPlaying">Nothing loaded</div>
-        <div class="pill-row" id="pillRow"></div>
-        <div class="note" id="headerNote">Streams that demand Referer or User-Agent headers work best with the API proxy enabled.</div>
-      </section>
-
-      <section class="panel control-panel">
-        <form id="apiForm" class="stack">
-          <div class="field">
-            <label for="apiBase">API base</label>
-            <input id="apiBase" type="text" inputmode="url" autocomplete="off">
-            <p class="hint">Example: http://localhost:8787 (we append /api/streams/... for you).</p>
-          </div>
-          <div class="toggle-row">
-            <label class="toggle">
-              <input id="useProxy" type="checkbox" checked>
-              <span>Use local proxy for remote URLs or streams that need headers</span>
-            </label>
-            <p class="hint">Requires enableProxy=true on the API. Helps bypass CORS and applies Referer/User-Agent for upstreams.</p>
-            <p class="hint warning" id="proxyWarn" style="display:none;">Proxy is disabled on the server. Enable it in the admin panel or leave this off.</p>
-          </div>
-          <div class="grid">
-            <label class="field">
-              <span>Type</span>
-              <select id="mediaType">
-                <option value="movie">movie</option>
-                <option value="series">series</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>TMDB ID</span>
-              <input id="tmdbId" type="text" inputmode="numeric" required>
-            </label>
-            <label class="field">
-              <span>Season (tv)</span>
-              <input id="season" type="text" inputmode="numeric" placeholder="optional">
-            </label>
-            <label class="field">
-              <span>Episode (tv)</span>
-              <input id="episode" type="text" inputmode="numeric" placeholder="optional">
-            </label>
-          </div>
-          <div class="actions">
-            <button class="btn primary" type="submit">Fetch streams</button>
-            <button class="btn ghost" type="button" id="loadSample">Load sample JSON</button>
-          </div>
-          <div class="status" id="fetchStatus"></div>
-        </form>
-
-        <div class="divider"></div>
-
-        <form id="jsonForm" class="stack">
-          <div class="field">
-            <label for="jsonInput">Paste API response JSON</label>
-            <textarea id="jsonInput" spellcheck="false" rows="8" placeholder='{"streams": [...]}'></textarea>
-          </div>
-          <div class="actions">
-            <button class="btn secondary" type="submit">Use JSON</button>
-            <button class="btn ghost" type="button" id="clearJson">Clear</button>
-          </div>
-        </form>
-
-        <div class="stream-section">
-          <div class="stream-header">
-            <div>
-              <p class="eyebrow">Streams</p>
-              <h2 id="streamCount">0 available</h2>
-            </div>
-            <div class="chip" id="timingChip">-</div>
-          </div>
-          <div class="stream-list" id="streamList">
-            <p class="muted">Fetch streams to see options.</p>
-          </div>
-        </div>
-      </section>
-    </main>
+      <div>
+        <label>TMDB ID</label>
+        <input id="tmdb" value="79744" />
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Season</label><input id="season" value="1" /></div>
+      <div><label>Episode</label><input id="episode" value="1" /></div>
+    </div>
+    <label>Backend base</label>
+    <input id="base" placeholder="http://127.0.0.1:24609" />
+    <label>API key (stored in this browser only)</label>
+    <input id="apiKey" type="password" placeholder="required if backend has API_KEY set" />
+    <label>KKEY (stored in this browser only)</label>
+    <input id="kkey" type="password" placeholder="must match backend KKEY to decrypt URLs" />
+    <div class="actions">
+      <button id="fetchBtn">Fetch streams</button>
+      <button id="testAllBtn" class="sec">Auto-test all</button>
+    </div>
+    <div id="status">Enter KKEY + API key (saved locally), then Fetch.</div>
+    <p class="hint">Open via <code>file://</code> or <code>python3 -m http.server</code> in <code>public/</code>. The backend allows cross-origin (permissive CORS), so either works.</p>
+    <div id="list"></div>
   </div>
-  <script src="/player.js" defer></script>
+  <div class="panel">
+    <video id="video" controls playsinline></video>
+    <div id="now" class="hint" style="margin-top:10px">No stream loaded.</div>
+    <div id="log" class="hint" style="margin-top:10px; white-space:pre-wrap; font-family:ui-monospace,monospace"></div>
+  </div>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const els = {
+    type: $('type'), tmdb: $('tmdb'), season: $('season'), episode: $('episode'),
+    base: $('base'), apiKey: $('apiKey'), kkey: $('kkey'),
+    fetchBtn: $('fetchBtn'), testAllBtn: $('testAllBtn'),
+    status: $('status'), list: $('list'), video: $('video'), now: $('now'), log: $('log'),
+  };
+  const LS = 'hue-diag';
+  const MEDIA_ERR = { 1: 'MEDIA_ERR_ABORTED', 2: 'MEDIA_ERR_NETWORK', 3: 'MEDIA_ERR_DECODE', 4: 'MEDIA_ERR_SRC_NOT_SUPPORTED' };
+
+  // ---- persistence (secrets live only in this browser's localStorage) ----
+  function restore() {
+    const saved = JSON.parse(localStorage.getItem(LS) || '{}');
+    els.base.value = saved.base || (window.HUE_SECRETS && window.HUE_SECRETS.base) || 'http://127.0.0.1:24609';
+    els.apiKey.value = saved.apiKey || (window.HUE_SECRETS && window.HUE_SECRETS.apiKey) || '';
+    els.kkey.value = saved.kkey || (window.HUE_SECRETS && window.HUE_SECRETS.kkey) || '';
+    for (const k of ['type','tmdb','season','episode']) if (saved[k] != null) els[k].value = saved[k];
+  }
+  function persist() {
+    const o = {};
+    for (const k of ['base','apiKey','kkey','type','tmdb','season','episode']) o[k] = els[k].value;
+    localStorage.setItem(LS, JSON.stringify(o));
+  }
+  ['base','apiKey','kkey','type','tmdb','season','episode'].forEach(k => els[k].addEventListener('change', persist));
+
+  function setStatus(msg, err) { els.status.textContent = msg; els.status.className = err ? 'err' : ''; }
+  function log(msg) { els.log.textContent = (new Date().toISOString().slice(11,19)) + '  ' + msg + '\n' + els.log.textContent; }
+
+  // ---- kkey decrypt (mirrors backend security.rs::kkey_encrypt) ----
+  function hexToBytes(hex) {
+    const b = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < hex.length; i += 2) b[i/2] = parseInt(hex.slice(i, i+2), 16);
+    return b;
+  }
+  async function sha256(str) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return new Uint8Array(buf);
+  }
+  async function kkeyDecrypt(token, kkey) {
+    const c = token.indexOf(':');
+    if (c === -1) return null;
+    const tokenHour = parseInt(token.slice(0, c), 10);
+    if (Number.isNaN(tokenHour)) return null;
+    const enc = hexToBytes(token.slice(c + 1));
+    const nowHour = Math.floor(Date.now() / 3600000);
+    for (const h of [tokenHour, nowHour, nowHour - 1]) {
+      const key = await sha256(`${kkey}${h}`);
+      const out = new Uint8Array(enc.length);
+      for (let i = 0; i < enc.length; i++) out[i] = enc[i] ^ key[i % key.length];
+      const text = new TextDecoder().decode(out);
+      if (text.startsWith('http')) return text;
+    }
+    return null;
+  }
+
+  // ---- fetch + decrypt ----
+  let streams = [];
+  async function fetchStreams() {
+    persist();
+    const kkey = els.kkey.value.trim();
+    if (!kkey) return setStatus('KKEY is required to decrypt stream URLs.', true);
+    const base = els.base.value.trim().replace(/\/$/, '');
+    const t = els.type.value, id = els.tmdb.value.trim();
+    let url = `${base}/api/streams/${t}/${id}`;
+    const qs = [];
+    if (t === 'tv') { qs.push(`s=${els.season.value.trim()}`, `e=${els.episode.value.trim()}`); }
+    if (els.apiKey.value.trim()) qs.push(`api_key=${encodeURIComponent(els.apiKey.value.trim())}`);
+    if (qs.length) url += '?' + qs.join('&');
+
+    setStatus('Fetching…');
+    const t0 = performance.now();
+    let data;
+    try {
+      const res = await fetch(url, { credentials: 'omit' });
+      if (res.status === 403) return setStatus('403 Forbidden — API key missing/wrong (backend has API_KEY set).', true);
+      if (!res.ok) return setStatus(`HTTP ${res.status} from /api/streams`, true);
+      data = await res.json();
+    } catch (e) { return setStatus(`Fetch failed: ${e.message}\n(CORS/mixed-content? try python3 -m http.server in public/)`, true); }
+    const dt = Math.round(performance.now() - t0);
+
+    if (!data || !Array.isArray(data.streams)) return setStatus('Response had no streams[] array.', true);
+    // decrypt all urls in place
+    let decFail = 0;
+    streams = [];
+    for (const s of data.streams) {
+      let playable = s.url;
+      if (typeof s.url === 'string' && s.url.includes(':') && !s.url.startsWith('http')) {
+        const d = await kkeyDecrypt(s.url, kkey);
+        if (d) playable = d; else { decFail++; playable = null; }
+      }
+      streams.push({ ...s, playable });
+    }
+    const timings = (data.provider_timings || []).map(p => `${p.provider}:${p.streams_found}`).join(' ');
+    setStatus(`Fetched ${streams.length} stream(s) in ${dt}ms. ${decFail ? decFail + ' failed to decrypt (KKEY mismatch/expired). ' : ''}\nproviders → ${timings}`);
+    render();
+  }
+
+  function fmtBadge(f) {
+    const cls = ({hls:'b-hls', mp4:'b-mp4', dash:'b-dash', iframe:'b-iframe'})[f] || 'b-other';
+    return `<span class="badge ${cls}">${f || '?'}</span>`;
+  }
+
+  function render() {
+    els.list.innerHTML = '';
+    streams.forEach((s, i) => {
+      const div = document.createElement('div');
+      div.className = 'stream';
+      div.id = `stream-${i}`;
+      const host = s.playable ? new URL(s.playable).host : '(decrypt failed)';
+      const via = s.playable && s.playable.includes('m3u8-proxy') ? ' via m3u8-proxy'
+                : s.playable && s.playable.includes('ts-proxy') ? ' via ts-proxy' : '';
+      div.innerHTML = `
+        <div class="top">
+          <div>${fmtBadge(s.format)} <strong>${s.provider || '?'}</strong> · ${s.quality || '?'}</div>
+          <button data-i="${i}" ${s.playable ? '' : 'disabled'}>Play</button>
+        </div>
+        <div class="meta">${s.title || ''}<br>${host}${via}</div>
+        <div class="verdict v-pending" id="verdict-${i}">not tested</div>`;
+      els.list.appendChild(div);
+    });
+    els.list.querySelectorAll('button[data-i]').forEach(b =>
+      b.addEventListener('click', () => playStream(+b.dataset.i)));
+  }
+
+  // ---- playback with time-to-first-frame + verbatim errors ----
+  let hls = null, dashPlayer = null;
+  function teardown() {
+    if (hls) { try { hls.destroy(); } catch {} hls = null; }
+    if (dashPlayer) { try { dashPlayer.reset(); } catch {} dashPlayer = null; }
+    els.video.removeAttribute('src'); els.video.load();
+  }
+
+  function playStream(i) {
+    return new Promise(resolve => {
+      const s = streams[i];
+      if (!s || !s.playable) { resolve({ ok: false, why: 'no playable url' }); return; }
+      teardown();
+      const vEl = document.getElementById('verdict-' + i);
+      vEl.className = 'verdict v-pending'; vEl.textContent = 'loading…';
+      els.now.textContent = `▶ #${i} ${s.provider} ${s.quality} (${s.format}) — ${s.playable}`;
+      log(`#${i} ${s.provider}/${s.format} loading ${new URL(s.playable).host}`);
+
+      const t0 = performance.now();
+      let settled = false;
+      const finish = (ok, why) => {
+        if (settled) return; settled = true;
+        clearTimeout(timer);
+        const ms = Math.round(performance.now() - t0);
+        vEl.className = 'verdict ' + (ok ? 'v-pass' : 'v-fail');
+        vEl.textContent = ok ? `PLAYS — first frame in ${ms}ms` : `FAIL (${ms}ms) — ${why}`;
+        log(`#${i} ${ok ? 'PASS' : 'FAIL'} ${ms}ms ${why || ''}`);
+        resolve({ ok, ms, why });
+      };
+      const timer = setTimeout(() => finish(false, 'timeout 25s (no first frame)'), 25000);
+
+      els.video.oncanplay = () => finish(true, '');
+      els.video.onloadeddata = () => { if (els.video.readyState >= 2) finish(true, ''); };
+      els.video.onerror = () => {
+        const e = els.video.error;
+        finish(false, e ? `${MEDIA_ERR[e.code] || 'code ' + e.code}${e.message ? ': ' + e.message : ''}` : 'unknown video error');
+      };
+
+      const url = s.playable;
+      const isHls = s.format === 'hls' || url.includes('.m3u8') || url.includes('m3u8-proxy');
+      const isDash = s.format === 'dash' || url.includes('.mpd');
+
+      if (isHls && window.Hls && Hls.isSupported()) {
+        hls = new Hls({ maxBufferLength: 10, manifestLoadingTimeOut: 15000, fragLoadingTimeOut: 20000 });
+        hls.on(Hls.Events.ERROR, (_, d) => {
+          if (d.fatal) finish(false, `HLS ${d.type}/${d.details}${d.response ? ' http ' + d.response.code : ''}`);
+        });
+        hls.loadSource(url);
+        hls.attachMedia(els.video);
+        els.video.play().catch(() => {});
+      } else if (isDash && window.dashjs) {
+        dashPlayer = dashjs.MediaPlayer().create();
+        dashPlayer.on('error', e => finish(false, 'DASH ' + (e.error?.message || JSON.stringify(e.error || e))));
+        dashPlayer.initialize(els.video, url, true);
+      } else {
+        els.video.src = url;
+        els.video.play().catch(() => {});
+      }
+    });
+  }
+
+  async function testAll() {
+    if (!streams.length) return setStatus('Fetch streams first.', true);
+    els.testAllBtn.disabled = true;
+    let pass = 0;
+    for (let i = 0; i < streams.length; i++) {
+      if (!streams[i].playable) continue;
+      document.getElementById('stream-' + i).scrollIntoView({ block: 'nearest' });
+      const r = await playStream(i);
+      if (r.ok) pass++;
+    }
+    teardown();
+    els.testAllBtn.disabled = false;
+    setStatus(`Auto-test done: ${pass}/${streams.filter(s=>s.playable).length} playable streams reached first frame.`);
+  }
+
+  els.fetchBtn.addEventListener('click', fetchStreams);
+  els.testAllBtn.addEventListener('click', testAll);
+  restore();
+})();
+</script>
 </body>
 </html>

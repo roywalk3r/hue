@@ -407,6 +407,10 @@ pub fn build_router(state: AppState) -> Router {
             get(crate::routes::streams::streams_handler),
         )
         .route(
+            "/api/streams/luna/:type/:tmdbId",
+            get(crate::routes::streams::luna_streams_handler),
+        )
+        .route(
             "/api/streams/:type/:tmdbId/live",
             get(crate::routes::sse::sse_streams_handler),
         )
