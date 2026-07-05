@@ -22,7 +22,6 @@ const PROVIDER_RENAME_MAP = {
   'vidsrc-icu': 'Stellar',
   'vidsrc-embed': 'Nebula',
   'kisskh': 'Zenith',
-  'dramacool': 'Orient',
   'moviesmod': 'Cine',
   'uhdmovies': 'Ultra',
   '4khdhub': 'Prime',
@@ -46,7 +45,6 @@ const SANITIZE_KEYWORDS = {
   'vidrock': 'Luna',
   'sflix': 'Nova',
   'kisskh': 'Zenith',
-  'dramacool': 'Orient',
   'moviesmod': 'Cine',
   'uhdmovies': 'Ultra',
   '4khdhub': 'Prime',
@@ -130,7 +128,8 @@ function getProviderFiles() {
                     file !== 'Showbox.js' && 
                     file !== 'showbox-playwright.js' && 
                     file !== 'VidZee.js' &&
-                    file !== 'vidsrccc-puppeteer.js.bak')
+                    file !== 'vidsrccc-puppeteer.js.bak' &&
+                    file !== 'dramacool.js')
     .map(file => ({
       name: path.parse(file).name.toLowerCase(),
       file: file,
@@ -273,7 +272,7 @@ for (const providerInfo of providerFiles) {
   }
 
   // When Huerust is enabled, skip providers it already handles to avoid duplicates
-  const HUERUST_HANDLES = ['moviebox', 'sflix', 'vixsrc', 'kisskh', 'dramacool'];
+  const HUERUST_HANDLES = ['moviebox', 'sflix', 'vixsrc', 'kisskh'];
   if (enabled && config.enableHuerustProvider && HUERUST_HANDLES.includes(providerInfo.name)) {
       console.log(`[registry] ${providerInfo.name} skipped — handled by Huerust engine`);
       enabled = false;

@@ -87,7 +87,7 @@ module.exports = function(metrics) {
                     : ['vixsrc', 'moviebox', 'autoembed'];
 
                 // Add specialized Drama providers if it's a drama or from HiTV
-                const specializedProviders = isDramaId ? ['kisskh', 'dramacool'] : [];
+                const specializedProviders = isDramaId ? ['kisskh'] : [];
 
                 const imdbId = await resolveImdbId(type === 'movie' ? 'movie' : 'tv', tmdbId);
 

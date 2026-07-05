@@ -95,7 +95,7 @@ module.exports = function(metrics) {
 
             // 2. Fallback to individual Node.js drama providers if Rust returned nothing
             if (!streamsResults.length) {
-                const dramaProviders = ['kisskh', 'dramacool'];
+                const dramaProviders = ['kisskh'];
                 await Promise.all(dramaProviders.map(async name => {
                     const prov = getProvider(name);
                     if (!prov || !prov.enabled) return;
@@ -187,7 +187,7 @@ module.exports = function(metrics) {
 
             const imdbId = await resolveImdbId(tmdbType, tmdbId);
 
-            const dramaProviders = ['dramacool', 'orient'];
+            const dramaProviders = ['orient'];
             const selectedProviders = (config.defaultProviders.length ? config.defaultProviders : listProviders().map(p=>p.name))
                 .filter(name => !dramaProviders.includes(name.toLowerCase()))
                 .sort((a, b) => (getProvider(b)?.priority || 50) - (getProvider(a)?.priority || 50));
@@ -292,7 +292,7 @@ module.exports = function(metrics) {
                 return res.json({ success: true, tmdbId, imdbId, count: streams.length, streams, fromCache: true });
             }
             
-            const dramaProviders = ['dramacool', 'orient'];
+            const dramaProviders = ['orient'];
             const selectedProviders = (config.defaultProviders.length ? config.defaultProviders : listProviders().map(p=>p.name))
                 .filter(name => !dramaProviders.includes(name.toLowerCase()))
                 .sort((a, b) => (getProvider(b)?.priority || 50) - (getProvider(a)?.priority || 50));

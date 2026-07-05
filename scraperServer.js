@@ -25,7 +25,6 @@ if (typeof global.File === 'undefined') {
 
 const express = require('express');
 const sflixProvider = require('./providers/sflix');
-const dramacoolProvider = require('./providers/dramacool');
 const kissasianProvider = require('./providers/kissasian');
 const { decrypt: videasyDecrypt } = require('./providers/videasy/decrypt');
 const { getNewPage } = require('./utils/browserManager');
@@ -51,21 +50,6 @@ app.post('/scrape/sflix', async (req, res) => {
         res.json({ success: true, streams: streams || [] });
     } catch (e) {
         console.error(`[Scraper] SFlix error: ${e.message}`);
-        res.status(500).json({ success: false, error: e.message });
-    }
-});
-
-// Dramacool Fallback Scraper Route
-app.post('/scrape/dramacool', async (req, res) => {
-    const { url } = req.body;
-    if (!url) return res.status(400).json({ error: 'Missing url parameter' });
-    
-    try {
-        console.log(`[Scraper] Scraping Dramacool: ${url}`);
-        const streams = await dramacoolProvider.getStreamsByUrl(url);
-        res.json({ success: true, streams: streams || [] });
-    } catch (e) {
-        console.error(`[Scraper] Dramacool error: ${e.message}`);
         res.status(500).json({ success: false, error: e.message });
     }
 });

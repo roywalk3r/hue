@@ -282,22 +282,6 @@ function buildOpenApiSpec(req) {
       },
 
       // ═══════════════════════════════════════════════════════════
-      //  DRAMA — Dramacool
-      // ═══════════════════════════════════════════════════════════
-      '/api/drama/dramacool/search': {
-        get: { tags: ['Drama'], summary: 'Search Dramacool', parameters: [
-          { name: 'q', in: 'query', required: true, schema: { type: 'string' } },
-          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
-        ], responses: { 200: { description: 'Search results' }, 400: { description: 'Missing query' } } },
-      },
-      '/api/drama/dramacool/streams/{id}/{episode}': {
-        get: { tags: ['Drama'], summary: 'Dramacool streams', parameters: [
-          { name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'Dramacool path slug' },
-          { name: 'episode', in: 'path', required: true, schema: { type: 'integer' } },
-        ], responses: { 200: { description: 'Stream results' } } },
-      },
-
-      // ═══════════════════════════════════════════════════════════
       //  DRAMA — MovieBox
       // ═══════════════════════════════════════════════════════════
       '/api/drama/moviebox/browse': {

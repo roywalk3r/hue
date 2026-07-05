@@ -14,7 +14,7 @@
     "start:scraper": "node setup-browser.js && node scraperServer.js",
     "start:rust": "cd huerust && cargo run --release",
     "start:dev": "node setup-browser.js && nodemon --watch restart.trigger --ignore providers/.cache --ignore **/cache apiServer.js",
-    "postinstall": "npx playwright install chromium",
+    "postinstall": "npx playwright install chrome",
     "lint": "eslint . --ext .js",
     "setup-browser": "node setup-browser.js",
     "key:generate": "node scripts/generate-key.js",
