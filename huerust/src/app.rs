@@ -51,7 +51,7 @@ use crate::providers::{
     // videasy_provider::VideasyProvider,
     vidrock_provider::VidrockProvider,
     vidsrcembed_provider::VidsrcEmbedProvider,
-    vidvault_provider::VidvaultProvider,
+    // vidvault_provider::VidvaultProvider, // disabled — hakunaymatata CDN 403s all URLs, even freshly resolved
     vidzee::VidzeeClient,
     vidzee_provider::VidzeeProvider,
     vixsrc::VixsrcClient,
@@ -206,7 +206,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     registry.register(Arc::new(VixsrcProvider::new(vixsrc_client)));
     // registry.register(Arc::new(Mp4HydraProvider::new())); // disabled — endpoint times out
     registry.register(Arc::new(VidrockProvider::new(vidrock_client.clone())));
-    registry.register(Arc::new(VidvaultProvider::new(vidvault_client.clone())));
+    // registry.register(Arc::new(VidvaultProvider::new(vidvault_client.clone()))); // disabled — hakunaymatata CDN 403s all URLs, even freshly resolved
     registry.register(Arc::new(VidzeeProvider::new(vidzee_client.clone())));
     // registry.register(Arc::new(VideasyProvider::new(videasy_client.clone()))); // disabled — upstream 500
     registry.register(Arc::new(VidsrcEmbedProvider::new(
