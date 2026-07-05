@@ -533,6 +533,33 @@ fn looks_like_hls_playlist_url(target_url: &str) -> bool {
     false
 }
 
+/// Returns the right `Cache-Control` for a proxied segment. HLS segments
+/// carry an upstream-signed URL with a short lifetime, so the browser must
+/// re-fetch the URL whenever the master playlist rolls. Caching them for
+/// 24h would lock the player onto a dead segment URL until manual reload.
+///
+/// This helper is only called from `ts_handler`, which serves TS/m4s/segment
+/// content (HLS) and MP4 video bytes. The latter can stay cached for 24h
+/// because the same MP4 URL is hit again on seek/retry. We detect by URL
+/// extension: HLS segment names typically end in `.ts`/`.m4s`/`.jpg`/
+/// (cloudflarestream) or `.html` (Vidrock workers).
+fn segment_cache_control(target_url: &str) -> &'static str {
+    let lower = target_url.to_lowercase();
+    if lower.contains(".ts")
+        || lower.contains(".m4s")
+        || lower.contains(".jpg")
+        || lower.contains(".jpeg")
+        || lower.contains(".png")
+        || lower.contains(".webp")
+        || lower.contains(".html") // Vidrock workers use .html paths for TS segments
+        || looks_like_hls_playlist_url(target_url)
+    {
+        "public, max-age=5"
+    } else {
+        "public, max-age=86400, immutable"
+    }
+}
+
 // ── M3U8 Proxy ───────────────────────────────────────────────────────────────
 
 /// Send an M3U8 request and return (status, body, content_type).
@@ -1051,8 +1078,10 @@ pub async fn ts_handler(
                                 }
                             }
                             builder = builder.header("Access-Control-Allow-Origin", "*");
-                            builder =
-                                builder.header("Cache-Control", "public, max-age=86400, immutable");
+                            builder = builder.header(
+                                "Cache-Control",
+                                segment_cache_control(&target_url),
+                            );
                             if params.download.is_some() {
                                 let filename = params.filename.as_deref().unwrap_or("video.mp4");
                                 builder = builder.header(
@@ -1107,7 +1136,7 @@ pub async fn ts_handler(
                         }
                         builder = builder.header("Access-Control-Allow-Origin", "*");
                         builder =
-                            builder.header("Cache-Control", "public, max-age=86400, immutable");
+                            builder.header("Cache-Control", segment_cache_control(&target_url));
                         if let Some(cl) = direct_resp.headers().get("content-length") {
                             if let Ok(v) = cl.to_str() {
                                 builder = builder.header("content-length", v);
@@ -1156,7 +1185,7 @@ pub async fn ts_handler(
                         }
                         builder = builder.header("Access-Control-Allow-Origin", "*");
                         builder =
-                            builder.header("Cache-Control", "public, max-age=86400, immutable");
+                            builder.header("Cache-Control", segment_cache_control(&target_url));
                         if let Some(cl) = plain_resp.headers().get("content-length") {
                             if let Ok(v) = cl.to_str() {
                                 builder = builder.header("content-length", v);
@@ -1194,9 +1223,11 @@ pub async fn ts_handler(
 
             builder = builder.header("Access-Control-Allow-Origin", "*");
 
-            // Cache progressive video segments for 24h so the browser doesn't
-            // re-fetch the same byte ranges on every seek/retry.
-            builder = builder.header("Cache-Control", "public, max-age=86400, immutable");
+            // Progressive MP4/MKV cache for 24h so the browser doesn't re-fetch
+            // the same byte ranges on every seek/retry. HLS segments carry
+            // a short-lived upstream-signed URL and must be re-fetched as the
+            // master playlist rolls (segment_cache_control handles that).
+            builder = builder.header("Cache-Control", segment_cache_control(&target_url));
 
             if force_200 && mapped == StatusCode::PARTIAL_CONTENT {
                 builder = builder.status(StatusCode::OK);
@@ -1315,7 +1346,7 @@ pub async fn ts_handler(
                         }
                         builder = builder.header("Access-Control-Allow-Origin", "*");
                         builder =
-                            builder.header("Cache-Control", "public, max-age=86400, immutable");
+                            builder.header("Cache-Control", segment_cache_control(&target_url));
                         if let Some(cl) = resp.headers().get("content-length") {
                             if let Ok(v) = cl.to_str() {
                                 builder = builder.header("content-length", v);
