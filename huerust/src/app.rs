@@ -59,6 +59,8 @@ use crate::providers::{
     vixsrc::VixsrcClient,
     vixsrc_provider::VixsrcProvider,
     xyra_subtitle::XyraSubtitleClient,
+    xyra_vixsrc::XyraVixsrcClient,
+    xyra_vixsrc_provider::XyraVixsrcProvider,
 };
 
 pub fn kisskh_enabled() -> bool {
@@ -86,6 +88,21 @@ pub fn vixsrc_enabled() -> bool {
             )
         })
         .unwrap_or(false)
+}
+
+/// Aura (Vixsrc) via the xyra.stream streamhub proxy. On by default since the
+/// direct `vixsrc.to` path is Cloudflare-blocked on the production VPS, but
+/// Xyra can proxy the same master playlist. Set `ENABLE_XYRA_VIXSRC=0` to
+/// opt out and run with no Aura streams.
+pub fn xyra_vixsrc_enabled() -> bool {
+    env::var("ENABLE_XYRA_VIXSRC")
+        .map(|value| {
+            !matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "0" | "false" | "no" | "off"
+            )
+        })
+        .unwrap_or(true)
 }
 
 /// Force IPv4 egress on the segment proxy. Off by default: a host with a
@@ -192,6 +209,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let vixsrc_client = Arc::new(VixsrcClient::new(
         crate::http_client::build_client_with_retry(vixsrc_builder, "VIXSRC_PROXY_URL"),
     ));
+    let xyra_vixsrc_client = Arc::new(XyraVixsrcClient::new());
 
     let vidrock_client = Arc::new(crate::clients::vidrock::VidRockClient::new());
     let vidvault_client = Arc::new(crate::clients::vidvault::VidVaultClient::new());
@@ -245,12 +263,15 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     registry.register(Arc::new(KissAsianTopProvider::new(
         kissasian_top_client.clone(),
     )));
-    if vixsrc_enabled() {
+    if xyra_vixsrc_enabled() {
+        registry.register(Arc::new(XyraVixsrcProvider::new(xyra_vixsrc_client)));
+        let _ = vixsrc_client;
+    } else if vixsrc_enabled() {
         registry.register(Arc::new(VixsrcProvider::new(vixsrc_client)));
     } else {
         let _ = vixsrc_client;
         tracing::info!(
-            "VixSrc (Aura) provider disabled; set ENABLE_VIXSRC=true to enable it (needs a clean/residential egress IP — datacenter IPs get 403'd)"
+            "Aura (Vixsrc) provider disabled — both Xyra and direct paths off (set ENABLE_XYRA_VIXSRC=1 to re-enable)"
         );
     }
     // registry.register(Arc::new(Mp4HydraProvider::new())); // disabled — endpoint times out

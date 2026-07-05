@@ -37,6 +37,8 @@ pub mod vidzee_provider;
 pub mod vixsrc;
 pub mod vixsrc_provider;
 pub mod xyra_subtitle;
+pub mod xyra_vixsrc;
+pub mod xyra_vixsrc_provider;
 
 use crate::clients::tmdb::TmdbNormalizedInfo;
 use crate::models::StreamResult;
