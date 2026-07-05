@@ -1701,7 +1701,117 @@ fn rewrite_playlist(
 
     let rewritten = rewritten_lines.join("\n");
 
+    // Collapse fake-HLS-MP4 playlists to a single segment. Vidrock (and
+    // similar) wrap a single MP4 file in an HLS playlist where each
+    // "segment" is a byte-range slice of the same file. The browser ends
+    // up making 100+ requests for a 1-hour file just to download the
+    // same content. When we detect that pattern — many segments on the
+    // same upstream host, all with byte ranges, no encryption keys, no
+    // discontinuities — collapse to a single segment so HLS.js fetches
+    // the whole file in one request. The upstream returns the full MP4
+    // when no Range header is sent.
+    // Collapse fake-HLS-MP4 playlists to a single segment. Disabled for
+    // now because HLS.js can't play a 1-hour segment as a single chunk
+    // (it expects the segment duration to match the EXTINF). Future work:
+    // use HLS.js's MP4 playback mode with `EXT-X-MAP` + byte ranges, or
+    // proxy the entire MP4 with a custom HLS.js loader.
+    if false && manifest_is_hls && looks_like_blob_hack(content) {
+        tracing::info!("[m3u8-proxy] Blob-hack collapse triggered (segments collapsed to 1)");
+        return collapse_blob_segments(rewritten, &base_url, proxy_base, secret, &headers);
+    }
+
     rewritten
+}
+
+/// Detect the fake-HLS-MP4 pattern: many segments with no encryption
+/// keys and no EXT-X-DISCONTINUITY. A real VOD HLS stream with this many
+/// segments (50+) is almost certainly wrapping a single MP4 file in tiny
+/// slices, which wastes hundreds of HTTP requests. We collapse it to a
+/// single segment so HLS.js fetches the whole MP4 in one request.
+fn looks_like_blob_hack(content: &str) -> bool {
+    let mut segment_count = 0;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if !trimmed.starts_with("#") && !trimmed.is_empty() {
+            segment_count += 1;
+        }
+        if trimmed.contains("EXT-X-KEY") || trimmed.contains("EXT-X-DISCONTINUITY") || trimmed.contains("EXT-X-MAP") {
+            return false;
+        }
+    }
+    segment_count > 30
+}
+
+/// Replace the playlist with a single segment pointing to the first
+/// segment's upstream URL, with a long duration so HLS.js loads it as
+/// one big chunk. The segment proxy will fetch the full MP4 (no Range
+/// header) and return it as a single blob.
+fn collapse_blob_segments(
+    content: String,
+    base_url: &Url,
+    proxy_base: &str,
+    secret: &str,
+    headers: &Option<std::collections::HashMap<String, String>>,
+) -> String {
+    // Collect the first segment URL. After the loop above, the segment
+    // URLs in `content` are already proxied (ts-proxy?url=...). We need to
+    // extract the original upstream URL so the collapsed segment points
+    // straight at the upstream's MP4 file, not at a nested ts-proxy.
+    let mut first_segment: Option<String> = None;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if !trimmed.starts_with("#") && !trimmed.is_empty() {
+            first_segment = Some(trimmed.to_string());
+            break;
+        }
+    }
+    let Some(first_url) = first_segment else {
+        return content;
+    };
+
+    // If the segment URL is already a ts-proxy/m3u8-proxy URL, extract
+    // the inner upstream URL from the `url=` parameter so we don't end up
+    // with nested proxy calls.
+    let upstream_url = if let Some(query_start) = first_url.find("?") {
+        let qs = url::form_urlencoded::parse(first_url[query_start + 1..].as_bytes());
+        qs.into_iter()
+            .find(|(k, _)| k == "url")
+            .map(|(_, v)| v.into_owned())
+            .unwrap_or(first_url.clone())
+    } else {
+        first_url.clone()
+    };
+
+    let abs_url = unwrap_aisports_worker_url(&resolve_segment_url(base_url, &upstream_url));
+    let use_raw = is_whitelisted_raw_url(&abs_url) && headers.is_none();
+    let proxy_url = if use_raw {
+        let encoded_url = urlencoding::encode(&abs_url);
+        let header_part = if let Some(ref h) = headers {
+            format!(
+                "&headers={}",
+                urlencoding::encode(&serde_json::to_string(h).unwrap_or_default())
+            )
+        } else {
+            String::new()
+        };
+        format!(
+            "{}/ts-proxy?url={}&mode=url{}",
+            proxy_base, encoded_url, header_part
+        )
+    } else {
+        let token = security::sign_proxy_url(&abs_url, secret, headers.clone());
+        format!("{}/ts-proxy?{}", proxy_base, token.to_query())
+    };
+
+    // One segment, no ENDLIST, short target duration. HLS.js will load
+    // this segment once and stream it as a single MP4 blob via the
+    // browser's standard MP4 demuxer (which handles byte-range requests
+    // internally for seeking). The proxy forwards Range headers to the
+    // upstream so seeking works without re-fetching the whole file.
+    format!(
+        "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:10\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:10.0,\n{}\n",
+        proxy_url
+    )
 }
 
 /// Extract URI value from an HLS tag line like `#EXT-X-KEY:METHOD=AES-128,URI="value"`
