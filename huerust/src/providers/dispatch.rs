@@ -55,6 +55,7 @@ pub async fn fetch_from_providers(
         fast_only,
         min_streams_threshold,
         aggregate_deadline,
+        None,
         |_| true,
     )
     .await
@@ -70,6 +71,7 @@ pub async fn fetch_from_providers_matching(
     fast_only: bool,
     min_streams_threshold: usize,
     aggregate_deadline: Duration,
+    min_distinct_providers: Option<usize>,
     threshold_matcher: fn(&StreamResult) -> bool,
 ) -> (Vec<StreamResult>, Vec<ProviderTiming>) {
     use tokio::time::Instant;
@@ -168,15 +170,25 @@ pub async fn fetch_from_providers_matching(
                     cancelled: was_cancelled,
                 });
                 all.extend(streams);
-                if abort_on_threshold
-                    && all
+                if abort_on_threshold {
+                    let matched = all
                         .iter()
                         .filter(|stream| threshold_matcher(stream))
-                        .count()
-                        >= min_streams_threshold
-                {
-                    tasks.abort_all();
-                    break;
+                        .count();
+                    let matched_providers = all
+                        .iter()
+                        .filter(|stream| threshold_matcher(stream))
+                        .map(|stream| stream.provider.as_str())
+                        .collect::<std::collections::HashSet<_>>()
+                        .len();
+                    let stream_ok = matched >= min_streams_threshold;
+                    let provider_ok = min_distinct_providers
+                        .map(|n| matched_providers >= n)
+                        .unwrap_or(true);
+                    if stream_ok && provider_ok {
+                        tasks.abort_all();
+                        break;
+                    }
                 }
             }
         }

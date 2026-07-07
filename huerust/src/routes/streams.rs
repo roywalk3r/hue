@@ -302,6 +302,13 @@ pub async fn streams_handler(
         // Bypass coalescer — start all providers simultaneously, per-provider timeouts apply.
         let start = std::time::Instant::now();
         let (mut streams, mut timings) = if web_client {
+            // Threshold of 4 web-playable streams AND ≥2 distinct providers:
+            // NoTorrent alone can return 3-5 streams, so a raw stream count
+            // aborts before slow providers (Vidrock ~4s, MovieBox, SFlix) land.
+            // Requiring 2 distinct providers forces dispatch to wait until at
+            // least one slow provider finishes alongside the fast one. The
+            // browser's Promise.race picks the first to play; the rest are
+            // alternates. `slow_deadline` remains the hard ceiling.
             fetch_from_providers_matching(
                 registry.clone(),
                 metrics.clone(),
@@ -310,8 +317,9 @@ pub async fn streams_handler(
                 season,
                 episode,
                 false,
-                1,
+                4,
                 slow_deadline,
+                Some(2),
                 is_web_playable_stream,
             )
             .await
@@ -379,6 +387,14 @@ pub async fn streams_handler(
             .execute(&cache_key, &cache, || async move {
                 let start = std::time::Instant::now();
                 if web_client {
+                    // Threshold of 4 web-playable streams AND ≥2 distinct
+                    // providers: NoTorrent alone can return 3-5 streams, so
+                    // a raw stream count aborts before slow providers
+                    // (Vidrock ~4s, MovieBox, SFlix) finish. Requiring 2
+                    // distinct providers forces dispatch to wait for at least
+                    // one slow provider alongside the fast one. The browser's
+                    // Promise.race picks the first to play; the rest are
+                    // alternates. `slow_deadline` remains the hard ceiling.
                     let (streams, _) = fetch_from_providers_matching(
                         registry.clone(),
                         metrics.clone(),
@@ -387,8 +403,9 @@ pub async fn streams_handler(
                         season,
                         episode,
                         false,
-                        1,
+                        4,
                         slow_deadline,
+                        Some(2),
                         is_web_playable_stream,
                     )
                     .await;
