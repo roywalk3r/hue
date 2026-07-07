@@ -61,11 +61,10 @@ fn filter_generic_movie_tv_streams(
 }
 
 fn is_web_playable_stream(stream: &StreamResult) -> bool {
-    let provider = stream.provider.to_lowercase();
     let format = stream.format.to_lowercase();
     let url = stream.url.to_lowercase();
 
-    provider != "notorrent" && format != "dash" && !url.contains(".mpd") && !url.contains(".mkv")
+    format != "dash" && !url.contains(".mpd") && !url.contains(".mkv")
 }
 
 fn should_fetch_slow_providers(web_client: bool, streams: &[StreamResult]) -> bool {
@@ -931,7 +930,10 @@ mod tests {
 
     #[test]
     fn web_playability_excludes_known_browser_incompatible_sources() {
-        assert!(!is_web_playable_stream(&stream(
+        // NoTorrent mp4 from a non-mkv URL is web-playable — its slow mirrors
+        // and EAC3 audio are caught at the HLS layer, not by a provider-name
+        // filter. Provider name is no longer part of the check.
+        assert!(is_web_playable_stream(&stream(
             "NoTorrent",
             "mp4",
             "https://example.com/video"
@@ -942,7 +944,7 @@ mod tests {
             "https://example.com/manifest.mpd"
         )));
         assert!(!is_web_playable_stream(&stream(
-            "Nova",
+            "NoTorrent",
             "mp4",
             "https://example.com/video.mkv"
         )));
@@ -955,11 +957,13 @@ mod tests {
 
     #[test]
     fn web_client_fetches_slow_providers_when_fast_results_are_unplayable() {
-        let no_torrent = vec![stream("NoTorrent", "mp4", "https://example.com/video")];
+        let mkv = vec![stream("NoTorrent", "mp4", "https://example.com/video.mkv")];
+        let dash = vec![stream("Nova", "dash", "https://example.com/manifest.mpd")];
         let hls = vec![stream("VidZee", "hls", "https://example.com/master.m3u8")];
 
-        assert!(should_fetch_slow_providers(true, &no_torrent));
-        assert!(!should_fetch_slow_providers(false, &no_torrent));
+        assert!(should_fetch_slow_providers(true, &mkv));
+        assert!(should_fetch_slow_providers(true, &dash));
+        assert!(!should_fetch_slow_providers(false, &mkv));
         assert!(!should_fetch_slow_providers(true, &hls));
     }
 }
