@@ -349,7 +349,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         kkey: cfg.kkey.clone(),
         proxy_base_url: cfg.proxy_base_url.clone(),
         config: Arc::new(cfg.clone()),
-        rate_limiter: RateLimitState::new(120, 60),
+        rate_limiter: RateLimitState::new(300, 60),
         coalescer: Arc::new(FetchCoalescer::new()),
         metrics: metrics.clone(),
         start_time: std::time::Instant::now(),
@@ -1012,6 +1012,14 @@ async fn rate_limit_middleware(
         || path.starts_with("/sub-proxy")
         || path.starts_with("/storage/")
     {
+        return Ok(next.run(req).await);
+    }
+
+    // Xyra fast-path races the main aggregator in the browser. 429ing it
+    // means the fast-path dies and the user only sees the slow main path's
+    // results. The upstream is rate-limited by xyra themselves, so we don't
+    // need to gate it on our end.
+    if path.starts_with("/api/streams/xyra/") {
         return Ok(next.run(req).await);
     }
 
