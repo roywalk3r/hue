@@ -15,6 +15,10 @@ use serde::Serialize;
 use std::collections::HashMap;
 use tracing::{info, warn};
 use utoipa::ToSchema;
+use url::Url;
+
+const DISABLED_PROVIDERS: &[&str] = &["4khdhub"];
+const REDIRECTOR_HOSTS: &[&str] = &["hubcloud.cx", "hubcdn", "hubdrive", "hubic", "vixsrc.to"];
 
 use crate::providers::dispatch::{
     ProviderTiming, fetch_from_providers, fetch_from_providers_matching, single_provider_registry,
@@ -479,6 +483,20 @@ pub async fn streams_handler(
         true,
     )
     .await;
+    let filtered: Vec<StreamResult> = filtered
+        .into_iter()
+        .filter(|s| {
+            let p = s.provider.to_lowercase();
+            !DISABLED_PROVIDERS.iter().any(|d| p == *d)
+        })
+        .filter(|s| {
+            let host = Url::parse(&s.url)
+                .ok()
+                .and_then(|u| u.host_str().map(|h| h.to_lowercase()))
+                .unwrap_or_default();
+            !REDIRECTOR_HOSTS.iter().any(|h| host.contains(h))
+        })
+        .collect();
     if filtered.is_empty() {
         return (StatusCode::NOT_FOUND, "No streams found").into_response();
     }
@@ -713,7 +731,7 @@ pub async fn xyra_streams_handler(
     );
 
     let resp = match tokio::time::timeout(
-        std::time::Duration::from_secs(8),
+        std::time::Duration::from_secs(12),
         state.client.get(&url).send(),
     )
     .await
@@ -819,6 +837,19 @@ pub async fn xyra_streams_handler(
     let streams: Vec<StreamResult> = body
         .streams
         .into_iter()
+        .filter(|s| {
+            s.provider
+                .as_deref()
+                .map(|p| !DISABLED_PROVIDERS.contains(&p.to_lowercase().as_str()))
+                .unwrap_or(true)
+        })
+        .filter(|s| {
+            let host = Url::parse(&s.url)
+                .ok()
+                .and_then(|u| u.host_str().map(|h| h.to_lowercase()))
+                .unwrap_or_default();
+            !REDIRECTOR_HOSTS.iter().any(|h| host.contains(h))
+        })
         .map(|s| {
             let lower = s.url.to_lowercase();
             let format = if lower.contains(".m3u8") || lower.contains("/playlist/") {
