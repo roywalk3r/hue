@@ -28,7 +28,6 @@ pub struct FilterQuery {
     #[allow(dead_code)]
     pub genre: Option<String>,
     pub country: Option<String>,
-    #[allow(dead_code)]
     pub year: Option<String>,
     pub sort: Option<String>,
 }
@@ -302,9 +301,10 @@ pub async fn filter_handler(
     let sort = params.sort.as_deref();
     let channel_id = params.channel_id;
     let genre = params.genre.as_deref();
+    let year = params.year.as_deref();
     match state
         .moviebox
-        .filter(page, per_page, country, sort, channel_id, genre)
+        .filter(page, per_page, country, sort, channel_id, genre, year)
         .await
     {
         Ok(items) => {

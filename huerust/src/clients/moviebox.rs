@@ -811,6 +811,7 @@ impl MovieBoxClient {
         sort: Option<&str>,
         channel_id: Option<u32>,
         genre: Option<&str>,
+        year: Option<&str>,
     ) -> Result<Vec<MovieBoxItem>> {
         let url = format!("{}/subject/filter", BASE_URL);
         let payload = serde_json::json!({
@@ -819,7 +820,7 @@ impl MovieBoxClient {
             "channelId": channel_id.unwrap_or(2),
             "genre": genre.unwrap_or("All"),
             "country": country.unwrap_or("All"),
-            "year": "All",
+            "year": year.unwrap_or("All"),
             "sort": sort.unwrap_or("ForYou"),
             "tabId": 0,
             "classify": "All"
@@ -861,7 +862,7 @@ impl MovieBoxClient {
     ) -> Result<Vec<serde_json::Value>> {
         if let Some(c) = country {
             let items = self
-                .filter(page, per_page, Some(c), sort, channel_id, None)
+                .filter(page, per_page, Some(c), sort, channel_id, None, None)
                 .await?;
             let rail = serde_json::json!({
                 "country": c,
@@ -875,7 +876,7 @@ impl MovieBoxClient {
 
         for c in countries {
             match self
-                .filter(page, per_page, Some(c), sort, channel_id, None)
+                .filter(page, per_page, Some(c), sort, channel_id, None, None)
                 .await
             {
                 Ok(items) if !items.is_empty() => {
