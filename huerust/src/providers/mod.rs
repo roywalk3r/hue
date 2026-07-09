@@ -40,6 +40,8 @@ pub mod vixsrc_provider;
 pub mod xyra_subtitle;
 pub mod xyra_vixsrc;
 pub mod xyra_vixsrc_provider;
+pub mod xyra_aurex;
+pub mod xyra_aurex_provider;
 
 use crate::clients::tmdb::TmdbNormalizedInfo;
 use crate::models::StreamResult;
@@ -78,6 +80,7 @@ pub fn display_to_real_name(display: &str) -> &str {
         "Nova" => "sflix",
         "Luna" => "vidrock",
         "Aura" => "vixsrc",
+        "Aurex" => "aurex",
         "Zenith" => "kisskh",
         "Aurora" => "kisskh_xyra",
         "Orient" => "dramacool",

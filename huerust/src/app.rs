@@ -61,6 +61,8 @@ use crate::providers::{
     xyra_subtitle::XyraSubtitleClient,
     xyra_vixsrc::XyraVixsrcClient,
     xyra_vixsrc_provider::XyraVixsrcProvider,
+    xyra_aurex::XyraAurexClient,
+    xyra_aurex_provider::XyraAurexProvider,
 };
 
 pub fn kisskh_enabled() -> bool {
@@ -163,7 +165,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let circuit_breaker = Arc::new(CircuitBreaker::new());
     let metrics = Arc::new(Metrics::new(&[
         "Cinema", "Nova", "Zenith", "Orient", "Pearl", "Aura", "Hydra", "Luna", "Vault", "VidZee",
-        "Nebula", "Rose",
+        "Nebula", "Rose", "Aurex",
     ]));
     circuit_breaker.set_metrics(metrics.clone());
     let filter_config = Arc::new(FilterConfig::default());
@@ -210,6 +212,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         crate::http_client::build_client_with_retry(vixsrc_builder, "VIXSRC_PROXY_URL"),
     ));
     let xyra_vixsrc_client = Arc::new(XyraVixsrcClient::new());
+    let xyra_aurex_client = Arc::new(XyraAurexClient::new());
 
     let vidrock_client = Arc::new(crate::clients::vidrock::VidRockClient::new());
     let vidvault_client = Arc::new(crate::clients::vidvault::VidVaultClient::new());
@@ -274,6 +277,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
             "Aura (Vixsrc) provider disabled — both Xyra and direct paths off (set ENABLE_XYRA_VIXSRC=1 to re-enable)"
         );
     }
+    registry.register(Arc::new(XyraAurexProvider::new(xyra_aurex_client)));
     // registry.register(Arc::new(Mp4HydraProvider::new())); // disabled — endpoint times out
     registry.register(Arc::new(VidrockProvider::new(vidrock_client.clone())));
     // registry.register(Arc::new(VidvaultProvider::new(vidvault_client.clone()))); // disabled — hakunaymatata CDN 403s all URLs, even freshly resolved

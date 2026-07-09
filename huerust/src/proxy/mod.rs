@@ -42,6 +42,7 @@ pub(crate) fn is_whitelisted_raw_url(url: &str) -> bool {
         || lower.contains("video-downloads.googleusercontent.com")
         || lower.contains("cache.vdrk.site")
         || lower.contains("sub.vdrk.site")
+        || lower.contains("proxy.xyra.stream")
 }
 
 const PROGRESSIVE_STARTUP_RANGE_END: u64 = (512 * 1024) - 1;
