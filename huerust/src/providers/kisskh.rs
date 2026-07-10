@@ -75,6 +75,21 @@ pub struct KissKhClient {
     client: ClientWithMiddleware,
     common_js_cache: Mutex<Option<(String, Instant)>>,
     cookie_header: Mutex<Option<String>>,
+    /// Catalog responses (search/browse/show/upcoming/top-rating) keyed by
+    /// endpoint+params → serialized JSON. Collapses the constant catalog traffic
+    /// into one upstream fetch per TTL, so browsing doesn't hammer the CF proxy
+    /// pool on every user click.
+    catalog_cache: moka::future::Cache<String, String>,
+}
+
+/// TTL for cached kisskh catalog responses. Catalog data changes slowly (new
+/// episodes hourly at most), so a generous default keeps proxy/upstream load
+/// negligible. Override with `KISSKH_CATALOG_TTL_SECS`.
+fn catalog_ttl_secs() -> u64 {
+    std::env::var("KISSKH_CATALOG_TTL_SECS")
+        .ok()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(1800)
 }
 
 impl KissKhClient {
@@ -99,6 +114,10 @@ impl KissKhClient {
             client,
             common_js_cache: Mutex::new(None),
             cookie_header: Mutex::new(cookie_header),
+            catalog_cache: moka::future::Cache::builder()
+                .max_capacity(512)
+                .time_to_live(Duration::from_secs(catalog_ttl_secs()))
+                .build(),
         }
     }
 
@@ -199,6 +218,12 @@ console.log(token);
     }
 
     pub async fn search(&self, title: &str) -> Result<Vec<KissKhSearchItem>> {
+        let ck = format!("search:{}", title.to_lowercase());
+        if let Some(s) = self.catalog_cache.get(&ck).await {
+            if let Ok(v) = serde_json::from_str(&s) {
+                return Ok(v);
+            }
+        }
         let url = format!(
             "{}/DramaList/Search?q={}",
             API_BASE,
@@ -206,6 +231,9 @@ console.log(token);
         );
         let resp = self.get(&url).send().await?;
         let data = resp.json::<Vec<KissKhSearchItem>>().await?;
+        if let Ok(s) = serde_json::to_string(&data) {
+            self.catalog_cache.insert(ck, s).await;
+        }
         Ok(data)
     }
 
@@ -435,9 +463,18 @@ console.log(token);
     }
 
     pub async fn get_show_list(&self) -> Result<Vec<serde_json::Value>> {
+        let ck = "show_list";
+        if let Some(s) = self.catalog_cache.get(ck).await {
+            if let Ok(v) = serde_json::from_str(&s) {
+                return Ok(v);
+            }
+        }
         let url = format!("{}/DramaList/Show", API_BASE);
         let resp = self.get(&url).send().await?;
         let data = resp.json::<Vec<serde_json::Value>>().await?;
+        if let Ok(s) = serde_json::to_string(&data) {
+            self.catalog_cache.insert(ck.to_string(), s).await;
+        }
         Ok(data)
     }
 
@@ -450,26 +487,56 @@ console.log(token);
         status: u32,
         order: u32,
     ) -> Result<serde_json::Value> {
+        let ck = format!(
+            "list:{}:{}:{}:{}:{}:{}",
+            page, type_, sub, country, status, order
+        );
+        if let Some(s) = self.catalog_cache.get(&ck).await {
+            if let Ok(v) = serde_json::from_str(&s) {
+                return Ok(v);
+            }
+        }
         let url = format!(
             "{}/DramaList/List?page={}&type={}&sub={}&country={}&status={}&order={}",
             API_BASE, page, type_, sub, country, status, order
         );
         let resp = self.get(&url).send().await?;
         let data = resp.json::<serde_json::Value>().await?;
+        if let Ok(s) = serde_json::to_string(&data) {
+            self.catalog_cache.insert(ck, s).await;
+        }
         Ok(data)
     }
 
     pub async fn get_upcoming(&self) -> Result<Vec<serde_json::Value>> {
+        let ck = "upcoming";
+        if let Some(s) = self.catalog_cache.get(ck).await {
+            if let Ok(v) = serde_json::from_str(&s) {
+                return Ok(v);
+            }
+        }
         let url = format!("{}/DramaList/upcoming", API_BASE);
         let resp = self.get(&url).send().await?;
         let data = resp.json::<Vec<serde_json::Value>>().await?;
+        if let Ok(s) = serde_json::to_string(&data) {
+            self.catalog_cache.insert(ck.to_string(), s).await;
+        }
         Ok(data)
     }
 
     pub async fn get_top_rating(&self) -> Result<Vec<serde_json::Value>> {
+        let ck = "top_rating";
+        if let Some(s) = self.catalog_cache.get(ck).await {
+            if let Ok(v) = serde_json::from_str(&s) {
+                return Ok(v);
+            }
+        }
         let url = format!("{}/DramaList/TopRating?ispc=false", API_BASE);
         let resp = self.get(&url).send().await?;
         let data = resp.json::<Vec<serde_json::Value>>().await?;
+        if let Ok(s) = serde_json::to_string(&data) {
+            self.catalog_cache.insert(ck.to_string(), s).await;
+        }
         Ok(data)
     }
 
