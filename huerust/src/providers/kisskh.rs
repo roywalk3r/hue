@@ -541,9 +541,18 @@ console.log(token);
     }
 
     pub async fn get_detail(&self, id: u64) -> Result<serde_json::Value> {
+        let ck = format!("detail:{}", id);
+        if let Some(s) = self.catalog_cache.get(&ck).await {
+            if let Ok(v) = serde_json::from_str(&s) {
+                return Ok(v);
+            }
+        }
         let url = format!("{}/DramaList/Drama/{}?isq=false", API_BASE, id);
         let resp = self.get(&url).send().await?;
         let data = resp.json::<serde_json::Value>().await?;
+        if let Ok(s) = serde_json::to_string(&data) {
+            self.catalog_cache.insert(ck, s).await;
+        }
         Ok(data)
     }
 }

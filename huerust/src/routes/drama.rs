@@ -243,6 +243,24 @@ pub async fn kisskh_streams_handler(
     }
 }
 
+pub async fn kisskh_detail_handler(
+    State(state): State<DramaState>,
+    Path(id): Path<u64>,
+) -> Response {
+    if !kisskh_enabled() {
+        return kisskh_disabled_response();
+    }
+    tracing::info!("[drama] kisskh_detail: id={}", id);
+    match state.kisskh.get_detail(id).await {
+        Ok(data) => (StatusCode::OK, Json(data)).into_response(),
+        Err(e) => {
+            tracing::warn!("[drama] kisskh_detail error for {}: {}", id, e);
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
+    }
+}
+
 pub async fn kisskh_show_handler(State(state): State<DramaState>) -> Response {
     if !kisskh_enabled() {
         return kisskh_disabled_response();
