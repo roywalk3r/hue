@@ -2,8 +2,8 @@ use reqwest::{Client, ClientBuilder, Proxy};
 use reqwest_middleware::{ClientBuilder as MiddlewareClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tracing::warn;
 
 /// Hosts that Cloudflare-challenge datacenter/VPS IPs and therefore must be fetched
@@ -21,33 +21,84 @@ fn is_cf_blocked_host(host: &str) -> bool {
         || host.ends_with("vix-content.net")
 }
 
-/// Route ONLY the Cloudflare-blocked hosts (see [`is_cf_blocked_host`]) through the
-/// rotating proxy pool in `CF_PROXY_URLS` — a comma-separated list of
-/// `http://user:pass@ip:port` proxies. Every other host — R2 video segments and all
-/// other providers — stays direct. No-op when `CF_PROXY_URLS` is unset, so this is
-/// inert until a pool is configured (i.e. on the VPS).
-pub fn with_cf_proxy_pool(builder: ClientBuilder) -> ClientBuilder {
-    let pool: Vec<String> = std::env::var("CF_PROXY_URLS")
+/// Path to the proxy-pool file, if configured. One proxy per line.
+fn cf_proxy_file() -> Option<String> {
+    std::env::var("CF_PROXY_FILE")
         .ok()
-        .map(|s| {
-            s.split(',')
-                .map(|p| p.trim().to_string())
-                .filter(|p| !p.is_empty())
-                .collect()
-        })
-        .unwrap_or_default();
-    if pool.is_empty() {
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// Parse one proxy entry. Accepts, in order of preference:
+///   - a full URL:            `http://user:pass@ip:port` / `socks5://ip:port` (used as-is)
+///   - webshare export:       `ip:port:user:pass` → `http://user:pass@ip:port`
+///   - bare host:port:        `ip:port` → `http://ip:port`
+/// Blank lines and `#` comments return `None`.
+fn parse_proxy_line(raw: &str) -> Option<String> {
+    let line = raw.trim();
+    if line.is_empty() || line.starts_with('#') {
+        return None;
+    }
+    if line.contains("://") {
+        return Some(line.to_string());
+    }
+    let parts: Vec<&str> = line.split(':').collect();
+    match parts.as_slice() {
+        [ip, port, user, pass] => Some(format!("http://{user}:{pass}@{ip}:{port}")),
+        [ip, port] => Some(format!("http://{ip}:{port}")),
+        _ => None,
+    }
+}
+
+/// Load the proxy pool. `CF_PROXY_FILE` (one proxy per line) takes precedence;
+/// otherwise `CF_PROXY_URLS` (comma-separated). Both accept the webshare
+/// `ip:port:user:pass` format or full proxy URLs (see [`parse_proxy_line`]).
+pub fn load_cf_proxies() -> Vec<String> {
+    if let Some(path) = cf_proxy_file() {
+        match std::fs::read_to_string(&path) {
+            Ok(contents) => return contents.lines().filter_map(parse_proxy_line).collect(),
+            Err(e) => warn!("[http] CF_PROXY_FILE {} unreadable: {}", path, e),
+        }
+    }
+    std::env::var("CF_PROXY_URLS")
+        .ok()
+        .map(|s| s.split(',').filter_map(parse_proxy_line).collect())
+        .unwrap_or_default()
+}
+
+/// Route ONLY the Cloudflare-blocked hosts (see [`is_cf_blocked_host`]) through the
+/// rotating proxy pool. Every other host — R2 video segments and all other providers —
+/// stays direct. The pool comes from `CF_PROXY_FILE` (one per line, hot-reloaded every
+/// ~30s so edits take effect without a restart) or `CF_PROXY_URLS`. Inert until a pool
+/// is configured, so this is a no-op off the VPS.
+pub fn with_cf_proxy_pool(builder: ClientBuilder) -> ClientBuilder {
+    let file_backed = cf_proxy_file().is_some();
+    let initial = load_cf_proxies();
+    // Fully inert when nothing is configured (no file, no env) — preserves default behaviour.
+    if initial.is_empty() && !file_backed {
         return builder;
     }
-    let n = pool.len();
     let counter = Arc::new(AtomicUsize::new(0));
+    // (pool, last_reload). Only re-read from disk when file-backed, at most every 30s.
+    let state = Arc::new(Mutex::new((initial, Instant::now())));
     let proxy = Proxy::custom(move |url| {
-        if is_cf_blocked_host(url.host_str().unwrap_or("")) {
-            let i = counter.fetch_add(1, Ordering::Relaxed) % n;
-            reqwest::Url::parse(&pool[i]).ok()
-        } else {
-            None
+        if !is_cf_blocked_host(url.host_str().unwrap_or("")) {
+            return None;
         }
+        let mut guard = state.lock().ok()?;
+        if file_backed && guard.1.elapsed() >= Duration::from_secs(30) {
+            let fresh = load_cf_proxies();
+            if !fresh.is_empty() && fresh != guard.0 {
+                warn!("[http] CF proxy pool reloaded: {} proxies", fresh.len());
+                guard.0 = fresh;
+            }
+            guard.1 = Instant::now();
+        }
+        if guard.0.is_empty() {
+            return None;
+        }
+        let i = counter.fetch_add(1, Ordering::Relaxed) % guard.0.len();
+        reqwest::Url::parse(&guard.0[i]).ok()
     });
     builder.proxy(proxy)
 }
