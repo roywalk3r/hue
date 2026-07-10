@@ -313,6 +313,10 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         raw_builder =
             raw_builder.local_address(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
     }
+    // CF-blocked hosts (kisskh manifest/sub CDN, vixsrc) route through the clean-IP
+    // pool; R2 segments and every other provider stay direct. Inert unless CF_PROXY_URLS
+    // is set. Applied before the global STREAM_PROXY_URL so CF hosts prefer the pool.
+    let raw_builder = crate::http_client::with_cf_proxy_pool(raw_builder);
     let raw_client = crate::http_client::with_optional_proxy(raw_builder, "STREAM_PROXY_URL")
         .build()
         .unwrap();

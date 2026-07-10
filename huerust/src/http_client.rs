@@ -1,8 +1,56 @@
 use reqwest::{Client, ClientBuilder, Proxy};
 use reqwest_middleware::{ClientBuilder as MiddlewareClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tracing::warn;
+
+/// Hosts that Cloudflare-challenge datacenter/VPS IPs and therefore must be fetched
+/// through a clean-IP proxy pool. kisskh's manifest+subtitle CDN (`*.cdnvideo11.shop`)
+/// and its API (`kisskh.ovh` / `kisskh.dk`) 403 the production VPS; vixsrc likewise.
+///
+/// The heavy video lives on Cloudflare R2 (`*.r2.cloudflarestorage.com`) with signed
+/// URLs that serve the VPS DIRECTLY — it is deliberately NOT matched here, so only the
+/// tiny manifest/API bytes ever hit the paid pool.
+fn is_cf_blocked_host(host: &str) -> bool {
+    host.ends_with("cdnvideo11.shop")
+        || host == "kisskh.ovh"
+        || host == "kisskh.dk"
+        || host == "vixsrc.to"
+        || host.ends_with("vix-content.net")
+}
+
+/// Route ONLY the Cloudflare-blocked hosts (see [`is_cf_blocked_host`]) through the
+/// rotating proxy pool in `CF_PROXY_URLS` — a comma-separated list of
+/// `http://user:pass@ip:port` proxies. Every other host — R2 video segments and all
+/// other providers — stays direct. No-op when `CF_PROXY_URLS` is unset, so this is
+/// inert until a pool is configured (i.e. on the VPS).
+pub fn with_cf_proxy_pool(builder: ClientBuilder) -> ClientBuilder {
+    let pool: Vec<String> = std::env::var("CF_PROXY_URLS")
+        .ok()
+        .map(|s| {
+            s.split(',')
+                .map(|p| p.trim().to_string())
+                .filter(|p| !p.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    if pool.is_empty() {
+        return builder;
+    }
+    let n = pool.len();
+    let counter = Arc::new(AtomicUsize::new(0));
+    let proxy = Proxy::custom(move |url| {
+        if is_cf_blocked_host(url.host_str().unwrap_or("")) {
+            let i = counter.fetch_add(1, Ordering::Relaxed) % n;
+            reqwest::Url::parse(&pool[i]).ok()
+        } else {
+            None
+        }
+    });
+    builder.proxy(proxy)
+}
 
 /// One retry, with a tight backoff. The default (3 retries, exponential
 /// backoff to ~3 s) stacks ~5 s of sleeps *inside* a caller's timeout — which

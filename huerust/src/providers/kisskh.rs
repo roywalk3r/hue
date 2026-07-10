@@ -86,6 +86,8 @@ impl KissKhClient {
             .pool_max_idle_per_host(2)
             .pool_idle_timeout(std::time::Duration::from_secs(90))
             .timeout(std::time::Duration::from_secs(15));
+        // Route kisskh.ovh (Cloudflare-challenged on the VPS) through the clean-IP pool.
+        let builder = crate::http_client::with_cf_proxy_pool(builder);
         let client = crate::http_client::build_client_with_retry(builder, "KISSKH_PROXY_URL");
 
         let cookie_header = Self::load_cookies_from_file();
