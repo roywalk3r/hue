@@ -28,11 +28,33 @@ The server binds to `127.0.0.1:24609` by default.
 | `ENABLE_PROXY` | `true` | Enable HLS/TS/subtitle proxy |
 | `CACHE_BACKEND` | `memory` | `memory` or `redis` |
 | `REDIS_URL` | `redis://127.0.0.1:6379` | Redis connection string |
-| `API_KEY` | — | Optional `x-api-key` header for API routes |
+| `API_KEY` | — | Optional Bearer token for API routes. See [ARCHITECTURE.md](ARCHITECTURE.md) → "Authentication & rate limiting" for the token format. |
 
 ## Architecture
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for module map, request flow, and proxy pipeline.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for module map, request flow, proxy
+pipeline, and the dual-backend strategy.
+
+## Deep-dives
+
+For how each subsystem actually works under the hood:
+
+- [docs/xyra.md](docs/xyra.md) — Xyra streamhub integration
+  (fast-path race + `Aurex` / `Aura (Xyra)` providers)
+- [docs/drama.md](docs/drama.md) — drama pipeline
+  (MovieBox, KissKH / Zenith, KissAsian / Pearl, KissAsian.top / Rose)
+- [docs/anime.md](docs/anime.md) — anime aggregator
+  (AniList + AniWatch + HiAnime, AniWave, AnimeKill)
+- [docs/subtitles.md](docs/subtitles.md) — subtitle pipeline
+  (KissKH embedded, Vidrock fallback)
+- [docs/provider-scoring.md](docs/provider-scoring.md) — sticky
+  preferences, popularity, circuit breakers
+- [docs/proxy.md](docs/proxy.md) — proxy token format, CDN header
+  injection matrix, host whitelist
+- [docs/smart-play.md](docs/smart-play.md) — `/api/play` HEAD-check
+  selection algorithm
+- [docs/notorrent.md](docs/notorrent.md) — NoTorrent provider and
+  the fake-iframe filter
 
 ## API Reference
 
