@@ -17,20 +17,20 @@ use std::collections::HashMap;
 use tracing::{info, warn};
 
 #[derive(Serialize, utoipa::ToSchema)]
-struct HitvListResponse {
+pub struct HitvListResponse {
     success: bool,
     items: Vec<HiTvItem>,
     total: u32,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-struct HitvDetailResponse {
+pub struct HitvDetailResponse {
     success: bool,
     item: Option<HiTvItem>,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-struct StaticListResponse {
+pub struct StaticListResponse {
     success: bool,
     items: Vec<String>,
 }

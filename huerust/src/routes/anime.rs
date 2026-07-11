@@ -357,7 +357,7 @@ pub async fn stream_handler(
 
 use axum::extract::Json;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct LegacyFilterBody {
     #[serde(flatten)]
     pub extra: std::collections::HashMap<String, serde_json::Value>,

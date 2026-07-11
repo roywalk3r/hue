@@ -18,13 +18,13 @@ use crate::app::TmdbState;
 use crate::clients::tmdb::TmdbNormalizedInfo;
 
 #[derive(Serialize, utoipa::ToSchema)]
-struct TmdbListResponse {
+pub struct TmdbListResponse {
     success: bool,
     items: Vec<TmdbNormalizedInfo>,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-struct TmdbHomeResponse {
+pub struct TmdbHomeResponse {
     success: bool,
     shelves: HashMap<String, Vec<TmdbNormalizedInfo>>,
 }
