@@ -364,6 +364,30 @@ pub struct LegacyFilterBody {
 }
 
 /// Discover anime with a typed filter. Backed by aggregator fan-out.
+#[utoipa::path(
+    get,
+    path = "/api/anime/discover",
+    params(
+        ("type" = Option<String>, Query, description = "TV, movie, ova, ona, special, music"),
+        ("genre" = Option<String>, Query, description = "Single genre slug (e.g. Action, Sci-Fi)"),
+        ("status" = Option<String>, Query, description = "airing | finished | upcoming"),
+        ("year" = Option<u32>, Query, description = "Release year"),
+        ("season" = Option<String>, Query, description = "winter | spring | summer | fall"),
+        ("sort" = Option<String>, Query, description = "popularity | score | trending | latest | alphabetical"),
+        ("language" = Option<String>, Query, description = "japanese | english | chinese | korean"),
+        ("country" = Option<String>, Query, description = "CN | JP | KR | US"),
+        ("score" = Option<String>, Query, description = "1-10 or all"),
+        ("rating" = Option<String>, Query, description = "G | PG | PG-13 | R | R+ | Rx"),
+        ("page" = Option<u32>, Query, description = "Page number"),
+        ("limit" = Option<u32>, Query, description = "Items per page"),
+        ("source" = Option<String>, Query, description = "Provider source override, e.g. animexin"),
+    ),
+    responses(
+        (status = 200, description = "Discover results", body = PaginatedResponse<AnimeCard>),
+        (status = 400, description = "Invalid filter parameters"),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn discover_get_handler(
     State(state): State<AnimeState>,
     Query(params): Query<FilterParams>,
@@ -372,6 +396,16 @@ pub async fn discover_get_handler(
     do_discover(&state, params).await
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/anime/discover",
+    request_body = FilterParams,
+    responses(
+        (status = 200, description = "Discover results", body = PaginatedResponse<AnimeCard>),
+        (status = 400, description = "Invalid filter parameters"),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn discover_post_handler(
     State(state): State<AnimeState>,
     Json(params): Json<FilterParams>,
@@ -386,6 +420,14 @@ async fn do_discover(state: &AnimeState, params: FilterParams) -> Response {
 }
 
 /// Static metadata for the discover screen.
+#[utoipa::path(
+    get,
+    path = "/api/anime/filters",
+    responses(
+        (status = 200, description = "Available filter options (genres, years, statuses, etc.)"),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn filter_options_handler(State(state): State<AnimeState>) -> Response {
     success_json(state.anime_agg.filter_options().await)
 }
@@ -399,6 +441,18 @@ pub struct ScheduleQuery {
     pub tz: Option<String>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/anime/schedule",
+    params(
+        ("date" = Option<String>, Query, description = "YYYY-MM-DD. Defaults to today (UTC)"),
+        ("tz" = Option<String>, Query, description = "IANA timezone, e.g. America/Los_Angeles (informational)"),
+    ),
+    responses(
+        (status = 200, description = "Daily schedule entries", body = Vec<ScheduleEntry>),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn schedule_handler(
     State(state): State<AnimeState>,
     Query(params): Query<ScheduleQuery>,
@@ -413,6 +467,19 @@ pub async fn schedule_handler(
 
 // ── Deprecated aliases (kept for backward compat) ───────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/anime/category",
+    params(
+        ("type" = Option<String>, Query, description = "TV, movie, ova, ona, special, music"),
+        ("page" = Option<u32>, Query, description = "Page number"),
+        ("limit" = Option<u32>, Query, description = "Items per page"),
+    ),
+    responses(
+        (status = 200, description = "Deprecated — use /api/anime/discover", body = PaginatedResponse<AnimeCard>),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn category_handler(
     State(state): State<AnimeState>,
     Query(params): Query<CategoryQuery>,
@@ -427,6 +494,15 @@ pub async fn category_handler(
     do_discover(&state, fp).await
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/anime/filter",
+    request_body = LegacyFilterBody,
+    responses(
+        (status = 200, description = "Deprecated — use POST /api/anime/discover", body = PaginatedResponse<AnimeCard>),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn filter_handler(
     State(state): State<AnimeState>,
     Json(body): Json<LegacyFilterBody>,
