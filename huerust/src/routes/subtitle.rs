@@ -27,6 +27,23 @@ pub struct SubtitleSearchQuery {
     pub episode: Option<u32>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/subtitle/search",
+    params(
+        ("imdbid" = Option<String>, Query, description = "IMDb ID (with or without 'tt' prefix)"),
+        ("tmdb_id" = Option<u64>, Query, description = "TMDB numeric ID"),
+        ("query" = Option<String>, Query, description = "Free-text search query"),
+        ("type" = Option<String>, Query, description = "Content type: movie or tv"),
+        ("lang" = Option<String>, Query, description = "Language code, e.g. eng"),
+        ("season" = Option<u32>, Query, description = "Season number (tv only)"),
+        ("episode" = Option<u32>, Query, description = "Episode number (tv only)"),
+    ),
+    responses(
+        (status = 200, description = "Subtitle search results", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn subtitle_search_handler(
     State(state): State<AppState>,
     Query(params): Query<SubtitleSearchQuery>,
@@ -71,6 +88,17 @@ pub struct SubtitleDownloadQuery {
     pub url: String,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/subtitle/download",
+    params(
+        ("url" = String, Query, description = "Subtitle download URL returned from /api/subtitle/search"),
+    ),
+    responses(
+        (status = 200, description = "Raw subtitle text (SRT/VTT)", body = String),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn subtitle_download_handler(
     State(state): State<AppState>,
     Query(params): Query<SubtitleDownloadQuery>,
