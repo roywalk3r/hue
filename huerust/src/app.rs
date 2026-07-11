@@ -900,6 +900,8 @@ async fn auth_middleware(
         || path == "/sub-proxy"
         || path == "/storage/enc.key"
         || path == "/api/auth/token"
+        || path == "/api/docs"
+        || path.starts_with("/api/docs/")
     {
         return Ok(next.run(req).await);
     }
