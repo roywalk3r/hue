@@ -16,25 +16,43 @@ use serde::Serialize;
 use std::collections::HashMap;
 use tracing::{info, warn};
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 struct HitvListResponse {
     success: bool,
     items: Vec<HiTvItem>,
     total: u32,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 struct HitvDetailResponse {
     success: bool,
     item: Option<HiTvItem>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 struct StaticListResponse {
     success: bool,
     items: Vec<String>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/hitv/browse",
+    params(
+        ("country" = Option<String>, Query, description = "Country filter"),
+        ("category" = Option<String>, Query, description = "Category filter"),
+        ("genre" = Option<String>, Query, description = "Genre filter"),
+        ("sort" = Option<String>, Query, description = "Sort order"),
+        ("year" = Option<String>, Query, description = "Year filter"),
+        ("page" = Option<u32>, Query, description = "Page number"),
+        ("page_size" = Option<u32>, Query, description = "Items per page"),
+    ),
+    responses(
+        (status = 200, description = "Browse results", body = HitvListResponse),
+        (status = 500, description = "Internal error"),
+        (status = 502, description = "Upstream error"),
+    ),
+)]
 pub async fn browse_handler(
     State(state): State<HiTvState>,
     Query(params): Query<HashMap<String, String>>,
@@ -90,6 +108,21 @@ pub async fn browse_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/hitv/search",
+    params(
+        ("q" = String, Query, description = "Search keyword"),
+        ("page" = Option<u32>, Query, description = "Page number"),
+        ("page_size" = Option<u32>, Query, description = "Items per page"),
+    ),
+    responses(
+        (status = 200, description = "Search results", body = HitvListResponse),
+        (status = 400, description = "Missing query"),
+        (status = 500, description = "Internal error"),
+        (status = 502, description = "Upstream error"),
+    ),
+)]
 pub async fn search_handler(
     State(state): State<HiTvState>,
     Query(params): Query<HashMap<String, String>>,
@@ -135,6 +168,22 @@ pub async fn search_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/hitv/latest",
+    params(
+        ("country" = Option<String>, Query, description = "Country filter"),
+        ("category" = Option<String>, Query, description = "Category filter"),
+        ("genre" = Option<String>, Query, description = "Genre filter"),
+        ("page" = Option<u32>, Query, description = "Page number"),
+        ("page_size" = Option<u32>, Query, description = "Items per page"),
+    ),
+    responses(
+        (status = 200, description = "Latest items", body = HitvListResponse),
+        (status = 500, description = "Internal error"),
+        (status = 502, description = "Upstream error"),
+    ),
+)]
 pub async fn latest_handler(
     State(state): State<HiTvState>,
     Query(params): Query<HashMap<String, String>>,
@@ -183,6 +232,22 @@ pub async fn latest_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/hitv/trending",
+    params(
+        ("country" = Option<String>, Query, description = "Country filter"),
+        ("category" = Option<String>, Query, description = "Category filter"),
+        ("genre" = Option<String>, Query, description = "Genre filter"),
+        ("page" = Option<u32>, Query, description = "Page number"),
+        ("page_size" = Option<u32>, Query, description = "Items per page"),
+    ),
+    responses(
+        (status = 200, description = "Trending items", body = HitvListResponse),
+        (status = 500, description = "Internal error"),
+        (status = 502, description = "Upstream error"),
+    ),
+)]
 pub async fn trending_handler(
     State(state): State<HiTvState>,
     Query(params): Query<HashMap<String, String>>,
@@ -231,6 +296,14 @@ pub async fn trending_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/hitv/hero",
+    responses(
+        (status = 200, description = "Hero carousel items", body = HitvListResponse),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn hero_handler(State(state): State<HiTvState>) -> Response {
     let library = state.hitv.get_library().await;
     let items: Vec<HiTvItem> = library.into_iter().take(10).collect();
@@ -246,6 +319,22 @@ pub async fn hero_handler(State(state): State<HiTvState>) -> Response {
         .into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/hitv/drama",
+    params(
+        ("country" = Option<String>, Query, description = "Country filter"),
+        ("genre" = Option<String>, Query, description = "Genre filter"),
+        ("sort" = Option<String>, Query, description = "Sort order"),
+        ("page" = Option<u32>, Query, description = "Page number"),
+        ("page_size" = Option<u32>, Query, description = "Items per page"),
+    ),
+    responses(
+        (status = 200, description = "Drama results", body = HitvListResponse),
+        (status = 500, description = "Internal error"),
+        (status = 502, description = "Upstream error"),
+    ),
+)]
 pub async fn drama_handler(
     State(state): State<HiTvState>,
     Query(params): Query<HashMap<String, String>>,
@@ -291,6 +380,19 @@ pub async fn drama_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/hitv/info/{id}",
+    params(
+        ("id" = String, Path, description = "HiTV item ID"),
+    ),
+    responses(
+        (status = 200, description = "Item details", body = HitvDetailResponse),
+        (status = 404, description = "Not found"),
+        (status = 500, description = "Internal error"),
+        (status = 502, description = "Upstream error"),
+    ),
+)]
 pub async fn info_handler(State(state): State<HiTvState>, Path(id): Path<String>) -> Response {
     info!("[hitv] Info: id={}", id);
 
@@ -325,6 +427,20 @@ pub async fn info_handler(State(state): State<HiTvState>, Path(id): Path<String>
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/hitv/play/{id}/{episode}",
+    params(
+        ("id" = String, Path, description = "HiTV item ID"),
+        ("episode" = u32, Path, description = "Episode number"),
+        ("season" = Option<u32>, Query, description = "Season number"),
+    ),
+    responses(
+        (status = 307, description = "Redirect to Smart Play"),
+        (status = 404, description = "Could not resolve TMDB ID"),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn play_handler(
     State(state): State<HiTvState>,
     headers: HeaderMap,
@@ -390,6 +506,14 @@ pub async fn play_handler(
         .into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/hitv/countries",
+    responses(
+        (status = 200, description = "Available countries", body = StaticListResponse),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn countries_handler() -> Response {
     let countries = vec!["Korea", "China", "Thailand", "Japan"];
     (
@@ -402,6 +526,14 @@ pub async fn countries_handler() -> Response {
         .into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/hitv/categories",
+    responses(
+        (status = 200, description = "Available categories", body = StaticListResponse),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn categories_handler() -> Response {
     let categories = vec!["Drama", "Movie", "Variety"];
     (
@@ -414,6 +546,14 @@ pub async fn categories_handler() -> Response {
         .into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/hitv/genres",
+    responses(
+        (status = 200, description = "Available genres", body = StaticListResponse),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn genres_handler() -> Response {
     let genres = vec![
         "All",
@@ -437,6 +577,14 @@ pub async fn genres_handler() -> Response {
         .into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/hitv/sorts",
+    responses(
+        (status = 200, description = "Available sort orders", body = StaticListResponse),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn sorts_handler() -> Response {
     let sorts = vec!["Hottest", "Newest", "TopRated"];
     (
@@ -449,6 +597,23 @@ pub async fn sorts_handler() -> Response {
         .into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/hitv/{country}/{sort}/{genre}",
+    params(
+        ("country" = String, Path, description = "Country code"),
+        ("sort" = String, Path, description = "Sort order"),
+        ("genre" = String, Path, description = "Genre code"),
+        ("category" = Option<String>, Query, description = "Category filter"),
+        ("page" = Option<u32>, Query, description = "Page number"),
+        ("page_size" = Option<u32>, Query, description = "Items per page"),
+    ),
+    responses(
+        (status = 200, description = "Dynamic browse results", body = HitvListResponse),
+        (status = 500, description = "Internal error"),
+        (status = 502, description = "Upstream error"),
+    ),
+)]
 pub async fn dynamic_browse_handler(
     State(state): State<HiTvState>,
     Path((country, sort, genre)): Path<(String, String, String)>,
