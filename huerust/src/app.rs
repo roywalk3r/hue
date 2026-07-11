@@ -107,6 +107,22 @@ pub fn xyra_vixsrc_enabled() -> bool {
         .unwrap_or(true)
 }
 
+/// The Xyra fast-path route (`/api/streams/xyra/…`, api.xyra.stream/streamhub)
+/// that the web player races against the main aggregator. When api.xyra.stream
+/// is down it times out (12s) and 504s on every playback, slowing startup and
+/// spamming errors. Set `ENABLE_XYRA_FASTPATH=0` to make the route return an
+/// empty result instantly so the player just uses the aggregator. Default on.
+pub fn xyra_fastpath_enabled() -> bool {
+    env::var("ENABLE_XYRA_FASTPATH")
+        .map(|value| {
+            !matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "0" | "false" | "no" | "off"
+            )
+        })
+        .unwrap_or(true)
+}
+
 /// Force IPv4 egress on the segment proxy. Off by default: a host with a
 /// working IPv6 route (e.g. the production VPS reaching Cloudflare workers)
 /// should use its normal path — pinning to IPv4 there routes segments over a
