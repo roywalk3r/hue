@@ -161,6 +161,7 @@ pub struct AppState {
     pub aisports: Arc<crate::clients::aisports::AiSportsClient>,
     pub anime_agg: Arc<crate::clients::anime_agg::AnimeAggregator>,
     pub animekill: Arc<crate::clients::animekill::AnimeKillClient>,
+    pub animexin: Arc<crate::clients::animexin::AnimexinClient>,
     pub xyra_subtitle: Arc<XyraSubtitleClient>,
     pub kisskh_xyra: Arc<KissKhXyraClient>,
     pub secret: String,
@@ -356,6 +357,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         vidvault: vidvault_client.clone(),
         anime_agg: anime_agg.clone(),
         animekill: animekill_client.clone(),
+        animexin: Arc::new(crate::clients::animexin::AnimexinClient::new()),
         xyra_subtitle: xyra_subtitle_client,
         kisskh_xyra: kisskh_xyra_client,
         aisports: Arc::new(crate::clients::aisports::AiSportsClient::new(
@@ -472,6 +474,14 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/streams/xyra/:type/:tmdbId",
             get(crate::routes::streams::xyra_streams_handler),
+        )
+        .route(
+            "/api/streams/animexin/search",
+            get(crate::routes::donghua::animexin_search_handler),
+        )
+        .route(
+            "/api/streams/animekill/search",
+            get(crate::routes::donghua::animekill_search_handler),
         )
         .route(
             "/api/streams/:type/:tmdbId/live",

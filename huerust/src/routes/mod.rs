@@ -6,6 +6,7 @@
 //! @license MIT
 
 pub mod anime;
+pub mod donghua;
 pub mod download;
 pub mod drama;
 pub mod hitv;

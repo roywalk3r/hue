@@ -5,6 +5,8 @@
 //! @repository https://github.com/roywalk3r/hue.git
 //! @license MIT
 
+pub mod animekill_provider;
+pub mod animexin_provider;
 pub mod dispatch;
 pub mod dramacool;
 pub mod dramacool_provider;
@@ -44,6 +46,7 @@ pub mod xyra_aurex;
 pub mod xyra_aurex_provider;
 
 use crate::clients::tmdb::TmdbNormalizedInfo;
+use crate::models::anime::AnimeCard;
 use crate::models::StreamResult;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -92,6 +95,8 @@ pub fn display_to_real_name(display: &str) -> &str {
         "Nebula" => "vidsrcembed",
         "Vault" => "vidvault",
         "StreamHub" => "streamhub",
+        "Dragon" => "animexin",
+        "Phoenix" => "animekill",
         other => other,
     }
 }
@@ -101,4 +106,19 @@ pub fn display_to_real_name(display: &str) -> &str {
 /// provider is the fastest healthy one for this title.
 pub fn best_provider_real_name(streams: &[StreamResult]) -> Option<&str> {
     streams.first().map(|s| display_to_real_name(&s.provider))
+}
+
+/// Pick the search result whose title best matches the query. Substring
+/// containment in either direction, case-insensitive. Falls back to the
+/// first result so the search still has a chance to resolve on a
+/// loosely-indexed catalog.
+pub fn best_donghua_match<'a>(results: &'a [AnimeCard], query: &str) -> Option<&'a AnimeCard> {
+    let q = query.to_lowercase();
+    results
+        .iter()
+        .find(|r| {
+            let t = r.title.to_lowercase();
+            t.contains(&q) || q.contains(&t)
+        })
+        .or_else(|| results.first())
 }
