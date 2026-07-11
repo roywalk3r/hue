@@ -1,4 +1,14 @@
 #!/usr/bin/env node
+
+/**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
 /**
  * Livesport Watch URL Scraper
  * Given a watch URL, extracts all streams and their M3U8 URLs

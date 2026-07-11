@@ -1,0 +1,95 @@
+<h2>Nuxt Frontend — Architecture Options</h2>
+<p class="subtitle">3 ways to connect the Nuxt frontend to the Hue API backend</p>
+
+<div class="section">
+  <div class="cards">
+    <div class="card" data-choice="a" onclick="toggleSelect(this)">
+      <div class="card-body">
+        <div class="label" style="color:#06b6d4">Option A</div>
+        <h3>SPA with Direct API Calls</h3>
+        <p>Nuxt in SPA mode. Client makes direct fetch() calls to backend at localhost:24608. Backend CORS handles origin validation.</p>
+        <div class="pros-cons" style="margin-top:12px">
+          <div class="pros"><h4>Pros</h4><ul>
+            <li>Simplest architecture</li>
+            <li>Fast dev iteration</li>
+            <li>No server overhead in Nuxt</li>
+          </ul></div>
+          <div class="cons"><h4>Cons</h4><ul>
+            <li>No SSR, no SEO for content pages</li>
+            <li>CORS configuration needed per env</li>
+            <li>Slow initial JS bundle load</li>
+          </ul></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-choice="b" onclick="toggleSelect(this)">
+      <div class="card-body">
+        <div class="label" style="color:#a855f7">Option B (Recommended)</div>
+        <h3>SSR with Server API Proxy</h3>
+        <p>Nuxt server routes proxy all API requests to the backend. Content pages are SSR'd for instant load + SEO. Playback stays client-side.</p>
+        <div class="pros-cons" style="margin-top:12px">
+          <div class="pros"><h4>Pros</h4><ul>
+            <li>Content pages SSR — fast FCP + SEO</li>
+            <li>Unified origin — no CORS issues</li>
+            <li>Backend URL is server-side secret</li>
+            <li>Can add caching layer in Nuxt server</li>
+          </ul></div>
+          <div class="cons"><h4>Cons</h4><ul>
+            <li>Nuxt server adds a hop</li>
+            <li>More complex deployment</li>
+            <li>SSE streaming passthrough needed</li>
+          </ul></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Option B Architecture (Detail)</h3>
+  <div style="background:#1a1a2e;padding:20px;border-radius:8px;font-family:monospace;font-size:13px;line-height:1.8">
+    <div style="color:#64748b">┌─────────────────────────────────────────────────────┐</div>
+    <div style="color:#64748b">│  Browser (Nuxt Frontend)                            │</div>
+    <div style="color:#64748b">│  localhost:3000                                     │</div>
+    <div style="color:#64748b">│                                                     │</div>
+    <div style="color:#94a3b8">│  Pages:  /  /browse  /movie/[id]  /tv/[id]         │</div>
+    <div style="color:#94a3b8">│  Composables: useStreams()  useBrowse()  usePlay()  │</div>
+    <div style="color:#64748b">└──────────────┬──────────────────────────────────────┘</div>
+    <div style="color:#64748b">               │</div>
+    <div style="color:#06b6d4">       SSR Requests: /api/streams/*  /api/hitv/*  /api/moviebox/*</div>
+    <div style="color:#a855f7">       Client Requests: /m3u8-proxy/*  /ts-proxy/*  (playback)</div>
+    <div style="color:#64748b">               │</div>
+    <div style="color:#64748b">┌──────────────┴──────────────────────────────────────┐</div>
+    <div style="color:#64748b">│  Nuxt Server (Nitro)                                │</div>
+    <div style="color:#94a3b8">│  server/api/[...].ts → proxy to backend             │</div>
+    <div style="color:#94a3b8">│  server/api/streams/[type]/[id].get.ts              │</div>
+    <div style="color:#64748b">└──────────────┬──────────────────────────────────────┘</div>
+    <div style="color:#64748b">               │</div>
+    <div style="color:#64748b">┌──────────────┴──────────────────────────────────────┐</div>
+    <div style="color:#64748b">│  Hue Stream API (Express)                           │</div>
+    <div style="color:#64748b">│  localhost:24608 / internal                         │</div>
+    <div style="color:#94a3b8">│  12 routes • 25+ providers • Rust engine            │</div>
+    <div style="color:#64748b">└─────────────────────────────────────────────────────┘</div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Page Structure</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px">
+    <div style="background:#1a2235;padding:12px;border-radius:6px">
+      <div class="label" style="color:#a855f7">SSR Pages (server-rendered)</div>
+      <div style="color:#e2e8f0;margin-top:6px">/  (homepage hero + rows)</div>
+      <div style="color:#e2e8f0">/browse?genre=&sort=</div>
+      <div style="color:#e2e8f0">/movie/[id]  /tv/[id]</div>
+      <div style="color:#e2e8f0">/search?q=</div>
+    </div>
+    <div style="background:#1a2235;padding:12px;border-radius:6px">
+      <div class="label" style="color:#06b6d4">Client-Side Only</div>
+      <div style="color:#e2e8f0;margin-top:6px">/watch/[type]/[id]  (player page)</div>
+      <div style="color:#e2e8f0">Video playback</div>
+      <div style="color:#e2e8f0">Stream selection UI</div>
+      <div style="color:#e2e8f0">Episode/season picker</div>
+    </div>
+  </div>
+</div>

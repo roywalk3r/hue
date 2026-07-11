@@ -1,0 +1,18 @@
+{
+  "sessions": {
+    "019dd9af-175c-74a1-9f7a-0a24788515c3": {
+      "last_signature": "team-stop|019dd9af-175c-74a1-9f7a-0a24788515c3|no-thread|019de278-e0d6-7d90-955d-540405141f91|/home/rseann/.codex/sessions/2026/04/29/rollout-2026-04-29T14-40-32-019dd9af-175c-74a1-9f7a-0a24788515c3.jsonl|i checked it against ' omx plans frontend enhancement plan md' short version not fully done yet the repo is buildable but several plan acceptance criteria are still only scaffolded what passes 'pnpm run typecheck' exits '0' 'pnpm run verify routes' passes after starting the nuxt dev server output 'route_smoke_ok' 'pnpm run build' exits '0' 'git diff check' exits '0' what is not done clientvideoplayer client vue home rseann projects nuxtjs hue app components player clientvideoplayer client vue is still 1762 lines far above the plan target of under 700 new composables exist but are not wired into live code 'useplaybacksession' 'usestreamfailover' 'usesubtitletracks' 'usewatchtitlemeta' stream ranking is still duplicated in usehuestreamsse ts home rseann projects nuxtjs hue app composables usehuestreamsse ts while the new shared stream utility is only used by the unused failover composable watch page metadata is still inline in watch type id vue home rseann projects nuxtjs hue app pages watch type id vue not moved into 'usewatchtitlemeta' live player ui still contains old debug facing language and logs like 'stream stalled' 'retry stream' 'signal unavailable' 'initialising stream' ' player ' and ' player switch ' the new playback state model exists but 'useplaybacksession' starts with ' 'loading' as playerstate ' while the plan's state list does not include 'loading' i did not verify browser playback manually so the plan's visual playback acceptance criteria remain unproven also the work is currently uncommitted 42 modified files plus new folders under 'app components ui' 'app composables player' 'app composables watch' 'app types' and 'app utils' verdict good progress but not plan complete the next real step is integration not more scaffolding wire the composables into the player watch page centralize stream ranking then shrink the player component|team_starting",
+      "updated_at": "2026-05-01T07:42:11.131Z"
+    },
+    "019e7a1f-5773-7653-ac0d-601f20f85790": {
+      "ordinary_no_progress_guard": {
+        "fingerprint": "ordinary|implemented and deployed. - frontend now uses json aggregate only, never `/live`. - backend races providers concurrently and ignores browser-incompatible notorrent/dash/mkv results. - added luna-only endpoint: `/api/streams/luna/:type/:tmdbid`. - exact s3e18 request improved from 10.8s to 4.35s cold; warm requests are near-instant. - browser playback verified advancing past 16 seconds. verification: 179 frontend tests, 97 backend tests, typecheck and production build passed. all pm2 services are online. remaining risk: individual upstream hls mirrors can still return 502, but automatic failover successfully selected another mirror.",
+        "first_seen_at": "2026-07-05T20:28:59.525Z",
+        "last_seen_at": "2026-07-05T20:28:59.525Z",
+        "repeat_count": 1,
+        "last_turn_id": "019f33df-fd0a-75a3-8180-0936f0c1aca7",
+        "last_thread_id": null
+      }
+    }
+  }
+}

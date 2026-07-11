@@ -1,0 +1,107 @@
+<h2>Which frontend are we building?</h2>
+<p class="subtitle">Hue has two natural product directions — pick the one that matches your vision</p>
+
+<div class="cards">
+  <div class="card" data-choice="consumer" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0a0a0f;padding:20px;border-radius:8px;font-family:sans-serif;">
+      <div style="background:linear-gradient(135deg,#1a0a2e,#0a1628);border-radius:6px;padding:16px;margin-bottom:10px;">
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <span style="color:#a855f7;font-weight:700;font-size:18px;">Hue</span>
+          <span style="color:#888;font-size:13px;margin-top:3px;">Movies · Series · Drama · Live</span>
+        </div>
+        <div style="background:linear-gradient(to right,#1c0a3a,#0a0a0f);border-radius:4px;height:80px;display:flex;align-items:center;padding:12px;margin-bottom:10px;">
+          <div>
+            <div style="color:#fff;font-weight:700;font-size:15px;">Trending Now</div>
+            <div style="color:#a855f7;font-size:12px;⭐ 8.4 · Action · 2024"></div>
+            <div style="color:#aaa;font-size:11px;">⭐ 8.4 · Action · 2024</div>
+            <div style="display:flex;gap:6px;margin-top:8px;">
+              <span style="background:#a855f7;color:#fff;font-size:10px;padding:3px 8px;border-radius:4px;">▶ Watch</span>
+              <span style="background:rgba(255,255,255,0.1);color:#fff;font-size:10px;padding:3px 8px;border-radius:4px;">+ Save</span>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <div style="background:#111;border-radius:4px;width:52px;height:72px;"></div>
+          <div style="background:#111;border-radius:4px;width:52px;height:72px;"></div>
+          <div style="background:#111;border-radius:4px;width:52px;height:72px;"></div>
+          <div style="background:#111;border-radius:4px;width:52px;height:72px;"></div>
+          <div style="background:#111;border-radius:4px;width:52px;height:72px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Consumer Streaming App</h3>
+      <p>Netflix-style experience — browse movies, series, KDrama, and live sports. Real artwork, carousels, search, watch page with fallback. Built for viewers who just want to press play.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="operator" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0a0a0f;padding:20px;border-radius:8px;font-family:sans-serif;">
+      <div style="background:#0f1117;border-radius:6px;padding:16px;margin-bottom:10px;border:1px solid #1e2435;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+          <span style="color:#06b6d4;font-weight:700;font-size:14px;">HUE COMMAND CENTER</span>
+          <span style="color:#22c55e;font-size:11px;">● 8/12 providers online</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+          <div style="background:#0a1628;border-radius:4px;padding:8px;">
+            <div style="color:#888;font-size:10px;">STREAMS TODAY</div>
+            <div style="color:#06b6d4;font-size:18px;font-weight:700;">1,243</div>
+          </div>
+          <div style="background:#0a1628;border-radius:4px;padding:8px;">
+            <div style="color:#888;font-size:10px;">AVG LATENCY</div>
+            <div style="color:#22c55e;font-size:18px;font-weight:700;">412ms</div>
+          </div>
+        </div>
+        <div style="font-size:10px;">
+          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #1e2435;color:#aaa;">
+            <span>AutoEmbed</span><span style="color:#22c55e;">● Healthy</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #1e2435;color:#aaa;">
+            <span>Vixsrc</span><span style="color:#22c55e;">● Healthy</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;color:#aaa;">
+            <span>Livesport</span><span style="color:#ef4444;">● Circuit Open</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Operator Command Center</h3>
+      <p>Dashboard for YOU — provider health, stream diagnostics, config management, circuit breaker status, cache controls, and live debug. Built for the person running the backend.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="both" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0a0a0f;padding:20px;border-radius:8px;font-family:sans-serif;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div style="background:linear-gradient(135deg,#1a0a2e,#0a1628);border-radius:6px;padding:12px;">
+          <div style="color:#a855f7;font-weight:700;font-size:12px;margin-bottom:8px;">HUE</div>
+          <div style="background:#111;border-radius:4px;height:50px;margin-bottom:6px;"></div>
+          <div style="display:flex;gap:4px;">
+            <div style="background:#111;border-radius:3px;width:30px;height:42px;"></div>
+            <div style="background:#111;border-radius:3px;width:30px;height:42px;"></div>
+            <div style="background:#111;border-radius:3px;width:30px;height:42px;"></div>
+          </div>
+        </div>
+        <div style="background:#0f1117;border-radius:6px;padding:12px;border:1px solid #1e2435;">
+          <div style="color:#06b6d4;font-size:11px;font-weight:700;margin-bottom:8px;">ADMIN</div>
+          <div style="font-size:9px;color:#aaa;">
+            <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #1e2435;">
+              <span>AutoEmbed</span><span style="color:#22c55e;">●</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #1e2435;">
+              <span>Vixsrc</span><span style="color:#22c55e;">●</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0;">
+              <span>Livesport</span><span style="color:#ef4444;">●</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Both — Consumer App + Admin Area</h3>
+      <p>Consumer-facing frontend at the main route, with a protected <code>/admin</code> route for operator controls. One codebase, two surfaces, clear separation.</p>
+    </div>
+  </div>
+</div>

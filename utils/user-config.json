@@ -1,0 +1,20 @@
+{
+  "proxyList": [],
+  "enableAutoembedProvider": false,
+  "enable4khdhubProvider": false,
+  "enableUhdmoviesProvider": false,
+  "enableMoviesmodProvider": false,
+  "enableMovieboxProvider": true,
+  "enableSflixProvider": true,
+  "enableVixsrcProvider": true,
+  "enableKisskhProvider": true,
+  "enableDramacoolProvider": false,
+  "enable9animeProvider": false,
+  "enableMP4HydraProvider": true,
+  "sflixCookie": "sflix_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjYwMjg0NDc1ODg5NzY4NDQyNjQsImF0cCI6MywiZXh0IjoiMTc4MzI4Mjc3MiIsImV4cCI6MTc5MTA1ODc3MiwiaWF0IjoxNzgzMjgyNDcyfQ.GZE3QBY9R3AfANvMbwWJjVujwtj76oqNJAbjyvmamZ8%22; sflix_i18n_lang=en",
+  "sflixUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.22 Safari/537.36",
+  "configVersion": 1,
+  "movieboxCookie": "mb_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjU4NTE2ODEzMDM2MDU4MDExMDQsImF0cCI6MywiZXh0IjoiMTc4MzI4MjgwMSIsImV4cCI6MTc5MTA1ODgwMSwiaWF0IjoxNzgzMjgyNTAxfQ.8X3pHquRAJ5FztHyhZAn5lsKJ4sLZ_UsJnkSURYqTdg%22",
+  "movieboxUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.22 Safari/537.36",
+  "movieboxHost": "moviebox.id"
+}

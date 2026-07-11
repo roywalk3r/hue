@@ -1,6 +1,27 @@
 /**
- * Hue Stream API - Lean Modular Entry Point
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
  */
+
+// Polyfill: undici 7.x requires global File (Node.js v20+). We run v18.
+if (typeof global.File === 'undefined') {
+  global.File = class File {
+    constructor(bits, name, options = {}) {
+      this.name = name;
+      this.size = 0;
+      this.type = options.type || '';
+      this.lastModified = options.lastModified || Date.now();
+    }
+    text() { return Promise.resolve(''); }
+    arrayBuffer() { return Promise.resolve(new ArrayBuffer(0)); }
+    stream() { return new ReadableStream(); }
+    slice() { return new Blob([]); }
+  };
+}
 
 require('dotenv').config();
 const express = require('express');
@@ -13,7 +34,6 @@ const logger = require('./utils/logger');
 const stealth = require('./utils/stealth');
 const { resolveServerUrl } = require('./utils/server');
 const { createProxyRoutes, processStreamsForProxy } = require('./proxy/proxyServer');
-const { getHianimeApp } = require('./services/hianimeApp');
 const TTLCache = require('ttl-cache');
 
 // Auto-generate key if missing
@@ -86,8 +106,10 @@ const livetvRoutes = require('./routes/livetv');
 const playRoutes = require('./routes/play');
 const tmdbRoutes = require('./routes/tmdb');
 const animeRoutes = require('./routes/anime');
+const notificationRoutes = require('./routes/notifications');
 
 // Mount API routes
+app.use('/api/notifications', notificationRoutes(metrics));
 app.use('/api/tmdb', tmdbRoutes(metrics));
 app.use('/api/anime', animeRoutes(metrics));
 app.use('/api/hitv', hitvRoutes(metrics));
@@ -134,44 +156,75 @@ const buildOpenApiSpec = require('./utils/openapi-spec');
 
 app.get('/api/docs/openapi.json', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.json(buildOpenApiSpec());
+  res.json(buildOpenApiSpec(req));
 });
 
 app.get('/api/docs/swagger.json', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.json(buildOpenApiSpec());
+  res.json(buildOpenApiSpec(req));
 });
 
 app.use('/api/docs/swagger', swaggerUi.serve, swaggerUi.setup(null, { swaggerOptions: { url: '/api/docs/swagger.json' } }));
 
-app.get('/api/docs', (req, res) => {
-  res.redirect(302, '/docs.html');
-});
-
-// --- Error Handling ---
-app.use((req, res) => {
-    logger.warn(`[404] Not Found: ${req.method} ${req.url}`);
-    res.status(404).json({ success: false, error: 'NOT_FOUND', path: req.url });
-});
-
-// For Vercel deployment: export the app
-module.exports = app;
-
-// Server Start
-if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-  const PORT = config.port;
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Hue Stream API listening on http://0.0.0.0:${PORT}`);
-    
-    // Start background token worker to keep "Fast Paths" warm
-    try {
-      const { startTokenWorker } = require('./services/tokenWorker');
-      startTokenWorker();
-      
-      const { startWarmupWorker } = require('./services/warmupWorker');
-      startWarmupWorker();
-    } catch (e) {
-      console.error('[startup] Failed to start background workers:', e.message);
-    }
-  });
+// Scalar modern API reference UI + Server Start
+(async () => {
+  try {
+    const { apiReference } = await import('@scalar/express-api-reference');
+    app.use('/api/docs/scalar', apiReference({
+        spec: { url: '/api/docs/openapi.json' },
+        theme: 'none',
+        hideDownloadButton: true,
+        favicon: '',
+        pageTitle: 'HUE ENGINE ⬢ API REFERENCE',
+        customCss: `
+:root {
+  --scalar-color-1: #E0E0E0;
+  --scalar-color-2: #aaa;
+  --scalar-color-3: #777;
+  --scalar-color-accent: #1A5E3A;
+  --scalar-background-1: #0A0A0A;
+  --scalar-background-2: #121212;
+  --scalar-background-3: #1a1a1a;
+  --scalar-border-color: #2A2A2A;
+  --scalar-font: 'JetBrains Mono', 'Fira Code', monospace;
 }
+.scalar-card { border: 1px solid var(--scalar-border-color) !important; }
+.sidebar { background: var(--scalar-background-2) !important; border-right: 1px solid var(--scalar-border-color) !important; }
+      `
+    }));
+  } catch (e) {
+    console.warn('[startup] Scalar API docs unavailable:', e.message);
+  }
+
+  app.get('/api/docs', (req, res) => {
+    res.redirect(302, '/api/docs/scalar');
+  });
+
+  // --- Error Handling ---
+  app.use((req, res) => {
+      logger.warn(`[404] Not Found: ${req.method} ${req.url}`);
+      res.status(404).json({ success: false, error: 'NOT_FOUND', path: req.url });
+  });
+
+  // Server Start (after all middleware is registered)
+  if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+    const PORT = config.port;
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Hue Stream API listening on http://0.0.0.0:${PORT}`);
+
+      // Start background token worker to keep "Fast Paths" warm
+      try {
+        const { startTokenWorker } = require('./services/tokenWorker');
+        startTokenWorker();
+
+        const { startWarmupWorker } = require('./services/warmupWorker');
+        startWarmupWorker();
+      } catch (e) {
+        console.error('[startup] Failed to start background workers:', e.message);
+      }
+    });
+  }
+})();
+
+// For Vercel deployment: export the app immediately
+module.exports = app;

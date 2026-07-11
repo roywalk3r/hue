@@ -1,3 +1,12 @@
+/**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
 export class AppError extends Error {
   constructor(message, statusCode = 500, details = null) {
     super(message);

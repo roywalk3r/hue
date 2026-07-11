@@ -1,3 +1,11 @@
+/**
+ * SFlix Provider (Nova)
+ * Scraper for sflix.film using direct API integration.
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @license MIT
+ */
+
 const cheerio = require("cheerio");
 const axios = require("axios");
 const http = require("http");

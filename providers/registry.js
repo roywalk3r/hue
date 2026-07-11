@@ -1,10 +1,20 @@
+/**
+ * Provider Registry
+ * Dynamic loading and management of streaming sources.
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @license MIT
+ */
+
 const { config } = require('../utils/config');
 const fs = require('fs');
 const path = require('path');
 const { getCachedStreams, setCachedStreams } = require('../utils/cache');
+const { getBehaviorConfig } = require('../utils/manifestLoader');
 
 // Map real provider names to "special" names for the API response
 const PROVIDER_RENAME_MAP = {
+  'huerust': 'Huerust',
   'sflix': 'Nova',
   'vixsrc': 'Aura',
   'vidrock': 'Luna',
@@ -12,7 +22,6 @@ const PROVIDER_RENAME_MAP = {
   'vidsrc-icu': 'Stellar',
   'vidsrc-embed': 'Nebula',
   'kisskh': 'Zenith',
-  'dramacool': 'Orient',
   'moviesmod': 'Cine',
   'uhdmovies': 'Ultra',
   '4khdhub': 'Prime',
@@ -36,7 +45,6 @@ const SANITIZE_KEYWORDS = {
   'vidrock': 'Luna',
   'sflix': 'Nova',
   'kisskh': 'Zenith',
-  'dramacool': 'Orient',
   'moviesmod': 'Cine',
   'uhdmovies': 'Ultra',
   '4khdhub': 'Prime',
@@ -58,7 +66,7 @@ function getPublicName(realName) {
 
 function isFastProvider(name) {
   const n = name.toLowerCase();
-  return n === 'vixsrc' || n === 'aura';
+  return n === 'vixsrc' || n === 'aura' || n === 'huerust';
 }
 
 function sanitizeText(text) {
@@ -100,6 +108,7 @@ const providerFunctionMap = {
   '9anime.js': 'getStreams',
   'ppv.js': 'getPPVStreams',
   'autoembed.js': 'getStreams',
+  'huerust.js': 'getStreams',
 };
 
 // Stats for debug endpoint
@@ -119,7 +128,8 @@ function getProviderFiles() {
                     file !== 'Showbox.js' && 
                     file !== 'showbox-playwright.js' && 
                     file !== 'VidZee.js' &&
-                    file !== 'vidsrccc-puppeteer.js.bak')
+                    file !== 'vidsrccc-puppeteer.js.bak' &&
+                    file !== 'dramacool.js')
     .map(file => ({
       name: path.parse(file).name.toLowerCase(),
       file: file,
@@ -223,11 +233,11 @@ function createFetchFunction(providerInfo) {
           let sanitizedTitle = s.title || s.name || 'Stream';
           sanitizedTitle = sanitizeText(sanitizedTitle);
           
-          return { 
-              ...s, 
+          return {
+              ...s,
               title: sanitizedTitle,
               name: s.name ? sanitizeText(s.name) : undefined,
-              provider: publicName 
+              provider: s.provider || publicName
           };
       });
       
@@ -261,20 +271,32 @@ for (const providerInfo of providerFiles) {
       enabled = false;
   }
 
+  // When Huerust is enabled, skip providers it already handles to avoid duplicates
+  const HUERUST_HANDLES = ['moviebox', 'sflix', 'vixsrc', 'kisskh'];
+  if (enabled && config.enableHuerustProvider && HUERUST_HANDLES.includes(providerInfo.name)) {
+      console.log(`[registry] ${providerInfo.name} skipped — handled by Huerust engine`);
+      enabled = false;
+  }
+
   if (enabled) {
     const publicName = getPublicName(providerInfo.name);
-    const isFast = isFastProvider(providerInfo.name) || 
-                   providerInfo.name === 'moviebox' || 
-                   providerInfo.name === 'autoembed' || 
+    const isFast = isFastProvider(providerInfo.name) ||
+                   providerInfo.name === 'moviebox' ||
+                   providerInfo.name === 'autoembed' ||
                    providerInfo.name === '4khdhub' ||
                    providerInfo.name === 'moviesmod' ||
                    providerInfo.name === 'uhdmovies';
+
+    const behavior = getBehaviorConfig(providerInfo.name);
 
     providers.push({
       name: publicName,
       realName: providerInfo.name,
       enabled: true,
       isFast: isFast,
+      timeoutMs: behavior.timeout_ms,
+      priority: behavior.priority,
+      circuitBreakerEnabled: behavior.circuit_breaker,
       fetch: createFetchFunction({ ...providerInfo, realName: providerInfo.name, publicName })
     });
     console.log(`[registry] ${providerInfo.name} provider enabled as "${publicName}"`);

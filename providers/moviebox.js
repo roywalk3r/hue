@@ -1,3 +1,12 @@
+/**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
 const movieboxApi = require('../utils/moviebox-api');
 const { getTmdbInfo } = require('../utils/tmdb');
 
@@ -21,11 +30,31 @@ async function getStreams(tmdbId, type, season = 1, episode = 1, tmdbDataProvide
             return [];
         }
 
-        console.log(`[MovieBox Provider] Found ${searchResults.items.length} search results`);
+        // Filter out English dubs and dubbed variants
+        const isEnglishDub = (t) => {
+            const s = (t || '').toLowerCase();
+            return s.includes('[english]') || s.includes('(english)') || s.includes('(english dub)') ||
+                   s.includes('[english dub]') || s.includes('english dub') || s.includes('dubbed') ||
+                   s.includes('(dub)') || s.includes('[dub]') || s.includes(' english version');
+        };
+        const items = searchResults.items.filter(item => {
+            if (isEnglishDub(item.title)) {
+                console.log(`[MovieBox Provider] Filtering dub: ${item.title}`);
+                return false;
+            }
+            return true;
+        });
+
+        if (items.length === 0) {
+            console.log(`[MovieBox Provider] No non-dub results for: "${title}"`);
+            return [];
+        }
+
+        console.log(`[MovieBox Provider] Found ${items.length} search results (${searchResults.items.length - items.length} dubs filtered)`);
 
         // 3. Find the best match (compare title, year and subjectType)
         const targetType = type === 'movie' ? 1 : 2;
-        const bestMatch = searchResults.items.find(item => {
+        const bestMatch = items.find(item => {
             const itemTitle = (item.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
             const searchTitle = title.toLowerCase().replace(/[^a-z0-9]/g, '');
             const itemYear = (item.releaseDate || '').split('-')[0];
@@ -36,12 +65,12 @@ async function getStreams(tmdbId, type, season = 1, episode = 1, tmdbDataProvide
             
             if (titleMatch && yearMatch && typeMatch) return true;
             return false;
-        }) || searchResults.items.find(item => {
+        }) || items.find(item => {
             // Fallback: title and type match only
             const itemTitle = (item.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
             const searchTitle = title.toLowerCase().replace(/[^a-z0-9]/g, '');
             return itemTitle === searchTitle && item.subjectType === targetType;
-        }) || searchResults.items[0]; 
+        }) || items[0]; 
 
         if (!bestMatch) {
             console.log(`[MovieBox Provider] No best match found for: "${title}"`);

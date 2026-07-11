@@ -1,10 +1,23 @@
+/**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
 const axios = require('axios');
 
-const BASE_URL = 'https://h5.aoneroom.com/wefeed-h5-bff';
+const BASE_URL = 'https://h5-api.aoneroom.com/wefeed-h5api-bff';
 const DEFAULT_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1',
-    'Origin': 'https://sportslivenow.top',
-    'Referer': 'https://sportslivenow.top/'
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36',
+    'Origin': 'https://thesports.today',
+    'Referer': 'https://thesports.today/',
+    'x-client-info': JSON.stringify({ timezone: 'Africa/Accra', system_language: 'en' }),
+    'x-device-info': '{}'
 };
 
 async function getLeagues() {

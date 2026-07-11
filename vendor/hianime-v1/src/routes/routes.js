@@ -1,3 +1,12 @@
+/**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
 import { createRouter } from '../lib/create-app.js';
 
 import * as home from '../modules/home/index.js';

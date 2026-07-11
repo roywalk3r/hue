@@ -1,0 +1,22 @@
+[provider]
+name = "prime"
+label = "4KHDHub"
+runtime = "node"
+media_types = ["movie", "series"]
+
+[capabilities]
+search = false
+streams = true
+episodes = true
+
+[behavior]
+timeout_ms = 20000
+max_retries = 2
+circuit_breaker = true
+priority = 60
+
+[test]
+fixture_id = "27205"
+fixture_type = "movie"
+fixture_episode = 0
+expect_streams = true

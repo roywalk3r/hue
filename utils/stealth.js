@@ -1,4 +1,13 @@
 /**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
+/**
  * Stealth & Obfuscation Module
  * Provides utilities for header randomization, user-agent rotation, 
  * and request jitter to evade bot detection.

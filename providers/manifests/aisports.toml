@@ -1,0 +1,22 @@
+[provider]
+name = "field"
+label = "AiSports"
+runtime = "node"
+media_types = ["sports"]
+
+[capabilities]
+search = false
+streams = true
+episodes = false
+
+[behavior]
+timeout_ms = 20000
+max_retries = 1
+circuit_breaker = false
+priority = 75
+
+[test]
+fixture_id = ""
+fixture_type = "sports"
+fixture_episode = 0
+expect_streams = false

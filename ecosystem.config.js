@@ -1,12 +1,28 @@
+/**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
 module.exports = {
   apps: [
     {
-      name: 'hue-rust-api',
-      script: 'cargo',
-      args: 'run --release',
+      name: 'hue',
+      script: 'pnpm',
+      args: 'run start',
+      env: {
+        PORT: 24608,
+      }
+    },
+    {
+      name: 'hueapi',
+      script: './huerust/target/release/huerust',
       cwd: './huerust',
       env: {
-        RUST_PORT: 24608,
+        RUST_PORT: 24609,
       }
     },
     {
@@ -15,6 +31,6 @@ module.exports = {
       env: {
         SCRAPER_PORT: 24610
       }
-    }
+    },
   ]
 };

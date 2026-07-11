@@ -1,3 +1,12 @@
+/**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
 import { NotFoundError, validationError } from '#utils/errors';
 import { getServers } from '../servers/servers.handler.js';
 import streamExtract from './stream.extract.js';

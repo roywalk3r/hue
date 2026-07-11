@@ -1,0 +1,10 @@
+{
+  "session_id": "019e7a1f-5773-7653-ac0d-601f20f85790",
+  "native_session_id": "019e7a1f-5773-7653-ac0d-601f20f85790",
+  "started_at": "2026-07-05T18:59:00.696Z",
+  "cwd": "/home/rseann/projects/Misc/hue",
+  "pid": 559323,
+  "platform": "linux",
+  "pid_start_ticks": 4030366,
+  "pid_cmdline": "codex"
+}

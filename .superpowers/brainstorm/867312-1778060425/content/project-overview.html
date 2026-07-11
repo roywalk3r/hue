@@ -1,0 +1,83 @@
+<h2>Hue Stream API — Current Architecture</h2>
+<p class="subtitle">What exists today and where a new frontend fits in</p>
+
+<div class="section">
+  <h3>Current System</h3>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">Backend (What You Have)</div>
+      <div class="mockup-body">
+        <div style="background:#1a1a2e;padding:16px;border-radius:8px;margin-bottom:12px">
+          <div class="label" style="color:#a855f7">Express API Server (apiServer.js)</div>
+          <div style="color:#94a3b8;font-size:13px;margin-top:4px">Port 24608 • CORS • Auth • AES-256 signed URLs</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <div style="flex:1;background:#16213e;padding:10px;border-radius:6px;text-align:center;font-size:12px;color:#06b6d4">12 Route<br>Files</div>
+          <div style="flex:1;background:#16213e;padding:10px;border-radius:6px;text-align:center;font-size:12px;color:#06b6d4">25+ Provider<br>Scrapers</div>
+          <div style="flex:1;background:#16213e;padding:10px;border-radius:6px;text-align:center;font-size:12px;color:#06b6d4">Rust Engine<br>(huerust)</div>
+        </div>
+        <div style="background:#16213e;padding:10px;border-radius:6px;font-size:12px;color:#94a3b8">
+          <div>Proxy with IPv4 failover • Circuit breakers • Request coalescing</div>
+          <div style="margin-top:4px">SSE live streaming • TMDB enrichment • TTL caching</div>
+        </div>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">Current Frontend (public/)</div>
+      <div class="mockup-body">
+        <div style="background:#0f0f23;padding:12px;border-radius:6px;margin-bottom:8px">
+          <div class="mock-nav" style="background:#1a1a2e;margin-bottom:8px">Hue Stream — Movies | TV | KDrama | Anime</div>
+          <div style="background:#0c101a;height:120px;border-radius:4px;margin-bottom:8px;display:flex;align-items:center;justify-content:center;color:#64748b;font-size:12px">Hero Slider (Bootstrap)</div>
+          <div style="display:flex;gap:6px;margin-bottom:6px">
+            <div style="flex:1;background:#1a2235;height:80px;border-radius:4px"></div>
+            <div style="flex:1;background:#1a2235;height:80px;border-radius:4px"></div>
+            <div style="flex:1;background:#1a2235;height:80px;border-radius:4px"></div>
+          </div>
+          <div style="background:#16213e;height:60px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#64748b;font-size:11px">Video.js Player</div>
+        </div>
+        <div style="font-size:12px;color:#94a3b8;text-align:center">Bootstrap 5 • jQuery • Vanilla JS • ~2,500 lines</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>API Surface (Key Endpoints)</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px">
+    <div style="background:#1a2235;padding:12px;border-radius:6px;border-left:3px solid #a855f7">
+      <div class="label" style="color:#a855f7">Aggregation</div>
+      <code style="color:#e2e8f0">GET /api/streams/movie/{id}</code><br>
+      <code style="color:#e2e8f0">GET /api/streams/series/{id}?s=1&e=1</code><br>
+      <code style="color:#e2e8f0">GET /api/streams/:type/:id/live</code> (SSE)
+    </div>
+    <div style="background:#1a2235;padding:12px;border-radius:6px;border-left:3px solid #06b6d4">
+      <div class="label" style="color:#06b6d4">Discovery</div>
+      <code style="color:#e2e8f0">GET /api/hitv/browse?genre=&sort=</code><br>
+      <code style="color:#e2e8f0">GET /api/hitv/search?q=</code><br>
+      <code style="color:#e2e8f0">GET /api/moviebox/hero</code>
+    </div>
+    <div style="background:#1a2235;padding:12px;border-radius:6px;border-left:3px solid #a855f7">
+      <div class="label" style="color:#a855f7">Playback</div>
+      <code style="color:#e2e8f0">GET /api/play/:type/:id?s=&e=</code><br>
+      <code style="color:#e2e8f0">/m3u8-proxy • /ts-proxy • /sub-proxy</code>
+    </div>
+    <div style="background:#1a2235;padding:12px;border-radius:6px;border-left:3px solid #06b6d4">
+      <div class="label" style="color:#06b6d4">System</div>
+      <code style="color:#e2e8f0">GET /api/status • /api/config</code><br>
+      <code style="color:#e2e8f0">GET /api/docs</code> (Scalar/Swagger)
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>You already have a design vision doc</h3>
+  <div style="background:#1a1a2e;padding:16px;border-radius:8px;border:1px solid rgba(168,85,247,0.3)">
+    <div style="font-size:14px;color:#e2e8f0"><strong>hue_streaming_platform.md</strong> describes:</div>
+    <ul style="color:#94a3b8;font-size:13px;margin-top:8px">
+      <li>Cinematic glassmorphism UI (obsidian #0a0a0f, purple #a855f7, cyan #06b6d4)</li>
+      <li>Fixed blurred navbar • Immersive hero • Horizontal carousels • Hover animations</li>
+      <li>Typography: Outfit (titles) + Inter (UI labels)</li>
+    </ul>
+    </div>
+  </div>
+</div>

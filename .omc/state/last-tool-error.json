@@ -1,7 +1,0 @@
-{
-  "tool_name": "Glob",
-  "tool_input_preview": "{\"pattern\":\"**/vue.config.*\",\"path\":\"/home/rseann/projects\"}",
-  "error": "Ripgrep search timed out after 20 seconds. The search may have matched files but did not complete in time. Try searching a more specific path or pattern.",
-  "timestamp": "2026-04-24T11:18:16.192Z",
-  "retry_count": 1
-}

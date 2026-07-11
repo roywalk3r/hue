@@ -1,102 +1,322 @@
-use serde::{Deserialize, Serialize};
-use reqwest::{Client, header::{HeaderMap, HeaderValue, REFERER, CONTENT_TYPE}};
-use anyhow::{Result, anyhow};
+//! Hue Stream API
+//! Professional Streaming Aggregator
+//!
+//! @author roywalk3r <roywalker440@gmail.com>
+//! @repository https://github.com/roywalk3r/hue.git
+//! @license MIT
+
+use crate::clients::moviebox::{quality_from_resolutions, StreamData};
+use crate::models::{StreamResult, Subtitle};
+use anyhow::Result;
+use reqwest::{
+    header::{HeaderMap, HeaderValue, CONTENT_TYPE, REFERER},
+    Client,
+};
+use serde::Deserialize;
 use std::collections::HashMap;
 use tracing::{info, warn};
-use crate::moviebox::{StreamData, MovieBoxStream};
-use crate::models::{StreamResult, Subtitle};
 
 const BASE_URL: &str = "https://sflix.film";
 const API_BASE: &str = "https://h5-api.aoneroom.com/wefeed-h5api-bff";
-const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const DEFAULT_COOKIE: &str = "sflix_token=%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjMxMTYwODUxODIwODQ5MjQ1MTIsImF0cCI6MywiZXh0IjoiMTc2ODA4NTkyNCIsImV4cCI6MTc3NTg2MTkyNCwiaWF0IjoxNzY4MDg1NjI0fQ.K6fuHWpTcLP0WjQx9ZFe6LSo_oNVNKiuC3MOA2HRw1s%22; account=2904345630854337384|0|H5|1768086238|; uuid=181f2237-fb79-4245-9a8a-2d5f0a60c4aa; sflix_i18n_lang=en";
+
+/// Extract the raw JWT value from the sflix_token cookie. The cookie value is
+/// URL-encoded as `sflix_token=%22<jwt>%22`; we strip the quotes and decode.
+fn extract_sflix_jwt(cookie: &str) -> Option<String> {
+    let token_part = cookie
+        .split(';')
+        .find(|p| p.trim().starts_with("sflix_token="))?;
+    let value = token_part.split_once('=')?.1.trim();
+    let decoded = urlencoding::decode(value).ok()?;
+    let jwt = decoded.trim_matches('"').trim_matches('\'');
+    if jwt.is_empty() {
+        return None;
+    }
+    Some(jwt.to_string())
+}
 
 pub struct SflixClient {
     client: Client,
 }
 
+#[derive(Debug, Deserialize)]
+struct CaptionResponse {
+    code: i32,
+    data: Option<CaptionData>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CaptionData {
+    captions: Option<Vec<SflixCaption>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SflixCaption {
+    url: Option<String>,
+    lan: Option<String>,
+    #[serde(rename = "lanName")]
+    lan_name: Option<String>,
+}
+
 impl SflixClient {
     pub fn new() -> Self {
+        // Warn once at startup if the fallback credential is expired
+        let cookie =
+            crate::user_config::HueUserConfig::get_live().sflix_cookie_or_env(DEFAULT_COOKIE);
+        if cookie == DEFAULT_COOKIE && crate::security::jwt_is_expired(DEFAULT_COOKIE) {
+            warn!("[SFlix] Default JWT is expired. Set sflix_cookie in user-config.json to restore functionality.");
+        }
+        let ua = crate::user_config::HueUserConfig::get_live()
+            .sflix_user_agent
+            .clone()
+            .unwrap_or_else(|| DEFAULT_USER_AGENT.to_string());
         Self {
             client: Client::builder()
-                .user_agent(DEFAULT_USER_AGENT)
+                .user_agent(ua)
                 .timeout(std::time::Duration::from_secs(30))
+                .connect_timeout(std::time::Duration::from_secs(10))
+                .tcp_keepalive(std::time::Duration::from_secs(60))
+                .pool_max_idle_per_host(2)
+                .pool_idle_timeout(std::time::Duration::from_secs(90))
                 .build()
                 .unwrap(),
         }
     }
 
     fn get_base_headers(&self) -> HeaderMap {
+        let cookie =
+            crate::user_config::HueUserConfig::get_live().sflix_cookie_or_env(DEFAULT_COOKIE);
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         headers.insert(REFERER, HeaderValue::from_static("https://sflix.film/"));
-        headers.insert("Cookie", HeaderValue::from_static(DEFAULT_COOKIE));
+        if let Ok(v) = HeaderValue::from_str(&cookie) {
+            headers.insert("Cookie", v);
+        }
+        // SFlix now requires the JWT in an Authorization header in addition to the cookie.
+        if let Some(token) = extract_sflix_jwt(&cookie) {
+            if let Ok(v) = HeaderValue::from_str(&format!("Bearer {}", token)) {
+                headers.insert("Authorization", v);
+            }
+        }
         headers
     }
 
     pub async fn search(&self, keyword: &str, media_type: &str) -> Result<Vec<serde_json::Value>> {
         let url = format!("{}/subject/search", API_BASE);
-        let subject_type = if media_type == "tv" { 2 } else { 1 };
-        
+        // The SFlix search endpoint now expects subjectType=0 (all) and returns
+        // mixed movie/series results. Filtering by subjectType is done client-side
+        // below — this matches the live website request.
+        let expected_subject_type = if media_type == "tv" { 2 } else { 1 };
+
         let payload = serde_json::json!({
             "keyword": keyword,
             "page": "1",
             "perPage": 24,
-            "subjectType": subject_type
+            "subjectType": 0
         });
 
-        let resp = self.client.post(&url)
+        let resp = self
+            .client
+            .post(&url)
             .headers(self.get_base_headers())
             .json(&payload)
             .send()
             .await?;
 
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            warn!(
+                "[SFlix] search API error for {:?}: status={} body={}",
+                keyword, status, body
+            );
+            return Ok(vec![]);
+        }
+
         let data: serde_json::Value = resp.json().await?;
-        let items = data["data"]["items"].as_array().cloned().unwrap_or_default();
-        Ok(items)
+        let items = data["data"]["items"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let filtered: Vec<_> = items
+            .into_iter()
+            .filter(|item| {
+                item["subjectType"]
+                    .as_i64()
+                    .map(|t| t == expected_subject_type as i64)
+                    .unwrap_or(true)
+            })
+            .collect();
+        Ok(filtered)
     }
 
-    pub async fn get_streams(&self, slug: &str, subject_id: &str, season: u32, episode: u32) -> Result<Option<StreamData>> {
+    pub async fn get_streams(
+        &self,
+        slug: &str,
+        subject_id: &str,
+        media_type: &str,
+        season: u32,
+        episode: u32,
+    ) -> Result<Option<StreamData>> {
         let se = season;
         let ep = episode;
-        
-        let type_path = "movies"; 
-        let type_query = "/movie/detail";
-        
-        let referer_url = format!("{}/spa/videoPlayPage/{}/{}?id={}&type={}&lang=en", 
-            BASE_URL, type_path, slug, subject_id, urlencoding::encode(type_query));
 
-        let play_url = format!("{}/wefeed-h5api-bff/subject/play?subjectId={}&se={}&ep={}&detailPath={}", 
-            BASE_URL, subject_id, se, ep, slug);
+        let (type_path, type_query) = if media_type == "tv" {
+            ("series", "/series/detail")
+        } else {
+            ("movies", "/movie/detail")
+        };
+
+        let referer_url = format!(
+            "{}/spa/videoPlayPage/{}/{}?id={}&type={}&lang=en",
+            BASE_URL,
+            type_path,
+            slug,
+            subject_id,
+            urlencoding::encode(type_query)
+        );
+
+        let play_url = format!(
+            "{}/wefeed-h5api-bff/subject/play?subjectId={}&se={}&ep={}&detailPath={}",
+            BASE_URL, subject_id, se, ep, slug
+        );
 
         let mut headers = self.get_base_headers();
-        headers.insert(REFERER, HeaderValue::from_str(&referer_url).unwrap());
+        headers.insert(
+            REFERER,
+            HeaderValue::from_str(&referer_url)
+                .unwrap_or_else(|_| HeaderValue::from_static(BASE_URL)),
+        );
 
-        let resp = self.client.get(&play_url)
-            .headers(headers)
-            .send()
-            .await?;
+        let resp = self.client.get(&play_url).headers(headers).send().await?;
 
         let data: serde_json::Value = resp.json().await?;
         if data["code"] == 0 {
-            return Ok(serde_json::from_value(data["data"].clone()).ok());
+            let parsed: Option<StreamData> = serde_json::from_value(data["data"].clone()).ok();
+            // Fallback to scraper if API returns empty streams
+            if let Some(ref sd) = parsed {
+                let has_streams = sd.streams.as_ref().map(|v| !v.is_empty()).unwrap_or(false);
+                let has_hls = sd.hls.as_ref().map(|v| !v.is_empty()).unwrap_or(false);
+                let has_dash = sd.dash.as_ref().map(|v| !v.is_empty()).unwrap_or(false);
+                if !has_streams && !has_hls && !has_dash {
+                    return Ok(None);
+                }
+            }
+            return Ok(parsed);
         }
 
         Ok(None)
     }
 
-    pub async fn get_streams_normalized(&self, title: &str, media_type: &str, season: u32, episode: u32) -> Result<Vec<StreamResult>> {
-        info!("[SFlix Rust] Searching for: \"{}\" ({}) S{} E{}", title, media_type, season, episode);
-        
-        let items = self.search(title, media_type).await?;
-        if items.is_empty() { return Ok(vec![]); }
+    async fn get_captions(
+        &self,
+        subject_id: &str,
+        detail_path: &str,
+        stream_id: Option<&str>,
+        format: &str,
+    ) -> Result<Vec<Subtitle>> {
+        let effective_id = stream_id.filter(|id| !id.is_empty()).unwrap_or(subject_id);
 
-        let best_match = &items[0];
+        if effective_id == subject_id {
+            warn!(
+                "[SFlix] stream_id missing for subject_id={}, using subject_id as fallback",
+                subject_id
+            );
+        }
+
+        let url = format!(
+            "{}/subject/caption?format={}&id={}&subjectId={}&detailPath={}",
+            API_BASE,
+            urlencoding::encode(format),
+            urlencoding::encode(effective_id),
+            urlencoding::encode(subject_id),
+            urlencoding::encode(detail_path),
+        );
+
+        let resp = self
+            .client
+            .get(&url)
+            .headers(self.get_base_headers())
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Ok(vec![]);
+        }
+
+        let data = resp.json::<CaptionResponse>().await?;
+        if data.code != 0 {
+            return Ok(vec![]);
+        }
+
+        Ok(data
+            .data
+            .and_then(|d| d.captions)
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|caption| {
+                let url = caption.url?;
+                if url.is_empty() {
+                    return None;
+                }
+                let lang = caption.lan.unwrap_or_else(|| "en".to_string());
+                let label = caption.lan_name.unwrap_or_else(|| lang.clone());
+                Some(Subtitle { url, lang, label })
+            })
+            .collect())
+    }
+
+    pub async fn get_streams_normalized(
+        &self,
+        title: &str,
+        media_type: &str,
+        year: Option<u32>,
+        season: u32,
+        episode: u32,
+    ) -> Result<Vec<StreamResult>> {
+        info!(
+            "[SFlix Rust] Searching for: \"{}\" ({}) S{} E{}",
+            title, media_type, season, episode
+        );
+
+        let items = self.search(title, media_type).await?;
+        if items.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Debug: dump each candidate's title/year for diagnosis
+        for (i, item) in items.iter().enumerate() {
+            let ctitle = item["title"].as_str().unwrap_or_default();
+            let cyear = extract_year(item);
+            let score = title_score(title, ctitle);
+            info!(
+                "[SFlix Rust]   candidate[{}] title={:?} year={:?} score={:.1}",
+                i, ctitle, cyear, score
+            );
+        }
+
+        let best_match = match pick_best_match(&items, title, year) {
+            Some(m) => m,
+            None => {
+                warn!("[SFlix Rust] No plausible match for \"{}\" (year={:?}) in {} results — skipping SFlix", title, year, items.len());
+                return Ok(vec![]);
+            }
+        };
+        let chosen_title = best_match["title"].as_str().unwrap_or_default();
+        let chosen_year = extract_year(best_match);
+        info!(
+            "[SFlix Rust]   CHOSE title={:?} year={:?} for query {:?}",
+            chosen_title, chosen_year, title
+        );
         let slug = best_match["detailPath"].as_str().unwrap_or_default();
         let subject_id = best_match["subjectId"].as_str().unwrap_or_default();
 
-        match self.get_streams(slug, subject_id, season, episode).await? {
+        match self
+            .get_streams(slug, subject_id, media_type, season, episode)
+            .await?
+        {
             Some(data) => {
                 let mut results = Vec::new();
                 let mut headers = HashMap::new();
@@ -105,72 +325,188 @@ impl SflixClient {
 
                 if let Some(streams) = data.streams {
                     for s in streams {
+                        let subtitles = self
+                            .get_captions(subject_id, slug, s.id.as_deref(), "MP4")
+                            .await
+                            .unwrap_or_default();
+                        let quality = s
+                            .quality
+                            .as_deref()
+                            .map(str::to_string)
+                            .filter(|q| !q.trim().is_empty() && q.to_lowercase() != "auto")
+                            .unwrap_or_else(|| quality_from_resolutions(s.resolutions.as_deref()));
                         results.push(StreamResult {
                             url: s.url,
-                            title: format!("Nova - {}p (MP4)", s.resolutions.unwrap_or_else(|| "Auto".to_string())),
-                            quality: s.quality.unwrap_or_else(|| "Auto".to_string()),
+                            title: format!("Nova - {} (MP4)", quality),
+                            quality,
                             provider: "Nova".to_string(),
                             format: "mp4".to_string(),
-                            subtitles: None,
+                            subtitles: if subtitles.is_empty() {
+                                None
+                            } else {
+                                Some(subtitles)
+                            },
                             headers: Some(headers.clone()),
+                            extra_metadata: None,
                         });
                     }
                 }
 
                 if let Some(hls) = data.hls {
                     for s in hls {
+                        let subtitles = self
+                            .get_captions(subject_id, slug, s.id.as_deref(), "HLS")
+                            .await
+                            .unwrap_or_default();
+                        let quality = s
+                            .quality
+                            .as_deref()
+                            .map(str::to_string)
+                            .filter(|q| !q.trim().is_empty() && q.to_lowercase() != "auto")
+                            .unwrap_or_else(|| quality_from_resolutions(s.resolutions.as_deref()));
                         results.push(StreamResult {
                             url: s.url,
-                            title: "Nova - Auto (HLS)".to_string(),
-                            quality: "Auto".to_string(),
+                            title: format!("Nova - {} (HLS)", quality),
+                            quality,
                             provider: "Nova".to_string(),
                             format: "hls".to_string(),
-                            subtitles: None,
+                            subtitles: if subtitles.is_empty() {
+                                None
+                            } else {
+                                Some(subtitles)
+                            },
                             headers: Some(headers.clone()),
+                            extra_metadata: None,
+                        });
+                    }
+                }
+
+                if let Some(dash) = data.dash {
+                    for s in dash {
+                        let subtitles = self
+                            .get_captions(subject_id, slug, s.id.as_deref(), "DASH")
+                            .await
+                            .unwrap_or_default();
+                        let quality = s
+                            .quality
+                            .as_deref()
+                            .map(str::to_string)
+                            .filter(|q| !q.trim().is_empty() && q.to_lowercase() != "auto")
+                            .unwrap_or_else(|| quality_from_resolutions(s.resolutions.as_deref()));
+                        results.push(StreamResult {
+                            url: s.url,
+                            title: format!("Nova - {} (DASH)", quality),
+                            quality,
+                            provider: "Nova".to_string(),
+                            format: "dash".to_string(),
+                            subtitles: if subtitles.is_empty() {
+                                None
+                            } else {
+                                Some(subtitles)
+                            },
+                            headers: Some(headers.clone()),
+                            extra_metadata: None,
                         });
                     }
                 }
                 Ok(results)
             }
             None => {
-                info!("[SFlix Rust] API fast-path failed, delegating to Node.js Scraper Microservice...");
-                let type_path = "movies"; 
-                let type_query = "/movie/detail";
-                let detail_url = format!("{}/spa/videoPlayPage/{}/{}?id={}&type={}&lang=en", 
-                    BASE_URL, type_path, slug, subject_id, urlencoding::encode(type_query));
-                
-                let is_movie = media_type == "movie";
-                
-                let payload = serde_json::json!({
-                    "url": detail_url,
-                    "isMovie": is_movie,
-                    "season": season,
-                    "episode": episode
-                });
-
-                match self.client.post("http://127.0.0.1:24610/scrape/sflix")
-                    .json(&payload)
-                    .send()
-                    .await {
-                        Ok(scraper_resp) => {
-                            if scraper_resp.status().is_success() {
-                                #[derive(Deserialize)]
-                                struct ScraperResponse {
-                                    success: bool,
-                                    streams: Vec<StreamResult>,
-                                }
-                                if let Ok(data) = scraper_resp.json::<ScraperResponse>().await {
-                                    if data.success {
-                                        return Ok(data.streams);
-                                    }
-                                }
-                            }
-                        },
-                        Err(e) => warn!("[SFlix Rust] Scraper microservice call failed: {}", e),
-                    }
-                
+                warn!(
+                    "[SFlix Rust] API returned no streams for {} ({})",
+                    slug, media_type
+                );
                 Ok(vec![])
             }
         }
     }
+}
+
+fn normalize(s: &str) -> String {
+    s.to_lowercase()
+        .chars()
+        .filter(|c| c.is_alphanumeric() || c.is_whitespace())
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn title_score(query: &str, candidate: &str) -> f32 {
+    let q = normalize(query);
+    let c = normalize(candidate);
+    if q.is_empty() || c.is_empty() {
+        return 0.0;
+    }
+    if c == q {
+        return 100.0;
+    }
+    if c.contains(&q) || q.contains(&c) {
+        return 80.0;
+    }
+    let q_words: Vec<&str> = q.split_whitespace().collect();
+    let c_words: Vec<&str> = c.split_whitespace().collect();
+    let q_set: std::collections::HashSet<&str> = q_words.iter().copied().collect();
+    let c_set: std::collections::HashSet<&str> = c_words.iter().copied().collect();
+    let overlap = q_set.intersection(&c_set).count() as f32;
+    // Penalize candidates with significantly more words than the query —
+    // "Spider-Man Noir" vs "Spider-Noir" is a 1-word extension that's
+    // probably still a match, but "Off Campus" vs "Spider-Noir" is
+    // completely different. Score by overlap on the *shorter* side so a
+    // short query like "Spider-Noir" still gets full credit when one of
+    // its words appears in the candidate.
+    let short_len = q_words.len().min(c_words.len()) as f32;
+    if short_len == 0.0 {
+        return 0.0;
+    }
+    (overlap / short_len) * 60.0
+}
+
+fn extract_year(item: &serde_json::Value) -> Option<u32> {
+    let release = item["releaseDate"]
+        .as_str()
+        .or_else(|| item["release_date"].as_str())
+        .or_else(|| item["year"].as_str())?;
+    release.get(..4)?.parse().ok()
+}
+
+fn pick_best_match<'a>(
+    items: &'a [serde_json::Value],
+    title: &str,
+    year: Option<u32>,
+) -> Option<&'a serde_json::Value> {
+    // Reject if there's no plausible title match. Without a minimum title
+    // similarity threshold, a year-only "match" can pick a totally unrelated
+    // show (e.g. searching "Black Noir" returning "Off Campus" because the
+    // years align but titles share zero words).
+    const MIN_TITLE_SCORE: f32 = 25.0;
+
+    let mut best: Option<(&'a serde_json::Value, f32)> = None;
+    for item in items {
+        let candidate_title = item["title"].as_str().unwrap_or_default();
+        let t_score = title_score(title, candidate_title);
+        if t_score < MIN_TITLE_SCORE {
+            continue;
+        }
+        let mut score = t_score;
+        if let (Some(target_year), Some(cand_year)) = (year, extract_year(item)) {
+            let diff = (target_year as i32 - cand_year as i32).abs();
+            // Year outside a ±2 window = hard reject, not a small penalty.
+            // Otherwise a "Spider-Man Noir" (2018) match would beat nothing
+            // when the user actually wants "Spider-Noir" (2026 TV show).
+            if diff > 2 {
+                continue;
+            }
+            let year_bonus = match diff {
+                0 => 20.0,
+                1 => 10.0,
+                _ => 4.0,
+            };
+            score += year_bonus;
+        }
+        if best.map_or(true, |(_, s)| score > s) {
+            best = Some((item, score));
+        }
+    }
+    best.map(|(item, _)| item)
 }

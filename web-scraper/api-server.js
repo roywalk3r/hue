@@ -1,4 +1,13 @@
 /**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
+/**
  * API Server for Livesport Scraper
  * Deploy to: Vercel, Netlify Functions, or any Node.js host
  */

@@ -1,4 +1,13 @@
 /**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
+/**
  * Livesport M3U8 Extractor (Updated for Streamed.pk)
  * Extracts streams via API after parsing SvelteKit data
  */

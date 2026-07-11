@@ -1,0 +1,17 @@
+pub mod aisports;
+pub mod anilist;
+pub mod anime_agg;
+pub mod animekill;
+pub mod animexin;
+pub mod aniwatch;
+pub mod aniwave;
+pub mod hianime;
+pub mod hitv;
+pub mod lordflix;
+pub mod moviebox;
+pub mod notorrent;
+pub mod tmdb;
+pub mod vidlink;
+pub mod vidrock;
+pub mod vidsrcembed;
+pub mod vidvault;

@@ -1,3 +1,12 @@
+/**
+ * Hue Stream API
+ * Professional Streaming Aggregator
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @repository https://github.com/roywalk3r/hue.git
+ * @license MIT
+ */
+
 const { refreshSflixCookie } = require('../utils/refreshSflixCookie');
 const { refreshMovieboxCookie } = require('../utils/refreshMovieboxCookie');
 const logger = require('../utils/logger');

@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd /mnt/devdrive/projects/NuxtJs/hue-ui && npm install 2>&1\",\"timeout\":120000,\"description\":\"Install npm dependencies\"}",
+  "error": "Exit code 1\nnpm error code ERESOLVE\nnpm error ERESOLVE unable to resolve dependency tree\nnpm error\nnpm error While resolving: hue-ui@undefined\nnpm error Found: pinia@2.3.1\nnpm error node_modules/pinia\nnpm error   pinia@\"^2.3.0\" from the root project\nnpm error\nnpm error Could not resolve dependency:\nnpm error peer pinia@\"^3.0.1\" from @pinia/nuxt@0.10.1\nnpm error node_modules/@pinia/nuxt\nnpm error   @pinia/nuxt@\"^0.10.0\" from the root project\nnpm error\nnpm error Fix the upstream dependency conflic...",
+  "timestamp": "2026-05-10T11:09:04.618Z",
+  "retry_count": 1
+}

@@ -1,15 +1,29 @@
-/node_modules
+**/node_modules/
 restart.trigger
 .vscode/
 *.log
 *.log.old
+# Firebase service account — do NOT commit
+vexli-3d15a-firebase-adminsdk-fbsvc-*.json
+utils/fcm-tokens.json
+.playwright-cli
+.playwright*
+.playwright-mcp/*
+.omc/*
+# LeanKG — large binary database, auto-generated
+.leankg/
 *.txt
 .gemini/
 gha-creds-*.json
 .env
-
+.omc
+.claude
+.codex
+.gemini
+.vscode
+.sh
+.leankg
 # Dynamic Data & Config
-utils/user-config.json
 hitv_library_cache.json
 hitv_home_cache.json
 *.json.bak
@@ -22,3 +36,16 @@ hitv_home_cache.json
 /playwright-report/
 /blob-report/
 /playwright/.local-browsers/
+
+# Rust build artifacts
+huerust/target/
+/target/
+Cargo.lock
+*.rlib
+*.rmeta
+
+# IDE
+.idea/
+*.iml
+*.swp
+utils/fcm-tokens.json

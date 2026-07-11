@@ -1,0 +1,31 @@
+# HUE ENGINE ❄
+# System Designation: The Architecture of Aggregation
+#
+# @author roywalk3r <roywalker440@gmail.com>
+# @repository https://github.com/roywalk3r/hue.git
+# @license MIT
+
+[provider]
+name = "videasy"
+label = "Videasy"
+public_name = "Vortex"
+runtime = "both"
+media_types = ["movie", "series"]
+
+[capabilities]
+search = false
+streams = true
+episodes = false
+
+[behavior]
+fast = false
+timeout_ms = 25000
+max_retries = 2
+circuit_breaker = true
+priority = 70
+
+[test]
+fixture_id = "tt1375666"
+fixture_type = "movie"
+fixture_episode = 0
+expect_streams = true

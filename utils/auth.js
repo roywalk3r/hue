@@ -1,3 +1,11 @@
+/**
+ * Authentication System
+ * Simple session-based auth for the admin panel.
+ *
+ * @author roywalk3r <roywalker440@gmail.com>
+ * @license MIT
+ */
+
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -71,7 +79,10 @@ function updatePassword(username, newPassword){
 }
 
 // Session issuance & validation
-const SESSION_SECRET = crypto.randomBytes(32); // ephemeral; restart invalidates sessions
+// Derive a stable session secret from APP_SECRET so sessions survive restarts.
+// The ':sessions' suffix scopes this key away from stream token key material.
+const _appSecret = process.env.APP_SECRET || 'super-secret-hue-key-change-me';
+const SESSION_SECRET = crypto.createHash('sha256').update(_appSecret + ':sessions').digest();
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12h
 
 function base64url(input){
