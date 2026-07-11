@@ -361,7 +361,7 @@ impl AnimexinClient {
         .ok_or_else(|| anyhow!("No stream sources found"))?;
 
         Ok(StreamPayload {
-            url: target.id.clone(),
+            url: normalize_iframe_url(&target.id),
             stream_type: "iframe".to_string(),
             subtitles: None,
             intro: None,
@@ -772,6 +772,17 @@ fn extract_server_name_from_url(url: &str) -> String {
 }
 
 /// Pick the Referer header for a donghua iframe embed. The embed's own
+/// OK.ru and a few other upstreams occasionally return protocol-relative
+/// embed URLs (`//ok.ru/videoembed/...`). Browsers and WebViews refuse to
+/// load them with `Missing scheme in uri`. Promote them to `https://`.
+fn normalize_iframe_url(url: &str) -> String {
+    if let Some(rest) = url.strip_prefix("//") {
+        format!("https://{rest}")
+    } else {
+        url.to_string()
+    }
+}
+
 /// origin is what the upstream player expects — sending animexin.dev as
 /// the Referer makes the embed reject the WebView request.
 fn iframe_referer(url: &str) -> String {

@@ -183,7 +183,15 @@ impl NoTorrentClient {
                 // embed directly in <iframe> and bypass HLS.js
                 // fragParsingError retries.
                 "iframe"
-            } else if url.contains(".m3u8") {
+            } else if url.contains(".m3u8")
+                // tr.notorrent2.workers.dev is a relay that 302s to a
+                // 321moviesfree.com `*.m3u8`; the .m3u8 isn't visible in the
+                // outer URL so we have to detect the host pattern. Without
+                // this the proxy returns HLS bytes but the client is told
+                // format="mp4" and the player fails to parse the manifest.
+                || url.contains("tr.notorrent2.workers.dev")
+                || url.contains("stream-limit-vid.321moviesfree.com")
+            {
                 "hls"
             } else {
                 "mp4"
