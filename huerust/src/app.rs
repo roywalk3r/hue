@@ -16,7 +16,7 @@ use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
-use utoipa_swagger_ui::SwaggerUi;
+use utoipa_scalar::Scalar;
 
 use crate::clients::hitv::HiTvClient;
 use crate::clients::moviebox::MovieBoxClient;
@@ -816,10 +816,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/auth/token",
             get(crate::routes::system::auth_token_handler),
         )
-        .merge(
-            SwaggerUi::new("/api/docs")
-                .url("/api/docs/openapi.json", crate::openapi::ApiDoc::openapi()),
-        )
+        .route("/api/docs", get(scalar_docs_handler))
         .layer(TraceLayer::new_for_http())
         .layer(CompressionLayer::new())
         .layer(middleware::from_fn(hue_anon_middleware))
@@ -834,6 +831,30 @@ pub fn build_router(state: AppState) -> Router {
         ))
         .layer(CorsLayer::permissive())
         .with_state(state)
+}
+
+/// Scalar API reference UI. Renders the same OpenAPI spec that
+/// Swagger UI consumed, served at the same path (`/api/docs`). The
+/// spec JSON is still served by utoipa's emitter at
+/// `/api/docs/openapi.json` (handled by the route below).
+#[allow(dead_code)] // route registration reads this; clippy doesn't see that
+#[utoipa::path(
+    get,
+    path = "/api/docs",
+    responses(
+        (status = 200, description = "Scalar API reference HTML", content_type = "text/html"),
+    ),
+)]
+pub async fn scalar_docs_handler() -> impl IntoResponse {
+    let spec: serde_json::Value =
+        serde_json::to_value(crate::openapi::ApiDoc::openapi())
+            .expect("ApiDoc is always serializable");
+    let html = Scalar::new(spec).to_html();
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        html,
+    )
 }
 
 async fn auth_middleware(
