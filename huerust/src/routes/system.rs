@@ -9,6 +9,14 @@ use axum::{
 };
 use tracing::{info, warn};
 
+#[utoipa::path(
+    get,
+    path = "/health",
+    responses(
+        (status = 200, description = "Service alive", body = String),
+        (status = 500, description = "Internal error"),
+    )
+)]
 pub async fn health_check() -> &'static str {
     "Huerust is Alive"
 }
@@ -22,6 +30,14 @@ pub fn build_info() -> serde_json::Value {
     })
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/health/version",
+    responses(
+        (status = 200, description = "Service build info", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    )
+)]
 pub async fn health_version() -> Json<serde_json::Value> {
     Json(build_info())
 }
@@ -42,6 +58,14 @@ mod tests {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/metrics",
+    responses(
+        (status = 200, description = "Prometheus metrics in text/plain", body = String),
+        (status = 500, description = "Internal error"),
+    )
+)]
 pub async fn metrics_handler(State(state): State<SystemState>) -> Response {
     let body = state.metrics.render_prometheus();
     (
@@ -55,11 +79,27 @@ pub async fn metrics_handler(State(state): State<SystemState>) -> Response {
         .into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/hitv/library",
+    responses(
+        (status = 200, description = "HiTV library contents", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    )
+)]
 pub async fn hitv_library_handler(State(state): State<SystemState>) -> Response {
     let items = state.hitv.get_library().await;
     (StatusCode::OK, Json(items)).into_response()
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/reload",
+    responses(
+        (status = 200, description = "User config cache invalidated", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    )
+)]
 pub async fn admin_reload_handler() -> Response {
     crate::user_config::HueUserConfig::invalidate();
     (
@@ -69,6 +109,14 @@ pub async fn admin_reload_handler() -> Response {
         .into_response()
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/refresh-tokens",
+    responses(
+        (status = 200, description = "Token refresh triggered via Node.js", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    )
+)]
 pub async fn admin_refresh_tokens_handler(State(state): State<SystemState>) -> Response {
     let node_api_url =
         std::env::var("NODE_API_URL").unwrap_or_else(|_| "http://127.0.0.1:3003".to_string());
@@ -107,6 +155,14 @@ pub async fn admin_refresh_tokens_handler(State(state): State<SystemState>) -> R
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/status",
+    responses(
+        (status = 200, description = "Service status: uptime, providers", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    )
+)]
 pub async fn status_handler(State(state): State<SystemState>) -> Response {
     let uptime_secs = state.start_time.elapsed().as_secs();
 
