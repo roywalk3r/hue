@@ -1081,7 +1081,7 @@ pub async fn report_failure_handler(
 
 #[utoipa::path(
     get,
-    path = "/api/streams/{type}/{tmdbId}/warm",
+    path = "/api/warm/{type}/{tmdbId}",
     params(
         ("type" = String, Path, description = "Content type: movie or tv"),
         ("tmdbId" = String, Path, description = "TMDB ID"),
