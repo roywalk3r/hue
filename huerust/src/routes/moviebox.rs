@@ -63,6 +63,14 @@ pub struct ShortsQuery {
 
 // ── Home / Discover ──────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/home",
+    responses(
+        (status = 200, description = "MovieBox home feed", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn home_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_home().await {
         Ok(data) => (StatusCode::OK, Json(data)).into_response(),
@@ -70,6 +78,14 @@ pub async fn home_handler(State(state): State<MovieBoxRouteState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/discover",
+    responses(
+        (status = 200, description = "MovieBox discover sections", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn discover_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_discover().await {
         Ok(sections) => {
@@ -80,6 +96,18 @@ pub async fn discover_handler(State(state): State<MovieBoxRouteState>) -> Respon
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/section",
+    params(
+        ("title" = String, Query, description = "Section title to fetch"),
+    ),
+    responses(
+        (status = 200, description = "Items in the named section", body = serde_json::Value),
+        (status = 400, description = "Missing title"),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn section_handler(
     State(state): State<MovieBoxRouteState>,
     Query(params): Query<SectionQuery>,
@@ -101,6 +129,14 @@ pub async fn section_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/trending",
+    responses(
+        (status = 200, description = "Trending items", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn trending_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_trending(1).await {
         Ok(items) => {
@@ -113,6 +149,14 @@ pub async fn trending_handler(State(state): State<MovieBoxRouteState>) -> Respon
 
 // ── Named Sections (thin wrappers around get_section) ────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/popular-movie",
+    responses(
+        (status = 200, description = "Popular movies", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn popular_movie_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("Popular Movie").await {
         Ok(items) => {
@@ -123,6 +167,14 @@ pub async fn popular_movie_handler(State(state): State<MovieBoxRouteState>) -> R
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/popular-series",
+    responses(
+        (status = 200, description = "Popular series", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn popular_series_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("Popular Series").await {
         Ok(items) => {
@@ -133,6 +185,14 @@ pub async fn popular_series_handler(State(state): State<MovieBoxRouteState>) -> 
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/hot-shorts",
+    responses(
+        (status = 200, description = "Hot short TV", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn hot_shorts_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("Hot Short TV").await {
         Ok(items) => {
@@ -143,6 +203,14 @@ pub async fn hot_shorts_handler(State(state): State<MovieBoxRouteState>) -> Resp
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/sa",
+    responses(
+        (status = 200, description = "SA drama items", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn sa_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("SA Drama").await {
         Ok(items) => {
@@ -153,6 +221,14 @@ pub async fn sa_handler(State(state): State<MovieBoxRouteState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/thai",
+    responses(
+        (status = 200, description = "Thai drama items", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn thai_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("Thai-Drama").await {
         Ok(items) => {
@@ -163,6 +239,14 @@ pub async fn thai_handler(State(state): State<MovieBoxRouteState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/turkish",
+    responses(
+        (status = 200, description = "Turkish drama items", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn turkish_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("Turkish Drama").await {
         Ok(items) => {
@@ -173,6 +257,14 @@ pub async fn turkish_handler(State(state): State<MovieBoxRouteState>) -> Respons
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/western",
+    responses(
+        (status = 200, description = "Western TV items", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn western_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("Western TV").await {
         Ok(items) => {
@@ -183,6 +275,14 @@ pub async fn western_handler(State(state): State<MovieBoxRouteState>) -> Respons
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/animation",
+    responses(
+        (status = 200, description = "Animation collection items", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn animation_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("Animation Collection").await {
         Ok(items) => {
@@ -193,6 +293,14 @@ pub async fn animation_handler(State(state): State<MovieBoxRouteState>) -> Respo
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/black-shows",
+    responses(
+        (status = 200, description = "Must-watch black shows", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn black_shows_handler(State(state): State<MovieBoxRouteState>) -> Response {
     match state.moviebox.get_section("Must-watch Black Shows").await {
         Ok(items) => {
@@ -205,6 +313,14 @@ pub async fn black_shows_handler(State(state): State<MovieBoxRouteState>) -> Res
 
 // ── Hero ─────────────────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/hero",
+    responses(
+        (status = 200, description = "Hero rail (trending + K-Drama + C-Drama, deduped, top 12 by rating)", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn hero_handler(State(state): State<MovieBoxRouteState>) -> Response {
     // Simplified hero: combine trending + K-Drama + C-Drama, dedupe, sort by rating
     let (trending, kdrama, cdrama) = tokio::join!(
@@ -252,6 +368,18 @@ pub async fn hero_handler(State(state): State<MovieBoxRouteState>) -> Response {
 
 // ── Bollywood / Shorts ───────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/bollywood",
+    params(
+        ("type" = Option<String>, Query, description = "Media type filter (movie or series)"),
+        ("page" = Option<u32>, Query, description = "Page number"),
+    ),
+    responses(
+        (status = 200, description = "Bollywood/Indian content", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn bollywood_handler(
     State(state): State<MovieBoxRouteState>,
     Query(params): Query<BollywoodQuery>,
@@ -271,6 +399,17 @@ pub async fn bollywood_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/shorts",
+    params(
+        ("page" = Option<u32>, Query, description = "Page number"),
+    ),
+    responses(
+        (status = 200, description = "Short-form items", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn shorts_handler(
     State(state): State<MovieBoxRouteState>,
     Query(params): Query<ShortsQuery>,
@@ -291,6 +430,23 @@ pub async fn shorts_handler(
 
 // ── Filter ───────────────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/filter",
+    params(
+        ("page" = Option<u32>, Query, description = "Page number"),
+        ("per_page" = Option<u32>, Query, description = "Items per page"),
+        ("channel_id" = Option<u32>, Query, description = "Channel ID filter"),
+        ("genre" = Option<String>, Query, description = "Genre filter"),
+        ("country" = Option<String>, Query, description = "Country filter"),
+        ("year" = Option<String>, Query, description = "Year filter"),
+        ("sort" = Option<String>, Query, description = "Sort order"),
+    ),
+    responses(
+        (status = 200, description = "Filtered items", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn filter_handler(
     State(state): State<MovieBoxRouteState>,
     Query(params): Query<FilterQuery>,
@@ -321,6 +477,17 @@ pub async fn filter_handler(
 
 // ── Info / Search ────────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/info",
+    params(
+        ("path" = String, Query, description = "MovieBox detail path"),
+    ),
+    responses(
+        (status = 200, description = "Detail data for the given path", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn info_handler(
     State(state): State<MovieBoxRouteState>,
     Query(params): Query<InfoQuery>,
@@ -555,6 +722,20 @@ fn moviebox_detail_response(
     })
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/detail",
+    params(
+        ("q" = Option<String>, Query, description = "Search query to resolve a detail path"),
+        ("path" = Option<String>, Query, description = "Direct MovieBox detail path"),
+    ),
+    responses(
+        (status = 200, description = "MovieBox detail with episodes", body = serde_json::Value),
+        (status = 400, description = "Missing q or path"),
+        (status = 404, description = "Detail not found"),
+        (status = 502, description = "Upstream error"),
+    ),
+)]
 pub async fn detail_handler(
     State(state): State<MovieBoxRouteState>,
     Query(params): Query<DetailQuery>,
@@ -624,6 +805,19 @@ pub async fn detail_handler(
     (StatusCode::OK, response.to_string()).into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/moviebox/search",
+    params(
+        ("keyword" = String, Query, description = "Search keyword"),
+        ("page" = Option<u32>, Query, description = "Page number"),
+        ("type" = Option<u32>, Query, description = "Subject type filter"),
+    ),
+    responses(
+        (status = 200, description = "Search results", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn search_handler(
     State(state): State<MovieBoxRouteState>,
     Query(params): Query<SearchQuery>,

@@ -75,4 +75,4 @@ zstd = "0.13"
 
 # Documentation (OpenAPI)
 utoipa = { version = "4", features = ["axum_extras"] }
-utoipa-swagger-ui = { version = "6", features = ["axum"] }
+utoipa-scalar = "0.3"

@@ -5,7 +5,7 @@ use axum::{
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::get,
-    Router,
+    Json, Router,
 };
 use reqwest_middleware::ClientWithMiddleware;
 use std::env;
@@ -16,7 +16,7 @@ use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
-use utoipa_swagger_ui::SwaggerUi;
+use utoipa_scalar::Scalar;
 
 use crate::clients::hitv::HiTvClient;
 use crate::clients::moviebox::MovieBoxClient;
@@ -107,6 +107,22 @@ pub fn xyra_vixsrc_enabled() -> bool {
         .unwrap_or(true)
 }
 
+/// The Xyra fast-path route (`/api/streams/xyra/…`, api.xyra.stream/streamhub)
+/// that the web player races against the main aggregator. When api.xyra.stream
+/// is down it times out (12s) and 504s on every playback, slowing startup and
+/// spamming errors. Set `ENABLE_XYRA_FASTPATH=0` to make the route return an
+/// empty result instantly so the player just uses the aggregator. Default on.
+pub fn xyra_fastpath_enabled() -> bool {
+    env::var("ENABLE_XYRA_FASTPATH")
+        .map(|value| {
+            !matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "0" | "false" | "no" | "off"
+            )
+        })
+        .unwrap_or(true)
+}
+
 /// Force IPv4 egress on the segment proxy. Off by default: a host with a
 /// working IPv6 route (e.g. the production VPS reaching Cloudflare workers)
 /// should use its normal path — pinning to IPv4 there routes segments over a
@@ -145,6 +161,7 @@ pub struct AppState {
     pub aisports: Arc<crate::clients::aisports::AiSportsClient>,
     pub anime_agg: Arc<crate::clients::anime_agg::AnimeAggregator>,
     pub animekill: Arc<crate::clients::animekill::AnimeKillClient>,
+    pub animexin: Arc<crate::clients::animexin::AnimexinClient>,
     pub xyra_subtitle: Arc<XyraSubtitleClient>,
     pub kisskh_xyra: Arc<KissKhXyraClient>,
     pub secret: String,
@@ -340,6 +357,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         vidvault: vidvault_client.clone(),
         anime_agg: anime_agg.clone(),
         animekill: animekill_client.clone(),
+        animexin: Arc::new(crate::clients::animexin::AnimexinClient::new()),
         xyra_subtitle: xyra_subtitle_client,
         kisskh_xyra: kisskh_xyra_client,
         aisports: Arc::new(crate::clients::aisports::AiSportsClient::new(
@@ -374,6 +392,20 @@ pub fn spawn_background_tasks(state: &AppState) {
             tokio::time::sleep(Duration::from_secs(12 * 3600)).await;
         }
     });
+
+    // Background Task: keep the kisskh catalog warm so the common browsing path
+    // never triggers a user-facing CF-proxy hit. Loads the persisted snapshot at
+    // boot (restart-safe), then re-warms hot paths every 3h and re-snapshots.
+    if kisskh_enabled() {
+        let kisskh_bg = state.kisskh.clone();
+        tokio::spawn(async move {
+            kisskh_bg.load_catalog_snapshot().await;
+            loop {
+                kisskh_bg.warm_catalog().await;
+                tokio::time::sleep(Duration::from_secs(3 * 3600)).await;
+            }
+        });
+    }
 
     // governor handles its own key expiration — no manual eviction needed
 }
@@ -444,6 +476,14 @@ pub fn build_router(state: AppState) -> Router {
             get(crate::routes::streams::xyra_streams_handler),
         )
         .route(
+            "/api/streams/animexin/search",
+            get(crate::routes::donghua::animexin_search_handler),
+        )
+        .route(
+            "/api/streams/animekill/search",
+            get(crate::routes::donghua::animekill_search_handler),
+        )
+        .route(
             "/api/streams/:type/:tmdbId/live",
             get(crate::routes::sse::sse_streams_handler),
         )
@@ -490,6 +530,18 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/drama/kisskh/top-rating",
             get(crate::routes::drama::kisskh_top_rating_handler),
+        )
+        .route(
+            "/api/drama/kisskh/most-view",
+            get(crate::routes::drama::kisskh_most_view_handler),
+        )
+        .route(
+            "/api/drama/kisskh/last-update",
+            get(crate::routes::drama::kisskh_last_update_handler),
+        )
+        .route(
+            "/api/drama/kisskh/detail/:id",
+            get(crate::routes::drama::kisskh_detail_handler),
         )
         .route(
             "/api/drama/kisskh/streams/:id/:episode",
@@ -812,10 +864,8 @@ pub fn build_router(state: AppState) -> Router {
             "/api/auth/token",
             get(crate::routes::system::auth_token_handler),
         )
-        .merge(
-            SwaggerUi::new("/api/docs")
-                .url("/api/docs/openapi.json", crate::openapi::ApiDoc::openapi()),
-        )
+        .route("/api/docs", get(scalar_docs_handler))
+        .route("/api/docs/openapi.json", get(scalar_spec_handler))
         .layer(TraceLayer::new_for_http())
         .layer(CompressionLayer::new())
         .layer(middleware::from_fn(hue_anon_middleware))
@@ -832,6 +882,50 @@ pub fn build_router(state: AppState) -> Router {
         .with_state(state)
 }
 
+/// Scalar API reference UI. Renders the same OpenAPI spec that
+/// Swagger UI consumed, served at the same path (`/api/docs`). The
+/// spec is inlined into the HTML at `to_html()` time (Scalar reads it
+/// from `<script id="api-reference">…`), so the page is self-contained.
+/// The raw spec JSON is also served at `/api/docs/openapi.json` for
+/// tooling (Postman, code-gen, curl).
+#[allow(dead_code)] // route registration reads this; clippy doesn't see that
+#[utoipa::path(
+    get,
+    path = "/api/docs",
+    responses(
+        (status = 200, description = "Scalar API reference HTML", content_type = "text/html"),
+    ),
+)]
+pub async fn scalar_docs_handler() -> impl IntoResponse {
+    let spec: serde_json::Value =
+        serde_json::to_value(crate::openapi::ApiDoc::openapi())
+            .expect("ApiDoc is always serializable");
+    let html = Scalar::new(spec).to_html();
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        html,
+    )
+}
+
+/// Raw OpenAPI spec JSON for tooling. Same payload Scalar inlines into
+/// the HTML; kept as a dedicated endpoint so Postman, openapi-generator,
+/// etc. can pull it without parsing the HTML page.
+#[allow(dead_code)]
+#[utoipa::path(
+    get,
+    path = "/api/docs/openapi.json",
+    responses(
+        (status = 200, description = "OpenAPI 3 spec as JSON", content_type = "application/json"),
+    ),
+)]
+pub async fn scalar_spec_handler() -> impl IntoResponse {
+    let spec: serde_json::Value =
+        serde_json::to_value(crate::openapi::ApiDoc::openapi())
+            .expect("ApiDoc is always serializable");
+    Json(spec)
+}
+
 async fn auth_middleware(
     State(state): State<AppState>,
     req: Request<Body>,
@@ -846,6 +940,8 @@ async fn auth_middleware(
         || path == "/sub-proxy"
         || path == "/storage/enc.key"
         || path == "/api/auth/token"
+        || path == "/api/docs"
+        || path.starts_with("/api/docs/")
     {
         return Ok(next.run(req).await);
     }

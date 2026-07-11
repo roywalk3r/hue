@@ -719,6 +719,13 @@ pub async fn xyra_streams_handler(
     Path((m_type, tmdb_id)): Path<(String, String)>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
+    // Fail fast when the fast-path is disabled (e.g. api.xyra.stream is down):
+    // return an empty result so the player's race resolves instantly and falls
+    // through to the main aggregator, instead of hanging 12s → 504 every load.
+    if !crate::app::xyra_fastpath_enabled() {
+        return axum::Json(serde_json::json!({ "streams": [] })).into_response();
+    }
+
     let season = params
         .get("season")
         .and_then(|s| s.parse::<u32>().ok())

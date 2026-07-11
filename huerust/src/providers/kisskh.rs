@@ -82,14 +82,35 @@ pub struct KissKhClient {
     catalog_cache: moka::future::Cache<String, String>,
 }
 
+/// Whether a kisskh Video/ThirdParty URL is an actual playable stream rather
+/// than a placeholder. Unreleased episodes return a countdown-widget URL
+/// (tickcounter.com) instead of a video; those must not reach the player.
+fn is_playable_video_url(url: &str) -> bool {
+    let u = url.to_ascii_lowercase();
+    if u.contains("tickcounter.com") || u.contains("/widget/") {
+        return false;
+    }
+    // Real kisskh streams are HLS/MP4 on its video CDNs.
+    u.contains(".m3u8") || u.contains(".mp4") || u.contains("cdnvideo") || u.contains("hakunay")
+}
+
 /// TTL for cached kisskh catalog responses. Catalog data changes slowly (new
-/// episodes hourly at most), so a generous default keeps proxy/upstream load
-/// negligible. Override with `KISSKH_CATALOG_TTL_SECS`.
+/// episodes hourly at most), so a generous default (6h) keeps proxy/upstream
+/// load negligible. Override with `KISSKH_CATALOG_TTL_SECS`.
 fn catalog_ttl_secs() -> u64 {
     std::env::var("KISSKH_CATALOG_TTL_SECS")
         .ok()
         .and_then(|v| v.trim().parse().ok())
-        .unwrap_or(1800)
+        .unwrap_or(21600)
+}
+
+/// Where the catalog cache is snapshotted so it survives restarts (no cold-start
+/// proxy stampede on deploy). Relative to CWD; override with `KISSKH_CATALOG_FILE`.
+fn catalog_snapshot_path() -> String {
+    std::env::var("KISSKH_CATALOG_FILE")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "data/kisskh-catalog.json".to_string())
 }
 
 impl KissKhClient {
@@ -115,10 +136,78 @@ impl KissKhClient {
             common_js_cache: Mutex::new(None),
             cookie_header: Mutex::new(cookie_header),
             catalog_cache: moka::future::Cache::builder()
-                .max_capacity(512)
+                .max_capacity(5000)
                 .time_to_live(Duration::from_secs(catalog_ttl_secs()))
                 .build(),
         }
+    }
+
+    /// Load a previously-snapshotted catalog cache from disk into memory. Called
+    /// once at boot so a restart doesn't cold-start (which would stampede the CF
+    /// proxy pool as user traffic re-populates every key).
+    pub async fn load_catalog_snapshot(&self) {
+        let path = catalog_snapshot_path();
+        let raw = match std::fs::read_to_string(&path) {
+            Ok(r) => r,
+            Err(_) => return,
+        };
+        let map: std::collections::HashMap<String, String> = match serde_json::from_str(&raw) {
+            Ok(m) => m,
+            Err(e) => {
+                warn!("[KissKH] catalog snapshot {} unreadable: {}", path, e);
+                return;
+            }
+        };
+        let n = map.len();
+        for (k, v) in map {
+            self.catalog_cache.insert(k, v).await;
+        }
+        info!("[KissKH] loaded {} catalog entries from {}", n, path);
+    }
+
+    /// Snapshot the live catalog cache to disk (write-through the whole map).
+    pub async fn snapshot_catalog(&self) {
+        self.catalog_cache.run_pending_tasks().await;
+        let map: std::collections::HashMap<String, String> = self
+            .catalog_cache
+            .iter()
+            .map(|(k, v)| ((*k).clone(), v))
+            .collect();
+        if map.is_empty() {
+            return;
+        }
+        let path = catalog_snapshot_path();
+        if let Some(dir) = std::path::Path::new(&path).parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        match serde_json::to_string(&map) {
+            Ok(json) => {
+                if let Err(e) = std::fs::write(&path, json) {
+                    warn!("[KissKH] failed to write catalog snapshot {}: {}", path, e);
+                } else {
+                    info!("[KissKH] snapshotted {} catalog entries to {}", map.len(), path);
+                }
+            }
+            Err(e) => warn!("[KissKH] failed to serialize catalog snapshot: {}", e),
+        }
+    }
+
+    /// Pre-fetch the hot catalog paths (home shelves + first pages of the popular
+    /// filters) so the common browsing path is always cache-warm and never
+    /// triggers a user-facing proxy hit. Then persist the snapshot. Bounded to a
+    /// handful of requests, independent of how much users scroll.
+    pub async fn warm_catalog(&self) {
+        let _ = self.get_show_list().await;
+        // Countries the home + region shelves hit: all, China, Korea, Japan, Thailand.
+        for country in [0u32, 1, 2, 3, 5] {
+            for page in [1u32, 2] {
+                let _ = self.get_list(page, 28, 0, 0, country, 0, 2).await;
+            }
+        }
+        // Recently-updated (order=1) and Upcoming (status=3) shelves, page 1.
+        let _ = self.get_list(1, 28, 0, 0, 0, 0, 1).await;
+        let _ = self.get_list(1, 28, 0, 0, 0, 3, 2).await;
+        self.snapshot_catalog().await;
     }
 
     /// Try to load cookies written by the Node.js Playwright refresh script.
@@ -429,21 +518,28 @@ console.log(token);
                 // ── Video CDN first ──────────────────────────────────────────────
                 // ThirdParty URLs (e.g. dwish.pro) now require browser fingerprinting
                 // and return HTML instead of HLS. Video CDN works reliably.
+                //
+                // Unreleased/upcoming episodes have no video yet: kisskh returns a
+                // countdown-widget URL (tickcounter.com) in the Video field. Only
+                // accept URLs that actually look like a playable stream, so those
+                // placeholders don't reach the player (where they 502 in a loop).
                 if let Some(video_url) = data.video {
-                    results.push(StreamResult {
-                        url: video_url,
-                        title: "Zenith - Auto".to_string(),
-                        quality: "Auto".to_string(),
-                        provider: "Zenith".to_string(),
-                        format: "hls".to_string(),
-                        subtitles: subs.clone(),
-                        headers: Some(headers.clone()),
-                        extra_metadata: None,
-                    });
+                    if is_playable_video_url(&video_url) {
+                        results.push(StreamResult {
+                            url: video_url,
+                            title: "Zenith - Auto".to_string(),
+                            quality: "Auto".to_string(),
+                            provider: "Zenith".to_string(),
+                            format: "hls".to_string(),
+                            subtitles: subs.clone(),
+                            headers: Some(headers.clone()),
+                            extra_metadata: None,
+                        });
+                    }
                 }
                 // Only include ThirdParty if it's from a known-good CDN (not dwish.pro)
                 if let Some(third_party_url) = data.third_party {
-                    if !third_party_url.contains("dwish.pro") {
+                    if is_playable_video_url(&third_party_url) && !third_party_url.contains("dwish.pro") {
                         results.push(StreamResult {
                             url: third_party_url,
                             title: "Zenith - Auto (ThirdParty)".to_string(),
@@ -481,6 +577,7 @@ console.log(token);
     pub async fn get_list(
         &self,
         page: u32,
+        page_size: u32,
         type_: u32,
         sub: u32,
         country: u32,
@@ -488,17 +585,19 @@ console.log(token);
         order: u32,
     ) -> Result<serde_json::Value> {
         let ck = format!(
-            "list:{}:{}:{}:{}:{}:{}",
-            page, type_, sub, country, status, order
+            "list:{}:{}:{}:{}:{}:{}:{}",
+            page, page_size, type_, sub, country, status, order
         );
         if let Some(s) = self.catalog_cache.get(&ck).await {
             if let Ok(v) = serde_json::from_str(&s) {
                 return Ok(v);
             }
         }
+        // kisskh honors &pageSize (unlike limit/size/perPage). Forwarding it lets
+        // the grid pull a full page in one request instead of 10 at a time.
         let url = format!(
-            "{}/DramaList/List?page={}&type={}&sub={}&country={}&status={}&order={}",
-            API_BASE, page, type_, sub, country, status, order
+            "{}/DramaList/List?page={}&pageSize={}&type={}&sub={}&country={}&status={}&order={}",
+            API_BASE, page, page_size, type_, sub, country, status, order
         );
         let resp = self.get(&url).send().await?;
         let data = resp.json::<serde_json::Value>().await?;
@@ -540,10 +639,54 @@ console.log(token);
         Ok(data)
     }
 
+    /// Most-viewed titles for a country code (c=1 China, c=2 Korea, …). Powers
+    /// the "Top C-Drama" / "Top K-Drama" home shelves.
+    pub async fn get_most_view(&self, country: u32) -> Result<Vec<serde_json::Value>> {
+        let ck = format!("most_view:{}", country);
+        if let Some(s) = self.catalog_cache.get(&ck).await {
+            if let Ok(v) = serde_json::from_str(&s) {
+                return Ok(v);
+            }
+        }
+        let url = format!("{}/DramaList/MostView?ispc=true&c={}", API_BASE, country);
+        let resp = self.get(&url).send().await?;
+        let data = resp.json::<Vec<serde_json::Value>>().await?;
+        if let Ok(s) = serde_json::to_string(&data) {
+            self.catalog_cache.insert(ck, s).await;
+        }
+        Ok(data)
+    }
+
+    /// Recently-updated titles (the "Last Update" home shelf).
+    pub async fn get_last_update(&self) -> Result<Vec<serde_json::Value>> {
+        let ck = "last_update";
+        if let Some(s) = self.catalog_cache.get(ck).await {
+            if let Ok(v) = serde_json::from_str(&s) {
+                return Ok(v);
+            }
+        }
+        let url = format!("{}/DramaList/LastUpdate?ispc=true", API_BASE);
+        let resp = self.get(&url).send().await?;
+        let data = resp.json::<Vec<serde_json::Value>>().await?;
+        if let Ok(s) = serde_json::to_string(&data) {
+            self.catalog_cache.insert(ck.to_string(), s).await;
+        }
+        Ok(data)
+    }
+
     pub async fn get_detail(&self, id: u64) -> Result<serde_json::Value> {
+        let ck = format!("detail:{}", id);
+        if let Some(s) = self.catalog_cache.get(&ck).await {
+            if let Ok(v) = serde_json::from_str(&s) {
+                return Ok(v);
+            }
+        }
         let url = format!("{}/DramaList/Drama/{}?isq=false", API_BASE, id);
         let resp = self.get(&url).send().await?;
         let data = resp.json::<serde_json::Value>().await?;
+        if let Ok(s) = serde_json::to_string(&data) {
+            self.catalog_cache.insert(ck, s).await;
+        }
         Ok(data)
     }
 }

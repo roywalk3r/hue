@@ -927,7 +927,7 @@ pub async fn sse_streams_handler(
 /// Fire-and-forget cache warmer. Called during browse / search so that by the
 /// time the user clicks Play the cache is already hot. Returns 202 immediately
 /// and spawns the same aggregation logic in the background.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ReportFailureBody {
     provider: String,
     #[allow(dead_code)]
@@ -959,6 +959,19 @@ fn sticky_failures() -> &'static std::sync::Mutex<StickyFailureMap> {
 /// the backend so we stop sticking this user to that provider and penalize it
 /// in the circuit breaker. This short-circuits the ~6s fail-over window the user
 /// otherwise waits through.
+#[utoipa::path(
+    post,
+    path = "/api/streams/{type}/{tmdbId}/report-failure",
+    params(
+        ("type" = String, Path, description = "Content type: movie or tv"),
+        ("tmdbId" = String, Path, description = "TMDB ID"),
+    ),
+    request_body = ReportFailureBody,
+    responses(
+        (status = 204, description = "Failure recorded"),
+        (status = 400, description = "Invalid body"),
+    ),
+)]
 pub async fn report_failure_handler(
     State(state): State<StreamState>,
     Path((m_type, tmdb_id)): Path<(String, String)>,
@@ -1066,6 +1079,20 @@ pub async fn report_failure_handler(
     StatusCode::NO_CONTENT
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/warm/{type}/{tmdbId}",
+    params(
+        ("type" = String, Path, description = "Content type: movie or tv"),
+        ("tmdbId" = String, Path, description = "TMDB ID"),
+        ("season" = Option<String>, Query, description = "Season number (tv only); defaults to 1"),
+        ("episode" = Option<String>, Query, description = "Episode number (tv only); defaults to 1"),
+    ),
+    responses(
+        (status = 200, description = "Cache already warm"),
+        (status = 202, description = "Cache warming kicked off in background"),
+    ),
+)]
 pub async fn warm_handler(
     State(state): State<StreamState>,
     Path((m_type, tmdb_id)): Path<(String, String)>,

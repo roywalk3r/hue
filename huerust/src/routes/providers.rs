@@ -17,7 +17,7 @@ use utoipa::ToSchema;
 use crate::app::ProvidersState;
 
 #[derive(Serialize, ToSchema)]
-struct ProviderInfo {
+pub struct ProviderInfo {
     name: &'static str,
     real_name: &'static str,
     is_fast: bool,

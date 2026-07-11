@@ -17,14 +17,14 @@ use std::collections::HashMap;
 use crate::app::TmdbState;
 use crate::clients::tmdb::TmdbNormalizedInfo;
 
-#[derive(Serialize)]
-struct TmdbListResponse {
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct TmdbListResponse {
     success: bool,
     items: Vec<TmdbNormalizedInfo>,
 }
 
-#[derive(Serialize)]
-struct TmdbHomeResponse {
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct TmdbHomeResponse {
     success: bool,
     shelves: HashMap<String, Vec<TmdbNormalizedInfo>>,
 }
@@ -85,6 +85,17 @@ fn error_response() -> Response {
         .into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/tmdb/home",
+    params(
+        ("type" = Option<String>, Query, description = "Media type: 'movie' (default) or 'tv'"),
+    ),
+    responses(
+        (status = 200, description = "Grouped home shelves", body = TmdbHomeResponse),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn home_handler(
     State(state): State<TmdbState>,
     Query(params): Query<HomeQuery>,
@@ -159,6 +170,17 @@ pub async fn home_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/tmdb/movie/popular",
+    params(
+        ("page" = Option<u32>, Query, description = "Page number (default 1)"),
+    ),
+    responses(
+        (status = 200, description = "Popular movies", body = TmdbListResponse),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn movie_popular_handler(
     State(state): State<TmdbState>,
     Query(params): Query<PageQuery>,
@@ -169,6 +191,17 @@ pub async fn movie_popular_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/tmdb/movie/top-rated",
+    params(
+        ("page" = Option<u32>, Query, description = "Page number (default 1)"),
+    ),
+    responses(
+        (status = 200, description = "Top rated movies", body = TmdbListResponse),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn movie_top_rated_handler(
     State(state): State<TmdbState>,
     Query(params): Query<PageQuery>,
@@ -179,6 +212,17 @@ pub async fn movie_top_rated_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/tmdb/movie/now-playing",
+    params(
+        ("page" = Option<u32>, Query, description = "Page number (default 1)"),
+    ),
+    responses(
+        (status = 200, description = "Now playing movies", body = TmdbListResponse),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn movie_now_playing_handler(
     State(state): State<TmdbState>,
     Query(params): Query<PageQuery>,
@@ -189,6 +233,17 @@ pub async fn movie_now_playing_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/tmdb/tv/popular",
+    params(
+        ("page" = Option<u32>, Query, description = "Page number (default 1)"),
+    ),
+    responses(
+        (status = 200, description = "Popular TV shows", body = TmdbListResponse),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn tv_popular_handler(
     State(state): State<TmdbState>,
     Query(params): Query<PageQuery>,
@@ -199,6 +254,17 @@ pub async fn tv_popular_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/tmdb/tv/top-rated",
+    params(
+        ("page" = Option<u32>, Query, description = "Page number (default 1)"),
+    ),
+    responses(
+        (status = 200, description = "Top rated TV shows", body = TmdbListResponse),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn tv_top_rated_handler(
     State(state): State<TmdbState>,
     Query(params): Query<PageQuery>,
@@ -209,6 +275,17 @@ pub async fn tv_top_rated_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/tmdb/tv/on-the-air",
+    params(
+        ("page" = Option<u32>, Query, description = "Page number (default 1)"),
+    ),
+    responses(
+        (status = 200, description = "On the air TV shows", body = TmdbListResponse),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn tv_on_the_air_handler(
     State(state): State<TmdbState>,
     Query(params): Query<PageQuery>,
@@ -219,6 +296,18 @@ pub async fn tv_on_the_air_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/tmdb/trending",
+    params(
+        ("type" = Option<String>, Query, description = "Media type: 'movie' (default) or 'tv'"),
+        ("page" = Option<u32>, Query, description = "Page number (default 1)"),
+    ),
+    responses(
+        (status = 200, description = "Trending items", body = TmdbListResponse),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn trending_handler(
     State(state): State<TmdbState>,
     Query(params): Query<TrendingQuery>,
@@ -230,6 +319,20 @@ pub async fn trending_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/tmdb/discover",
+    params(
+        ("type" = Option<String>, Query, description = "Media type: 'movie' (default) or 'tv'"),
+        ("genre" = Option<String>, Query, description = "Genre id (required)"),
+        ("page" = Option<u32>, Query, description = "Page number (default 1)"),
+    ),
+    responses(
+        (status = 200, description = "Discovered items", body = TmdbListResponse),
+        (status = 400, description = "Missing 'genre' parameter"),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn discover_handler(
     State(state): State<TmdbState>,
     Query(params): Query<DiscoverQuery>,
@@ -249,6 +352,19 @@ pub async fn discover_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/tmdb/search",
+    params(
+        ("q" = String, Query, description = "Search query"),
+        ("type" = Option<String>, Query, description = "Media type: 'movie' (default) or 'tv'"),
+        ("year" = Option<u32>, Query, description = "Release/first-air year filter"),
+    ),
+    responses(
+        (status = 200, description = "Search results", body = TmdbListResponse),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn search_handler(
     State(state): State<TmdbState>,
     Query(params): Query<SearchQuery>,

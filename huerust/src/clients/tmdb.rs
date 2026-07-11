@@ -42,7 +42,7 @@ pub struct TmdbTvInfo {
     pub external_ids: Option<ExternalIds>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct TmdbNormalizedInfo {
     pub id: u64,
     pub title: String,

@@ -186,6 +186,17 @@ pub struct DetailRecQuery {
 
 // ── KissKH ─────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/kisskh/search",
+    params(
+        ("q" = String, Query, description = "Search keyword"),
+    ),
+    responses(
+        (status = 200, description = "Search results", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn kisskh_search_handler(
     State(state): State<DramaState>,
     Query(params): Query<SearchQuery>,
@@ -216,6 +227,18 @@ pub struct KissKhStreamsQuery {
     pub title: Option<String>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/kisskh/streams/{id}/{episode}",
+    params(
+        ("id" = String, Path, description = "KissKH show id (numeric) or title slug"),
+        ("episode" = u32, Path, description = "Episode number"),
+        ("title" = Option<String>, Query, description = "Optional title fallback when id is non-numeric"),
+    ),
+    responses(
+        (status = 200, description = "Stream results (possibly empty array)", body = serde_json::Value),
+    ),
+)]
 pub async fn kisskh_streams_handler(
     State(state): State<DramaState>,
     headers: HeaderMap,
@@ -243,6 +266,101 @@ pub async fn kisskh_streams_handler(
     }
 }
 
+#[derive(Deserialize)]
+pub struct KissKhMostViewQuery {
+    pub c: Option<u32>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/drama/kisskh/most-view",
+    params(
+        ("c" = Option<u32>, Query, description = "Country code filter"),
+    ),
+    responses(
+        (status = 200, description = "Most-viewed shows", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
+pub async fn kisskh_most_view_handler(
+    State(state): State<DramaState>,
+    Query(params): Query<KissKhMostViewQuery>,
+) -> Response {
+    if !kisskh_enabled() {
+        return kisskh_disabled_response();
+    }
+    let country = params.c.unwrap_or(0);
+    tracing::info!("[drama] kisskh_most_view: c={}", country);
+    match state.kisskh.get_most_view(country).await {
+        Ok(items) => (StatusCode::OK, Json(items)).into_response(),
+        Err(e) => {
+            tracing::warn!("[drama] kisskh_most_view error (c={}): {}", country, e);
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/drama/kisskh/last-update",
+    responses(
+        (status = 200, description = "Recently updated shows", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
+pub async fn kisskh_last_update_handler(State(state): State<DramaState>) -> Response {
+    if !kisskh_enabled() {
+        return kisskh_disabled_response();
+    }
+    tracing::info!("[drama] kisskh_last_update");
+    match state.kisskh.get_last_update().await {
+        Ok(items) => (StatusCode::OK, Json(items)).into_response(),
+        Err(e) => {
+            tracing::warn!("[drama] kisskh_last_update error: {}", e);
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/drama/kisskh/detail/{id}",
+    params(
+        ("id" = u64, Path, description = "KissKH show id"),
+    ),
+    responses(
+        (status = 200, description = "Show detail", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
+pub async fn kisskh_detail_handler(
+    State(state): State<DramaState>,
+    Path(id): Path<u64>,
+) -> Response {
+    if !kisskh_enabled() {
+        return kisskh_disabled_response();
+    }
+    tracing::info!("[drama] kisskh_detail: id={}", id);
+    match state.kisskh.get_detail(id).await {
+        Ok(data) => (StatusCode::OK, Json(data)).into_response(),
+        Err(e) => {
+            tracing::warn!("[drama] kisskh_detail error for {}: {}", id, e);
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/drama/kisskh/show",
+    responses(
+        (status = 200, description = "Curated show list", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn kisskh_show_handler(State(state): State<DramaState>) -> Response {
     if !kisskh_enabled() {
         return kisskh_disabled_response();
@@ -261,6 +379,23 @@ pub async fn kisskh_show_handler(State(state): State<DramaState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/kisskh/browse",
+    params(
+        ("page" = Option<u32>, Query, description = "Page number"),
+        ("page_size" = Option<u32>, Query, description = "Items per page (clamped 1-60)"),
+        ("content_type" = Option<u32>, Query, description = "Content type filter"),
+        ("sub" = Option<u32>, Query, description = "Subtitle filter"),
+        ("country" = Option<u32>, Query, description = "Country filter"),
+        ("status" = Option<u32>, Query, description = "Status filter"),
+        ("order" = Option<u32>, Query, description = "Order (default 2)"),
+    ),
+    responses(
+        (status = 200, description = "Browse page", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn kisskh_browse_handler(
     State(state): State<DramaState>,
     Query(params): Query<KissKhBrowseQuery>,
@@ -269,17 +404,18 @@ pub async fn kisskh_browse_handler(
         return kisskh_disabled_response();
     }
     let page = params.page.unwrap_or(1);
-    let _page_size = params.page_size.unwrap_or(28);
+    // Clamp to a sane range; kisskh honors &pageSize so this controls grid density.
+    let page_size = params.page_size.unwrap_or(28).clamp(1, 60);
     let content_type = params.content_type.unwrap_or(0);
     let sub = params.sub.unwrap_or(0);
     let country = params.country.unwrap_or(0);
     let status = params.status.unwrap_or(0);
     let order = params.order.unwrap_or(2);
 
-    tracing::info!("[drama] kisskh_browse: page={}", page);
+    tracing::info!("[drama] kisskh_browse: page={} size={}", page, page_size);
     match state
         .kisskh
-        .get_list(page, content_type, sub, country, status, order)
+        .get_list(page, page_size, content_type, sub, country, status, order)
         .await
     {
         Ok(data) => {
@@ -294,6 +430,14 @@ pub async fn kisskh_browse_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/kisskh/upcoming",
+    responses(
+        (status = 200, description = "Upcoming shows", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn kisskh_upcoming_handler(State(state): State<DramaState>) -> Response {
     if !kisskh_enabled() {
         return kisskh_disabled_response();
@@ -312,6 +456,14 @@ pub async fn kisskh_upcoming_handler(State(state): State<DramaState>) -> Respons
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/kisskh/top-rating",
+    responses(
+        (status = 200, description = "Top-rated shows", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn kisskh_top_rating_handler(State(state): State<DramaState>) -> Response {
     if !kisskh_enabled() {
         return kisskh_disabled_response();
@@ -332,6 +484,17 @@ pub async fn kisskh_top_rating_handler(State(state): State<DramaState>) -> Respo
 
 // ── Dramacool ──────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/dramacool/search",
+    params(
+        ("q" = String, Query, description = "Search keyword"),
+    ),
+    responses(
+        (status = 200, description = "Search results", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn dramacool_search_handler(
     State(state): State<DramaState>,
     Query(params): Query<SearchQuery>,
@@ -350,6 +513,18 @@ pub async fn dramacool_search_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/dramacool/streams/{id}/{episode}",
+    params(
+        ("id" = String, Path, description = "Dramacool show id"),
+        ("episode" = u32, Path, description = "Episode number"),
+    ),
+    responses(
+        (status = 200, description = "Stream results", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn dramacool_streams_handler(
     State(state): State<DramaState>,
     headers: HeaderMap,
@@ -378,6 +553,17 @@ pub async fn dramacool_streams_handler(
 
 // ── KissKH (xyra) ─────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/kisskh_xyra/search",
+    params(
+        ("q" = String, Query, description = "Search keyword"),
+    ),
+    responses(
+        (status = 200, description = "Search results", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn kisskh_xyra_search_handler(
     State(state): State<DramaState>,
     Query(params): Query<SearchQuery>,
@@ -396,6 +582,17 @@ pub async fn kisskh_xyra_search_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/kisskh_xyra/streams/{id}/{episode}",
+    params(
+        ("id" = String, Path, description = "KissKH Xyra show id"),
+        ("episode" = u32, Path, description = "Episode number"),
+    ),
+    responses(
+        (status = 200, description = "Stream results (possibly empty array)", body = serde_json::Value),
+    ),
+)]
 pub async fn kisskh_xyra_streams_handler(
     State(state): State<DramaState>,
     headers: HeaderMap,
@@ -421,6 +618,13 @@ pub async fn kisskh_xyra_streams_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/kisskh_xyra/home",
+    responses(
+        (status = 200, description = "Home payload", body = serde_json::Value),
+    ),
+)]
 pub async fn kisskh_xyra_home_handler(State(state): State<DramaState>) -> Response {
     tracing::info!("[drama] kisskh_xyra_home");
     match state.kisskh_xyra.home().await {
@@ -434,6 +638,17 @@ pub async fn kisskh_xyra_home_handler(State(state): State<DramaState>) -> Respon
 
 // ── KissAsian ──────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/kissasian/search",
+    params(
+        ("q" = String, Query, description = "Search keyword"),
+    ),
+    responses(
+        (status = 200, description = "Search results", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn kissasian_search_handler(
     State(state): State<DramaState>,
     Query(params): Query<SearchQuery>,
@@ -454,6 +669,17 @@ pub async fn kissasian_search_handler(
 
 // ── KissAsian (kissasian.top) ──────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/kissasian_top/search",
+    params(
+        ("q" = String, Query, description = "Search keyword"),
+    ),
+    responses(
+        (status = 200, description = "Search results", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn kissasian_top_search_handler(
     State(state): State<DramaState>,
     Query(params): Query<SearchQuery>,
@@ -480,6 +706,20 @@ pub struct KATopBrowseQuery {
     pub country: Option<String>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/kissasian_top/browse",
+    params(
+        ("page" = Option<u32>, Query, description = "Page number"),
+        ("per_page" = Option<u32>, Query, description = "Items per page (default 28)"),
+        ("kind" = Option<String>, Query, description = "Kind filter"),
+        ("country" = Option<String>, Query, description = "Country filter"),
+    ),
+    responses(
+        (status = 200, description = "Browse items", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn kissasian_top_browse_handler(
     State(state): State<DramaState>,
     Query(params): Query<KATopBrowseQuery>,
@@ -515,6 +755,18 @@ pub async fn kissasian_top_browse_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/kissasian_top/info/{slug}",
+    params(
+        ("slug" = String, Path, description = "Show slug"),
+    ),
+    responses(
+        (status = 200, description = "Show info", body = serde_json::Value),
+        (status = 404, description = "Not found"),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn kissasian_top_info_handler(
     State(state): State<DramaState>,
     Path(slug): Path<String>,
@@ -535,6 +787,18 @@ pub async fn kissasian_top_info_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/kissasian_top/streams/{slug}/{episode}",
+    params(
+        ("slug" = String, Path, description = "Show slug"),
+        ("episode" = u32, Path, description = "Episode number"),
+    ),
+    responses(
+        (status = 200, description = "Stream results", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn kissasian_top_streams_handler(
     State(state): State<DramaState>,
     headers: HeaderMap,
@@ -565,6 +829,18 @@ pub async fn kissasian_top_streams_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/kissasian/streams/{id}/{episode}",
+    params(
+        ("id" = String, Path, description = "Show slug/id"),
+        ("episode" = u32, Path, description = "Episode number"),
+    ),
+    responses(
+        (status = 200, description = "Stream results", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn kissasian_streams_handler(
     State(state): State<DramaState>,
     headers: HeaderMap,
@@ -589,6 +865,21 @@ pub async fn kissasian_streams_handler(
 
 // ── MovieBox ───────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/moviebox/browse",
+    params(
+        ("page" = Option<u32>, Query, description = "Page number"),
+        ("per_page" = Option<u32>, Query, description = "Items per page (default 28)"),
+        ("country" = Option<String>, Query, description = "Country filter"),
+        ("sort" = Option<String>, Query, description = "Sort key"),
+        ("channel_id" = Option<u32>, Query, description = "Channel id"),
+    ),
+    responses(
+        (status = 200, description = "Browse rails", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn moviebox_browse_handler(
     State(state): State<DramaState>,
     Query(params): Query<MovieBoxBrowseQuery>,
@@ -623,6 +914,19 @@ pub async fn moviebox_browse_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/moviebox/search",
+    params(
+        ("q" = String, Query, description = "Search keyword"),
+        ("page" = Option<u32>, Query, description = "Page number"),
+        ("subject_type" = Option<u32>, Query, description = "Subject type (default 2)"),
+    ),
+    responses(
+        (status = 200, description = "Search results", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn moviebox_search_handler(
     State(state): State<DramaState>,
     Query(params): Query<MovieBoxSearchQuery>,
@@ -648,6 +952,18 @@ pub async fn moviebox_search_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/moviebox/streams/{title}/{episode}",
+    params(
+        ("title" = String, Path, description = "Title slug"),
+        ("episode" = u32, Path, description = "Episode number"),
+    ),
+    responses(
+        (status = 200, description = "Stream results", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn moviebox_streams_handler(
     State(state): State<DramaState>,
     headers: HeaderMap,
@@ -674,6 +990,22 @@ pub async fn moviebox_streams_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/moviebox/streams-direct",
+    params(
+        ("detail_path" = String, Query, description = "MovieBox detail path"),
+        ("episode" = Option<u32>, Query, description = "Episode number (default 1)"),
+        ("subject_id" = Option<String>, Query, description = "Optional subject id to skip detail lookup"),
+        ("media_type" = Option<String>, Query, description = "Media type override ('movie' or 'tv')"),
+    ),
+    responses(
+        (status = 200, description = "Stream results", body = serde_json::Value),
+        (status = 400, description = "Missing detail_path"),
+        (status = 404, description = "Subject not found"),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn moviebox_streams_direct_handler(
     State(state): State<DramaState>,
     headers: HeaderMap,
@@ -802,6 +1134,18 @@ pub async fn moviebox_streams_direct_handler(
 
 // ── Unified Detail ─────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/detail",
+    params(
+        ("q" = String, Query, description = "Title to look up"),
+        ("id" = Option<String>, Query, description = "Optional existing show id"),
+    ),
+    responses(
+        (status = 200, description = "Unified detail payload", body = serde_json::Value),
+        (status = 404, description = "No detail found"),
+    ),
+)]
 pub async fn drama_detail_handler(
     State(state): State<DramaState>,
     Query(params): Query<DetailQuery>,
@@ -1006,6 +1350,19 @@ pub async fn drama_detail_handler(
 
 // ── MovieBox Detail Rec ──────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/drama/moviebox/detail-rec",
+    params(
+        ("id" = String, Query, description = "Subject id to fetch recommendations for"),
+        ("page" = Option<u32>, Query, description = "Page number (default 1)"),
+        ("per_page" = Option<u32>, Query, description = "Items per page (default 12)"),
+    ),
+    responses(
+        (status = 200, description = "Recommended items", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn moviebox_detail_rec_handler(
     State(state): State<DramaState>,
     Query(params): Query<DetailRecQuery>,
