@@ -85,6 +85,18 @@ pub struct KissKhClient {
 /// TTL for cached kisskh catalog responses. Catalog data changes slowly (new
 /// episodes hourly at most), so a generous default keeps proxy/upstream load
 /// negligible. Override with `KISSKH_CATALOG_TTL_SECS`.
+/// Whether a kisskh Video/ThirdParty URL is an actual playable stream rather
+/// than a placeholder. Unreleased episodes return a countdown-widget URL
+/// (tickcounter.com) instead of a video; those must not reach the player.
+fn is_playable_video_url(url: &str) -> bool {
+    let u = url.to_ascii_lowercase();
+    if u.contains("tickcounter.com") || u.contains("/widget/") {
+        return false;
+    }
+    // Real kisskh streams are HLS/MP4 on its video CDNs.
+    u.contains(".m3u8") || u.contains(".mp4") || u.contains("cdnvideo") || u.contains("hakunay")
+}
+
 fn catalog_ttl_secs() -> u64 {
     std::env::var("KISSKH_CATALOG_TTL_SECS")
         .ok()
@@ -429,21 +441,28 @@ console.log(token);
                 // ── Video CDN first ──────────────────────────────────────────────
                 // ThirdParty URLs (e.g. dwish.pro) now require browser fingerprinting
                 // and return HTML instead of HLS. Video CDN works reliably.
+                //
+                // Unreleased/upcoming episodes have no video yet: kisskh returns a
+                // countdown-widget URL (tickcounter.com) in the Video field. Only
+                // accept URLs that actually look like a playable stream, so those
+                // placeholders don't reach the player (where they 502 in a loop).
                 if let Some(video_url) = data.video {
-                    results.push(StreamResult {
-                        url: video_url,
-                        title: "Zenith - Auto".to_string(),
-                        quality: "Auto".to_string(),
-                        provider: "Zenith".to_string(),
-                        format: "hls".to_string(),
-                        subtitles: subs.clone(),
-                        headers: Some(headers.clone()),
-                        extra_metadata: None,
-                    });
+                    if is_playable_video_url(&video_url) {
+                        results.push(StreamResult {
+                            url: video_url,
+                            title: "Zenith - Auto".to_string(),
+                            quality: "Auto".to_string(),
+                            provider: "Zenith".to_string(),
+                            format: "hls".to_string(),
+                            subtitles: subs.clone(),
+                            headers: Some(headers.clone()),
+                            extra_metadata: None,
+                        });
+                    }
                 }
                 // Only include ThirdParty if it's from a known-good CDN (not dwish.pro)
                 if let Some(third_party_url) = data.third_party {
-                    if !third_party_url.contains("dwish.pro") {
+                    if is_playable_video_url(&third_party_url) && !third_party_url.contains("dwish.pro") {
                         results.push(StreamResult {
                             url: third_party_url,
                             title: "Zenith - Auto (ThirdParty)".to_string(),
