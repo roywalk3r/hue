@@ -209,6 +209,20 @@ mod tests {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/download/{type}/{tmdbId}",
+    params(
+        ("type" = String, Path, description = "Content type: movie or tv"),
+        ("tmdbId" = String, Path, description = "TMDB ID"),
+        ("season" = Option<u32>, Query, description = "Season number (tv only)"),
+        ("episode" = Option<u32>, Query, description = "Episode number (tv only)"),
+    ),
+    responses(
+        (status = 200, description = "Download file manifest", body = serde_json::Value),
+        (status = 500, description = "Internal error"),
+    ),
+)]
 pub async fn download_handler(
     State(state): State<DownloadState>,
     request_headers: HeaderMap,
@@ -322,6 +336,21 @@ pub struct HlsDownloadQuery {
     pub filename: Option<String>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/download/hls",
+    params(
+        ("h_token" = Option<String>, Query, description = "Legacy AES-encrypted token (deprecated)"),
+        ("source" = Option<String>, Query, description = "Proxied source URL or direct upstream URL"),
+        ("filename" = Option<String>, Query, description = "Suggested output filename"),
+    ),
+    responses(
+        (status = 200, description = "HLS/TS binary stream transcoded to MP4", body = String),
+        (status = 400, description = "Missing or invalid download source"),
+        (status = 403, description = "Invalid h_token"),
+        (status = 500, description = "ffmpeg not available"),
+    ),
+)]
 pub async fn hls_download_handler(
     method: axum::http::Method,
     State(state): State<DownloadState>,
