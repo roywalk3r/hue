@@ -5,7 +5,7 @@ use axum::{
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::get,
-    Router,
+    Json, Router,
 };
 use reqwest_middleware::ClientWithMiddleware;
 use std::env;
@@ -825,6 +825,7 @@ pub fn build_router(state: AppState) -> Router {
             get(crate::routes::system::auth_token_handler),
         )
         .route("/api/docs", get(scalar_docs_handler))
+        .route("/api/docs/openapi.json", get(scalar_spec_handler))
         .layer(TraceLayer::new_for_http())
         .layer(CompressionLayer::new())
         .layer(middleware::from_fn(hue_anon_middleware))
@@ -843,8 +844,10 @@ pub fn build_router(state: AppState) -> Router {
 
 /// Scalar API reference UI. Renders the same OpenAPI spec that
 /// Swagger UI consumed, served at the same path (`/api/docs`). The
-/// spec JSON is still served by utoipa's emitter at
-/// `/api/docs/openapi.json` (handled by the route below).
+/// spec is inlined into the HTML at `to_html()` time (Scalar reads it
+/// from `<script id="api-reference">…`), so the page is self-contained.
+/// The raw spec JSON is also served at `/api/docs/openapi.json` for
+/// tooling (Postman, code-gen, curl).
 #[allow(dead_code)] // route registration reads this; clippy doesn't see that
 #[utoipa::path(
     get,
@@ -863,6 +866,24 @@ pub async fn scalar_docs_handler() -> impl IntoResponse {
         [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
         html,
     )
+}
+
+/// Raw OpenAPI spec JSON for tooling. Same payload Scalar inlines into
+/// the HTML; kept as a dedicated endpoint so Postman, openapi-generator,
+/// etc. can pull it without parsing the HTML page.
+#[allow(dead_code)]
+#[utoipa::path(
+    get,
+    path = "/api/docs/openapi.json",
+    responses(
+        (status = 200, description = "OpenAPI 3 spec as JSON", content_type = "application/json"),
+    ),
+)]
+pub async fn scalar_spec_handler() -> impl IntoResponse {
+    let spec: serde_json::Value =
+        serde_json::to_value(crate::openapi::ApiDoc::openapi())
+            .expect("ApiDoc is always serializable");
+    Json(spec)
 }
 
 async fn auth_middleware(
