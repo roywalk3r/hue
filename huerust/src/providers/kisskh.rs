@@ -481,6 +481,7 @@ console.log(token);
     pub async fn get_list(
         &self,
         page: u32,
+        page_size: u32,
         type_: u32,
         sub: u32,
         country: u32,
@@ -488,17 +489,19 @@ console.log(token);
         order: u32,
     ) -> Result<serde_json::Value> {
         let ck = format!(
-            "list:{}:{}:{}:{}:{}:{}",
-            page, type_, sub, country, status, order
+            "list:{}:{}:{}:{}:{}:{}:{}",
+            page, page_size, type_, sub, country, status, order
         );
         if let Some(s) = self.catalog_cache.get(&ck).await {
             if let Ok(v) = serde_json::from_str(&s) {
                 return Ok(v);
             }
         }
+        // kisskh honors &pageSize (unlike limit/size/perPage). Forwarding it lets
+        // the grid pull a full page in one request instead of 10 at a time.
         let url = format!(
-            "{}/DramaList/List?page={}&type={}&sub={}&country={}&status={}&order={}",
-            API_BASE, page, type_, sub, country, status, order
+            "{}/DramaList/List?page={}&pageSize={}&type={}&sub={}&country={}&status={}&order={}",
+            API_BASE, page, page_size, type_, sub, country, status, order
         );
         let resp = self.get(&url).send().await?;
         let data = resp.json::<serde_json::Value>().await?;

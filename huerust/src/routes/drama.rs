@@ -326,17 +326,18 @@ pub async fn kisskh_browse_handler(
         return kisskh_disabled_response();
     }
     let page = params.page.unwrap_or(1);
-    let _page_size = params.page_size.unwrap_or(28);
+    // Clamp to a sane range; kisskh honors &pageSize so this controls grid density.
+    let page_size = params.page_size.unwrap_or(28).clamp(1, 60);
     let content_type = params.content_type.unwrap_or(0);
     let sub = params.sub.unwrap_or(0);
     let country = params.country.unwrap_or(0);
     let status = params.status.unwrap_or(0);
     let order = params.order.unwrap_or(2);
 
-    tracing::info!("[drama] kisskh_browse: page={}", page);
+    tracing::info!("[drama] kisskh_browse: page={} size={}", page, page_size);
     match state
         .kisskh
-        .get_list(page, content_type, sub, country, status, order)
+        .get_list(page, page_size, content_type, sub, country, status, order)
         .await
     {
         Ok(data) => {
