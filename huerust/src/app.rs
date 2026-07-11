@@ -375,6 +375,20 @@ pub fn spawn_background_tasks(state: &AppState) {
         }
     });
 
+    // Background Task: keep the kisskh catalog warm so the common browsing path
+    // never triggers a user-facing CF-proxy hit. Loads the persisted snapshot at
+    // boot (restart-safe), then re-warms hot paths every 3h and re-snapshots.
+    if kisskh_enabled() {
+        let kisskh_bg = state.kisskh.clone();
+        tokio::spawn(async move {
+            kisskh_bg.load_catalog_snapshot().await;
+            loop {
+                kisskh_bg.warm_catalog().await;
+                tokio::time::sleep(Duration::from_secs(3 * 3600)).await;
+            }
+        });
+    }
+
     // governor handles its own key expiration — no manual eviction needed
 }
 

@@ -13,3 +13,6 @@ target/
 Thumbs.db
 .omc
 
+
+# Generated kisskh catalog cache snapshot (runtime, not source)
+data/kisskh-catalog.json

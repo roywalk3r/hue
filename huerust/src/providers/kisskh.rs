@@ -82,9 +82,6 @@ pub struct KissKhClient {
     catalog_cache: moka::future::Cache<String, String>,
 }
 
-/// TTL for cached kisskh catalog responses. Catalog data changes slowly (new
-/// episodes hourly at most), so a generous default keeps proxy/upstream load
-/// negligible. Override with `KISSKH_CATALOG_TTL_SECS`.
 /// Whether a kisskh Video/ThirdParty URL is an actual playable stream rather
 /// than a placeholder. Unreleased episodes return a countdown-widget URL
 /// (tickcounter.com) instead of a video; those must not reach the player.
@@ -97,11 +94,23 @@ fn is_playable_video_url(url: &str) -> bool {
     u.contains(".m3u8") || u.contains(".mp4") || u.contains("cdnvideo") || u.contains("hakunay")
 }
 
+/// TTL for cached kisskh catalog responses. Catalog data changes slowly (new
+/// episodes hourly at most), so a generous default (6h) keeps proxy/upstream
+/// load negligible. Override with `KISSKH_CATALOG_TTL_SECS`.
 fn catalog_ttl_secs() -> u64 {
     std::env::var("KISSKH_CATALOG_TTL_SECS")
         .ok()
         .and_then(|v| v.trim().parse().ok())
-        .unwrap_or(1800)
+        .unwrap_or(21600)
+}
+
+/// Where the catalog cache is snapshotted so it survives restarts (no cold-start
+/// proxy stampede on deploy). Relative to CWD; override with `KISSKH_CATALOG_FILE`.
+fn catalog_snapshot_path() -> String {
+    std::env::var("KISSKH_CATALOG_FILE")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "data/kisskh-catalog.json".to_string())
 }
 
 impl KissKhClient {
@@ -127,10 +136,78 @@ impl KissKhClient {
             common_js_cache: Mutex::new(None),
             cookie_header: Mutex::new(cookie_header),
             catalog_cache: moka::future::Cache::builder()
-                .max_capacity(512)
+                .max_capacity(5000)
                 .time_to_live(Duration::from_secs(catalog_ttl_secs()))
                 .build(),
         }
+    }
+
+    /// Load a previously-snapshotted catalog cache from disk into memory. Called
+    /// once at boot so a restart doesn't cold-start (which would stampede the CF
+    /// proxy pool as user traffic re-populates every key).
+    pub async fn load_catalog_snapshot(&self) {
+        let path = catalog_snapshot_path();
+        let raw = match std::fs::read_to_string(&path) {
+            Ok(r) => r,
+            Err(_) => return,
+        };
+        let map: std::collections::HashMap<String, String> = match serde_json::from_str(&raw) {
+            Ok(m) => m,
+            Err(e) => {
+                warn!("[KissKH] catalog snapshot {} unreadable: {}", path, e);
+                return;
+            }
+        };
+        let n = map.len();
+        for (k, v) in map {
+            self.catalog_cache.insert(k, v).await;
+        }
+        info!("[KissKH] loaded {} catalog entries from {}", n, path);
+    }
+
+    /// Snapshot the live catalog cache to disk (write-through the whole map).
+    pub async fn snapshot_catalog(&self) {
+        self.catalog_cache.run_pending_tasks().await;
+        let map: std::collections::HashMap<String, String> = self
+            .catalog_cache
+            .iter()
+            .map(|(k, v)| ((*k).clone(), v))
+            .collect();
+        if map.is_empty() {
+            return;
+        }
+        let path = catalog_snapshot_path();
+        if let Some(dir) = std::path::Path::new(&path).parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        match serde_json::to_string(&map) {
+            Ok(json) => {
+                if let Err(e) = std::fs::write(&path, json) {
+                    warn!("[KissKH] failed to write catalog snapshot {}: {}", path, e);
+                } else {
+                    info!("[KissKH] snapshotted {} catalog entries to {}", map.len(), path);
+                }
+            }
+            Err(e) => warn!("[KissKH] failed to serialize catalog snapshot: {}", e),
+        }
+    }
+
+    /// Pre-fetch the hot catalog paths (home shelves + first pages of the popular
+    /// filters) so the common browsing path is always cache-warm and never
+    /// triggers a user-facing proxy hit. Then persist the snapshot. Bounded to a
+    /// handful of requests, independent of how much users scroll.
+    pub async fn warm_catalog(&self) {
+        let _ = self.get_show_list().await;
+        // Countries the home + region shelves hit: all, China, Korea, Japan, Thailand.
+        for country in [0u32, 1, 2, 3, 5] {
+            for page in [1u32, 2] {
+                let _ = self.get_list(page, 28, 0, 0, country, 0, 2).await;
+            }
+        }
+        // Recently-updated (order=1) and Upcoming (status=3) shelves, page 1.
+        let _ = self.get_list(1, 28, 0, 0, 0, 0, 1).await;
+        let _ = self.get_list(1, 28, 0, 0, 0, 3, 2).await;
+        self.snapshot_catalog().await;
     }
 
     /// Try to load cookies written by the Node.js Playwright refresh script.
