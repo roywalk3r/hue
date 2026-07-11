@@ -367,7 +367,10 @@ impl AnimexinClient {
             intro: None,
             outro: None,
             server: Some(target.name.clone()),
-            referer: Some(BASE_URL.to_string()),
+            // Use the iframe URL's own origin as Referer, not the scrape
+            // source — embeds like player.donghuaplanet.com reject requests
+            // with an animexin.dev Referer (net::ERR_FAILED in WebView).
+            referer: Some(iframe_referer(&target.id)),
         })
     }
 
@@ -765,6 +768,24 @@ fn extract_server_name_from_url(url: &str) -> String {
         "wolfstream" => "WOLFSTREAM".to_string(),
         "speedostream" => "SPEEDOSTREAM".to_string(),
         _ => name.to_uppercase(),
+    }
+}
+
+/// Pick the Referer header for a donghua iframe embed. The embed's own
+/// origin is what the upstream player expects — sending animexin.dev as
+/// the Referer makes the embed reject the WebView request.
+fn iframe_referer(url: &str) -> String {
+    match reqwest::Url::parse(url) {
+        Ok(parsed) => {
+            let scheme = parsed.scheme();
+            let host = parsed.host_str().unwrap_or("");
+            if host.is_empty() {
+                BASE_URL.to_string()
+            } else {
+                format!("{}://{}", scheme, host)
+            }
+        }
+        Err(_) => BASE_URL.to_string(),
     }
 }
 

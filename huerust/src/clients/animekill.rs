@@ -814,11 +814,27 @@ fn clean_title(raw: &str) -> String {
 }
 
 /// Embed hosts often require a specific Referer or they return 403.
+/// The embed's own origin is what the upstream player expects — sending
+/// `BASE_URL` (animekill.com) makes the embed reject the WebView request
+/// with net::ERR_FAILED. Fall back to `BASE_URL` only when the URL is
+/// unparseable.
 fn infer_iframe_referer(url: &str) -> String {
     if url.to_lowercase().contains("donghuaplanet.com") {
-        "https://donghuaworld.com/".to_string()
-    } else {
-        BASE_URL.to_string()
+        // donghuaplanet embeds explicitly require the donghuaworld.com Referer
+        // (third-party rehost) — keep this carve-out.
+        return "https://donghuaworld.com/".to_string();
+    }
+    match reqwest::Url::parse(url) {
+        Ok(parsed) => {
+            let scheme = parsed.scheme();
+            let host = parsed.host_str().unwrap_or("");
+            if host.is_empty() {
+                BASE_URL.to_string()
+            } else {
+                format!("{}://{}", scheme, host)
+            }
+        }
+        Err(_) => BASE_URL.to_string(),
     }
 }
 
