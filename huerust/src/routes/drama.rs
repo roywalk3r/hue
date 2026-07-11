@@ -243,6 +243,45 @@ pub async fn kisskh_streams_handler(
     }
 }
 
+#[derive(Deserialize)]
+pub struct KissKhMostViewQuery {
+    pub c: Option<u32>,
+}
+
+pub async fn kisskh_most_view_handler(
+    State(state): State<DramaState>,
+    Query(params): Query<KissKhMostViewQuery>,
+) -> Response {
+    if !kisskh_enabled() {
+        return kisskh_disabled_response();
+    }
+    let country = params.c.unwrap_or(0);
+    tracing::info!("[drama] kisskh_most_view: c={}", country);
+    match state.kisskh.get_most_view(country).await {
+        Ok(items) => (StatusCode::OK, Json(items)).into_response(),
+        Err(e) => {
+            tracing::warn!("[drama] kisskh_most_view error (c={}): {}", country, e);
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
+    }
+}
+
+pub async fn kisskh_last_update_handler(State(state): State<DramaState>) -> Response {
+    if !kisskh_enabled() {
+        return kisskh_disabled_response();
+    }
+    tracing::info!("[drama] kisskh_last_update");
+    match state.kisskh.get_last_update().await {
+        Ok(items) => (StatusCode::OK, Json(items)).into_response(),
+        Err(e) => {
+            tracing::warn!("[drama] kisskh_last_update error: {}", e);
+            let body = serde_json::json!({ "success": false, "error": e.to_string() });
+            (StatusCode::INTERNAL_SERVER_ERROR, body.to_string()).into_response()
+        }
+    }
+}
+
 pub async fn kisskh_detail_handler(
     State(state): State<DramaState>,
     Path(id): Path<u64>,

@@ -492,6 +492,14 @@ pub fn build_router(state: AppState) -> Router {
             get(crate::routes::drama::kisskh_top_rating_handler),
         )
         .route(
+            "/api/drama/kisskh/most-view",
+            get(crate::routes::drama::kisskh_most_view_handler),
+        )
+        .route(
+            "/api/drama/kisskh/last-update",
+            get(crate::routes::drama::kisskh_last_update_handler),
+        )
+        .route(
             "/api/drama/kisskh/detail/:id",
             get(crate::routes::drama::kisskh_detail_handler),
         )

@@ -540,6 +540,41 @@ console.log(token);
         Ok(data)
     }
 
+    /// Most-viewed titles for a country code (c=1 China, c=2 Korea, …). Powers
+    /// the "Top C-Drama" / "Top K-Drama" home shelves.
+    pub async fn get_most_view(&self, country: u32) -> Result<Vec<serde_json::Value>> {
+        let ck = format!("most_view:{}", country);
+        if let Some(s) = self.catalog_cache.get(&ck).await {
+            if let Ok(v) = serde_json::from_str(&s) {
+                return Ok(v);
+            }
+        }
+        let url = format!("{}/DramaList/MostView?ispc=true&c={}", API_BASE, country);
+        let resp = self.get(&url).send().await?;
+        let data = resp.json::<Vec<serde_json::Value>>().await?;
+        if let Ok(s) = serde_json::to_string(&data) {
+            self.catalog_cache.insert(ck, s).await;
+        }
+        Ok(data)
+    }
+
+    /// Recently-updated titles (the "Last Update" home shelf).
+    pub async fn get_last_update(&self) -> Result<Vec<serde_json::Value>> {
+        let ck = "last_update";
+        if let Some(s) = self.catalog_cache.get(ck).await {
+            if let Ok(v) = serde_json::from_str(&s) {
+                return Ok(v);
+            }
+        }
+        let url = format!("{}/DramaList/LastUpdate?ispc=true", API_BASE);
+        let resp = self.get(&url).send().await?;
+        let data = resp.json::<Vec<serde_json::Value>>().await?;
+        if let Ok(s) = serde_json::to_string(&data) {
+            self.catalog_cache.insert(ck.to_string(), s).await;
+        }
+        Ok(data)
+    }
+
     pub async fn get_detail(&self, id: u64) -> Result<serde_json::Value> {
         let ck = format!("detail:{}", id);
         if let Some(s) = self.catalog_cache.get(&ck).await {
