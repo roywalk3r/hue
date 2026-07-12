@@ -353,31 +353,28 @@ impl AniwaveClient {
         let (_, text) = self.fetch_text(&url, BASE_URL, true).await?;
         let parsed: AniwaveListResponse = serde_json::from_str(&text)?;
         let links = parse_server_links(&parsed.result, audio);
-        let link = match server_id {
-            Some(sid) => links.iter().find(|l| l.server_id == sid).cloned(),
-            None => links.first().cloned(),
+        // When the caller didn't pin a server_id, try the listed servers in
+        // order — the doodstream-backed servers (BYFMS/DGHG/etc.) currently
+        // 403 our fetches with a Cloudflare challenge, so falling through to
+        // them burns the whole slow-phase budget. Loop until we find a server
+        // that resolves, or exhaust the list.
+        let candidate_links: Vec<AniwaveServerLink> = match server_id {
+            Some(sid) => links
+                .iter()
+                .find(|l| l.server_id == sid)
+                .cloned()
+                .into_iter()
+                .collect(),
+            None => links.clone(),
+        };
+        if candidate_links.is_empty() {
+            return Err(anyhow!(
+                "aniwave: no {} servers for ep {}",
+                audio,
+                episode
+            ));
         }
-        .ok_or_else(|| anyhow!("aniwave: no {} servers for ep {}", audio, episode))?;
 
-        // 2. /ajax/sources?id=<encoded>&asi=0&autoPlay=0 returns the iframe URL
-        let sources_url = format!("{}/sources?id={}&asi=0&autoPlay=0", AJAX, link.encoded_id);
-        let (_, text) = self.fetch_text(&sources_url, BASE_URL, true).await?;
-        let parsed: AniwaveSourcesResponse = serde_json::from_str(&text)?;
-        if parsed.status != 200 {
-            return Err(anyhow!("aniwave: sources status={}", parsed.status));
-        }
-        let url = parsed.result.url;
-        if url.is_empty() {
-            return Err(anyhow!("aniwave: empty stream url"));
-        }
-
-        // skip_data from /ajax/sources carries intro/outro for both flows.
-        let (skip_intro, skip_outro) = parsed
-            .result
-            .skip_data
-            .as_ref()
-            .map(|sd| (sd.intro.clone(), sd.outro.clone()))
-            .unwrap_or((None, None));
         fn to_skip(i: &Option<AniwaveIntroOutro>) -> Option<SkipRange> {
             i.as_ref().and_then(|i| {
                 if i.end > i.start {
@@ -391,70 +388,138 @@ impl AniwaveClient {
             })
         }
 
-        // Two embed shapes come back from /ajax/sources:
-        //   - echovideo.ru/embed-1/<id>  -> HLS via <host>/embed-1/getSources
-        //   - myvidplay.com / playmogo.com / doodstream mirrors (/e/<id>, no
-        //     /embed-* segment) -> mp4 via the DoodStream pass_md5 flow.
-        let (stream_url, stream_referer, intro, outro, tracks): (
-            String,
-            String,
-            Option<SkipRange>,
-            Option<SkipRange>,
-            Vec<SubtitleTrack>,
-        ) = if url.contains("/embed-") {
-            let (embed_base, embed_id) = extract_embed_endpoint(&url)
-                .ok_or_else(|| anyhow!("aniwave: could not extract embed id from {}", url))?;
-            if embed_id.is_empty() {
-                return Err(anyhow!("aniwave: could not extract embed id from {}", url));
-            }
-            let get_sources_url = format!("{}getSources?id={}", embed_base, embed_id);
-            let (_, text) = self.fetch_text(&get_sources_url, &url, false).await?;
-            let embed: EmbedSourcesResponse = serde_json::from_str(&text).map_err(|e| {
-                anyhow!(
-                    "aniwave: parse embed sources: {} body={}",
-                    e,
-                    &text[..text.len().min(200)]
-                )
-            })?;
-            if embed.sources.is_empty() {
-                return Err(anyhow!("aniwave: empty embed sources url"));
-            }
-            (
-                embed.sources,
-                url.clone(),
-                embed.intro.and_then(|i| {
-                    if i.end > i.start {
-                        Some(SkipRange {
-                            start: i.start as u32,
-                            end: i.end as u32,
-                        })
-                    } else {
-                        None
+        let mut last_err: Option<anyhow::Error> = None;
+        let (stream_url, stream_referer, intro, outro, tracks, link) = 'outer: loop {
+            for link in &candidate_links {
+                // 2. /ajax/sources?id=<encoded>&asi=0&autoPlay=0 returns the iframe URL
+                let sources_url =
+                    format!("{}/sources?id={}&asi=0&autoPlay=0", AJAX, link.encoded_id);
+                let text = match self.fetch_text(&sources_url, BASE_URL, true).await {
+                    Ok((_, t)) => t,
+                    Err(e) => {
+                        last_err = Some(e);
+                        continue;
                     }
-                }),
-                embed.outro.and_then(|o| {
-                    if o.end > o.start {
-                        Some(SkipRange {
-                            start: o.start as u32,
-                            end: o.end as u32,
-                        })
-                    } else {
-                        None
+                };
+                let parsed: AniwaveSourcesResponse = match serde_json::from_str(&text) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        last_err = Some(anyhow!("aniwave: parse sources: {} body={}", e, &text[..text.len().min(200)]));
+                        continue;
                     }
-                }),
-                Vec::new(),
-            )
-        } else {
-            let (mp4, origin) = self
-                .resolve_doodstream(&url, &format!("{}/watch/{}", BASE_URL, show_id))
-                .await?;
-            (
-                mp4,
-                origin,
-                to_skip(&skip_intro),
-                to_skip(&skip_outro),
-                Vec::new(),
-            )
+                };
+                if parsed.status != 200 {
+                    last_err = Some(anyhow!("aniwave: sources status={}", parsed.status));
+                    continue;
+                }
+                let url = parsed.result.url;
+                if url.is_empty() {
+                    last_err = Some(anyhow!("aniwave: empty stream url"));
+                    continue;
+                }
+
+                // skip_data from /ajax/sources carries intro/outro for both flows.
+                let (skip_intro, skip_outro) = parsed
+                    .result
+                    .skip_data
+                    .as_ref()
+                    .map(|sd| (sd.intro.clone(), sd.outro.clone()))
+                    .unwrap_or((None, None));
+
+                // Two embed shapes come back from /ajax/sources:
+                //   - echovideo.ru/embed-1/<id>  -> HLS via <host>/embed-1/getSources
+                //   - myvidplay.com / playmogo.com / doodstream mirrors (/e/<id>, no
+                //     /embed-* segment) -> mp4 via the DoodStream pass_md5 flow.
+                if url.contains("/embed-") {
+                    let (embed_base, embed_id) = match extract_embed_endpoint(&url) {
+                        Some(parts) => parts,
+                        None => {
+                            last_err = Some(anyhow!("aniwave: could not extract embed id from {}", url));
+                            continue;
+                        }
+                    };
+                    if embed_id.is_empty() {
+                        last_err = Some(anyhow!("aniwave: could not extract embed id from {}", url));
+                        continue;
+                    }
+                    let get_sources_url = format!("{}getSources?id={}", embed_base, embed_id);
+                    let text = match self.fetch_text(&get_sources_url, &url, false).await {
+                        Ok((_, t)) => t,
+                        Err(e) => {
+                            last_err = Some(e);
+                            continue;
+                        }
+                    };
+                    let embed: EmbedSourcesResponse = match serde_json::from_str(&text) {
+                        Ok(e) => e,
+                        Err(e) => {
+                            last_err = Some(anyhow!(
+                                "aniwave: parse embed sources: {} body={}",
+                                e,
+                                &text[..text.len().min(200)]
+                            ));
+                            continue;
+                        }
+                    };
+                    if embed.sources.is_empty() {
+                        last_err = Some(anyhow!("aniwave: empty embed sources url"));
+                        continue;
+                    }
+                    break 'outer (
+                        embed.sources,
+                        url.clone(),
+                        embed.intro.and_then(|i| {
+                            if i.end > i.start {
+                                Some(SkipRange {
+                                    start: i.start as u32,
+                                    end: i.end as u32,
+                                })
+                            } else {
+                                None
+                            }
+                        }),
+                        embed.outro.and_then(|o| {
+                            if o.end > o.start {
+                                Some(SkipRange {
+                                    start: o.start as u32,
+                                    end: o.end as u32,
+                                })
+                            } else {
+                                None
+                            }
+                        }),
+                        Vec::new(),
+                        link.clone(),
+                    );
+                } else {
+                    match self
+                        .resolve_doodstream(&url, &format!("{}/watch/{}", BASE_URL, show_id))
+                        .await
+                    {
+                        Ok((mp4, origin)) => break 'outer (
+                            mp4,
+                            origin,
+                            to_skip(&skip_intro),
+                            to_skip(&skip_outro),
+                            Vec::new(),
+                            link.clone(),
+                        ),
+                        Err(e) => {
+                            tracing::warn!(
+                                "[aniwave] server {} ({}) failed: {}",
+                                link.server_id,
+                                link.name,
+                                e
+                            );
+                            last_err = Some(e);
+                            continue;
+                        }
+                    }
+                }
+            }
+            return Err(last_err.unwrap_or_else(|| {
+                anyhow!("aniwave: no {} servers for ep {}", audio, episode)
+            }));
         };
 
         let stream = AniwaveStream {
