@@ -776,10 +776,17 @@ pub async fn m3u8_handler(
     // even as `application/vnd.apple.mpegurl` as hotlink protection).
     // Forward the raw bytes untouched instead of letting downstream
     // code UTF-8 decode the body and corrupt it with U+FFFD.
-    // The URL pattern is a stronger signal than the upstream content-type —
-    // run the segment check independently of `is_hls` so the hotlink-ct
-    // trick can't bypass passthrough.
-    if !looks_like_html && !looks_like_json {
+    //
+    // `is_hls` is true when the body actually starts with `#EXTM3U` (or the
+    // upstream content-type is mpegurl) — that means it really is a manifest
+    // and must be rewritten so the player's relative segment URLs go through
+    // the proxy. The URL pattern alone is too coarse: hlsxszt*.echovideo.to
+    // serves its master/child playlists from URLs that include `?t.m3u8=`,
+    // and the no-`!is_hls` variant of this branch (de73dc1) caused those
+    // manifests to be served raw — leaving the browser to resolve bare
+    // `/cdn/<hash>` paths against the page origin and 404. Only passthrough
+    // when the body is NOT a real manifest.
+    if !is_hls && !looks_like_html && !looks_like_json {
         let url_lower = target_url.to_lowercase();
         let path = url_lower.split('?').next().unwrap_or(&url_lower);
         let query = url_lower.split('?').nth(1).unwrap_or("");
