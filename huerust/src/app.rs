@@ -42,6 +42,7 @@ use crate::providers::{
     kisskh_xyra::KissKhXyraClient,
     kisskh_xyra_provider::KissKhXyraProvider,
     // lordflix_provider::LordflixProvider, // disabled — upstream requires Cloudflare attestation
+    animexin_provider::AnimexinProvider, animekill_provider::AnimeKillProvider,
     moviebox_provider::MovieBoxProvider,
     notorrent_provider::NoTorrentProvider,
     // mp4hydra_provider::Mp4HydraProvider, // disabled — endpoint times out
@@ -182,7 +183,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let circuit_breaker = Arc::new(CircuitBreaker::new());
     let metrics = Arc::new(Metrics::new(&[
         "Cinema", "Nova", "Zenith", "Orient", "Pearl", "Aura", "Hydra", "Luna", "Vault", "VidZee",
-        "Nebula", "Rose", "Aurex",
+        "Nebula", "Rose", "Aurex", "Dragon", "Phoenix",
     ]));
     circuit_breaker.set_metrics(metrics.clone());
     let filter_config = Arc::new(FilterConfig::default());
@@ -196,6 +197,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let kissasian_top_client = Arc::new(crate::providers::kissasian_top::KissAsianTopClient::new());
     let hianime_client = Arc::new(crate::clients::hianime::HianimeClient::new());
     let animekill_client = Arc::new(crate::clients::animekill::AnimeKillClient::new());
+    let animexin_client = Arc::new(crate::clients::animexin::AnimexinClient::new());
     let xyra_subtitle_client = Arc::new(XyraSubtitleClient::new());
     let kisskh_xyra_client = Arc::new(KissKhXyraClient::new());
     let anime_agg = Arc::new(crate::clients::anime_agg::AnimeAggregator::new(
@@ -306,6 +308,11 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     registry.register(Arc::new(VidlinkProvider::new(vidlink_client)));
     // registry.register(Arc::new(LordflixProvider::new(lordflix_client))); // disabled — upstream requires Cloudflare attestation
     registry.register(Arc::new(NoTorrentProvider::new(notorrent_client)));
+    // Dragon (animexin) and Phoenix (animekill) self-gate on
+    // `looks_chinese` so non-Chinese requests short-circuit to Ok(vec![])
+    // without paying the search round-trip.
+    registry.register(Arc::new(AnimexinProvider::new(animexin_client.clone())));
+    registry.register(Arc::new(AnimeKillProvider::new(animekill_client.clone())));
 
     let redis_pool = if cfg.cache_backend == "redis" {
         let pool_cfg = deadpool_redis::Config::from_url(&cfg.redis_url);
@@ -357,7 +364,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         vidvault: vidvault_client.clone(),
         anime_agg: anime_agg.clone(),
         animekill: animekill_client.clone(),
-        animexin: Arc::new(crate::clients::animexin::AnimexinClient::new()),
+        animexin: animexin_client.clone(),
         xyra_subtitle: xyra_subtitle_client,
         kisskh_xyra: kisskh_xyra_client,
         aisports: Arc::new(crate::clients::aisports::AiSportsClient::new(
