@@ -155,7 +155,7 @@ Authenticated via encrypted `h_token`. No API key required.
 
 - `AnimeAggregator` is the single entry point for anime list/discover/filter metadata/schedule.
 - AniList is the filter spine; AniWatch and HiAnime backfill.
-- AniWave is the primary anime provider for JP/CN/KR content; Animexin is excluded from `discover` because it returns iframe-only streams the mobile player can't play.
+- AniWave is the primary provider for JP anime; Animexin is the primary donghua (CN) source with AnimeKill as fallback. Animexin streams are iframe embeds — the Flutter player renders them in a WebView, the web player in an iframe.
 - `EpisodeSummary` carries both `slug` (per-episode) and `seriesSlug` for routing.
 
 ## Drama-specific rules
