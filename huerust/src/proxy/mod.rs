@@ -114,10 +114,17 @@ pub fn dynamic_proxy_base(headers: &HeaderMap, fallback: &str) -> String {
         .unwrap_or("localhost");
     let default_proto = fallback_url.as_ref().map(|u| u.scheme()).unwrap_or("http");
 
-    // 1) Prefer the request's own Host header. Trust the configured fallback
-    //    protocol so a local backend behind an HTTPS CDN still emits https URLs.
+    // 1) Prefer the request's own Host header. The protocol comes from
+    //    X-Forwarded-Proto (set by Cloudflare / any reverse proxy in front)
+    //    so an HTTPS-fronted local backend emits https segment URLs —
+    //    otherwise the browser blocks mixed content and every segment 404s.
     if let Some(host) = headers.get("host").and_then(|v| v.to_str().ok()) {
-        return format!("{}://{}", default_proto, host);
+        let proto = headers
+            .get("x-forwarded-proto")
+            .or_else(|| headers.get("x-forwarded-protocol"))
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or(default_proto);
+        return format!("{}://{}", proto, host);
     }
 
     // 2) Reverse-proxy fallback: X-Forwarded-Host / Forwarded / X-Forwarded-Proto.
@@ -2412,6 +2419,17 @@ Second cue"#;
         let base = dynamic_proxy_base(&headers, "http://127.0.0.1:24609");
 
         assert_eq!(base, "http://127.0.0.1:24609");
+    }
+
+    #[test]
+    fn test_dynamic_proxy_base_uses_x_forwarded_proto_for_https() {
+        let mut headers = HeaderMap::new();
+        headers.insert("host", "api.vexli.online".parse().unwrap());
+        headers.insert("x-forwarded-proto", "https".parse().unwrap());
+
+        let base = dynamic_proxy_base(&headers, "http://localhost:24609");
+
+        assert_eq!(base, "https://api.vexli.online");
     }
 
     #[test]
