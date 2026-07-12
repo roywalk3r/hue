@@ -765,10 +765,14 @@ pub async fn m3u8_handler(
     let looks_like_json = body_trim.starts_with("{") || body_trim.starts_with("[");
 
     // Upstream returned binary (e.g. a TS segment disguised with a
-    // `?t.m3u8=` query suffix that the CDN serves as `image/jpeg`).
+    // `?t.m3u8=` query suffix that the CDN serves as `image/jpeg` or
+    // even as `application/vnd.apple.mpegurl` as hotlink protection).
     // Forward the raw bytes untouched instead of letting downstream
     // code UTF-8 decode the body and corrupt it with U+FFFD.
-    if !is_hls && !looks_like_html && !looks_like_json {
+    // The URL pattern is a stronger signal than the upstream content-type —
+    // run the segment check independently of `is_hls` so the hotlink-ct
+    // trick can't bypass passthrough.
+    if !looks_like_html && !looks_like_json {
         let url_lower = target_url.to_lowercase();
         let path = url_lower.split('?').next().unwrap_or(&url_lower);
         let query = url_lower.split('?').nth(1).unwrap_or("");
@@ -777,7 +781,8 @@ pub async fn m3u8_handler(
             || path.ends_with(".aac")
             || path.ends_with(".mp4")
             || query == "t.m3u8"
-            || query.starts_with("t.m3u8=");
+            || query.starts_with("t.m3u8=")
+            || url_lower.contains("?t.m3u8");
         if is_segment {
             let mut builder = Response::builder().status(
                 StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::OK),
