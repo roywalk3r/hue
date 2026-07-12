@@ -193,11 +193,17 @@ impl AnimexinClient {
         html: &str,
         series_slug: &str,
     ) -> Result<Vec<EpisodeSummary>> {
-        let mut episodes = Vec::new();
-        let series_prefix = series_slug.split('-').take(3).collect::<Vec<_>>().join("-");
-
-        // Broad episode link regex
+        // Group episode links by their slug prefix (the part before
+        // "-episode-"). A strict series-slug prefix match loses everything
+        // when animexin abbreviates the series slug ("btth-season-5") while
+        // episode slugs spell out the full title
+        // ("battle-through-the-heavens-season-5-episode-207-..."). The
+        // series' own episode list dominates its page, so when no prefix
+        // matches the series slug, the largest group IS the series —
+        // sidebar "latest release" links for other shows form small groups.
         let re = Regex::new(r#"href="https://animexin\.dev/([^"]*episode[^"]*)/""#)?;
+        let mut groups: std::collections::HashMap<String, Vec<EpisodeSummary>> =
+            std::collections::HashMap::new();
         for cap in re.captures_iter(html) {
             let slug = cap
                 .get(1)
@@ -206,15 +212,16 @@ impl AnimexinClient {
             if slug.is_empty() {
                 continue;
             }
-            // Only keep episodes that belong to this series (prefix match)
-            if !slug.starts_with(&series_prefix) && !slug.contains(series_slug) {
-                continue;
-            }
             let ep_num = extract_episode_number(&slug);
             if ep_num == 0 {
                 continue; // likely not a real episode
             }
-            episodes.push(EpisodeSummary {
+            let prefix = slug
+                .split("-episode-")
+                .next()
+                .unwrap_or(&slug)
+                .to_string();
+            groups.entry(prefix).or_default().push(EpisodeSummary {
                 id: slug.clone(),
                 number: ep_num,
                 title: None,
@@ -225,6 +232,16 @@ impl AnimexinClient {
                 slugs: None,
             });
         }
+
+        let series_prefix = series_slug.split('-').take(3).collect::<Vec<_>>().join("-");
+        let mut episodes = groups
+            .iter()
+            .find(|(prefix, _)| {
+                prefix.starts_with(&series_prefix) || prefix.contains(series_slug)
+            })
+            .or_else(|| groups.iter().max_by_key(|(_, eps)| eps.len()))
+            .map(|(_, eps)| eps.clone())
+            .unwrap_or_default();
 
         episodes.sort_by_key(|e| e.number);
         episodes.dedup_by(|a, b| a.number == b.number);
@@ -353,21 +370,29 @@ impl AnimexinClient {
         let target = if let Some(srv) = server {
             pool.iter()
                 .find(|s| s.name.eq_ignore_ascii_case(srv))
-                .or_else(|| pool.first())
+                .or_else(|| pool.iter().min_by_key(|s| embed_host_rank(&s.id)))
                 .copied()
         } else {
-            pool.first().copied()
+            // Page order puts gdriveplayer first, but it's the flakiest
+            // mirror — rank by host reliability instead (Dailymotion is the
+            // consistently live one; fembed is a dead domain).
+            pool.iter()
+                .min_by_key(|s| embed_host_rank(&s.id))
+                .copied()
         }
         .ok_or_else(|| anyhow!("No stream sources found"))?;
 
         Ok(StreamPayload {
-            url: target.id.clone(),
+            url: normalize_iframe_url(&target.id),
             stream_type: "iframe".to_string(),
             subtitles: None,
             intro: None,
             outro: None,
             server: Some(target.name.clone()),
-            referer: Some(BASE_URL.to_string()),
+            // Use the iframe URL's own origin as Referer, not the scrape
+            // source — embeds like player.donghuaplanet.com reject requests
+            // with an animexin.dev Referer (net::ERR_FAILED in WebView).
+            referer: Some(iframe_referer(&target.id)),
         })
     }
 
@@ -765,6 +790,55 @@ fn extract_server_name_from_url(url: &str) -> String {
         "wolfstream" => "WOLFSTREAM".to_string(),
         "speedostream" => "SPEEDOSTREAM".to_string(),
         _ => name.to_uppercase(),
+    }
+}
+
+/// Pick the Referer header for a donghua iframe embed. The embed's own
+/// OK.ru and a few other upstreams occasionally return protocol-relative
+/// embed URLs (`//ok.ru/videoembed/...`). Browsers and WebViews refuse to
+/// load them with `Missing scheme in uri`. Promote them to `https://`.
+fn normalize_iframe_url(url: &str) -> String {
+    if let Some(rest) = url.strip_prefix("//") {
+        format!("https://{rest}")
+    } else {
+        url.to_string()
+    }
+}
+
+/// Reliability rank for the default server pick — lower is better. Animexin
+/// pages list gdriveplayer first, but Dailymotion is the consistently live
+/// mirror; fembed's domain is dead entirely.
+fn embed_host_rank(url: &str) -> u8 {
+    let u = url.to_ascii_lowercase();
+    if u.contains("dailymotion.com") {
+        0
+    } else if u.contains("ok.ru") || u.contains("odysee.com") || u.contains("rumble.com") {
+        1
+    } else if u.contains("dood") {
+        2
+    } else if u.contains("gdriveplayer") {
+        3
+    } else if u.contains("fembed") {
+        5
+    } else {
+        4
+    }
+}
+
+/// origin is what the upstream player expects — sending animexin.dev as
+/// the Referer makes the embed reject the WebView request.
+fn iframe_referer(url: &str) -> String {
+    match reqwest::Url::parse(url) {
+        Ok(parsed) => {
+            let scheme = parsed.scheme();
+            let host = parsed.host_str().unwrap_or("");
+            if host.is_empty() {
+                BASE_URL.to_string()
+            } else {
+                format!("{}://{}", scheme, host)
+            }
+        }
+        Err(_) => BASE_URL.to_string(),
     }
 }
 

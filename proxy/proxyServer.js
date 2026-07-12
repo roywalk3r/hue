@@ -908,8 +908,39 @@ function createProxyRoutes(app) {
             }
             
             const contentType = response.headers.get('content-type') || '';
+
+            // Detect segment URLs by URL pattern BEFORE trusting the upstream
+            // content-type. Hotlink CDNs (e.g. hlsxszt4.echovideo.to / Aniwave Vidplay)
+            // serve MPEG-TS bytes with a fake `content-type: application/vnd.apple.mpegurl`
+            // to defeat naive players. If we let `isHls = true` and then call
+            // `response.text()`, the binary body gets UTF-8-decoded into U+FFFD
+            // replacement chars and the player gets back a corrupt "manifest" full of
+            // `\xef\xbf\xbd`. Match on the URL — path extension or `?t.m3u8=` query
+            // suffix — and pipe the raw bytes through unchanged.
+            const urlLower = targetUrl.toLowerCase();
+            const segPath = urlLower.split('?')[0];
+            const segQuery = urlLower.split('?')[1] || '';
+            const isSegmentUrl =
+                /\.(ts|m4s|aac|mp4|mp3|mkv|png|jpg|jpeg|bmp)(\?|$)/i.test(segPath) ||
+                segQuery === 't.m3u8' ||
+                segQuery.startsWith('t.m3u8=') ||
+                urlLower.includes('?t.m3u8');
+
+            if (isSegmentUrl) {
+                if (debug) console.log('[m3u8-proxy] Segment detected by URL, piping raw bytes', { path: segPath });
+                const buf = Buffer.from(await response.arrayBuffer());
+                const inferredCt = inferContentType(contentType, targetUrl);
+                res.status(response.status);
+                res.setHeader('Content-Type', inferredCt);
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.setHeader('Cache-Control', 'public, max-age=3600');
+                const cl = response.headers.get('content-length');
+                if (cl) res.setHeader('Content-Length', cl);
+                return res.end(buf);
+            }
+
             let isHls = contentType.includes('mpegURL') || contentType.includes('x-mpegURL') || targetUrl.includes('.m3u8');
-            
+
             // Buffer body to check signature if content-type is ambiguous
             let body = await response.text();
             if (!isHls && body.trim().startsWith('#EXTM3U')) {

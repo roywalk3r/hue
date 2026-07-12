@@ -99,21 +99,19 @@ impl AnimeAggregator {
             return cached;
         }
 
-        // Run AnimeKill + AniWave in parallel. Animexin is only tried as a
-        // fallback if both AnimeKill and AniWave return empty (the original
-        // tiered fallback). Saves 1 RTT per page-1 search in the common case.
+        // Animexin is the primary donghua source (live multi-language embeds);
+        // AnimeKill is only tried as a fallback when Animexin returns empty —
+        // its episode pages ship dead gdriveplayer mirrors.
         let mut donghua_results = Vec::new();
         if page == 1 {
-            let ak_fut = self.animekill.search(keyword);
-            let ak_result = ak_fut.await;
-            match ak_result {
+            match self.animexin.search(keyword).await {
                 Ok(resp) => donghua_results = resp.results,
-                Err(e) => warn!("[AnimeAgg] AnimeKill search error: {}", e),
+                Err(e) => warn!("[AnimeAgg] Animexin search error: {}", e),
             }
             if donghua_results.is_empty() {
-                match self.animexin.search(keyword).await {
+                match self.animekill.search(keyword).await {
                     Ok(resp) => donghua_results = resp.results,
-                    Err(e) => warn!("[AnimeAgg] Animexin search error: {}", e),
+                    Err(e) => warn!("[AnimeAgg] AnimeKill search error: {}", e),
                 }
             }
         }
@@ -239,10 +237,11 @@ impl AnimeAggregator {
                     .filter(|d| !d.card.id.is_empty() && !is_not_found_card(d))
             };
             let (ak, ax) = tokio::join!(ak_fut, ax_fut);
-            if let Some(d) = ak {
+            // Animexin wins when both have the title — its embeds are live.
+            if let Some(d) = ax {
                 return Some(d);
             }
-            if let Some(d) = ax {
+            if let Some(d) = ak {
                 return Some(d);
             }
         }
@@ -366,7 +365,12 @@ impl AnimeAggregator {
                     warn!("[AnimeAgg] Aniwave detail error for {}: {}", id, e);
                     // Aniwave returned an error (likely 404). Slugs that
                     // look AniWave-shaped by digit suffix are sometimes
-                    // AnimeKill donghua. Try that before giving up.
+                    // donghua. Try Animexin, then AnimeKill, before giving up.
+                    if let Ok(d) = self.animexin.get_detail(id).await {
+                        if !d.card.id.is_empty() && !is_not_found_card(&d) {
+                            return Some(d);
+                        }
+                    }
                     if let Ok(d) = self.animekill.get_detail(id).await {
                         if !d.card.id.is_empty() {
                             return Some(d);
@@ -439,9 +443,14 @@ impl AnimeAggregator {
                 }
                 Err(e) => {
                     warn!("[AnimeAgg] Aniwave episodes error for {}: {}", id, e);
-                    // Aniwave returned an error (likely 404). Fall through
-                    // to AnimeKill — slugs that look AniWave-shaped by
-                    // digit suffix are sometimes AnimeKill donghua.
+                    // Aniwave returned an error (likely 404). Slugs that
+                    // look AniWave-shaped by digit suffix are sometimes
+                    // donghua. Try Animexin, then AnimeKill.
+                    if let Ok(eps) = self.animexin.get_episodes(id).await {
+                        if !eps.is_empty() {
+                            return Some(eps);
+                        }
+                    }
                     if let Ok(eps) = self.animekill.get_episodes(id).await {
                         if !eps.is_empty() {
                             return Some(eps);
@@ -785,6 +794,14 @@ impl AnimeAggregator {
 
         if is_cn {
             if params.source.as_deref() != Some("animexin") {
+                // Animexin is the primary donghua source; AnimeKill only when
+                // explicitly requested or when Animexin errors out.
+                if params.source.as_deref() != Some("animekill") {
+                    match self.animexin.discover(params).await {
+                        Ok(resp) => return resp,
+                        Err(e) => warn!("[AnimeAgg] Animexin discover error: {}", e),
+                    }
+                }
                 match self.animekill.discover(params).await {
                     Ok(resp) => return resp,
                     Err(e) => warn!("[AnimeAgg] AnimeKill discover error: {}", e),

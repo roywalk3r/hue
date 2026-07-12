@@ -204,9 +204,10 @@ impl AnimeKillClient {
         .ok_or_else(|| anyhow!("No stream sources found"))?;
 
         let referer = infer_iframe_referer(&target.id);
+        let url = normalize_iframe_url(&target.id);
 
         Ok(StreamPayload {
-            url: target.id.clone(),
+            url,
             stream_type: "iframe".to_string(),
             subtitles: None,
             intro: None,
@@ -814,11 +815,38 @@ fn clean_title(raw: &str) -> String {
 }
 
 /// Embed hosts often require a specific Referer or they return 403.
+/// The embed's own origin is what the upstream player expects — sending
+/// `BASE_URL` (animekill.com) makes the embed reject the WebView request
+/// with net::ERR_FAILED. Fall back to `BASE_URL` only when the URL is
+/// OK.ru and a few other upstreams occasionally return protocol-relative
+/// embed URLs (`//ok.ru/videoembed/...`). Browsers and WebViews refuse to
+/// load them with `Missing scheme in uri`. Promote them to `https://`.
+fn normalize_iframe_url(url: &str) -> String {
+    if let Some(rest) = url.strip_prefix("//") {
+        format!("https://{rest}")
+    } else {
+        url.to_string()
+    }
+}
+
+/// unparseable.
 fn infer_iframe_referer(url: &str) -> String {
     if url.to_lowercase().contains("donghuaplanet.com") {
-        "https://donghuaworld.com/".to_string()
-    } else {
-        BASE_URL.to_string()
+        // donghuaplanet embeds explicitly require the donghuaworld.com Referer
+        // (third-party rehost) — keep this carve-out.
+        return "https://donghuaworld.com/".to_string();
+    }
+    match reqwest::Url::parse(url) {
+        Ok(parsed) => {
+            let scheme = parsed.scheme();
+            let host = parsed.host_str().unwrap_or("");
+            if host.is_empty() {
+                BASE_URL.to_string()
+            } else {
+                format!("{}://{}", scheme, host)
+            }
+        }
+        Err(_) => BASE_URL.to_string(),
     }
 }
 

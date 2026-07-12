@@ -575,7 +575,7 @@ async fn send_m3u8_request(
     req: reqwest::RequestBuilder,
     target_url: &str,
     _is_vix: bool,
-) -> Result<(reqwest::StatusCode, String, String), String> {
+) -> Result<(reqwest::StatusCode, Vec<u8>, String), String> {
     match req.send().await {
         Ok(resp) => {
             let status = resp.status();
@@ -585,8 +585,8 @@ async fn send_m3u8_request(
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or("")
                 .to_string();
-            match resp.text().await {
-                Ok(body) => Ok((status, body, ct)),
+            match resp.bytes().await {
+                Ok(body) => Ok((status, body.to_vec(), ct)),
                 Err(e) => {
                     tracing::warn!("[m3u8-proxy] Failed to read body for {}: {}", target_url, e);
                     Err(format!("Upstream body unreadable: {}", e))
@@ -723,7 +723,8 @@ pub async fn m3u8_handler(
             }
         };
 
-    let body_trim = body.trim_start_matches('\u{feff}').trim_start();
+    let body_lost = String::from_utf8_lossy(&body);
+    let body_trim = body_lost.trim_start_matches('\u{feff}').trim_start();
     let is_hls = ct.contains("mpegurl")
         || ct.contains("x-mpegurl")
         || ct.contains("vnd.apple.mpegurl")
@@ -762,6 +763,36 @@ pub async fn m3u8_handler(
         || body_trim.starts_with("<HTML")
         || body_trim.starts_with("<?xml");
     let looks_like_json = body_trim.starts_with("{") || body_trim.starts_with("[");
+
+    // Upstream returned binary (e.g. a TS segment disguised with a
+    // `?t.m3u8=` query suffix that the CDN serves as `image/jpeg` or
+    // even as `application/vnd.apple.mpegurl` as hotlink protection).
+    // Forward the raw bytes untouched instead of letting downstream
+    // code UTF-8 decode the body and corrupt it with U+FFFD.
+    // The URL pattern is a stronger signal than the upstream content-type —
+    // run the segment check independently of `is_hls` so the hotlink-ct
+    // trick can't bypass passthrough.
+    if !looks_like_html && !looks_like_json {
+        let url_lower = target_url.to_lowercase();
+        let path = url_lower.split('?').next().unwrap_or(&url_lower);
+        let query = url_lower.split('?').nth(1).unwrap_or("");
+        let is_segment = path.ends_with(".ts")
+            || path.ends_with(".m4s")
+            || path.ends_with(".aac")
+            || path.ends_with(".mp4")
+            || query == "t.m3u8"
+            || query.starts_with("t.m3u8=")
+            || url_lower.contains("?t.m3u8");
+        if is_segment {
+            let mut builder = Response::builder().status(
+                StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::OK),
+            );
+            builder = builder.header("Access-Control-Allow-Origin", "*");
+            builder = builder.header(CONTENT_TYPE, infer_content_type(&ct, &target_url));
+            return builder.body(Body::from(body)).unwrap();
+        }
+    }
+
     if !is_hls && (looks_like_html || looks_like_json) {
         // Log full body for Vixsrc so we can see the exact error
         if is_vix {
@@ -782,7 +813,7 @@ pub async fn m3u8_handler(
                 now,
                 expires_val.as_deref().unwrap_or("NONE"),
                 token_val.is_some(),
-                body  // full body, likely small HTML error page
+                String::from_utf8_lossy(&body)  // full body, likely small HTML error page
             );
         }
 
@@ -790,7 +821,7 @@ pub async fn m3u8_handler(
             "[m3u8-proxy] Upstream returned non-HLS (status={}, ct={}, body_preview={:?}, mobile={}) for {}",
             status.as_u16(),
             ct,
-            body.chars().take(80).collect::<String>(),
+            String::from_utf8_lossy(&body).chars().take(80).collect::<String>(),
             is_mobile,
             target_url
         );
@@ -817,7 +848,8 @@ pub async fn m3u8_handler(
             if let Ok((status2, body2, ct2)) =
                 send_m3u8_request(&state.raw_client, retry, &target_url, false).await
             {
-                let body_trim2 = body2.trim_start_matches('\u{feff}').trim_start();
+                let body2_str = String::from_utf8_lossy(&body2);
+                let body_trim2 = body2_str.trim_start_matches('\u{feff}').trim_start();
                 let is_hls2 = ct2.contains("mpegurl")
                     || ct2.contains("x-mpegurl")
                     || ct2.contains("vnd.apple.mpegurl")
@@ -827,7 +859,7 @@ pub async fn m3u8_handler(
                     tracing::info!("[m3u8-proxy] Vixsrc retry succeeded with minimal headers");
                     let proxy_base = dynamic_proxy_base(&request_headers, &state.proxy_base_url);
                     let final_body = rewrite_playlist(
-                        &body2,
+                        &body2_str,
                         &target_url,
                         &proxy_base,
                         &state.secret,
@@ -844,7 +876,7 @@ pub async fn m3u8_handler(
                         "[m3u8-proxy] Vixsrc retry also failed (status={}, ct={}, preview={:?})",
                         status2.as_u16(),
                         ct2,
-                        body2.chars().take(80).collect::<String>(),
+                        body2_str.chars().take(80).collect::<String>(),
                     );
                 }
             }
@@ -865,9 +897,9 @@ pub async fn m3u8_handler(
     let adsurgery_enabled = params.adsurgery.unwrap_or(0) == 1
         || env::var("SANITIZE_STREAMS").map_or(false, |v| v == "true" || v == "1");
 
-    let mut body = body;
+    let mut body_str = String::from_utf8_lossy(&body).into_owned();
     if is_hls && adsurgery_enabled {
-        let (cleaned, removed) = adsurgery::sanitize_manifest(&body);
+        let (cleaned, removed) = adsurgery::sanitize_manifest(&body_str);
         if removed > 0 {
             tracing::debug!(
                 "[m3u8-proxy] Ad-surgery removed {} segments from {}",
@@ -875,22 +907,18 @@ pub async fn m3u8_handler(
                 target_url
             );
         }
-        body = cleaned;
+        body_str = cleaned;
     }
 
     let proxy_base = dynamic_proxy_base(&request_headers, &state.proxy_base_url);
-    let final_body = if is_hls {
-        rewrite_playlist(
-            &body,
-            &target_url,
-            &proxy_base,
-            &state.secret,
-            headers,
-            is_hls,
-        )
-    } else {
-        body
-    };
+    let final_body = rewrite_playlist(
+        &body_str,
+        &target_url,
+        &proxy_base,
+        &state.secret,
+        headers,
+        is_hls,
+    );
 
     let mut builder =
         Response::builder().status(StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::OK));
@@ -2063,9 +2091,14 @@ fn normalize_nested_query_params(mut url: Url) -> Url {
 fn infer_content_type(upstream_ct: &str, target_url: &str) -> &'static str {
     let bad = upstream_ct.is_empty()
         || upstream_ct.contains("octet-stream")
-        || upstream_ct.contains("zip")
-        || upstream_ct.starts_with("image/");
-    if !bad {
+        || upstream_ct.contains("zip");
+    // CDN hotlink protection: px.roburnt10.store serves real MPEG-TS bytes
+    // but labels them as `image/jpeg` to block curl/scrapers. Treat upstream
+    // content-type as untrusted when the URL clearly identifies a manifest
+    // or TS segment — fall through to URL-extension detection.
+    let url_says_m3u8 = target_url.to_lowercase().contains(".m3u8");
+    let url_says_ts = target_url.to_lowercase().contains(".ts");
+    if !bad && !(upstream_ct.starts_with("image/") && (url_says_m3u8 || url_says_ts)) {
         // Return a static str, but upstream_ct is dynamic…
         // For well-known types we can return static strings.
         if upstream_ct.contains("mpegurl") || upstream_ct.contains("x-mpegurl") {
@@ -2086,6 +2119,24 @@ fn infer_content_type(upstream_ct: &str, target_url: &str) -> &'static str {
     }
 
     let url_lower = target_url.to_lowercase();
+    // Distinguish a real HLS manifest URL (path ends in `.m3u8`) from a
+    // TS segment that's been tokenized with a `?t.m3u8=` query suffix
+    // (px.roburnt10.store). The latter is a binary MPEG-TS segment, not
+    // a manifest, so the URL-extension fallback must not mislabel it.
+    let path = url_lower.split('?').next().unwrap_or(&url_lower);
+    let query = url_lower.split('?').nth(1).unwrap_or("");
+    let path_ends_m3u8 = path.ends_with(".m3u8");
+    let path_ends_ts = path.ends_with(".ts");
+    // CDN tokenized segment pattern: query string is `t.m3u8` or
+    // `t.m3u8=...` (no real value, just an auth/sentinel token).
+    let query_is_t_m3u8 = query == "t.m3u8" || query.starts_with("t.m3u8=");
+
+    if path_ends_m3u8 {
+        return "application/vnd.apple.mpegurl";
+    }
+    if path_ends_ts || query_is_t_m3u8 {
+        return "video/mp2t";
+    }
     if url_lower.contains(".mkv") {
         return "video/x-matroska";
     }
@@ -2110,9 +2161,6 @@ fn infer_content_type(upstream_ct: &str, target_url: &str) -> &'static str {
     }
     if url_lower.contains(".m3u8") {
         return "application/vnd.apple.mpegurl";
-    }
-    if url_lower.contains(".ts") {
-        return "video/mp2t";
     }
     if url_lower.contains(".vtt") || url_lower.contains(".srt") {
         return "text/vtt";
@@ -2632,6 +2680,50 @@ Second cue"#;
             infer_content_type("application/octet-stream", "foo.mkv"),
             "video/x-matroska"
         );
+        // CDN hotlink protection: px.roburnt10.store serves real MPEG-TS
+        // bytes with a fake `image/jpeg` content-type. The URL clearly
+        // says it's a TS segment (.t.m3u8= query suffix) — trust the URL.
+        assert_eq!(
+            infer_content_type(
+                "image/jpeg",
+                "https://px.roburnt10.store/cdn/abc123?t.m3u8="
+            ),
+            "video/mp2t"
+        );
+        // Same for HLS manifest URLs that get an `image/jpeg` lie.
+        assert_eq!(
+            infer_content_type("image/jpeg", "https://cdn.example.com/master.m3u8"),
+            "application/vnd.apple.mpegurl"
+        );
+    }
+
+    #[test]
+    fn test_segment_url_detection() {
+        // Simulate the binary-passthrough predicate in m3u8_handler. The
+        // fix to `send_m3u8_request` returns raw bytes, so the handler
+        // must recognize segment URLs (TS / m4s / aac / mp4 / ?t.m3u8=)
+        // and forward bytes instead of treating the response as text.
+        fn is_segment_url(target_url: &str) -> bool {
+            let url_lower = target_url.to_lowercase();
+            let path = url_lower.split('?').next().unwrap_or(&url_lower);
+            let query = url_lower.split('?').nth(1).unwrap_or("");
+            path.ends_with(".ts")
+                || path.ends_with(".m4s")
+                || path.ends_with(".aac")
+                || path.ends_with(".mp4")
+                || query == "t.m3u8"
+                || query.starts_with("t.m3u8=")
+        }
+        assert!(is_segment_url(
+            "https://px.roburnt10.store/cdn/abc123?t.m3u8="
+        ));
+        assert!(is_segment_url("https://cdn.example.com/seg.ts"));
+        assert!(is_segment_url("https://cdn.example.com/seg.m4s"));
+        assert!(is_segment_url("https://cdn.example.com/audio.aac"));
+        assert!(is_segment_url("https://cdn.example.com/clip.mp4"));
+        // Manifest URLs are NOT segments — they go through the playlist rewrite path.
+        assert!(!is_segment_url("https://cdn.example.com/master.m3u8"));
+        assert!(!is_segment_url("https://cdn.example.com/index.m3u8?token=foo"));
     }
 
     #[test]

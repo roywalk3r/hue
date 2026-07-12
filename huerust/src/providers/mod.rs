@@ -122,3 +122,20 @@ pub fn best_donghua_match<'a>(results: &'a [AnimeCard], query: &str) -> Option<&
         })
         .or_else(|| results.first())
 }
+
+/// True if the title looks like Chinese-origin content. Used to gate the
+/// donghua provider fan-out so the standard aggregator doesn't pay a
+/// network-search round-trip for the 99% of requests that are JP/EN/KR.
+///
+/// `TmdbNormalizedInfo` doesn't carry `original_language` or
+/// `origin_country`, so the only signal we have is the title itself.
+/// Chinese donghua titles are almost always romanized (e.g. "Shrouding
+/// the Heavens", "Fog Hill of Five Elements"), so a CJK character check
+/// catches the small minority that come through in Chinese characters
+/// while letting the rest through to upstream search.
+pub fn looks_chinese(tmdb_info: &TmdbNormalizedInfo) -> bool {
+    tmdb_info
+        .title
+        .chars()
+        .any(|c| matches!(c, '\u{4E00}'..='\u{9FFF}'))
+}
