@@ -18,6 +18,7 @@ pub struct AppConfig {
     pub tmdb_api_keys: Vec<String>,
     pub cache_ttl_secs: u64,
     pub cache_max_capacity: u64,
+    pub segment_cache_bytes: u64,
     #[allow(dead_code)]
     pub fast_provider_deadline_secs: u64,
     pub slow_provider_deadline_secs: u64,
@@ -73,6 +74,10 @@ impl AppConfig {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(1000),
+            segment_cache_bytes: env::var("SEGMENT_CACHE_BYTES")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(4 * 1024 * 1024 * 1024),
             fast_provider_deadline_secs: env::var("FAST_PROVIDER_DEADLINE_SECS")
                 .ok()
                 .and_then(|s| s.parse().ok())
@@ -253,6 +258,7 @@ mod tests {
             tmdb_api_keys: vec!["k1".to_string()],
             cache_ttl_secs: 3600,
             cache_max_capacity: 500,
+            segment_cache_bytes: 4 * 1024 * 1024 * 1024,
             fast_provider_deadline_secs: 3,
             slow_provider_deadline_secs: 10,
             head_check_timeout_secs: 2,
@@ -313,6 +319,7 @@ mod tests {
             tmdb_api_keys: vec!["k1".to_string()],
             cache_ttl_secs: 3600,
             cache_max_capacity: 500,
+            segment_cache_bytes: 4 * 1024 * 1024 * 1024,
             fast_provider_deadline_secs: 3,
             slow_provider_deadline_secs: 10,
             head_check_timeout_secs: 2,

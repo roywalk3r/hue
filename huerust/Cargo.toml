@@ -19,6 +19,7 @@ serde_qs = "0.13"
 url = "2.5"
 urlencoding = "2.1"
 base64 = "0.21"
+bytes = "1.0"
 hex = "0.4"
 
 # Security
