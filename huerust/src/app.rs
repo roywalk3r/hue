@@ -93,19 +93,34 @@ pub fn vixsrc_enabled() -> bool {
         .unwrap_or(false)
 }
 
-/// Aura (Vixsrc) via the xyra.stream streamhub proxy. On by default since the
-/// direct `vixsrc.to` path is Cloudflare-blocked on the production VPS, but
-/// Xyra can proxy the same master playlist. Set `ENABLE_XYRA_VIXSRC=0` to
-/// opt out and run with no Aura streams.
+/// Aura (Vixsrc) via the xyra.stream streamhub proxy. Off by default:
+/// `api.xyra.stream` times out from the production VPS, and the direct
+/// `vixsrc.to` path is Cloudflare-blocked, so the provider currently just
+/// burns 8s per request with no usable streams. Set `ENABLE_XYRA_VIXSRC=1`
+/// to opt in if/when the proxy comes back.
 pub fn xyra_vixsrc_enabled() -> bool {
     env::var("ENABLE_XYRA_VIXSRC")
         .map(|value| {
-            !matches!(
+            matches!(
                 value.trim().to_ascii_lowercase().as_str(),
-                "0" | "false" | "no" | "off"
+                "1" | "true" | "yes" | "on"
             )
         })
-        .unwrap_or(true)
+        .unwrap_or(false)
+}
+
+/// Aurex (Xyra drama) via `xyra.stream/api/stream/sources`. Off by default:
+/// the upstream times out from the production VPS and adds dead latency to
+/// every lookup. Set `ENABLE_XYRA_AUREX=1` to opt in if/when it recovers.
+pub fn xyra_aurex_enabled() -> bool {
+    env::var("ENABLE_XYRA_AUREX")
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
 }
 
 /// The Xyra fast-path route (`/api/streams/xyra/…`, api.xyra.stream/streamhub)
@@ -185,7 +200,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let circuit_breaker = Arc::new(CircuitBreaker::new());
     let metrics = Arc::new(Metrics::new(&[
         "Cinema", "Nova", "Zenith", "Orient", "Pearl", "Aura", "Hydra", "Luna", "Vault", "VidZee",
-        "Nebula", "Rose", "Aurex", "Dragon", "Phoenix",
+        "Nebula", "Rose", "Dragon", "Phoenix",
     ]));
     circuit_breaker.set_metrics(metrics.clone());
     let filter_config = Arc::new(FilterConfig::default());
@@ -295,10 +310,14 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     } else {
         let _ = vixsrc_client;
         tracing::info!(
-            "Aura (Vixsrc) provider disabled — both Xyra and direct paths off (set ENABLE_XYRA_VIXSRC=1 to re-enable)"
+            "Aura (Vixsrc) provider disabled — both Xyra and direct paths off (set ENABLE_XYRA_VIXSRC=1 or ENABLE_VIXSRC=1 to re-enable)"
         );
     }
-    registry.register(Arc::new(XyraAurexProvider::new(xyra_aurex_client)));
+    if xyra_aurex_enabled() {
+        registry.register(Arc::new(XyraAurexProvider::new(xyra_aurex_client)));
+    } else {
+        tracing::info!("Aurex (Xyra) provider disabled — api.xyra.stream unreachable (set ENABLE_XYRA_AUREX=1 to re-enable)");
+    }
     // registry.register(Arc::new(Mp4HydraProvider::new())); // disabled — endpoint times out
     registry.register(Arc::new(VidrockProvider::new(vidrock_client.clone())));
     // registry.register(Arc::new(VidvaultProvider::new(vidvault_client.clone()))); // disabled — hakunaymatata CDN 403s all URLs, even freshly resolved
