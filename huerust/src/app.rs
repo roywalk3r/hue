@@ -148,6 +148,7 @@ pub struct AppState {
     pub tmdb: Arc<TmdbClient>,
     pub registry: Arc<ProviderRegistry>,
     pub cache: Arc<StreamCache>,
+    pub segment_cache: Arc<crate::infra::segment_cache::SegmentCache>,
     pub sticky_pref: Arc<crate::infra::sticky_pref::StickyPrefCache>,
     pub provider_score: Arc<ProviderScoreCache>,
     pub filter_config: Arc<FilterConfig>,
@@ -180,6 +181,7 @@ pub struct AppState {
 pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
     let tmdb = Arc::new(TmdbClient::new(cfg.tmdb_api_keys.clone()));
     let cache = Arc::new(StreamCache::new_from_config(&cfg).await);
+    let segment_cache = Arc::new(crate::infra::segment_cache::SegmentCache::new(cfg.segment_cache_bytes));
     let circuit_breaker = Arc::new(CircuitBreaker::new());
     let metrics = Arc::new(Metrics::new(&[
         "Cinema", "Nova", "Zenith", "Orient", "Pearl", "Aura", "Hydra", "Luna", "Vault", "VidZee",
@@ -351,6 +353,7 @@ pub async fn build_state(cfg: &crate::config::AppConfig) -> AppState {
         tmdb: tmdb.clone(),
         registry: Arc::new(registry),
         cache: cache.clone(),
+        segment_cache: segment_cache.clone(),
         sticky_pref: Arc::new(crate::infra::sticky_pref::StickyPrefCache::new_from_config(&cfg).await),
         provider_score: Arc::new(ProviderScoreCache::new_from_config(&cfg).await),
         filter_config: filter_config.clone(),
