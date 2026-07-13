@@ -12,6 +12,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde::Deserialize;
+use bytes::Bytes;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::time::Duration;
@@ -574,6 +575,78 @@ fn segment_cache_control(target_url: &str) -> &'static str {
     }
 }
 
+/// Build a response from a cached segment. Returns 206 Partial Content when
+/// `params.range` requested a slice; otherwise 200 with the full body. The
+/// status, content-type, and accept-ranges header mirror what the upstream
+/// success path emits so cache hits are indistinguishable from re-fetches.
+fn build_cached_response(
+    cached: crate::infra::segment_cache::CachedSegment,
+    target_url: &str,
+    params: &TsProxyQuery,
+) -> Response {
+    let (status, body, content_range_header) =
+        if let Some(range_spec) = params.range.as_deref() {
+            match parse_byte_range_for_slice(range_spec, cached.body.len()) {
+                Some((start, end)) => {
+                    let slice = cached.body.slice(start..=end);
+                    let total = cached.body.len();
+                    (
+                        StatusCode::PARTIAL_CONTENT,
+                        slice,
+                        Some(format!("bytes {}-{}/{}", start, end, total)),
+                    )
+                }
+                None => (StatusCode::OK, cached.body.clone(), None),
+            }
+        } else {
+            (StatusCode::OK, cached.body.clone(), None)
+        };
+
+    let mut builder = Response::builder().status(status);
+    builder = builder.header("content-type", &cached.content_type);
+    builder = builder.header("Access-Control-Allow-Origin", "*");
+    builder = builder.header("Cache-Control", cached.cache_control);
+    if cached.accept_ranges {
+        builder = builder.header("accept-ranges", "bytes");
+    }
+    builder = builder.header("content-length", body.len());
+    if let Some(cr) = content_range_header {
+        builder = builder.header("content-range", cr);
+    }
+    if params.download.is_some() {
+        let filename = params.filename.as_deref().unwrap_or("video.mp4");
+        builder = builder.header(
+            "Content-Disposition",
+            format!(r#"attachment; filename="{}""#, filename),
+        );
+    }
+    let _ = target_url;
+    builder.body(Body::from(body)).unwrap()
+}
+
+/// Parse a `Range: bytes=START-END` header and return `(start, end)` byte
+/// indices clamped to the response body. Returns `None` for malformed
+/// ranges (e.g. multi-range, suffix, missing start) so the caller can fall
+/// back to the full body.
+fn parse_byte_range_for_slice(range_spec: &str, body_len: usize) -> Option<(usize, usize)> {
+    let spec = range_spec.trim().strip_prefix("bytes=")?;
+    let (start_str, end_str) = spec.split_once('-')?;
+    let start: usize = start_str.trim().parse().ok()?;
+    if start >= body_len {
+        return None;
+    }
+    let end: usize = if end_str.trim().is_empty() {
+        body_len - 1
+    } else {
+        let parsed: usize = end_str.trim().parse().ok()?;
+        parsed.min(body_len - 1)
+    };
+    if end < start {
+        return None;
+    }
+    Some((start, end))
+}
+
 // ── M3U8 Proxy ───────────────────────────────────────────────────────────────
 
 /// Send an M3U8 request and return (status, body, content_type).
@@ -1040,8 +1113,19 @@ pub async fn ts_handler(
     let synthesized_startup_range =
         incoming_range.is_none() && !force_200 && !no_synth && progressive_video;
 
-    tracing::info!("[ts-proxy] Target: {}", target_url);
-    tracing::info!("[ts-proxy] Token headers: {:?}", headers);
+    let skip_cache = sanitize || is_download;
+    let cache_key = crate::infra::segment_cache::SegmentKey {
+        url: target_url.clone(),
+        range: effective_range.clone(),
+    };
+    if !skip_cache {
+        if let Some(hit) = state.segment_cache.get(&cache_key).await {
+            return build_cached_response(hit, &target_url, &params);
+        }
+    }
+
+    tracing::debug!("[ts-proxy] Target: {}", target_url);
+    tracing::debug!("[ts-proxy] Token headers: {:?}", headers);
 
     let strip_cross_origin = host_rejects_cross_origin_headers(&target_url);
     let mut req = state.raw_client.get(&worker_routed_url(
@@ -1364,6 +1448,42 @@ pub async fn ts_handler(
                     }
                 }
                 builder = builder.header("accept-ranges", "bytes");
+                if !skip_cache {
+                    let upstream_ct = resp
+                        .headers()
+                        .get("content-type")
+                        .and_then(|v| v.to_str().ok())
+                        .map(|s| infer_content_type(s, &target_url).to_string())
+                        .unwrap_or_else(|| "application/octet-stream".to_string());
+                    match resp.bytes().await {
+                        Ok(body_bytes) => {
+                            let cached = crate::infra::segment_cache::CachedSegment {
+                                body: body_bytes.clone(),
+                                content_type: upstream_ct,
+                                content_length: Some(body_bytes.len() as u64),
+                                accept_ranges: true,
+                                cache_control: segment_cache_control(&target_url),
+                            };
+                            state
+                                .segment_cache
+                                .put(cache_key, cached.clone())
+                                .await;
+                            return build_cached_response(cached, &target_url, &params);
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "[ts-proxy] Cache buffer read failed for {}: {} (502)",
+                                target_url,
+                                e
+                            );
+                            return (
+                                StatusCode::BAD_GATEWAY,
+                                format!("Upstream body unreadable: {}", e),
+                            )
+                                .into_response();
+                        }
+                    }
+                }
                 builder
                     .body(Body::from_stream(resp.bytes_stream()))
                     .unwrap()
