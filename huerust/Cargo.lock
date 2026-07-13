@@ -1065,6 +1065,7 @@ dependencies = [
  "axum",
  "base64 0.21.7",
  "brotli 6.0.0",
+ "bytes",
  "cbc",
  "chrono",
  "cipher",
