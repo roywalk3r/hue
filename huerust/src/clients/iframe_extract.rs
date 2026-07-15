@@ -6,7 +6,7 @@
  * embed host exposes them in page source or a known API.
  */
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{anyhow, Result};
 use rand::distributions::{Alphanumeric, DistString};
@@ -33,7 +33,9 @@ pub struct NativeStream {
 /// Attempt to turn an iframe URL into a native stream.
 ///
 /// Dispatches to host-specific extractors when available, then falls back to a
-/// generic regex scan of the embed page source.
+/// generic regex scan of the embed page source. If both fail and a Node
+/// scraper microservice URL is configured, asks it to extract the iframe as a
+/// last resort (useful for packed/encoded JS hosts we haven't ported to Rust).
 pub async fn try_extract(
     client: &ClientWithMiddleware,
     iframe_url: &str,
@@ -46,36 +48,58 @@ pub async fn try_extract(
     let lower = iframe_url.to_ascii_lowercase();
 
     if is_dood_host(&lower) {
-        return dood_extract(client, iframe_url)
+        if let Some(stream) = dood_extract(client, iframe_url)
             .await
             .inspect_err(|e| debug!("[Dood] extraction failed: {}", e))
-            .ok();
+            .ok()
+        {
+            return Some(stream);
+        }
     }
 
     if is_streamwish_host(&lower) {
-        return streamwish_extract(client, iframe_url, source_referer)
+        if let Some(stream) = streamwish_extract(client, iframe_url, source_referer)
             .await
             .inspect_err(|e| debug!("[Streamwish] extraction failed: {}", e))
-            .ok();
+            .ok()
+        {
+            return Some(stream);
+        }
     }
 
     if is_okru_host(&lower) {
-        return okru_extract(client, iframe_url, source_referer)
+        if let Some(stream) = okru_extract(client, iframe_url, source_referer)
             .await
             .inspect_err(|e| debug!("[OK.ru] extraction failed: {}", e))
-            .ok();
+            .ok()
+        {
+            return Some(stream);
+        }
     }
 
     if is_dailymotion_host(&lower) {
-        return dailymotion_extract(client, iframe_url, source_referer)
+        if let Some(stream) = dailymotion_extract(client, iframe_url, source_referer)
             .await
             .inspect_err(|e| debug!("[Dailymotion] extraction failed: {}", e))
-            .ok();
+            .ok()
+        {
+            return Some(stream);
+        }
     }
 
-    generic_extract(client, iframe_url, source_referer)
+    if let Some(stream) = generic_extract(client, iframe_url, source_referer)
         .await
         .inspect_err(|e| debug!("[iframe] generic extraction failed: {}", e))
+        .ok()
+    {
+        return Some(stream);
+    }
+
+    // Last resort: Node scraper microservice for hosts with packed/headless
+    // extraction logic we haven't ported to Rust yet.
+    node_scraper_extract(client, iframe_url, source_referer)
+        .await
+        .inspect_err(|e| debug!("[NodeScraper] fallback extraction failed: {}", e))
         .ok()
 }
 
@@ -453,6 +477,73 @@ fn extract_dailymotion_id(url: &str) -> Option<String> {
     re.captures(url)
         .and_then(|c| c.get(1))
         .map(|m| m.as_str().to_string())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Node scraper microservice fallback
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// URL of the Node scraper microservice. Set `SCRAPER_URL` to enable the
+/// fallback path. Defaults to the local PM2-managed scraper.
+fn scraper_url() -> Option<String> {
+    std::env::var("SCRAPER_URL")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| Some("http://127.0.0.1:24610".to_string()))
+}
+
+async fn node_scraper_extract(
+    client: &ClientWithMiddleware,
+    iframe_url: &str,
+    source_referer: &str,
+) -> Result<NativeStream> {
+    let base = scraper_url().ok_or_else(|| anyhow!("no scraper URL configured"))?;
+    let url = format!("{base}/extract/iframe");
+
+    let payload = serde_json::json!({
+        "url": iframe_url,
+        "referer": source_referer,
+    });
+
+    let resp = client
+        .post(&url)
+        .timeout(Duration::from_secs(8))
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| anyhow!("scraper request failed: {e}"))?
+        .json::<Value>()
+        .await
+        .map_err(|e| anyhow!("scraper returned invalid JSON: {e}"))?;
+
+    if !resp.get("success").and_then(|v| v.as_bool()).unwrap_or(false) {
+        let error = resp
+            .get("error")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown scraper error");
+        return Err(anyhow!("scraper reported failure: {error}"));
+    }
+
+    let stream_url = resp
+        .get("url")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow!("scraper response missing url"))?;
+
+    let stream_type = resp
+        .get("streamType")
+        .and_then(|v| v.as_str())
+        .unwrap_or("mp4")
+        .to_string();
+
+    let referer = resp.get("referer").and_then(|v| v.as_str()).map(String::from);
+
+    debug!("[NodeScraper] extracted {} stream from {}", stream_type, iframe_url);
+    Ok(NativeStream {
+        url: stream_url.to_string(),
+        stream_type,
+        referer,
+    })
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
