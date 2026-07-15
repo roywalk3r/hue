@@ -29,6 +29,7 @@ const kissasianProvider = require('./providers/kissasian');
 const { decrypt: videasyDecrypt } = require('./providers/videasy/decrypt');
 const { getNewPage } = require('./utils/browserManager');
 const vidsrcEmbedProvider = require('./providers/vidsrc-embed');
+const iframeExtractor = require('./providers/iframeExtractor');
 
 const app = express();
 const port = process.env.SCRAPER_PORT || 24610;
@@ -138,6 +139,27 @@ app.post('/scrape/vidsrc-embed', async (req, res) => {
     } catch (e) {
         console.error(`[Scraper] Vidsrc-Embed error: ${e.message}`);
         res.status(500).json({ success: false, error: e.message, streams: [] });
+    }
+});
+
+// Iframe-to-native stream extraction route
+app.post('/extract/iframe', async (req, res) => {
+    const { url, referer } = req.body;
+    if (!url) {
+        return res.status(400).json({ success: false, error: 'Missing url parameter' });
+    }
+
+    try {
+        console.log(`[Scraper] Extracting iframe: ${url}`);
+        const result = await iframeExtractor.extractIframe(url, referer);
+        if (result) {
+            res.json({ success: true, ...result });
+        } else {
+            res.json({ success: false, error: 'Extraction returned no stream' });
+        }
+    } catch (e) {
+        console.error(`[Scraper] iframe extraction error: ${e.message}`);
+        res.status(500).json({ success: false, error: e.message });
     }
 });
 
