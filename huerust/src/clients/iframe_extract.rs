@@ -498,17 +498,18 @@ async fn node_scraper_extract(
     source_referer: &str,
 ) -> Result<NativeStream> {
     let base = scraper_url().ok_or_else(|| anyhow!("no scraper URL configured"))?;
-    let url = format!("{base}/extract/iframe");
 
-    let payload = serde_json::json!({
+    // First try the per-host iframe extractor route (fast, no browser).
+    let iframe_url_path = format!("{base}/extract/iframe");
+    let iframe_payload = serde_json::json!({
         "url": iframe_url,
         "referer": source_referer,
     });
 
-    let resp = client
-        .post(&url)
+    let iframe_resp = client
+        .post(&iframe_url_path)
         .timeout(Duration::from_secs(8))
-        .json(&payload)
+        .json(&iframe_payload)
         .send()
         .await
         .map_err(|e| anyhow!("scraper request failed: {e}"))?
@@ -516,19 +517,56 @@ async fn node_scraper_extract(
         .await
         .map_err(|e| anyhow!("scraper returned invalid JSON: {e}"))?;
 
+    if let Some(stream) = parse_scraper_stream(&iframe_resp, iframe_url) {
+        return Ok(stream);
+    }
+
+    // If the host-specific extractor didn't handle it, fall back to a real
+    // browser that sniffs the first media request the player makes.
+    debug!("[NodeScraper] iframe extraction failed, trying headless sniffer for {}", iframe_url);
+    node_headless_extract(client, iframe_url, source_referer, &base).await
+}
+
+async fn node_headless_extract(
+    client: &ClientWithMiddleware,
+    iframe_url: &str,
+    source_referer: &str,
+    base: &str,
+) -> Result<NativeStream> {
+    let url = format!("{base}/scrape/headless");
+    let headless_timeout_ms = 10_000;
+
+    let payload = serde_json::json!({
+        "url": iframe_url,
+        "referer": source_referer,
+        "timeout": headless_timeout_ms,
+        "mediaExtensions": [".m3u8", ".mp4", ".mpd", ".mkv", ".webm"],
+    });
+
+    let resp = client
+        .post(&url)
+        .timeout(Duration::from_millis(headless_timeout_ms + 3_000))
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| anyhow!("headless scraper request failed: {e}"))?
+        .json::<Value>()
+        .await
+        .map_err(|e| anyhow!("headless scraper returned invalid JSON: {e}"))?;
+
+    parse_scraper_stream(&resp, iframe_url)
+        .ok_or_else(|| anyhow!("headless scraper did not capture a media request"))
+}
+
+fn parse_scraper_stream(resp: &Value, iframe_url: &str) -> Option<NativeStream> {
     if !resp.get("success").and_then(|v| v.as_bool()).unwrap_or(false) {
-        let error = resp
-            .get("error")
-            .and_then(|v| v.as_str())
-            .unwrap_or("unknown scraper error");
-        return Err(anyhow!("scraper reported failure: {error}"));
+        return None;
     }
 
     let stream_url = resp
         .get("url")
         .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| anyhow!("scraper response missing url"))?;
+        .filter(|s| !s.is_empty())?;
 
     let stream_type = resp
         .get("streamType")
@@ -539,7 +577,7 @@ async fn node_scraper_extract(
     let referer = resp.get("referer").and_then(|v| v.as_str()).map(String::from);
 
     debug!("[NodeScraper] extracted {} stream from {}", stream_type, iframe_url);
-    Ok(NativeStream {
+    Some(NativeStream {
         url: stream_url.to_string(),
         stream_type,
         referer,
