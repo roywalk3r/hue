@@ -13,6 +13,7 @@ use rand::distributions::{Alphanumeric, DistString};
 use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest_middleware::ClientWithMiddleware;
+use serde_json::Value;
 use tokio::process::Command;
 use tracing::{debug, trace};
 
@@ -58,6 +59,20 @@ pub async fn try_extract(
             .ok();
     }
 
+    if is_okru_host(&lower) {
+        return okru_extract(client, iframe_url, source_referer)
+            .await
+            .inspect_err(|e| debug!("[OK.ru] extraction failed: {}", e))
+            .ok();
+    }
+
+    if is_dailymotion_host(&lower) {
+        return dailymotion_extract(client, iframe_url, source_referer)
+            .await
+            .inspect_err(|e| debug!("[Dailymotion] extraction failed: {}", e))
+            .ok();
+    }
+
     generic_extract(client, iframe_url, source_referer)
         .await
         .inspect_err(|e| debug!("[iframe] generic extraction failed: {}", e))
@@ -82,6 +97,14 @@ fn is_streamwish_host(url: &str) -> bool {
         || url.contains("wishembed")
 }
 
+fn is_okru_host(url: &str) -> bool {
+    url.contains("ok.ru") || url.contains("odnoklassniki.ru")
+}
+
+fn is_dailymotion_host(url: &str) -> bool {
+    url.contains("dailymotion.com")
+}
+
 fn default_headers(referer: &str) -> HeaderMap {
     let mut headers = HeaderMap::new();
     headers.insert("User-Agent", HeaderValue::from_static(UA));
@@ -95,6 +118,23 @@ fn default_headers(referer: &str) -> HeaderMap {
         headers.insert("Referer", value);
     }
     headers
+}
+
+fn default_headers_with_cookie(referer: &str, cookie: &str) -> HeaderMap {
+    let mut headers = default_headers(referer);
+    if let Ok(value) = HeaderValue::from_str(cookie) {
+        headers.insert("Cookie", value);
+    }
+    headers
+}
+
+/// Decode a small set of HTML entities found in `data-options` attributes.
+fn decode_html_entities(s: &str) -> String {
+    s.replace("&quot;", "\"")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&#39;", "'")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -222,6 +262,200 @@ async fn streamwish_extract(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// OK.ru (Odnoklassniki)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async fn okru_extract(
+    client: &ClientWithMiddleware,
+    iframe_url: &str,
+    source_referer: &str,
+) -> Result<NativeStream> {
+    let referer = if source_referer.is_empty() {
+        "https://ok.ru/"
+    } else {
+        source_referer
+    };
+    let html = fetch_embed_page(client, iframe_url, referer)
+        .await
+        .map_err(|e| anyhow!("failed to fetch ok.ru embed: {e}"))?;
+
+    // Newer embeds inline an escaped `"metadata":"..."` JSON blob.
+    if let Some(meta) = extract_okru_metadata(&html) {
+        if let Some(m3u8) = find_okru_hls(&meta) {
+            return Ok(NativeStream {
+                url: m3u8,
+                stream_type: "hls".to_string(),
+                referer: Some("https://ok.ru/".to_string()),
+            });
+        }
+    }
+
+    // Fallback: the `data-options` attribute holds player JSON with flashvars.
+    let player_json = extract_okru_data_options(&html);
+    if let Some(player_json) = player_json {
+        let player: Value = serde_json::from_str(&player_json)
+            .map_err(|e| anyhow!("ok.ru data-options is not valid JSON: {e}"))?;
+
+        if let Some(metadata_json) = player
+            .get("flashvars")
+            .and_then(|f| f.get("metadata"))
+            .and_then(|m| m.as_str())
+        {
+            let metadata: Value = serde_json::from_str(metadata_json)
+                .map_err(|e| anyhow!("ok.ru flashvars.metadata is not valid JSON: {e}"))?;
+            if let Some(m3u8) = find_okru_hls(&metadata) {
+                return Ok(NativeStream {
+                    url: m3u8,
+                    stream_type: "hls".to_string(),
+                    referer: Some("https://ok.ru/".to_string()),
+                });
+            }
+        }
+
+        if let Some(metadata_url) = player
+            .get("flashvars")
+            .and_then(|f| f.get("metadataUrl"))
+            .and_then(|m| m.as_str())
+        {
+            let metadata_url = decode_html_entities(metadata_url);
+            let metadata = client
+                .get(&metadata_url)
+                .headers(default_headers(referer))
+                .send()
+                .await?
+                .json::<Value>()
+                .await?;
+            if let Some(m3u8) = find_okru_hls(&metadata) {
+                return Ok(NativeStream {
+                    url: m3u8,
+                    stream_type: "hls".to_string(),
+                    referer: Some("https://ok.ru/".to_string()),
+                });
+            }
+        }
+    }
+
+    Err(anyhow!("ok.ru: no hls manifest found"))
+}
+
+fn extract_okru_metadata(html: &str) -> Option<Value> {
+    let marker = "\"metadata\":\"";
+    let idx = html.find(marker)?;
+    let rest = &html[idx + marker.len()..];
+
+    let mut raw = String::new();
+    let mut escaped = false;
+    for ch in rest.chars() {
+        if escaped {
+            raw.push(ch);
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == '"' {
+            break;
+        }
+        raw.push(ch);
+    }
+
+    let json_str = raw
+        .replace("\\\"", "\"")
+        .replace("\\n", "\n")
+        .replace("\\/", "/")
+        .replace("\\\\", "\\");
+    serde_json::from_str(&json_str).ok()
+}
+
+/// Extract the JSON payload from an OK.ru `data-options` attribute. We try
+/// double-quoted and single-quoted forms separately because the Rust regex
+/// engine does not support backreferences.
+fn extract_okru_data_options(html: &str) -> Option<String> {
+    let double_re = Regex::new(r#"data-options="(\{.+?\})""#).ok()?;
+    if let Some(caps) = double_re.captures(html) {
+        return caps.get(1).map(|m| decode_html_entities(m.as_str()));
+    }
+    let single_re = Regex::new(r#"data-options='(\{.+?\})'"#).ok()?;
+    if let Some(caps) = single_re.captures(html) {
+        return caps.get(1).map(|m| decode_html_entities(m.as_str()));
+    }
+    None
+}
+
+fn find_okru_hls(meta: &Value) -> Option<String> {
+    ["hlsManifestUrl", "ondemandHls", "hlsMasterPlaylistUrl"]
+        .iter()
+        .find_map(|key| meta.get(*key).and_then(|v| v.as_str()).map(String::from))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Dailymotion
+// ═══════════════════════════════════════════════════════════════════════════
+
+async fn dailymotion_extract(
+    client: &ClientWithMiddleware,
+    iframe_url: &str,
+    source_referer: &str,
+) -> Result<NativeStream> {
+    let video_id = extract_dailymotion_id(iframe_url)
+        .ok_or_else(|| anyhow!("dailymotion: video id not found"))?;
+    let meta_url = format!(
+        "https://www.dailymotion.com/player/metadata/video/{}",
+        video_id
+    );
+    let referer = if source_referer.is_empty() {
+        "https://www.dailymotion.com/"
+    } else {
+        source_referer
+    };
+
+    let resp = client
+        .get(&meta_url)
+        .headers(default_headers_with_cookie(referer, "family_filter=off; ff=off"))
+        .send()
+        .await?
+        .json::<Value>()
+        .await?;
+
+    let auto = resp
+        .get("qualities")
+        .and_then(|q| q.get("auto"))
+        .and_then(|a| a.as_array());
+
+    if let Some(qualities) = auto {
+        for q in qualities {
+            let url = q.get("url").and_then(|u| u.as_str());
+            let is_hls = q
+                .get("type")
+                .and_then(|t| t.as_str())
+                .map(|t| t == "application/x-mpegURL")
+                .unwrap_or(false)
+                || url.map(|u| u.contains(".m3u8")).unwrap_or(false);
+            if is_hls {
+                if let Some(url) = url {
+                    return Ok(NativeStream {
+                        url: url.to_string(),
+                        stream_type: "hls".to_string(),
+                        referer: Some("https://www.dailymotion.com/".to_string()),
+                    });
+                }
+            }
+        }
+    }
+
+    Err(anyhow!("dailymotion: no hls manifest found"))
+}
+
+fn extract_dailymotion_id(url: &str) -> Option<String> {
+    let re = Regex::new(r#"(?:/embed/video/|/video/)([a-zA-Z0-9]+)"#).ok()?;
+    re.captures(url)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().to_string())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Generic fallback
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -330,5 +564,73 @@ mod tests {
         let re = Regex::new(r#"/pass_md5/([^'"\s]+)"#).unwrap();
         let caps = re.captures(html).unwrap();
         assert_eq!(caps.get(1).unwrap().as_str(), "abc123-0-0-0-deadbeef/token00x");
+    }
+
+    #[test]
+    fn test_extract_dailymotion_id_embed_and_video_paths() {
+        assert_eq!(
+            extract_dailymotion_id("https://www.dailymotion.com/embed/video/x8ao5h7"),
+            Some("x8ao5h7".to_string())
+        );
+        assert_eq!(
+            extract_dailymotion_id("https://www.dailymotion.com/video/x8ao5h7"),
+            Some("x8ao5h7".to_string())
+        );
+        assert_eq!(
+            extract_dailymotion_id("https://www.dailymotion.com/embed/video/x8ao5h7?autoplay=1"),
+            Some("x8ao5h7".to_string())
+        );
+        assert!(extract_dailymotion_id("https://www.dailymotion.com/").is_none());
+    }
+
+    #[test]
+    fn test_extract_okru_metadata_reads_escaped_json() {
+        let html = r#"var data = {"metadata":"{\"hlsManifestUrl\":\"https://ok.ru/video/hls/123.m3u8\"}"};"#;
+        let meta = extract_okru_metadata(html).unwrap();
+        assert_eq!(
+            meta.get("hlsManifestUrl").unwrap().as_str().unwrap(),
+            "https://ok.ru/video/hls/123.m3u8"
+        );
+    }
+
+    #[test]
+    fn test_find_okru_hls_prefers_hls_manifest_url() {
+        let meta = serde_json::json!({
+            "hlsManifestUrl": "https://ok.ru/manifest.m3u8",
+            "ondemandHls": "https://ok.ru/ondemand.m3u8",
+        });
+        assert_eq!(find_okru_hls(&meta), Some("https://ok.ru/manifest.m3u8".to_string()));
+    }
+
+    #[test]
+    fn test_decode_html_entities() {
+        assert_eq!(decode_html_entities("&quot;hello&quot;"), "\"hello\"");
+        assert_eq!(decode_html_entities("&amp;"), "&");
+        assert_eq!(decode_html_entities("&#39;x&#39;"), "'x'");
+    }
+
+    /// Real-network smoke test for OK.ru extraction. Ignored in CI because it
+    /// depends on a live embed page.
+    #[tokio::test]
+    #[ignore = "network"]
+    async fn test_okru_extract_live() {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(20))
+            .build()
+            .unwrap();
+        let client = crate::http_client::wrap_with_retry(client);
+
+        let stream = okru_extract(
+            &client,
+            "https://ok.ru/video/3483213367904",
+            "https://ok.ru/",
+        )
+        .await
+        .expect("ok.ru extraction should succeed");
+
+        assert_eq!(stream.stream_type, "hls");
+        assert!(stream.url.contains(".m3u8"));
+        assert!(stream.url.starts_with("https://"));
+        assert_eq!(stream.referer, Some("https://ok.ru/".to_string()));
     }
 }
