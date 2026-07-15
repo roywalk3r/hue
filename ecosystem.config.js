@@ -29,7 +29,8 @@ module.exports = {
       name: 'hue-scraper-microservice',
       script: 'scraperServer.js',
       env: {
-        SCRAPER_PORT: 24610
+        SCRAPER_PORT: 24610,
+        BROWSER_EXECUTABLE_PATH: '/home/rseann/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome',
       }
     },
   ]

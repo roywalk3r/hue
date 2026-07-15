@@ -24,6 +24,7 @@ if (typeof global.File === 'undefined') {
 }
 
 const express = require('express');
+const { URL } = require('url');
 const sflixProvider = require('./providers/sflix');
 const kissasianProvider = require('./providers/kissasian');
 const { decrypt: videasyDecrypt } = require('./providers/videasy/decrypt');
@@ -162,6 +163,165 @@ app.post('/extract/iframe', async (req, res) => {
         res.status(500).json({ success: false, error: e.message });
     }
 });
+
+// Generic headless browser stream sniffer for any provider.
+// Spawns a stealth browser, navigates to the URL, and captures the first
+// media manifest or video request that matches known extensions or a custom
+// regex. Also supports waiting for a selector, clicking an element, and
+// evaluating custom page JS before/after navigation.
+app.post('/scrape/headless', async (req, res) => {
+    const {
+        url,
+        referer,
+        timeout = 30000,
+        waitFor,
+        waitForNetworkIdle = false,
+        clickSelector,
+        evaluateScript,
+        watchUrlRegex,
+        mediaExtensions = ['.m3u8', '.mp4', '.mpd', '.mkv', '.webm'],
+    } = req.body;
+
+    if (!url) {
+        return res.status(400).json({ success: false, error: 'Missing url parameter' });
+    }
+
+    let page;
+    try {
+        console.log(`[Scraper] Headless scrape: ${url}`);
+        page = await getNewPage();
+
+        const result = await runHeadlessStreamSniffer(page, {
+            url,
+            referer,
+            timeout,
+            waitFor,
+            waitForNetworkIdle,
+            clickSelector,
+            evaluateScript,
+            watchUrlRegex,
+            mediaExtensions,
+        });
+
+        res.json({ success: true, ...result });
+    } catch (e) {
+        console.error(`[Scraper] Headless error: ${e.message}`);
+        res.status(500).json({ success: false, error: e.message });
+    } finally {
+        if (page) {
+            try { await page.context().close(); } catch (_) {}
+        }
+    }
+});
+
+async function runHeadlessStreamSniffer(page, options) {
+    const {
+        url,
+        referer,
+        timeout,
+        waitFor,
+        waitForNetworkIdle,
+        clickSelector,
+        evaluateScript,
+        watchUrlRegex,
+        mediaExtensions,
+    } = options;
+
+    const regex = watchUrlRegex ? new RegExp(watchUrlRegex, 'i') : null;
+
+    const capturePromise = new Promise((resolve, reject) => {
+        let settled = false;
+        const timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            reject(new Error('No media request captured before timeout'));
+        }, timeout);
+
+        const cleanup = () => {
+            clearTimeout(timer);
+            page.off('request', onRequest);
+        };
+
+        const onRequest = (request) => {
+            const reqUrl = request.url();
+            const matchesExt = mediaExtensions.some(ext => reqUrl.toLowerCase().includes(ext));
+            const matchesRegex = regex && regex.test(reqUrl);
+            if (!matchesExt && !matchesRegex) return;
+
+            if (settled) return;
+            settled = true;
+            cleanup();
+
+            const headers = request.headers();
+            resolve({
+                url: reqUrl,
+                streamType: inferStreamType(reqUrl),
+                referer: headers.referer || referer || url,
+                requestHeaders: headers,
+            });
+        };
+
+        page.on('request', onRequest);
+    });
+
+    if (referer) {
+        await page.setExtraHTTPHeaders({ Referer: referer });
+    }
+
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
+
+    if (clickSelector) {
+        try {
+            await page.click(clickSelector);
+        } catch (e) {
+            console.log(`[Scraper] Headless click skipped: ${e.message}`);
+        }
+    }
+
+    if (evaluateScript) {
+        try {
+            const evalResult = await page.evaluate(evaluateScript);
+            if (evalResult && (evalResult.url || evalResult.streamUrl)) {
+                const streamUrl = evalResult.url || evalResult.streamUrl;
+                return {
+                    url: streamUrl,
+                    streamType: inferStreamType(streamUrl),
+                    referer: referer || url,
+                    evaluateResult: evalResult,
+                };
+            }
+        } catch (e) {
+            console.error(`[Scraper] Headless evaluate error: ${e.message}`);
+        }
+    }
+
+    if (waitFor) {
+        try {
+            await page.waitForSelector(waitFor, { timeout: timeout - 5000 });
+        } catch (e) {
+            console.log(`[Scraper] Headless waitFor skipped: ${e.message}`);
+        }
+    }
+
+    if (waitForNetworkIdle) {
+        try {
+            await page.waitForLoadState('networkidle', { timeout: timeout - 5000 });
+        } catch (e) {
+            console.log(`[Scraper] Headless networkidle skipped: ${e.message}`);
+        }
+    }
+
+    return await capturePromise;
+}
+
+function inferStreamType(url) {
+    const lower = url.split('?')[0].toLowerCase();
+    if (lower.includes('.m3u8')) return 'hls';
+    if (lower.includes('.mpd')) return 'dash';
+    if (lower.includes('.mp4') || lower.includes('.mkv') || lower.includes('.webm')) return 'mp4';
+    return 'mp4';
+}
 
 app.listen(port, '127.0.0.1', () => {
     console.log(`Scraper Microservice listening on http://127.0.0.1:${port}`);
