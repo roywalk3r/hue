@@ -3,6 +3,7 @@ use regex::Regex;
 use reqwest_middleware::ClientWithMiddleware;
 use tracing::warn;
 
+use crate::clients::iframe_extract;
 use crate::models::anime::{
     AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, EpisodeSummary, FilterParams,
     PaginatedResponse, ServerEntry, ServerList, StreamPayload,
@@ -382,8 +383,24 @@ impl AnimexinClient {
         }
         .ok_or_else(|| anyhow!("No stream sources found"))?;
 
+        let iframe_url = normalize_iframe_url(&target.id);
+
+        if let Some(native) =
+            iframe_extract::try_extract(&self.client, &iframe_url, BASE_URL).await
+        {
+            return Ok(StreamPayload {
+                url: native.url,
+                stream_type: native.stream_type,
+                subtitles: None,
+                intro: None,
+                outro: None,
+                server: Some(target.name.clone()),
+                referer: native.referer,
+            });
+        }
+
         Ok(StreamPayload {
-            url: normalize_iframe_url(&target.id),
+            url: iframe_url,
             stream_type: "iframe".to_string(),
             subtitles: None,
             intro: None,

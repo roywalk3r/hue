@@ -12,7 +12,6 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde::Deserialize;
-use bytes::Bytes;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::time::Duration;
@@ -3019,13 +3018,15 @@ pub fn proxy_anime_stream(
     let mut headers = std::collections::HashMap::new();
     headers.insert("Referer".to_string(), referer.to_string());
 
-    let route_for = |url: &str, kind: &str| -> String {
+    let route_for = |url: &str, kind: &str, stream_type: &str| -> String {
         let normalized = url.to_lowercase();
         if kind == "subtitle" {
             "/sub-proxy".to_string()
-        } else if normalized.contains(".m3u8") {
+        } else if stream_type == "hls" || normalized.contains(".m3u8") {
             "/m3u8-proxy".to_string()
-        } else if normalized.contains(".ts")
+        } else if stream_type == "mp4"
+            || stream_type == "dash"
+            || normalized.contains(".ts")
             || normalized.contains(".mp4")
             || normalized.contains(".m4s")
             || normalized.contains(".mkv")
@@ -3037,14 +3038,14 @@ pub fn proxy_anime_stream(
     };
 
     payload.url = {
-        let route = route_for(&payload.url, "stream");
+        let route = route_for(&payload.url, "stream", &payload.stream_type);
         let token = crate::security::sign_proxy_url(&payload.url, secret, Some(headers.clone()));
         format!("{}{}?{}", proxy_base_url, route, token.to_query())
     };
 
     if let Some(ref mut tracks) = payload.subtitles {
         for t in tracks.iter_mut() {
-            let route = route_for(&t.file, "subtitle");
+            let route = route_for(&t.file, "subtitle", "");
             let token = crate::security::sign_proxy_url(&t.file, secret, Some(headers.clone()));
             t.file = format!("{}{}?{}", proxy_base_url, route, token.to_query());
         }

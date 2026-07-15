@@ -6,6 +6,7 @@ pub mod animexin;
 pub mod aniwatch;
 pub mod aniwave;
 pub mod hianime;
+pub mod iframe_extract;
 pub mod hitv;
 pub mod lordflix;
 pub mod moviebox;
