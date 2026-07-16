@@ -180,6 +180,7 @@ app.post('/scrape/headless', async (req, res) => {
         evaluateScript,
         watchUrlRegex,
         mediaExtensions = ['.m3u8', '.mp4', '.mpd', '.mkv', '.webm'],
+        debug = false,
     } = req.body;
 
     if (!url) {
@@ -201,6 +202,7 @@ app.post('/scrape/headless', async (req, res) => {
             evaluateScript,
             watchUrlRegex,
             mediaExtensions,
+            debug,
         });
 
         res.json({ success: true, ...result });
@@ -225,6 +227,7 @@ async function runHeadlessStreamSniffer(page, options) {
         evaluateScript,
         watchUrlRegex,
         mediaExtensions,
+        debug = false,
     } = options;
 
     const regex = watchUrlRegex ? new RegExp(watchUrlRegex, 'i') : null;
@@ -245,8 +248,14 @@ async function runHeadlessStreamSniffer(page, options) {
 
         const onRequest = (request) => {
             const reqUrl = request.url();
+            const resourceType = request.resourceType();
             const matchesExt = mediaExtensions.some(ext => reqUrl.toLowerCase().includes(ext));
             const matchesRegex = regex && regex.test(reqUrl);
+
+            if (debug) {
+                console.log(`[Scraper] Headless request [${resourceType}]: ${reqUrl}`);
+            }
+
             if (!matchesExt && !matchesRegex) return;
 
             if (settled) return;
