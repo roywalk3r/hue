@@ -738,6 +738,37 @@ mod tests {
         assert_eq!(decode_html_entities("&#39;x&#39;"), "'x'");
     }
 
+    /// The headless scraper returns a JSON envelope; `parse_scraper_stream`
+    /// pulls out the captured stream URL, stream type, and referer. Anything
+    /// missing `success=true` or `url` should return None so the caller falls
+    /// through to a different strategy.
+    #[test]
+    fn test_parse_scraper_stream_happy_path() {
+        let resp = serde_json::json!({
+            "success": true,
+            "url": "https://cdn.example.com/master.m3u8",
+            "streamType": "hls",
+            "referer": "https://embed.example.com/",
+        });
+        let stream = parse_scraper_stream(&resp, "https://embed.example.com/")
+            .expect("should parse");
+        assert_eq!(stream.url, "https://cdn.example.com/master.m3u8");
+        assert_eq!(stream.stream_type, "hls");
+        assert_eq!(stream.referer.as_deref(), Some("https://embed.example.com/"));
+    }
+
+    #[test]
+    fn test_parse_scraper_stream_fails_on_success_false() {
+        let resp = serde_json::json!({ "success": false, "error": "timeout" });
+        assert!(parse_scraper_stream(&resp, "https://x/").is_none());
+    }
+
+    #[test]
+    fn test_parse_scraper_stream_fails_on_missing_url() {
+        let resp = serde_json::json!({ "success": true, "streamType": "hls" });
+        assert!(parse_scraper_stream(&resp, "https://x/").is_none());
+    }
+
     /// Real-network smoke test for OK.ru extraction. Ignored in CI because it
     /// depends on a live embed page.
     #[tokio::test]

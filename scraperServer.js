@@ -169,6 +169,20 @@ app.post('/extract/iframe', async (req, res) => {
 // media manifest or video request that matches known extensions or a custom
 // regex. Also supports waiting for a selector, clicking an element, and
 // evaluating custom page JS before/after navigation.
+//
+// Cost-protection guards (when used through a paid proxy):
+//  - Hard abort on first media match: the page is told to stop loading the
+//    moment a manifest URL is detected, so in-flight asset requests are
+//    cancelled and no segment bytes are proxied.
+//  - Per-sniffer request count cap (default 60) — guards against runaway
+//    page assets (popups, ad chains, infinite redirects).
+//  - Video segment requests (`.ts`, `.m4s`, `.mp4` body bytes) are aborted
+//    at the route level — only manifests (`.m3u8`, `.mpd`) are captured.
+//  - Caller can pass a specific `proxy` (e.g. a CF worker URL) to avoid
+//    random rotation that may pick a residential metered proxy.
+const MAX_ASSET_REQUESTS = parseInt(process.env.HEADLESS_MAX_REQUESTS || '60', 10);
+const SEGMENT_BLOCKLIST = ['.ts', '.m4s', '.mp4', '.mkv', '.webm'];
+
 app.post('/scrape/headless', async (req, res) => {
     const {
         url,
@@ -179,18 +193,24 @@ app.post('/scrape/headless', async (req, res) => {
         clickSelector,
         evaluateScript,
         watchUrlRegex,
-        mediaExtensions = ['.m3u8', '.mp4', '.mpd', '.mkv', '.webm'],
+        mediaExtensions = ['.m3u8', '.mpd', '.mp4', '.mkv', '.webm'],
         debug = false,
+        proxy,
+        maxRequests,
     } = req.body;
 
     if (!url) {
         return res.status(400).json({ success: false, error: 'Missing url parameter' });
     }
 
+    const requestCap = Math.min(parseInt(maxRequests || MAX_ASSET_REQUESTS, 10) || MAX_ASSET_REQUESTS, 500);
+
     let page;
     try {
-        console.log(`[Scraper] Headless scrape: ${url}`);
-        page = await getNewPage();
+        console.log(`[Scraper] Headless scrape: ${url}${proxy ? ` (proxy: ${proxy.split('@').pop()})` : ''}`);
+        const pageOptions = { browserType: 'chromium' };
+        if (proxy) pageOptions.proxy = { server: proxy };
+        page = await getNewPage(pageOptions);
 
         const result = await runHeadlessStreamSniffer(page, {
             url,
@@ -203,6 +223,7 @@ app.post('/scrape/headless', async (req, res) => {
             watchUrlRegex,
             mediaExtensions,
             debug,
+            requestCap,
         });
 
         res.json({ success: true, ...result });
@@ -228,12 +249,17 @@ async function runHeadlessStreamSniffer(page, options) {
         watchUrlRegex,
         mediaExtensions,
         debug = false,
+        requestCap,
     } = options;
 
     const regex = watchUrlRegex ? new RegExp(watchUrlRegex, 'i') : null;
+    const manifestExts = mediaExtensions.filter(ext => ext !== '.mp4' && ext !== '.mkv' && ext !== '.webm');
+    const segmentExts = mediaExtensions.filter(ext => SEGMENT_BLOCKLIST.includes(ext));
+    let requestCount = 0;
 
     const capturePromise = new Promise((resolve, reject) => {
         let settled = false;
+        let aborting = false;
         const timer = setTimeout(() => {
             if (settled) return;
             settled = true;
@@ -247,10 +273,18 @@ async function runHeadlessStreamSniffer(page, options) {
             page.off('response', onResponse);
         };
 
+        // Hard stop: cancel in-flight requests and tell the page to stop firing more.
+        const hardStop = async () => {
+            if (aborting) return;
+            aborting = true;
+            try { await page.evaluate('window.stop && window.stop()').catch(() => {}); } catch (_) {}
+        };
+
         const tryResolveUrl = (candidateUrl, sourceHeaders = {}) => {
             if (settled) return;
             settled = true;
             cleanup();
+            hardStop();
             resolve({
                 url: candidateUrl,
                 streamType: inferStreamType(candidateUrl),
@@ -259,17 +293,42 @@ async function runHeadlessStreamSniffer(page, options) {
             });
         };
 
+        const isSegmentUrl = (u) => {
+            const lower = u.split('?')[0].toLowerCase();
+            return segmentExts.some(ext => lower.endsWith(ext));
+        };
+
         const onRequest = (request) => {
             const reqUrl = request.url();
             const resourceType = request.resourceType();
+            requestCount++;
 
             if (debug) {
-                console.log(`[Scraper] Headless request [${resourceType}]: ${reqUrl}`);
+                console.log(`[Scraper] Headless request [${resourceType}] #${requestCount}: ${reqUrl}`);
             }
 
-            const matchesExt = mediaExtensions.some(ext => reqUrl.toLowerCase().includes(ext));
+            // Cost guard: abort the sniffer if too many assets are being requested.
+            if (requestCount > requestCap) {
+                if (!settled) {
+                    settled = true;
+                    cleanup();
+                    hardStop();
+                    reject(new Error(`Asset request cap exceeded (${requestCap})`));
+                }
+                return;
+            }
+
+            // Cost guard: video segment requests are aborted at the route level
+            // so the body is never downloaded through the proxy.
+            if (isSegmentUrl(reqUrl)) {
+                if (debug) console.log(`[Scraper] Headless segment blocked: ${reqUrl}`);
+                try { request.abort(); } catch (_) {}
+                return;
+            }
+
+            const matchesManifest = manifestExts.some(ext => reqUrl.toLowerCase().includes(ext));
             const matchesRegex = regex && regex.test(reqUrl);
-            if (!matchesExt && !matchesRegex) return;
+            if (!matchesManifest && !matchesRegex) return;
 
             tryResolveUrl(reqUrl, request.headers());
         };
@@ -287,7 +346,7 @@ async function runHeadlessStreamSniffer(page, options) {
             try {
                 const body = await response.text();
                 const found = findMediaUrlInText(body, mediaExtensions, regex);
-                if (found) {
+                if (found && !isSegmentUrl(found)) {
                     if (debug) {
                         console.log(`[Scraper] Headless found media in response: ${reqUrl} -> ${found}`);
                     }
@@ -306,7 +365,15 @@ async function runHeadlessStreamSniffer(page, options) {
         await page.setExtraHTTPHeaders({ Referer: referer });
     }
 
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
+    try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
+    } catch (e) {
+        // Goto may reject if the page is aborted by hardStop; let capturePromise
+        // decide whether the catch is fatal or the match already resolved.
+        if (!(await capturePromiseSafe(capturePromise))) {
+            throw e;
+        }
+    }
 
     if (clickSelector) {
         try {
@@ -321,12 +388,14 @@ async function runHeadlessStreamSniffer(page, options) {
             const evalResult = await page.evaluate(evaluateScript);
             if (evalResult && (evalResult.url || evalResult.streamUrl)) {
                 const streamUrl = evalResult.url || evalResult.streamUrl;
-                return {
-                    url: streamUrl,
-                    streamType: inferStreamType(streamUrl),
-                    referer: referer || url,
-                    evaluateResult: evalResult,
-                };
+                if (!isSegmentUrl_(streamUrl)) {
+                    return {
+                        url: streamUrl,
+                        streamType: inferStreamType(streamUrl),
+                        referer: referer || url,
+                        evaluateResult: evalResult,
+                    };
+                }
             }
         } catch (e) {
             console.error(`[Scraper] Headless evaluate error: ${e.message}`);
@@ -350,6 +419,15 @@ async function runHeadlessStreamSniffer(page, options) {
     }
 
     return await capturePromise;
+}
+
+function isSegmentUrl_(u) {
+    const lower = (u || '').split('?')[0].toLowerCase();
+    return SEGMENT_BLOCKLIST.some(ext => lower.endsWith(ext));
+}
+
+async function capturePromiseSafe(p) {
+    return await Promise.race([p, Promise.resolve('pending')]).then(v => v !== 'pending');
 }
 
 function inferStreamType(url) {
