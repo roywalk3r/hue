@@ -4,6 +4,7 @@ use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
 use tracing::debug;
 
+use crate::clients::iframe_extract;
 use crate::models::anime::{
     AnimeCard, AnimeDetail, AnimeHomeFeed, AnimeSearchResponse, EpisodeSummary, FilterParams,
     PaginatedResponse, ServerEntry, ServerList, StreamPayload,
@@ -205,6 +206,18 @@ impl AnimeKillClient {
 
         let referer = infer_iframe_referer(&target.id);
         let url = normalize_iframe_url(&target.id);
+
+        if let Some(native) = iframe_extract::try_extract(&self.client, &url, &referer).await {
+            return Ok(StreamPayload {
+                url: native.url,
+                stream_type: native.stream_type,
+                subtitles: None,
+                intro: None,
+                outro: None,
+                server: Some(target.name.clone()),
+                referer: native.referer,
+            });
+        }
 
         Ok(StreamPayload {
             url,
