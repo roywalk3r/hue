@@ -27,7 +27,8 @@ use crate::providers::vdrk_subtitles::fetch_vdrk_subtitles;
 use crate::proxy::dynamic_proxy_base;
 use crate::proxy::wrap::wrap_with_proxy;
 use crate::{
-    app::StreamState, filters::apply_filters, infra::cache::CacheKey, models::StreamResult,
+    app::StreamState, filters::apply_filters, infra::cache::CacheKey,
+    infra::sticky_pref::StickyPrefKey, models::StreamResult,
     security::encrypt_stream_result_urls,
 };
 
@@ -182,9 +183,12 @@ pub async fn streams_handler(
     let registry = state.registry.clone();
     let tmdb_info_c = tmdb_info.clone();
     let m_type_c = m_type.clone();
+    let tmdb_id_c = tmdb_id.clone();
     let fast_deadline = state.config.fast_deadline();
     let slow_deadline = state.config.slow_deadline();
     let metrics = state.metrics.clone();
+    let sticky_key = StickyPrefKey::for_show(&m_type, &tmdb_id);
+    let sticky_pref = state.sticky_pref.clone();
 
     let mut captured_timings: Vec<ProviderTiming> = vec![];
 
@@ -301,6 +305,10 @@ pub async fn streams_handler(
     let coalesced = if no_cache {
         // Bypass coalescer — start all providers simultaneously, per-provider timeouts apply.
         let start = std::time::Instant::now();
+        let preferred = sticky_pref.get(&sticky_key).await.map(|e| e.provider_real_name);
+        if let Some(name) = preferred.as_deref() {
+            info!("[api] Sticky provider boost: {} for {} {}", name, m_type_c, tmdb_id);
+        }
         let (mut streams, mut timings) = if web_client {
             // Threshold of 4 web-playable streams AND ≥2 distinct providers:
             // NoTorrent alone can return 3-5 streams, so a raw stream count
@@ -321,10 +329,11 @@ pub async fn streams_handler(
                 slow_deadline,
                 Some(2),
                 is_web_playable_stream,
+                preferred.as_deref(),
             )
             .await
         } else {
-            fetch_from_providers(
+            fetch_from_providers_matching(
                 registry.clone(),
                 metrics.clone(),
                 &tmdb_info_c,
@@ -334,6 +343,9 @@ pub async fn streams_handler(
                 true,
                 4,
                 fast_deadline,
+                None,
+                |_| true,
+                preferred.as_deref(),
             )
             .await
         };
@@ -382,6 +394,10 @@ pub async fn streams_handler(
     } else {
         let state_for_bg = state.clone();
         let cache_key_for_bg = cache_key.clone();
+        // Clone the sticky handle/key before the async move so the
+        // post-fetch accounting block below can still read & write them.
+        let sticky_pref_for_closure = sticky_pref.clone();
+        let sticky_key_for_closure = sticky_key.clone();
         state
             .coalescer
             .execute(&cache_key, &cache, || async move {
@@ -395,6 +411,13 @@ pub async fn streams_handler(
                     // one slow provider alongside the fast one. The browser's
                     // Promise.race picks the first to play; the rest are
                     // alternates. `slow_deadline` remains the hard ceiling.
+                    let preferred = sticky_pref_for_closure
+                        .get(&sticky_key_for_closure)
+                        .await
+                        .map(|e| e.provider_real_name);
+                    if let Some(name) = preferred.as_deref() {
+                        info!("[api] Sticky provider boost: {} for {} {}", name, m_type_c, tmdb_id_c);
+                    }
                     let (streams, _) = fetch_from_providers_matching(
                         registry.clone(),
                         metrics.clone(),
@@ -407,6 +430,7 @@ pub async fn streams_handler(
                         slow_deadline,
                         Some(2),
                         is_web_playable_stream,
+                        preferred.as_deref(),
                     )
                     .await;
                     let mut seen_urls = std::collections::HashSet::new();
@@ -427,7 +451,14 @@ pub async fn streams_handler(
                 }
 
                 // Fast providers first so a working source can reach the player quickly.
-                let (mut streams, _) = fetch_from_providers(
+                let preferred = sticky_pref_for_closure
+                    .get(&sticky_key_for_closure)
+                    .await
+                    .map(|e| e.provider_real_name);
+                if let Some(name) = preferred.as_deref() {
+                    info!("[api] Sticky provider boost: {} for {} {}", name, m_type_c, tmdb_id_c);
+                }
+                let (mut streams, _) = fetch_from_providers_matching(
                     registry.clone(),
                     metrics.clone(),
                     &tmdb_info_c,
@@ -435,9 +466,11 @@ pub async fn streams_handler(
                     season,
                     episode,
                     true,
-                    // See comment in the no_cache branch above.
                     4,
                     fast_deadline,
+                    None,
+                    |_| true,
+                    preferred.as_deref(),
                 )
                 .await;
                 if should_fetch_slow_providers(false, &streams) {
@@ -513,6 +546,17 @@ pub async fn streams_handler(
             !REDIRECTOR_HOSTS.iter().any(|h| host.contains(h))
         })
         .collect();
+
+    // Sticky provider accounting. Only record when the show actually
+    // produced playable streams — a thin round (drop_unreachable ate
+    // everything) is the same as failure for the user. The failure path
+    // bumps consecutive_failures so the cache self-cleans after the
+    // configured threshold.
+    if filtered.is_empty() {
+        sticky_pref.record_failure(&sticky_key).await;
+    } else if let Some(winner) = crate::providers::best_provider_real_name(&filtered) {
+        sticky_pref.record_success(&sticky_key, winner).await;
+    }
     if filtered.is_empty() {
         return (StatusCode::NOT_FOUND, "No streams found").into_response();
     }

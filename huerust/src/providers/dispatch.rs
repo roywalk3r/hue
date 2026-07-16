@@ -57,6 +57,7 @@ pub async fn fetch_from_providers(
         aggregate_deadline,
         None,
         |_| true,
+        None,
     )
     .await
 }
@@ -73,6 +74,7 @@ pub async fn fetch_from_providers_matching(
     aggregate_deadline: Duration,
     min_distinct_providers: Option<usize>,
     threshold_matcher: fn(&StreamResult) -> bool,
+    preferred_provider: Option<&str>,
 ) -> (Vec<StreamResult>, Vec<ProviderTiming>) {
     use tokio::time::Instant;
 
@@ -88,6 +90,21 @@ pub async fn fetch_from_providers_matching(
             .into_iter()
             .filter(|p| registry.circuit_breaker().is_healthy(p.real_name()))
             .collect()
+    };
+
+    // Sticky-provider boost: if a prior episode resolved on a specific
+    // provider, run it first so its JoinSet slot opens before the others.
+    // Other providers still run in parallel — we just reorder, not filter.
+    // A missing/closed-circuit sticky is silently dropped (no entry to boost).
+    let providers: Vec<_> = match preferred_provider {
+        Some(name) => {
+            let key = name.to_ascii_lowercase();
+            let (preferred, rest): (Vec<_>, Vec<_>) = providers
+                .into_iter()
+                .partition(|p| p.real_name().eq_ignore_ascii_case(&key));
+            preferred.into_iter().chain(rest).collect()
+        }
+        None => providers,
     };
 
     let mut tasks = tokio::task::JoinSet::new();

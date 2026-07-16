@@ -1,12 +1,19 @@
 //! Sticky provider preference cache.
 //!
-//! Remembers per-(user, show) which provider served successfully so the next
-//! watch can try that provider first instead of fanning out to all providers.
+//! Remembers per-show which provider served successfully so the next
+//! episode can try that provider first instead of fanning out to all
+//! providers. Keyed on `(media_type, tmdb_id)` — the Rust backend has
+//! no JWT verification today, so the show's winning provider is a
+//! property of the upstream mix, not the user.
 //!
 //! Storage mirrors `StreamCache`: moka in-process by default, redis when
 //! `CACHE_BACKEND=redis`. Same `hue:sticky:*` key namespace as other caches.
 
 use std::time::Duration;
+
+/// Sentinel user_id for the show-only key shape. Reserved so it can never
+/// collide with a real user id (CUIDs/Hex/UUIDs never start with `_`).
+const SHOW_ONLY_USER: &str = "_";
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct StickyPrefKey {
@@ -16,6 +23,15 @@ pub struct StickyPrefKey {
 }
 
 impl StickyPrefKey {
+    /// Key scoped to the show only — shared across all viewers of the title.
+    pub fn for_show(media_type: &str, tmdb_id: &str) -> Self {
+        Self {
+            user_id: SHOW_ONLY_USER.to_string(),
+            media_type: media_type.to_string(),
+            tmdb_id: tmdb_id.to_string(),
+        }
+    }
+
     pub fn new(user_id: &str, media_type: &str, tmdb_id: &str) -> Self {
         Self {
             user_id: user_id.to_string(),
@@ -263,10 +279,16 @@ mod tests {
         }
     }
 
+    fn test_key() -> StickyPrefKey {
+        // Rust backend has no JWT verify today — production keys are
+        // show-scoped via `for_show`. Tests use the same shape.
+        StickyPrefKey::for_show("tv", "12345")
+    }
+
     #[tokio::test]
     async fn record_success_then_get() {
         let cache = test_cache(60, 2);
-        let key = StickyPrefKey::new("user-1", "tv", "12345");
+        let key = StickyPrefKey::for_show("tv", "12345");
 
         assert!(cache.get(&key).await.is_none());
         cache.record_success(&key, "sflix").await;
@@ -279,7 +301,7 @@ mod tests {
     #[tokio::test]
     async fn record_failure_increments_and_clears_at_threshold() {
         let cache = test_cache(60, 2);
-        let key = StickyPrefKey::new("user-1", "movie", "999");
+        let key = StickyPrefKey::for_show("movie", "999");
 
         cache.record_success(&key, "moviebox").await;
         cache.record_failure(&key).await;
@@ -298,7 +320,7 @@ mod tests {
     #[tokio::test]
     async fn record_success_resets_failure_counter() {
         let cache = test_cache(60, 3);
-        let key = StickyPrefKey::new("user-1", "tv", "777");
+        let key = StickyPrefKey::for_show("tv", "777");
 
         cache.record_success(&key, "vidrock").await;
         cache.record_failure(&key).await;
@@ -313,7 +335,7 @@ mod tests {
     #[tokio::test]
     async fn failure_on_nonexistent_entry_is_noop() {
         let cache = test_cache(60, 2);
-        let key = StickyPrefKey::new("user-1", "tv", "555");
+        let key = StickyPrefKey::for_show("tv", "555");
         cache.record_failure(&key).await;
         assert!(cache.get(&key).await.is_none());
     }
@@ -321,7 +343,7 @@ mod tests {
     #[tokio::test]
     async fn ttl_expiry() {
         let cache = test_cache(1, 2);
-        let key = StickyPrefKey::new("user-1", "tv", "111");
+        let key = StickyPrefKey::for_show("tv", "111");
         cache.record_success(&key, "sflix").await;
         assert!(cache.get(&key).await.is_some());
         tokio::time::sleep(Duration::from_millis(1500)).await;
@@ -332,14 +354,14 @@ mod tests {
     async fn disabled_cache_returns_none() {
         let mut cache = test_cache(60, 2);
         cache.enabled = false;
-        let key = StickyPrefKey::new("user-1", "tv", "222");
+        let key = StickyPrefKey::for_show("tv", "222");
         cache.record_success(&key, "sflix").await;
         assert!(cache.get(&key).await.is_none());
     }
 
     #[test]
     fn key_redis_format() {
-        let key = StickyPrefKey::new("01HXYZ", "tv", "12345");
-        assert_eq!(key.redis_key(), "hue:sticky:01HXYZ:tv:12345");
+        let key = StickyPrefKey::for_show("tv", "12345");
+        assert_eq!(key.redis_key(), "hue:sticky:_:tv:12345");
     }
 }
