@@ -244,34 +244,62 @@ async function runHeadlessStreamSniffer(page, options) {
         const cleanup = () => {
             clearTimeout(timer);
             page.off('request', onRequest);
+            page.off('response', onResponse);
+        };
+
+        const tryResolveUrl = (candidateUrl, sourceHeaders = {}) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            resolve({
+                url: candidateUrl,
+                streamType: inferStreamType(candidateUrl),
+                referer: sourceHeaders.referer || referer || url,
+                requestHeaders: sourceHeaders,
+            });
         };
 
         const onRequest = (request) => {
             const reqUrl = request.url();
             const resourceType = request.resourceType();
-            const matchesExt = mediaExtensions.some(ext => reqUrl.toLowerCase().includes(ext));
-            const matchesRegex = regex && regex.test(reqUrl);
 
             if (debug) {
                 console.log(`[Scraper] Headless request [${resourceType}]: ${reqUrl}`);
             }
 
+            const matchesExt = mediaExtensions.some(ext => reqUrl.toLowerCase().includes(ext));
+            const matchesRegex = regex && regex.test(reqUrl);
             if (!matchesExt && !matchesRegex) return;
 
-            if (settled) return;
-            settled = true;
-            cleanup();
+            tryResolveUrl(reqUrl, request.headers());
+        };
 
-            const headers = request.headers();
-            resolve({
-                url: reqUrl,
-                streamType: inferStreamType(reqUrl),
-                referer: headers.referer || referer || url,
-                requestHeaders: headers,
-            });
+        const onResponse = async (response) => {
+            const reqUrl = response.url();
+            const contentType = response.headers()['content-type'] || '';
+            const isApiLike =
+                reqUrl.includes('.json') ||
+                reqUrl.includes('/api/') ||
+                reqUrl.includes('/graphql') ||
+                contentType.includes('json');
+            if (!isApiLike) return;
+
+            try {
+                const body = await response.text();
+                const found = findMediaUrlInText(body, mediaExtensions, regex);
+                if (found) {
+                    if (debug) {
+                        console.log(`[Scraper] Headless found media in response: ${reqUrl} -> ${found}`);
+                    }
+                    tryResolveUrl(found, {});
+                }
+            } catch (e) {
+                // Response body may be binary or unreadable; ignore.
+            }
         };
 
         page.on('request', onRequest);
+        page.on('response', onResponse);
     });
 
     if (referer) {
@@ -330,6 +358,22 @@ function inferStreamType(url) {
     if (lower.includes('.mpd')) return 'dash';
     if (lower.includes('.mp4') || lower.includes('.mkv') || lower.includes('.webm')) return 'mp4';
     return 'mp4';
+}
+
+function findMediaUrlInText(text, mediaExtensions, regex) {
+    if (!text || typeof text !== 'string') return null;
+    // Prefer HLS over MP4 when both are present.
+    for (const ext of ['.m3u8', '.mpd', '.mp4', '.mkv', '.webm']) {
+        if (!mediaExtensions.includes(ext)) continue;
+        const pattern = new RegExp(`(https?://[^"'\\s<>]+?${ext.replace('.', '\\.')}(?:\\?[^"'\\s<>]*)?)`, 'i');
+        const match = text.match(pattern);
+        if (match) return match[1];
+    }
+    if (regex) {
+        const match = text.match(regex);
+        if (match) return match[0];
+    }
+    return null;
 }
 
 app.listen(port, '127.0.0.1', () => {
