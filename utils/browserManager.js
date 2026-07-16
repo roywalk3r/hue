@@ -105,20 +105,39 @@ async function _getBrowserInternal(type = 'chromium') {
     return browserInstance;
 }
 
+function pickRotatedProxy(config) {
+    if (!config.proxyList || config.proxyList.length === 0) return undefined;
+    const url = config.proxyList[Math.floor(Math.random() * config.proxyList.length)];
+    console.log(`[BrowserManager] Using rotated proxy: ${url.split('@').pop()}`);
+    // Playwright needs { server, username, password } — the user:pass@host:port
+    // form fails with ERR_INVALID_AUTH_CREDENTIALS in current versions.
+    try {
+        const u = new URL(url);
+        const out = { server: `${u.protocol}//${u.host}` };
+        if (u.username) out.username = decodeURIComponent(u.username);
+        if (u.password) out.password = decodeURIComponent(u.password);
+        return out;
+    } catch (_) {
+        return { server: url };
+    }
+}
+
 async function getNewPage(options = {}) {
     const browserType = options.browserType || 'chromium';
-    
+    const { config } = require('./config');
+
     // Acquire lock before launching context
     await acquirePageSlot();
-    
+
     try {
         const browser = await getBrowser(browserType);
-        
+
         const defaultOptions = {
-            userAgent: browserType === 'firefox' 
+            userAgent: browserType === 'firefox'
                 ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0'
                 : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            viewport: { width: 1280, height: 720 }
+            viewport: { width: 1280, height: 720 },
+            proxy: options.proxy || pickRotatedProxy(config)
         };
         
         const context = await browser.newContext({ ...defaultOptions, ...options });
@@ -177,15 +196,9 @@ async function closeBrowser() {
 async function getNewContext(options = {}) {
     const browserType = options.browserType || 'chromium';
     const { config } = require('./config');
-    
+
     // Auto-proxy rotation
-    let proxy = options.proxy;
-    if (!proxy && config.proxyList && config.proxyList.length > 0) {
-        const randomProxy = config.proxyList[Math.floor(Math.random() * config.proxyList.length)];
-        // Expected format: "http://user:pass@host:port" or "http://host:port"
-        proxy = { server: randomProxy };
-        console.log(`[BrowserManager] Using rotated proxy: ${randomProxy.split('@').pop()}`);
-    }
+    const proxy = options.proxy || pickRotatedProxy(config);
 
     await acquirePageSlot(); 
     try {

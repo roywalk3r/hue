@@ -24,13 +24,39 @@ if (typeof global.File === 'undefined') {
 }
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const { URL } = require('url');
 const sflixProvider = require('./providers/sflix');
 const kissasianProvider = require('./providers/kissasian');
 const { decrypt: videasyDecrypt } = require('./providers/videasy/decrypt');
-const { getNewPage } = require('./utils/browserManager');
+const { getNewContext } = require('./utils/browserManager');
 const vidsrcEmbedProvider = require('./providers/vidsrc-embed');
 const iframeExtractor = require('./providers/iframeExtractor');
+const { config } = require('./utils/config');
+
+// Load cf_proxies.txt (host:port:user:pass lines) into config.proxyList as
+// http://user:pass@host:port URLs. Only seeds if PROXY_LIST env is unset so
+// explicit overrides still win. Runs once at boot — no per-request I/O.
+function loadCfProxiesFile() {
+    if (config.proxyList && config.proxyList.length > 0) return;
+    const filePath = path.join(__dirname, 'cf_proxies.txt');
+    if (!fs.existsSync(filePath)) return;
+    const lines = fs.readFileSync(filePath, 'utf8')
+        .split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+    const urls = [];
+    for (const line of lines) {
+        const parts = line.split(':');
+        if (parts.length !== 4) continue;
+        const [host, port, user, pass] = parts;
+        urls.push(`http://${user}:${pass}@${host}:${port}`);
+    }
+    if (urls.length > 0) {
+        config.proxyList = urls;
+        console.log(`[Scraper] Loaded ${urls.length} proxies from cf_proxies.txt`);
+    }
+}
+loadCfProxiesFile();
 
 const app = express();
 const port = process.env.SCRAPER_PORT || 24610;
@@ -183,6 +209,27 @@ app.post('/extract/iframe', async (req, res) => {
 const MAX_ASSET_REQUESTS = parseInt(process.env.HEADLESS_MAX_REQUESTS || '60', 10);
 const SEGMENT_BLOCKLIST = ['.ts', '.m4s', '.mp4', '.mkv', '.webm'];
 
+// Resource types that don't count against the asset cap. Dailymotion (and
+// similar players) load 20-30 fonts + 50+ ad/tracker scripts before the user
+// gestures. Counting those inflates the cap; only "interesting" requests
+// (HTML, XHR/fetch to same-origin, scripts that might build the player URL)
+// should burn the budget.
+const CAP_EXEMPT_RESOURCE_TYPES = new Set(['font', 'image', 'stylesheet', 'media']);
+
+// Hosts whose requests should be treated as part of the page (the player
+// itself loads dozens of scripts/XHRs from these origins while initializing).
+// Off-origin tracker/ads (pebed.dm-event.net, imasdk.googleapis.com,
+// googlesyndication.com, vendorlist.dmcdn.net, etc.) still count.
+const PAGE_ORIGIN_SUFFIXES = [
+    'dailymotion.com',
+    'dmcdn.net',
+];
+
+// Proxies in this Set have been observed to fail auth or refuse CONNECT in
+// this process lifetime. Skip them when rotating to avoid burning retries
+// on known-bad egress. Cleared only on process restart.
+const BLACKLISTED_PROXIES = new Set();
+
 app.post('/scrape/headless', async (req, res) => {
     const {
         url,
@@ -205,28 +252,81 @@ app.post('/scrape/headless', async (req, res) => {
 
     const requestCap = Math.min(parseInt(maxRequests || MAX_ASSET_REQUESTS, 10) || MAX_ASSET_REQUESTS, 500);
 
+    // Transient proxy errors worth retrying with a fresh connection. These
+    // happen when a residential proxy drops a connection mid-handshake (rate
+    // limit, sudden disconnect) or rejects auth on a stale connection.
+    const TRANSIENT_PROXY_ERRORS = [
+        'ERR_NETWORK_CHANGED',
+        'ERR_INVALID_AUTH_CREDENTIALS',
+        'ERR_TUNNEL_CONNECTION_FAILED',
+        'ERR_PROXY_CONNECTION_FAILED',
+    ];
+    const MAX_RETRIES = 2;
+
     let page;
     try {
-        console.log(`[Scraper] Headless scrape: ${url}${proxy ? ` (proxy: ${proxy.split('@').pop()})` : ''}`);
-        const pageOptions = { browserType: 'chromium' };
-        if (proxy) pageOptions.proxy = { server: proxy };
-        page = await getNewPage(pageOptions);
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            // On retry, force a new random proxy if caller didn't pin one.
+            // Skip this on the first attempt when proxy was already pinned
+            // (caller asked for that specific egress). Also avoid proxies we
+            // already observed to fail auth/CONNECT in this process lifetime.
+            let proxyForAttempt = proxy;
+            if (attempt > 0 && !proxy && config.proxyList && config.proxyList.length > 0) {
+                const pool = config.proxyList.filter(p => !BLACKLISTED_PROXIES.has(p));
+                if (pool.length > 0) {
+                    proxyForAttempt = pool[Math.floor(Math.random() * pool.length)];
+                    console.log(`[Scraper] Headless retry ${attempt}: rotating to new proxy (pool: ${pool.length}/${config.proxyList.length})`);
+                }
+            }
 
-        const result = await runHeadlessStreamSniffer(page, {
-            url,
-            referer,
-            timeout,
-            waitFor,
-            waitForNetworkIdle,
-            clickSelector,
-            evaluateScript,
-            watchUrlRegex,
-            mediaExtensions,
-            debug,
-            requestCap,
-        });
+            console.log(`[Scraper] Headless scrape${attempt > 0 ? ` (retry ${attempt})` : ''}: ${url}${proxyForAttempt ? ` (proxy: ${proxyForAttempt.split('@').pop()})` : ''}`);
+            const ctxOptions = { browserType: 'chromium' };
+            if (proxyForAttempt) {
+                try {
+                    const u = new URL(proxyForAttempt);
+                    ctxOptions.proxy = { server: `${u.protocol}//${u.host}` };
+                    if (u.username) ctxOptions.proxy.username = decodeURIComponent(u.username);
+                    if (u.password) ctxOptions.proxy.password = decodeURIComponent(u.password);
+                } catch (_) {
+                    ctxOptions.proxy = { server: proxyForAttempt };
+                }
+            }
+            const ctx = await getNewContext(ctxOptions);
+            page = await ctx.newPage();
 
-        res.json({ success: true, ...result });
+            try {
+                const result = await runHeadlessStreamSniffer(page, {
+                    url,
+                    referer,
+                    timeout,
+                    waitFor,
+                    waitForNetworkIdle,
+                    clickSelector,
+                    evaluateScript,
+                    watchUrlRegex,
+                    mediaExtensions,
+                    debug,
+                    requestCap,
+                });
+                res.json({ success: true, ...result });
+                return;
+            } catch (e) {
+                const msg = e.message || '';
+                const isTransient = TRANSIENT_PROXY_ERRORS.some(code => msg.includes(code));
+                if (isTransient && proxyForAttempt) {
+                    // Blacklist this specific proxy URL for the rest of the
+                    // process so subsequent scrapes don't rotate back into it.
+                    BLACKLISTED_PROXIES.add(proxyForAttempt);
+                    console.log(`[Scraper] Blacklisted proxy (${proxyForAttempt.split('@').pop()}) for process lifetime`);
+                }
+                if (!isTransient || attempt === MAX_RETRIES) {
+                    throw e;
+                }
+                console.log(`[Scraper] Transient error (${msg.substring(0, 60)}), retrying with fresh proxy`);
+                try { await ctx.close(); } catch (_) {}
+                page = null;
+            }
+        }
     } catch (e) {
         console.error(`[Scraper] Headless error: ${e.message}`);
         res.status(500).json({ success: false, error: e.message });
@@ -298,13 +398,26 @@ async function runHeadlessStreamSniffer(page, options) {
             return segmentExts.some(ext => lower.endsWith(ext));
         };
 
+        const isPageOrigin = (reqUrl) => {
+            try {
+                const u = new URL(reqUrl);
+                return PAGE_ORIGIN_SUFFIXES.some(suffix => u.hostname === suffix || u.hostname.endsWith('.' + suffix));
+            } catch (_) {
+                return false;
+            }
+        };
+
         const onRequest = (request) => {
             const reqUrl = request.url();
             const resourceType = request.resourceType();
-            requestCount++;
+            const exemptByType = CAP_EXEMPT_RESOURCE_TYPES.has(resourceType);
+            const exemptByOrigin = isPageOrigin(reqUrl);
+            const countsAgainstCap = !exemptByType && !exemptByOrigin;
+            if (countsAgainstCap) requestCount++;
 
             if (debug) {
-                console.log(`[Scraper] Headless request [${resourceType}] #${requestCount}: ${reqUrl}`);
+                const tag = exemptByType ? ' (exempt)' : exemptByOrigin ? ' (page-origin)' : '';
+                console.log(`[Scraper] Headless request [${resourceType}${tag}] #${requestCount}: ${reqUrl}`);
             }
 
             // Cost guard: abort the sniffer if too many assets are being requested.
@@ -381,6 +494,50 @@ async function runHeadlessStreamSniffer(page, options) {
         } catch (e) {
             console.log(`[Scraper] Headless click skipped: ${e.message}`);
         }
+    }
+
+    // Some players (Dailymotion, Vimeo) don't request the m3u8 until the
+    // user clicks play. Dailymotion in particular gates the m3u8 fetch on a
+    // real user-gesture event — the autoplay policy in headless Chromium
+    // blocks `video.play()` from triggering network requests, so we have to
+    // dispatch synthetic click events. The gesture detector's heuristic
+    // varies (some look for `pointerdown`, some for `touchstart`, some
+    // require multiple events spaced over time) so we also run a background
+    // re-click loop that keeps nudging the overlay every 500ms until the
+    // capturePromise resolves.
+    if (!clickSelector) {
+        try {
+            await page.waitForSelector('video, .dmp_PlayButton, [aria-label*="Play" i], .plyr__play', {
+                timeout: Math.min(5000, timeout - 2000),
+            }).catch(() => {});
+        } catch (_) {}
+        const autoplayClick = async () => {
+            try {
+                await page.evaluate(() => {
+                    const buttons = [
+                        '.dmp_PlayButton', '.np_PlayButton', '.plyr__play', '.play', '.play-button',
+                        'button[aria-label*="Play" i]', '[aria-label*="Play" i]', 'button[title*="Play" i]',
+                    ];
+                    for (const sel of buttons) {
+                        const el = document.querySelector(sel);
+                        if (!el) continue;
+                        const eventInit = { bubbles: true, cancelable: true, button: 0, composed: true };
+                        for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+                            el.dispatchEvent(new MouseEvent(type, eventInit));
+                        }
+                        if (typeof el.click === 'function') el.click();
+                        break;
+                    }
+                });
+            } catch (_) {}
+        };
+        await autoplayClick();
+        // Keep re-clicking every 500ms until capturePromise resolves or we
+        // run out of time. This handles the race where the overlay mounts
+        // AFTER our first click attempt.
+        const nudgeTimer = setInterval(autoplayClick, 500);
+        // Stop nudging once capturePromise settles (or the outer timer fires).
+        capturePromise.finally(() => clearInterval(nudgeTimer)).catch(() => {});
     }
 
     if (evaluateScript) {
