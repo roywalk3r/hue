@@ -15,7 +15,7 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest_middleware::ClientWithMiddleware;
 use serde_json::Value;
 use tokio::process::Command;
-use tracing::{debug, trace};
+use tracing::{debug, info, trace};
 
 const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
@@ -78,13 +78,16 @@ pub async fn try_extract(
     }
 
     if is_dailymotion_host(&lower) {
-        if let Some(stream) = dailymotion_extract(client, iframe_url, source_referer)
+        // Dailymotion: the Rust metadata-API path returns a `cdndirector.dailymotion.com`
+        // manifest URL, but the VPS is geo-blocked at that CDN (403 on the manifest
+        // fetch from the player). The Node microservice uses residential proxies via
+        // `cf_proxies.txt` rotation and lands the manifest from a clean IP. Route
+        // dailymotion.com hosts straight to it; skip the Rust extractor entirely.
+        info!("[Dailymotion] routing {} to Node scraper (residential proxy)", iframe_url);
+        return node_scraper_extract(client, iframe_url, source_referer)
             .await
-            .inspect_err(|e| debug!("[Dailymotion] extraction failed: {}", e))
-            .ok()
-        {
-            return Some(stream);
-        }
+            .inspect_err(|e| debug!("[Dailymotion NodeScraper] extraction failed: {}", e))
+            .ok();
     }
 
     if let Some(stream) = generic_extract(client, iframe_url, source_referer)
@@ -414,74 +417,9 @@ fn find_okru_hls(meta: &Value) -> Option<String> {
         .find_map(|key| meta.get(*key).and_then(|v| v.as_str()).map(String::from))
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Dailymotion
-// ═══════════════════════════════════════════════════════════════════════════
-
-async fn dailymotion_extract(
-    client: &ClientWithMiddleware,
-    iframe_url: &str,
-    source_referer: &str,
-) -> Result<NativeStream> {
-    let video_id = extract_dailymotion_id(iframe_url)
-        .ok_or_else(|| anyhow!("dailymotion: video id not found"))?;
-    let meta_url = format!(
-        "https://www.dailymotion.com/player/metadata/video/{}",
-        video_id
-    );
-    let referer = if source_referer.is_empty() {
-        "https://www.dailymotion.com/"
-    } else {
-        source_referer
-    };
-
-    let resp = client
-        .get(&meta_url)
-        .headers(default_headers_with_cookie(referer, "family_filter=off; ff=off"))
-        .send()
-        .await?
-        .json::<Value>()
-        .await?;
-
-    let auto = resp
-        .get("qualities")
-        .and_then(|q| q.get("auto"))
-        .and_then(|a| a.as_array());
-
-    if let Some(qualities) = auto {
-        for q in qualities {
-            let url = q.get("url").and_then(|u| u.as_str());
-            let is_hls = q
-                .get("type")
-                .and_then(|t| t.as_str())
-                .map(|t| t == "application/x-mpegURL")
-                .unwrap_or(false)
-                || url.map(|u| u.contains(".m3u8")).unwrap_or(false);
-            if is_hls {
-                if let Some(url) = url {
-                    return Ok(NativeStream {
-                        url: url.to_string(),
-                        stream_type: "hls".to_string(),
-                        referer: Some("https://www.dailymotion.com/".to_string()),
-                    });
-                }
-            }
-        }
-    }
-
-    Err(anyhow!("dailymotion: no hls manifest found"))
-}
-
-fn extract_dailymotion_id(url: &str) -> Option<String> {
-    let re = Regex::new(r#"(?:/embed/video/|/video/)([a-zA-Z0-9]+)"#).ok()?;
-    re.captures(url)
-        .and_then(|c| c.get(1))
-        .map(|m| m.as_str().to_string())
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════
 // Node scraper microservice fallback
-// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════
 
 /// URL of the Node scraper microservice. Set `SCRAPER_URL` to enable the
 /// fallback path. Defaults to the local PM2-managed scraper.
@@ -693,23 +631,6 @@ mod tests {
         let re = Regex::new(r#"/pass_md5/([^'"\s]+)"#).unwrap();
         let caps = re.captures(html).unwrap();
         assert_eq!(caps.get(1).unwrap().as_str(), "abc123-0-0-0-deadbeef/token00x");
-    }
-
-    #[test]
-    fn test_extract_dailymotion_id_embed_and_video_paths() {
-        assert_eq!(
-            extract_dailymotion_id("https://www.dailymotion.com/embed/video/x8ao5h7"),
-            Some("x8ao5h7".to_string())
-        );
-        assert_eq!(
-            extract_dailymotion_id("https://www.dailymotion.com/video/x8ao5h7"),
-            Some("x8ao5h7".to_string())
-        );
-        assert_eq!(
-            extract_dailymotion_id("https://www.dailymotion.com/embed/video/x8ao5h7?autoplay=1"),
-            Some("x8ao5h7".to_string())
-        );
-        assert!(extract_dailymotion_id("https://www.dailymotion.com/").is_none());
     }
 
     #[test]
