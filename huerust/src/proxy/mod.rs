@@ -849,34 +849,32 @@ pub async fn m3u8_handler(
     // Forward the raw bytes untouched instead of letting downstream
     // code UTF-8 decode the body and corrupt it with U+FFFD.
     //
-    // `is_hls` is true when the body actually starts with `#EXTM3U` (or the
-    // upstream content-type is mpegurl) — that means it really is a manifest
-    // and must be rewritten so the player's relative segment URLs go through
-    // the proxy. The URL pattern alone is too coarse: hlsxszt*.echovideo.to
-    // serves its master/child playlists from URLs that include `?t.m3u8=`,
-    // and the no-`!is_hls` variant of this branch (de73dc1) caused those
-    // manifests to be served raw — leaving the browser to resolve bare
-    // `/cdn/<hash>` paths against the page origin and 404. Only passthrough
-    // when the body is NOT a real manifest.
-    if !is_hls && !looks_like_html && !looks_like_json {
-        let url_lower = target_url.to_lowercase();
-        let path = url_lower.split('?').next().unwrap_or(&url_lower);
-        let query = url_lower.split('?').nth(1).unwrap_or("");
-        let is_segment = path.ends_with(".ts")
-            || path.ends_with(".m4s")
-            || path.ends_with(".aac")
-            || path.ends_with(".mp4")
-            || query == "t.m3u8"
-            || query.starts_with("t.m3u8=")
-            || url_lower.contains("?t.m3u8");
-        if is_segment {
-            let mut builder = Response::builder().status(
-                StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::OK),
-            );
-            builder = builder.header("Access-Control-Allow-Origin", "*");
-            builder = builder.header(CONTENT_TYPE, infer_content_type(&ct, &target_url));
-            return builder.body(Body::from(body)).unwrap();
-        }
+    // Don't gate on upstream `is_hls` here — that's a content-type signal
+    // the upstream controls adversarially. Gate on body content instead:
+    // if the bytes actually start with `#EXTM3U`, it's a real manifest and
+    // must fall through to `rewrite_playlist` so the player's relative
+    // segment URLs resolve through the proxy (hlsxszt*.echovideo.to serves
+    // both real manifests and binary segments from URLs containing
+    // `?t.m3u8=` — the earlier `!is_hls` gate fbbb6fc let the binary slip
+    // through to `String::from_utf8_lossy` at line 986 and corrupt it).
+    let body_looks_manifest = body_trim.starts_with("#EXTM3U");
+    let url_lower = target_url.to_lowercase();
+    let seg_path = url_lower.split('?').next().unwrap_or(&url_lower);
+    let seg_query = url_lower.split('?').nth(1).unwrap_or("");
+    let is_segment = seg_path.ends_with(".ts")
+        || seg_path.ends_with(".m4s")
+        || seg_path.ends_with(".aac")
+        || seg_path.ends_with(".mp4")
+        || seg_query == "t.m3u8"
+        || seg_query.starts_with("t.m3u8=")
+        || url_lower.contains("?t.m3u8");
+    if is_segment && !body_looks_manifest && !looks_like_html && !looks_like_json {
+        let mut builder = Response::builder().status(
+            StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::OK),
+        );
+        builder = builder.header("Access-Control-Allow-Origin", "*");
+        builder = builder.header(CONTENT_TYPE, infer_content_type(&ct, &target_url));
+        return builder.body(Body::from(body)).unwrap();
     }
 
     if !is_hls && (looks_like_html || looks_like_json) {
@@ -2868,6 +2866,64 @@ Second cue"#;
         // Manifest URLs are NOT segments — they go through the playlist rewrite path.
         assert!(!is_segment_url("https://cdn.example.com/master.m3u8"));
         assert!(!is_segment_url("https://cdn.example.com/index.m3u8?token=foo"));
+    }
+
+    #[test]
+    fn test_echovideo_hotlink_ct_does_not_block_passthrough() {
+        // Regression: hlsxszt*.echovideo.to serves MPEG-TS bytes with a
+        // fake `content-type: application/vnd.apple.mpegurl` (hotlink
+        // protection). The m3u8_handler must NOT trust that ct as a
+        // signal that the body is a manifest — a TS body is never a
+        // manifest, regardless of what the upstream claims. The previous
+        // !is_hls gate (fbbb6fc) tripped on the adversarial ct and let
+        // the binary fall through to `String::from_utf8_lossy` → U+FFFD
+        // corruption. The new gate is `is_segment && !body_looks_manifest`.
+        //
+        // Decision function mirrors m3u8_handler lines 860-871.
+        fn should_passthrough_segment(target_url: &str, body_starts_with: &str) -> bool {
+            let url_lower = target_url.to_lowercase();
+            let seg_path = url_lower.split('?').next().unwrap_or(&url_lower);
+            let seg_query = url_lower.split('?').nth(1).unwrap_or("");
+            let is_segment = seg_path.ends_with(".ts")
+                || seg_path.ends_with(".m4s")
+                || seg_path.ends_with(".aac")
+                || seg_path.ends_with(".mp4")
+                || seg_query == "t.m3u8"
+                || seg_query.starts_with("t.m3u8=")
+                || url_lower.contains("?t.m3u8");
+            let body_looks_manifest = body_starts_with.starts_with("#EXTM3U");
+            let looks_like_html = body_starts_with.starts_with("<!DOCTYPE")
+                || body_starts_with.starts_with("<html")
+                || body_starts_with.starts_with("<HTML")
+                || body_starts_with.starts_with("<?xml");
+            let looks_like_json = body_starts_with.starts_with("{")
+                || body_starts_with.starts_with("[");
+            is_segment && !body_looks_manifest && !looks_like_html && !looks_like_json
+        }
+
+        // Binary TS body (starts with 0x47 = 'G' in UTF-8, NOT '#EXTM3U')
+        // with the adversarial hotlink ct — must passthrough.
+        assert!(should_passthrough_segment(
+            "https://hlsxszt2.echovideo.to/streams/60530/cache-7.ts?t.m3u8=abc",
+            "G\u{fffd}\u{fffd}\u{fffd}..." // from_utf8_lossy of a TS segment
+        ));
+        // Real m3u8 manifest served from a ?t.m3u8= URL — must NOT passthrough
+        // (must fall through to rewrite_playlist).
+        assert!(!should_passthrough_segment(
+            "https://hlsxszt2.echovideo.to/master.m3u8?t.m3u8=abc",
+            "#EXTM3U\n#EXT-X-VERSION:3\n"
+        ));
+        // HTML error page from a .ts URL — must NOT passthrough.
+        assert!(!should_passthrough_segment(
+            "https://cdn.example.com/seg.ts",
+            "<!DOCTYPE html><html>...error..."
+        ));
+        // Non-segment URL with a real m3u8 body — must NOT passthrough
+        // (would be a normal m3u8 manifest, not a hotlink-protected segment).
+        assert!(!should_passthrough_segment(
+            "https://cdn.example.com/playlist.m3u8?token=foo",
+            "#EXTM3U\n"
+        ));
     }
 
     #[test]
