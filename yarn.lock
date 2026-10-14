@@ -3135,6 +3135,11 @@ ttl-cache@^1.0.2:
   resolved "https://registry.npmjs.org/ttl-cache/-/ttl-cache-1.0.2.tgz"
   integrity sha512-EALdEXrLnzZ17/I7bZWQ006kj09oZ/3WVe1+12ANe38Ef8uv/flDH+MTrINIir8GTu8O6jRj+9Jz7yoDi4ADPQ==
 
+tweetnacl@^1.0.3:
+  version "1.0.3"
+  resolved "https://registry.npmjs.org/tweetnacl/-/tweetnacl-1.0.3.tgz"
+  integrity sha512-6rt+RN7aOi1nGMyC4Xa5DdYiukl2UWCbcJft7YhxReBGQD7OAM8Pbxw6YMo4r2diNEA8FEmu32YOn9rhaiE5yw==
+
 type-check@^0.4.0, type-check@~0.4.0:
   version "0.4.0"
   resolved "https://registry.npmjs.org/type-check/-/type-check-0.4.0.tgz"

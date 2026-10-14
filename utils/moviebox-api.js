@@ -46,11 +46,27 @@ axiosInstance.interceptors.request.use((reqConfig) => {
     }
 
     const randomUA = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+
+    // The device-registered mb_token from the refresh flow is sufficient as the
+    // auth token; the legacy hardcoded JWT expires and gets rejected as "invalid token".
+    let xUser = DEFAULT_X_USER;
     let token = null;
     try {
-        const userData = JSON.parse(DEFAULT_X_USER);
-        token = userData.token;
-    } catch {}
+        const m = cookie.match(/mb_token=%22([^%]+)%22|mb_token="([^"]+)"|mb_token=([^;]+)/);
+        const mbToken = m && (m[1] || m[2] || m[3]);
+        if (mbToken) {
+            const payload = JSON.parse(Buffer.from(mbToken.split('.')[1], 'base64url').toString());
+            xUser = JSON.stringify({ token: mbToken, userId: String(payload.uid || 0), userType: 0, appType: 2 });
+            token = mbToken;
+        }
+    } catch (e) {
+        console.warn('[MovieBox API] mb_token parse failed, falling back to static x-user:', e.message);
+    }
+    if (!token) {
+        try {
+            token = JSON.parse(DEFAULT_X_USER).token;
+        } catch {}
+    }
 
     // Use reqConfig.headers.set or direct assignment depending on axios version
     const setHeader = (name, value) => {
@@ -71,7 +87,7 @@ axiosInstance.interceptors.request.use((reqConfig) => {
         setHeader('Referer', `https://${host}/`);
     }
     
-    setHeader('x-user', DEFAULT_X_USER);
+    setHeader('x-user', xUser);
     setHeader('x-client-info', '{"timezone":"Europe/Berlin"}');
     
     if (token) {
